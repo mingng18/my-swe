@@ -232,7 +232,6 @@ app.post("/webhook/github", async (c) => {
         return c.json({ ok: true, message: "Pong!" });
 
       case "pull_request":
-        // TODO: Handle PR events (e.g., review, comment)
         log.info(
           {
             action: payload.action,
@@ -242,6 +241,28 @@ app.post("/webhook/github", async (c) => {
           "[webapp][github] PR event",
         );
         return c.json({ ok: true, message: "PR event received" });
+
+      case "pull_request_review":
+        log.info(
+          {
+            action: payload.action,
+            reviewId: payload.review?.id,
+            pullNumber: payload.pull_request?.number,
+          },
+          "[webapp][github] PR review event",
+        );
+        return c.json({ ok: true, message: "PR review event received" });
+
+      case "pull_request_review_comment":
+        log.info(
+          {
+            action: payload.action,
+            commentId: payload.comment?.id,
+            pullNumber: payload.pull_request?.number,
+          },
+          "[webapp][github] PR review comment event",
+        );
+        return c.json({ ok: true, message: "PR review comment event received" });
 
       case "issues":
         // TODO: Handle issue events
