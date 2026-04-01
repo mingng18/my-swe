@@ -12,6 +12,37 @@ import { IDENTITY_MAP } from "../identity";
 
 const logger = console;
 
+/**
+ * Simple LRU cache for paginated GitHub API requests.
+ */
+class LruCache<K, V> {
+  private cache = new Map<K, V>();
+  constructor(private capacity: number) {}
+  get(key: K): V | undefined {
+    if (!this.cache.has(key)) return undefined;
+    const value = this.cache.get(key)!;
+    this.cache.delete(key);
+    this.cache.set(key, value);
+    return value;
+  }
+  set(key: K, value: V): void {
+    if (this.cache.has(key)) {
+      this.cache.delete(key);
+    } else if (this.cache.size >= this.capacity) {
+      this.cache.delete(this.cache.keys().next().value!);
+    }
+    this.cache.set(key, value);
+  }
+}
+
+interface CacheEntry {
+  etag: string;
+  data: unknown[];
+  link?: string;
+}
+const requestCache = new LruCache<string, CacheEntry>(200);
+
+
 const OPEN_SWE_TAGS = ["@openswe", "@open-swe", "@openswe-dev"] as const;
 export const UNTRUSTED_GITHUB_COMMENT_OPEN_TAG =
   "<dangerous-external-untrusted-users-comment>";
@@ -342,27 +373,18 @@ export async function fetchIssueComments(
       auth: token,
     });
 
-    const comments: GitHubComment[] = [];
-    for await (const response of octokit.paginate.iterator(
+    const issueComments = await fetchWithCache<GitHubIssueComment>(
       octokit.rest.issues.listComments,
-      {
-        owner,
-        repo,
-        issue_number: issueNumber,
-        headers: {
-          "X-GitHub-Api-Version": "2022-11-28",
-        },
-      },
-    )) {
-      for (const comment of response.data as GitHubIssueComment[]) {
-        comments.push({
-          body: comment.body ?? "",
-          author: comment.user?.login ?? "unknown",
-          created_at: comment.created_at,
-          comment_id: comment.id,
-        });
-      }
-    }
+      { owner, repo, issue_number: issueNumber },
+      token ?? ""
+    );
+
+    const comments: GitHubComment[] = issueComments.map((comment) => ({
+      body: comment.body ?? "",
+      author: comment.user?.login ?? "unknown",
+      created_at: comment.created_at,
+      comment_id: comment.id,
+    }));
 
     return comments;
   } catch (error) {
@@ -400,13 +422,15 @@ export async function fetchPrCommentsSinceLastTag(
         octokit,
         octokit.rest.issues.listComments,
         { owner, repo, issue_number: prNumber },
+        token
       ),
       fetchPaginatedComments<GitHubPRComment>(
         octokit,
         octokit.rest.pulls.listReviewComments,
         { owner, repo, pull_number: prNumber },
+        token
       ),
-      fetchPaginatedReviews(octokit, { owner, repo, pull_number: prNumber }),
+      fetchPaginatedReviews(octokit, { owner, repo, pull_number: prNumber }, token),
     ]);
 
     const allComments: GitHubComment[] = [];
@@ -484,17 +508,9 @@ async function fetchPaginatedComments<T>(
   octokit: Octokit,
   method: (...args: any[]) => any,
   params: Record<string, unknown>,
+  token?: string,
 ): Promise<T[]> {
-  const results: T[] = [];
-  for await (const response of octokit.paginate.iterator(method as any, {
-    ...params,
-    headers: {
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
-  })) {
-    results.push(...(response.data as T[]));
-  }
-  return results;
+  return fetchWithCache<T>(method, params, token ?? "");
 }
 
 /**
@@ -503,20 +519,9 @@ async function fetchPaginatedComments<T>(
 async function fetchPaginatedReviews(
   octokit: Octokit,
   params: Record<string, unknown>,
+  token?: string,
 ): Promise<GitHubReview[]> {
-  const results: GitHubReview[] = [];
-  for await (const response of octokit.paginate.iterator(
-    octokit.rest.pulls.listReviews as any,
-    {
-      ...params,
-      headers: {
-        "X-GitHub-Api-Version": "2022-11-28",
-      },
-    },
-  )) {
-    results.push(...(response.data as GitHubReview[]));
-  }
-  return results;
+  return fetchWithCache<GitHubReview>(octokit.rest.pulls.listReviews, params, token ?? "");
 }
 
 /**
@@ -649,4 +654,58 @@ export function buildPrPrompt(
 
   const commentsText = lines.join("");
   return `You've been tagged in GitHub PR comments. Please resolve them.\n\nPR: ${prUrl}\n\n## Comments:\n${commentsText}\n\nIf code changes are needed:\n1. Make the changes in the sandbox\n2. Call \`commit_and_open_pr\` to push them to GitHub — this is REQUIRED, do NOT skip it\n3. Call \`github_comment\` with the PR number to post a summary on GitHub\n\nIf no code changes are needed:\n1. Call \`github_comment\` with the PR number to explain your answer — this is REQUIRED, never end silently\n\n**You MUST always call \`github_comment\` before finishing — whether or not changes were made.**`;
+}
+
+async function fetchWithCache<T>(
+  method: (...args: any[]) => any,
+  params: Record<string, unknown>,
+  token: string,
+): Promise<T[]> {
+  // Create a new isolated instance with the auth token so we don't permanently wrap hooks on a shared instance
+  const localOctokit = new Octokit({
+    auth: token || undefined,
+  });
+
+  localOctokit.hook.wrap("request", async (request, options) => {
+    // Generate a cache key that includes the auth token (to prevent cross-tenant leaks) and request url/params
+    const cacheKey = JSON.stringify({ token, url: options.url, method: options.method, params });
+    const cached = requestCache.get(cacheKey);
+
+    if (cached) {
+      options.headers = options.headers || {};
+      options.headers["If-None-Match"] = cached.etag;
+    }
+
+    try {
+      const response = await request(options);
+      if (response.headers?.etag && Array.isArray(response.data)) {
+        requestCache.set(cacheKey, { etag: response.headers.etag, data: response.data, link: response.headers.link });
+      }
+      return response;
+    } catch (error: any) {
+      if (error.status === 304 && cached) {
+        return {
+          status: 200, // Return 200 so pagination continues properly instead of erroring out
+          url: options.url,
+          headers: {
+            ...error.response?.headers,
+            link: cached.link // Provide link header for pagination to continue!
+          },
+          data: cached.data,
+        } as any;
+      }
+      throw error;
+    }
+  });
+
+  const results: T[] = [];
+  for await (const response of localOctokit.paginate.iterator(method as any, {
+    ...params,
+    headers: {
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+  })) {
+    results.push(...(response.data as T[]));
+  }
+  return results;
 }
