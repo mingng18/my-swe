@@ -1,0 +1,95 @@
+import { existsSync, readFileSync } from "node:fs";
+
+/** Load env for the Telegram bot. Extend as other subsystems are added. */
+export function loadTelegramConfig(): { telegramBotToken: string } {
+  const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
+  if (!token) {
+    throw new Error(
+      "Missing TELEGRAM_BOT_TOKEN. Copy .env.example to .env and set your bot token from @BotFather.",
+    );
+  }
+  return { telegramBotToken: token };
+}
+
+/** Where the linter runs (clone target later; defaults to process cwd). */
+export function loadPipelineConfig(): {
+  workspaceRoot: string;
+  linterCommand: string;
+} {
+  const workspaceRoot = process.env.WORKSPACE_ROOT?.trim() || process.cwd();
+  const linterCommand =
+    process.env.LINTER_COMMAND?.trim() || "bunx tsc --noEmit";
+  return { workspaceRoot, linterCommand };
+}
+
+/** OpenAI-compatible API (OpenAI, OpenRouter, Z.ai, etc.) */
+export function loadLlmConfig(): {
+  openaiBaseUrl: string;
+  openaiApiKey: string;
+  model: string;
+  fallback?: {
+    openaiBaseUrl: string;
+    openaiApiKey: string;
+    model: string;
+  };
+} {
+  const openaiApiKey = process.env.OPENAI_API_KEY?.trim();
+  const model = process.env.MODEL?.trim();
+  const openaiBaseUrl =
+    process.env.OPENAI_BASE_URL?.trim() || "https://api.openai.com/v1";
+  if (!openaiApiKey) {
+    throw new Error(
+      "Missing OPENAI_API_KEY. Set it in .env (see .env.example).",
+    );
+  }
+  if (!model) {
+    throw new Error("Missing MODEL. Set it in .env (see .env.example).");
+  }
+
+  const fallbackApiKey = process.env.OPENAI_API_KEY_FALLBACK?.trim();
+  const fallbackModel = process.env.MODEL_FALLBACK?.trim();
+  const fallbackBaseUrl =
+    process.env.OPENAI_BASE_URL_FALLBACK?.trim() || openaiBaseUrl;
+
+  const hasAnyFallback =
+    Boolean(fallbackApiKey) ||
+    Boolean(fallbackModel) ||
+    Boolean(process.env.OPENAI_BASE_URL_FALLBACK?.trim());
+
+  if (hasAnyFallback && (!fallbackApiKey || !fallbackModel)) {
+    throw new Error(
+      "Fallback LLM config requires both OPENAI_API_KEY_FALLBACK and MODEL_FALLBACK when any fallback variable is set.",
+    );
+  }
+
+  const fallback =
+    fallbackApiKey && fallbackModel
+      ? {
+          openaiBaseUrl: fallbackBaseUrl,
+          openaiApiKey: fallbackApiKey,
+          model: fallbackModel,
+        }
+      : undefined;
+
+  return { openaiBaseUrl, openaiApiKey, model, fallback };
+}
+
+/**
+ * Validate startup configuration for deployment-critical settings.
+ */
+export function validateStartupConfig(): void {
+  // Validate LLM configuration and optional fallback pairings.
+  loadLlmConfig();
+
+  const langgraphPath = "langgraph.json";
+  if (existsSync(langgraphPath)) {
+    const raw = readFileSync(langgraphPath, "utf8");
+    const parsed = JSON.parse(raw) as { graphs?: Record<string, string> };
+    const agentExport = parsed.graphs?.agent || "";
+    if (!agentExport.endsWith("getGraphForExport")) {
+      throw new Error(
+        `Invalid langgraph graph export '${agentExport}'. Expected export ending with 'getGraphForExport'.`,
+      );
+    }
+  }
+}

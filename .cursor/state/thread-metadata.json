@@ -1,0 +1,14 @@
+{
+  "repos": {
+    "default-session": {
+      "owner": "mingng18",
+      "name": "my-swe",
+      "workspaceDir": "/root/my-swe",
+      "sandbox": {
+        "sandboxId": "c4302954-367d-4ee0-a9ad-91f6f7cd2989",
+        "profile": "typescript"
+      },
+      "updatedAt": "2026-03-27T11:22:57.855Z"
+    }
+  }
+}

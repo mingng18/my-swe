@@ -1,0 +1,133 @@
+{
+  "version": 1,
+  "transcripts": {
+    "/Users/ming/.cursor/projects/Users-ming-Documents-GitHub-my-swe/agent-transcripts/279b7883-36a7-435c-b193-79d257664efc/279b7883-36a7-435c-b193-79d257664efc.jsonl": {
+      "mtimeMs": 1774274873231,
+      "lastProcessedAt": "2026-03-27T02:03:39Z"
+    },
+    "/Users/ming/.cursor/projects/Users-ming-Documents-GitHub-my-swe/agent-transcripts/3f851f02-d388-4c00-8b0b-0a3cb4027157/3f851f02-d388-4c00-8b0b-0a3cb4027157.jsonl": {
+      "mtimeMs": 1774529689830,
+      "lastProcessedAt": "2026-03-27T02:03:39Z"
+    },
+    "/Users/ming/.cursor/projects/Users-ming-Documents-GitHub-my-swe/agent-transcripts/53760e82-4142-435a-9760-140a8bd045ed/53760e82-4142-435a-9760-140a8bd045ed.jsonl": {
+      "mtimeMs": 1774535130942,
+      "lastProcessedAt": "2026-03-27T02:03:39Z"
+    },
+    "/Users/ming/.cursor/projects/Users-ming-Documents-GitHub-my-swe/agent-transcripts/57159a27-8206-4e91-a6e8-533a2085d6d8/57159a27-8206-4e91-a6e8-533a2085d6d8.jsonl": {
+      "mtimeMs": 1774537894218,
+      "lastProcessedAt": "2026-03-27T02:03:39Z"
+    },
+    "/Users/ming/.cursor/projects/Users-ming-Documents-GitHub-my-swe/agent-transcripts/57159a27-8206-4e91-a6e8-533a2085d6d8/subagents/9ede8200-909b-41ff-9f96-49417d8bba50.jsonl": {
+      "mtimeMs": 1774536376607,
+      "lastProcessedAt": "2026-03-27T02:03:39Z"
+    },
+    "/Users/ming/.cursor/projects/Users-ming-Documents-GitHub-my-swe/agent-transcripts/674ac163-b4be-4688-ba9a-dc187112a5ad/674ac163-b4be-4688-ba9a-dc187112a5ad.jsonl": {
+      "mtimeMs": 1774538188790,
+      "lastProcessedAt": "2026-03-27T02:03:39Z"
+    },
+    "/Users/ming/.cursor/projects/Users-ming-Documents-GitHub-my-swe/agent-transcripts/bfef5a04-4123-41b2-a152-1c2c23f00d55/bfef5a04-4123-41b2-a152-1c2c23f00d55.jsonl": {
+      "mtimeMs": 1774261319472,
+      "lastProcessedAt": "2026-03-27T02:03:39Z"
+    },
+    "/Users/ming/.cursor/projects/Users-ming-Documents-GitHub-my-swe/agent-transcripts/de46d0e9-1778-4181-bd9e-895e4c3affac/de46d0e9-1778-4181-bd9e-895e4c3affac.jsonl": {
+      "mtimeMs": 1774577183250,
+      "lastProcessedAt": "2026-03-27T04:08:02Z"
+    },
+    "/Users/ming/.cursor/projects/Users-ming-Documents-GitHub-my-swe/agent-transcripts/de46d0e9-1778-4181-bd9e-895e4c3affac/subagents/a684d2f4-7372-4107-aa8d-185c49d7a6ed.jsonl": {
+      "mtimeMs": 1774577029093,
+      "lastProcessedAt": "2026-03-27T04:08:02Z"
+    },
+    "/Users/ming/.cursor/projects/Users-ming-Documents-GitHub-my-swe/agent-transcripts/24971b3c-3200-4635-a9a9-6f01c6a2a2e1/24971b3c-3200-4635-a9a9-6f01c6a2a2e1.jsonl": {
+      "mtimeMs": 1774582837915,
+      "lastProcessedAt": "2026-03-27T04:08:02Z"
+    },
+    "/Users/ming/.cursor/projects/Users-ming-Documents-GitHub-my-swe/agent-transcripts/2ca7aa95-1873-4f29-adde-4bbbb82a33a4/2ca7aa95-1873-4f29-adde-4bbbb82a33a4.jsonl": {
+      "mtimeMs": 1774583623261,
+      "lastProcessedAt": "2026-03-27T04:08:02Z"
+    },
+    "/Users/ming/.cursor/projects/Users-ming-Documents-GitHub-my-swe/agent-transcripts/2ca7aa95-1873-4f29-adde-4bbbb82a33a4/subagents/8e4e6d00-bab2-4a4e-b555-78c1f5171c78.jsonl": {
+      "mtimeMs": 1774578279657,
+      "lastProcessedAt": "2026-03-27T04:08:02Z"
+    },
+    "/Users/ming/.cursor/projects/Users-ming-Documents-GitHub-my-swe/agent-transcripts/2ca7aa95-1873-4f29-adde-4bbbb82a33a4/subagents/b8e90820-3e78-44d6-860d-99da9d42c6cc.jsonl": {
+      "mtimeMs": 1774583058637,
+      "lastProcessedAt": "2026-03-27T04:08:02Z"
+    },
+    "/Users/ming/.cursor/projects/Users-ming-Documents-GitHub-my-swe/agent-transcripts/5907eb62-8135-462c-9335-0431b5c05609/5907eb62-8135-462c-9335-0431b5c05609.jsonl": {
+      "mtimeMs": 1774610959564,
+      "lastProcessedAt": "2026-03-27T11:35:21Z"
+    },
+    "/Users/ming/.cursor/projects/Users-ming-Documents-GitHub-my-swe/agent-transcripts/5907eb62-8135-462c-9335-0431b5c05609/subagents/599a8b50-3801-4317-96aa-ed1f787421d9.jsonl": {
+      "mtimeMs": 1774578380183,
+      "lastProcessedAt": "2026-03-27T04:08:02Z"
+    },
+    "/Users/ming/.cursor/projects/Users-ming-Documents-GitHub-my-swe/agent-transcripts/5907eb62-8135-462c-9335-0431b5c05609/subagents/f21649bf-7a58-4822-a58d-b5aac917b611.jsonl": {
+      "mtimeMs": 1774578317610,
+      "lastProcessedAt": "2026-03-27T04:08:02Z"
+    },
+    "/Users/ming/.cursor/projects/Users-ming-Documents-GitHub-my-swe/agent-transcripts/654b2546-ab82-4445-8aad-deb520c81fa4/654b2546-ab82-4445-8aad-deb520c81fa4.jsonl": {
+      "mtimeMs": 1774585011700,
+      "lastProcessedAt": "2026-03-27T09:32:54Z"
+    },
+    "/Users/ming/.cursor/projects/Users-ming-Documents-GitHub-my-swe/agent-transcripts/654b2546-ab82-4445-8aad-deb520c81fa4/subagents/1812459f-bc71-4e68-8d4f-97db14d6e4a0.jsonl": {
+      "mtimeMs": 1774584493941,
+      "lastProcessedAt": "2026-03-27T09:32:54Z"
+    },
+    "/Users/ming/.cursor/projects/Users-ming-Documents-GitHub-my-swe/agent-transcripts/cb888e41-77e2-4cf6-bb14-06f2858aaa9d/cb888e41-77e2-4cf6-bb14-06f2858aaa9d.jsonl": {
+      "mtimeMs": 1774583509260,
+      "lastProcessedAt": "2026-03-27T04:08:02Z"
+    },
+    "/Users/ming/.cursor/projects/Users-ming-Documents-GitHub-my-swe/agent-transcripts/d13ab153-ecf2-45dd-8341-7c32f419bb51/d13ab153-ecf2-45dd-8341-7c32f419bb51.jsonl": {
+      "mtimeMs": 1774611206531,
+      "lastProcessedAt": "2026-03-27T11:35:21Z"
+    },
+    "/Users/ming/.cursor/projects/Users-ming-Documents-GitHub-my-swe/agent-transcripts/d13ab153-ecf2-45dd-8341-7c32f419bb51/subagents/35f94387-2cc4-4a13-baae-a5a9268568aa.jsonl": {
+      "mtimeMs": 1774578283632,
+      "lastProcessedAt": "2026-03-27T04:08:02Z"
+    },
+    "/Users/ming/.cursor/projects/Users-ming-Documents-GitHub-my-swe/agent-transcripts/de46d0e9-1778-4181-bd9e-895e4c3affac/subagents/36fa23bc-b838-497d-961a-a6b30f285783.jsonl": {
+      "mtimeMs": 1774577148624,
+      "lastProcessedAt": "2026-03-27T04:08:02Z"
+    },
+    "/Users/ming/.cursor/projects/Users-ming-Documents-GitHub-my-swe/agent-transcripts/5c37a321-be1f-4d6f-a319-50172134312c/5c37a321-be1f-4d6f-a319-50172134312c.jsonl": {
+      "mtimeMs": 1774602459740,
+      "lastProcessedAt": "2026-03-27T09:32:54Z"
+    },
+    "/Users/ming/.cursor/projects/Users-ming-Documents-GitHub-my-swe/agent-transcripts/69762ac4-3265-4163-95bb-297c1742bdef/69762ac4-3265-4163-95bb-297c1742bdef.jsonl": {
+      "mtimeMs": 1774605365962,
+      "lastProcessedAt": "2026-03-27T11:35:21Z"
+    },
+    "/Users/ming/.cursor/projects/Users-ming-Documents-GitHub-my-swe/agent-transcripts/69762ac4-3265-4163-95bb-297c1742bdef/subagents/cac3cacf-98ec-4c3c-a368-a874a92a8c0a.jsonl": {
+      "mtimeMs": 1774604035963,
+      "lastProcessedAt": "2026-03-27T11:35:21Z"
+    },
+    "/Users/ming/.cursor/projects/Users-ming-Documents-GitHub-my-swe/agent-transcripts/f8eb3b16-286d-4a1c-8e41-e4a69f590f30/f8eb3b16-286d-4a1c-8e41-e4a69f590f30.jsonl": {
+      "mtimeMs": 1774602585960,
+      "lastProcessedAt": "2026-03-27T09:32:54Z"
+    },
+    "/Users/ming/.cursor/projects/Users-ming-Documents-GitHub-my-swe/agent-transcripts/02b488d9-de97-4051-ad37-586f7b2166bf/02b488d9-de97-4051-ad37-586f7b2166bf.jsonl": {
+      "mtimeMs": 1774609695199,
+      "lastProcessedAt": "2026-03-27T11:35:21Z"
+    },
+    "/Users/ming/.cursor/projects/Users-ming-Documents-GitHub-my-swe/agent-transcripts/02b488d9-de97-4051-ad37-586f7b2166bf/subagents/83652d8a-9b08-48b7-ab5d-c8080fca4bb0.jsonl": {
+      "mtimeMs": 1774609682643,
+      "lastProcessedAt": "2026-03-27T11:35:21Z"
+    },
+    "/Users/ming/.cursor/projects/Users-ming-Documents-GitHub-my-swe/agent-transcripts/02b488d9-de97-4051-ad37-586f7b2166bf/subagents/89b21ae1-4c09-49a3-821e-6f74863545e8.jsonl": {
+      "mtimeMs": 1774609137646,
+      "lastProcessedAt": "2026-03-27T11:35:21Z"
+    },
+    "/Users/ming/.cursor/projects/Users-ming-Documents-GitHub-my-swe/agent-transcripts/02b488d9-de97-4051-ad37-586f7b2166bf/subagents/f7a3d034-16cf-43f4-939f-f93798832eba.jsonl": {
+      "mtimeMs": 1774609423861,
+      "lastProcessedAt": "2026-03-27T11:35:21Z"
+    },
+    "/Users/ming/.cursor/projects/Users-ming-Documents-GitHub-my-swe/agent-transcripts/d13ab153-ecf2-45dd-8341-7c32f419bb51/subagents/ca6311af-66a8-4e79-bab8-eb9b90843383.jsonl": {
+      "mtimeMs": 1774611228725,
+      "lastProcessedAt": "2026-03-27T11:35:21Z"
+    },
+    "/Users/ming/.cursor/projects/Users-ming-Documents-GitHub-my-swe/agent-transcripts/eed87250-00e3-454d-b13e-0ca296f9b4e5/eed87250-00e3-454d-b13e-0ca296f9b4e5.jsonl": {
+      "mtimeMs": 1774610942419,
+      "lastProcessedAt": "2026-03-27T11:35:21Z"
+    }
+  }
+}

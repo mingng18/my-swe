@@ -1,0 +1,85 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+**Bullhorse** is an agentic coder + deterministic linter pipeline built with LangGraph. It can be deployed as a Telegram bot, HTTP API, or to LangGraph Cloud.
+
+The graph follows a two-node pipeline: `coder` (agentic LLM reasoning via a pluggable harness, default **OpenCode**) → `linter` (deterministic shell command for verification).
+
+## Common Commands
+
+```bash
+# Development with hot reload
+bun run dev
+
+# Start production server
+bun run start
+
+# Run tests
+bun test
+
+# LangGraph development server
+langgraph dev
+
+# Docker
+make docker-build && make docker-run
+
+# TypeScript check (default linter)
+bunx tsc --noEmit
+```
+
+## Architecture
+
+### Graph Structure (LangGraph StateGraph)
+- **Entry point**: `src/server.ts:getGraph()` - compiled LangGraph for LangGraph Platform
+- **State**: `src/utils/state.ts` - defines `CodeagentState` with `input`, `reply`, `error` fields
+- **Nodes**:
+  - `src/nodes/coder.ts` - Agentic node using DeepAgents SDK
+  - `src/nodes/linter.ts` - Deterministic node running shell commands
+
+### Agent Harness Pattern
+The `coder` node uses an `AgentHarness` abstraction (`src/harness/agentHarness.ts`) to support pluggable agent backends:
+- **Provider factory**: `src/harness/index.ts` - selects backend via `AGENT_PROVIDER`
+- **OpenCode** (default): `src/harness/opencode.ts` - uses `@opencode-ai/sdk`
+- **DeepAgents** (optional fallback): `src/harness/deepagents.ts` - uses `deepagents` npm package with FilesystemBackend
+- Tools are registered in `src/tools/index.ts` and passed to the DeepAgent constructor
+
+### Transport Layers
+- **Hono webapp**: `src/webapp.ts` - HTTP API with endpoints for `/run`, `/health`, `/info`, `/v1/chat/completions`, and webhooks
+- **Telegram**: Long polling mode for local development (`src/index.ts`), webhook mode for production (`src/webapp.ts`)
+
+### GitHub Integration
+- Tools support `--repo owner/name` syntax for repo targeting
+- Bare `--repo name` uses `GITHUB_DEFAULT_OWNER` env var
+- Repo state persists per thread via `threadRepoMap` in `src/harness/deepagents.ts`
+
+## LLM Configuration
+
+Uses OpenAI-compatible API trio (works with OpenAI, OpenRouter, Z.ai GLM):
+- `OPENAI_BASE_URL` - API base URL (include `/v1` if required)
+- `OPENAI_API_KEY` - API key for that host
+- `MODEL` - Model identifier
+
+The model string is prefixed with `openai:` in `src/harness/deepagents.ts` to force LangChain's provider inference.
+
+## Adding New Tools
+
+Create tool functions in `src/tools/` and export them. Tools are LangChain-compatible functions passed to DeepAgents via the `tools` array in `createDeepAgent()`.
+
+## Environment Setup
+
+Copy `.env.example` to `.env` and configure:
+- Required for LLM: `OPENAI_BASE_URL`, `OPENAI_API_KEY`, `MODEL`
+- Required for Telegram: `TELEGRAM_BOT_TOKEN`
+- Optional for GitHub: `GITHUB_TOKEN`, `GITHUB_DEFAULT_OWNER`, `GITHUB_WEBHOOK_SECRET`
+- Optional: `PORT` (default 7860), `WEBHOOK_URL`, `WORKSPACE_ROOT`, `LINTER_COMMAND`
+
+## Deployment
+
+LangGraph Platform uses `langgraph.json` config:
+- Graph: `src/server.ts:getGraph`
+- HTTP app: `src/webapp.ts:default`
+- Node version: 22
+- Environment: `.env`
