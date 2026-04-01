@@ -3,6 +3,14 @@ import { loadPipelineConfig } from "../utils/config";
 import type { CodeagentStateType } from "../utils/state";
 import { getSandboxBackendSync } from "../utils/sandboxState";
 
+/**
+ * Safely embed an arbitrary string into a POSIX shell command.
+ * Produces: 'foo'"'"'bar' style quoting.
+ */
+function shellEscapeSingleQuotes(input: string): string {
+  return `'${input.replace(/'/g, `'"'"'`)}'`;
+}
+
 const logger = createLogger("format");
 
 /**
@@ -68,7 +76,7 @@ export async function formatNode(state: CodeagentStateType) {
         // Use Biome for formatting
         logger.info("[codeagent][deterministic][format] Using Biome in sandbox");
 
-        const result = await sandbox.execute(`cd "${workDir}" && bunx biome format --write . 2>&1`);
+        const result = await sandbox.execute(`cd ${shellEscapeSingleQuotes(workDir as string)} && bunx biome format --write . 2>&1`);
         const output = result.output;
 
         // Parse output for files changed
@@ -84,7 +92,7 @@ export async function formatNode(state: CodeagentStateType) {
         // Use Prettier for formatting
         logger.info("[codeagent][deterministic][format] Using Prettier in sandbox");
 
-        const result = await sandbox.execute(`cd "${workDir}" && bunx prettier --write . 2>&1`);
+        const result = await sandbox.execute(`cd ${shellEscapeSingleQuotes(workDir as string)} && bunx prettier --write . 2>&1`);
 
         formatResult = {
           success: result.exitCode === 0,
@@ -105,7 +113,7 @@ export async function formatNode(state: CodeagentStateType) {
         logger.info("[codeagent][deterministic][format] Using Biome locally");
 
         const proc = BunModule.spawn(
-          ["sh", "-c", `cd "${workDir}" && bunx biome format --write .`],
+          ["sh", "-c", `cd ${shellEscapeSingleQuotes(workDir as string)} && bunx biome format --write .`],
           {
             stdout: "pipe",
             stderr: "pipe",
@@ -130,7 +138,7 @@ export async function formatNode(state: CodeagentStateType) {
         logger.info("[codeagent][deterministic][format] Using Prettier locally");
 
         const proc = BunModule.spawn(
-          ["sh", "-c", `cd "${workDir}" && bunx prettier --write .`],
+          ["sh", "-c", `cd ${shellEscapeSingleQuotes(workDir as string)} && bunx prettier --write .`],
           {
             stdout: "pipe",
             stderr: "pipe",
