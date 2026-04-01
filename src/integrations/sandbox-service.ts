@@ -407,24 +407,28 @@ export class SandboxService implements FilesystemPort, SandboxBackendPort {
       if (sb?.git && typeof sb.git.clone === "function") return;
     }
 
-    const check = await this.execute(`sh -lc 'command -v git >/dev/null 2>&1'`);
+    // Combine check and install into one command to reduce network roundtrips
+    const installScript = `
+      if command -v git >/dev/null 2>&1; then return 0; fi;
+      echo "git not found; attempting to install inside sandbox";
+      if command -v apt-get >/dev/null 2>&1; then
+        apt-get update -y && apt-get install -y git ca-certificates && return 0;
+      elif command -v apk >/dev/null 2>&1; then
+        apk add --no-cache git ca-certificates && return 0;
+      else
+        return 127;
+      fi;
+    `.trim().replace(/\n\s*/g, ' ');
+
+    const check = await this.execute(`sh -lc 'install_git() { ${installScript}; }; install_git'`);
+
+    if (check.output && check.output.includes("attempting to install inside sandbox")) {
+      logger.info(
+        `[sandbox-service] git not found; attempting to install inside sandbox`,
+      );
+    }
+
     if (check.exitCode === 0) return;
-
-    logger.info(
-      `[sandbox-service] git not found; attempting to install inside sandbox`,
-    );
-
-    // Debian/Ubuntu
-    const apt = await this.execute(
-      `sh -lc 'command -v apt-get >/dev/null 2>&1 && (apt-get update -y && apt-get install -y git ca-certificates) || exit 127'`,
-    );
-    if (apt.exitCode === 0) return;
-
-    // Alpine
-    const apk = await this.execute(
-      `sh -lc 'command -v apk >/dev/null 2>&1 && (apk add --no-cache git ca-certificates) || exit 127'`,
-    );
-    if (apk.exitCode === 0) return;
 
     throw new Error(
       `git is required but was not found and could not be installed automatically (apt-get/apk unavailable).`,
