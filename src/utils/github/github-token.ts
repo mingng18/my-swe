@@ -80,7 +80,7 @@ export function getGithubToken(): string | null {
 
     // For now, check environment variable as fallback
     const token = process.env.GITHUB_TOKEN?.trim();
-    return token ?? null;
+    return token ? token : null;
   } catch (error) {
     logger.error("[github_token] Failed to get GitHub token from config:", error);
     return null;
