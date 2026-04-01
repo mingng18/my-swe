@@ -5,7 +5,7 @@ import { logger as httpLogger } from "hono/logger";
 
 import { runCodeagentTurn } from "./server";
 import { loadTelegramConfig } from "./utils/config";
-import { verifyGithubSignature } from "./utils/github/github-comments";
+import { verifyGithubSignature, postGithubComment, getGithubToken, getGithubAppInstallationToken } from "./utils/github";
 
 const log = createLogger("webapp");
 
@@ -243,17 +243,54 @@ app.post("/webhook/github", async (c) => {
         );
         return c.json({ ok: true, message: "PR event received" });
 
-      case "issues":
-        // TODO: Handle issue events
+      case "issues": {
+        const action = payload.action;
+        const issue = payload.issue;
+        const repository = payload.repository;
+
         log.info(
           {
-            action: payload.action,
-            number: payload.issue?.number,
-            title: payload.issue?.title,
+            action,
+            number: issue?.number,
+            title: issue?.title,
           },
           "[webapp][github] Issue event",
         );
+
+        if (action === "opened" && issue && repository) {
+          const issueTitle = issue.title || "";
+          const issueBody = issue.body || "";
+          const repoOwner = repository.owner?.login;
+          const repoName = repository.name;
+          const issueNumber = issue.number;
+
+          if (repoOwner && repoName && issueNumber) {
+            // Process issue asynchronously
+            void (async () => {
+              try {
+                const prompt = `New issue opened in ${repoOwner}/${repoName}#${issueNumber}:\nTitle: ${issueTitle}\n\n${issueBody}\n\nPlease analyze this issue and provide a helpful response.`;
+                const reply = await runCodeagentTurn(prompt);
+
+                const token = getGithubToken() || (await getGithubAppInstallationToken());
+                if (token) {
+                  await postGithubComment(
+                    { owner: repoOwner, name: repoName },
+                    issueNumber,
+                    reply,
+                    token
+                  );
+                  log.info({ issueNumber }, "[webapp][github] Posted reply to issue");
+                } else {
+                  log.warn("[webapp][github] No GitHub token available to post issue comment");
+                }
+              } catch (err) {
+                log.error({ err }, "[webapp][github] Error processing issue event");
+              }
+            })();
+          }
+        }
         return c.json({ ok: true, message: "Issue event received" });
+      }
 
       case "push":
         // TODO: Handle push events
