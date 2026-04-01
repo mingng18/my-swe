@@ -1,3 +1,4 @@
+import { shellEscapeSingleQuotes } from "../utils/shell";
 /**
  * After-agent middleware that creates a GitHub PR if needed.
  *
@@ -25,9 +26,6 @@ import type { SandboxService } from "../integrations/sandbox-service";
 
 const logger = createLogger("open-pr-middleware");
 
-function shellEscapeSingleQuotes(input: string): string {
-  return `'${input.replace(/'/g, `'"'"'`)}'`;
-}
 
 /**
  * Message interface from the agent state.

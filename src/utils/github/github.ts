@@ -1,3 +1,4 @@
+import { shellEscapeSingleQuotes } from "../shell";
 /**
  * GitHub API and git utilities.
  *
@@ -19,9 +20,6 @@ const HTTP_UNPROCESSABLE_ENTITY = 422;
  * Safely embed an arbitrary string into a POSIX shell command.
  * Produces: 'foo'"'"'bar' style quoting.
  */
-function shellEscapeSingleQuotes(input: string): string {
-  return `'${input.replace(/'/g, `'"'"'`)}'`;
-}
 
 export interface ExecuteResponse {
   exitCode: number;

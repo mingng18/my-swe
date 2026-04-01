@@ -1,3 +1,4 @@
+import { shellEscapeSingleQuotes } from "../utils/shell";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import {
@@ -18,9 +19,6 @@ import { createLogger } from "../utils/logger";
 
 const logger = createLogger("commit-and-open-pr-tool");
 
-function shellEscapeSingleQuotes(input: string): string {
-  return `'${input.replace(/'/g, `'"'"'`)}'`;
-}
 
 function slugifyBranchPart(input: string): string {
   return input

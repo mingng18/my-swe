@@ -1,3 +1,4 @@
+import { shellEscapeSingleQuotes } from "../utils/shell";
 import { createLogger } from "../utils/logger";
 import { loadPipelineConfig } from "../utils/config";
 import type { CodeagentStateType } from "../utils/state";
@@ -92,14 +93,14 @@ export async function testsNode(state: CodeagentStateType) {
         }
 
         const result = await sandbox.execute(
-          `cd "${workDir}" && ${testCommand} 2>&1`,
+          `cd ${shellEscapeSingleQuotes(workDir || "")} && ${testCommand} 2>&1`,
         );
         output = result.output;
         exitCode = result.exitCode ?? 1;
       } else {
         // Run locally
         const proc = BunModule.spawn(
-          ["sh", "-c", `cd "${workDir}" && ${testCommand}`],
+          ["sh", "-c", `cd ${shellEscapeSingleQuotes(workDir || "")} && ${testCommand}`],
           {
             stdout: "pipe",
             stderr: "pipe",
