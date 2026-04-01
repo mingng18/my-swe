@@ -9,6 +9,13 @@ const execAsync = promisify(exec);
 const logger = createLogger("linter");
 
 /**
+ * Safely escapes a string for use as a shell argument.
+ */
+function escapeShellArg(arg: string): string {
+  return `'${arg.replace(/'/g, "'\\''")}'`;
+}
+
+/**
  * Deterministic node: same workspace + command → same exit code/output for a clean tree.
  * No LLM; provides an auditable gate after agentic generation (lint/typecheck).
  *
@@ -58,7 +65,7 @@ export async function linterNode(state: CodeagentStateType) {
       }
 
       const result = await sandbox.execute(
-        `cd "${workDir}" && ${linterCommand} 2>&1`,
+        `cd ${escapeShellArg(workDir as string)} && ${linterCommand} 2>&1`,
       );
       stdout = result.output;
       stderr = "";
