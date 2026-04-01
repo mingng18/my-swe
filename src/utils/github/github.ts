@@ -50,27 +50,31 @@ interface GitHubRepoResponse {
   default_branch?: string;
 }
 
+
 /**
- * Run a git command in the sandbox repo directory.
+ * Run a git command safely by escaping arguments.
  * @param backend - The sandbox backend
  * @param repoDir - Repository directory path
- * @param command - Git command to run
- * @returns Execute response with exit code and output
+ * @param args - Git command arguments
+ * @returns Execute response with output
  */
 function runGit(
   backend: SandboxService,
   repoDir: string,
-  command: string,
+  args: string[],
 ): Promise<string> {
+  const escapedArgs = args.map(shellEscapeSingleQuotes).join(" ");
+  const command = `git ${escapedArgs}`;
+
   return backend
     .execute(`cd ${shellEscapeSingleQuotes(repoDir)} && ${command}`)
     .then((r) => {
-    const exitCode = r.exitCode ?? 0;
-    if (exitCode !== 0) {
-      const details = (r.output || "unknown error").trim();
-      throw new Error(`Git command failed: ${command}\n${details}`);
-    }
-    return r.output;
+      const exitCode = r.exitCode ?? 0;
+      if (exitCode !== 0) {
+        const details = (r.output || "unknown error").trim();
+        throw new Error(`Git command failed: ${command}\n${details}`);
+      }
+      return r.output;
     });
 }
 
@@ -118,7 +122,7 @@ export async function gitHasUncommittedChanges(
   backend: SandboxService,
   repoDir: string,
 ): Promise<boolean> {
-  const result = await runGit(backend, repoDir, "git status --porcelain");
+  const result = await runGit(backend, repoDir, ["status", "--porcelain"]);
   return result.trim().length > 0;
 }
 
@@ -132,7 +136,7 @@ export async function gitFetchOrigin(
   backend: SandboxService,
   repoDir: string,
 ): Promise<string> {
-  return await runGit(backend, repoDir, "git fetch origin 2>/dev/null || true");
+  return (await backend.execute(`cd ${shellEscapeSingleQuotes(repoDir)} && git fetch origin 2>/dev/null || true`)).output;
 }
 
 /**
@@ -148,7 +152,7 @@ export async function gitHasUnpushedCommits(
   const gitLogCmd =
     "git log --oneline @{upstream}..HEAD 2>/dev/null " +
     "|| git log --oneline origin/HEAD..HEAD 2>/dev/null || echo ''";
-  const result = await runGit(backend, repoDir, gitLogCmd);
+  const result = (await backend.execute(`cd ${shellEscapeSingleQuotes(repoDir)} && ${gitLogCmd}`)).output;
   return result.trim().length > 0;
 }
 
@@ -162,11 +166,7 @@ export async function gitCurrentBranch(
   backend: SandboxService,
   repoDir: string,
 ): Promise<string> {
-  const result = await runGit(
-    backend,
-    repoDir,
-    "git rev-parse --abbrev-ref HEAD",
-  );
+  const result = await runGit(backend, repoDir, ["rev-parse", "--abbrev-ref", "HEAD"]);
   return result.trim();
 }
 
@@ -182,11 +182,7 @@ export async function gitCheckoutBranch(
   repoDir: string,
   branch: string,
 ): Promise<boolean> {
-  await runGit(
-    backend,
-    repoDir,
-    `git checkout -B ${shellEscapeSingleQuotes(branch)}`,
-  );
+  await runGit(backend, repoDir, ["checkout", "-B", branch]);
   return true;
 }
 
@@ -203,16 +199,8 @@ export async function gitConfigUser(
   name: string,
   email: string,
 ): Promise<void> {
-  await runGit(
-    backend,
-    repoDir,
-    `git config user.name ${shellEscapeSingleQuotes(name)}`,
-  );
-  await runGit(
-    backend,
-    repoDir,
-    `git config user.email ${shellEscapeSingleQuotes(email)}`,
-  );
+  await runGit(backend, repoDir, ["config", "user.name", name]);
+  await runGit(backend, repoDir, ["config", "user.email", email]);
 }
 
 /**
@@ -225,7 +213,7 @@ export async function gitAddAll(
   backend: SandboxService,
   repoDir: string,
 ): Promise<string> {
-  return await runGit(backend, repoDir, "git add -A");
+  return await runGit(backend, repoDir, ["add", "-A"]);
 }
 
 /**
@@ -240,11 +228,7 @@ export async function gitCommit(
   repoDir: string,
   message: string,
 ): Promise<string> {
-  return await runGit(
-    backend,
-    repoDir,
-    `git commit -m ${shellEscapeSingleQuotes(message)}`,
-  );
+  return await runGit(backend, repoDir, ["commit", "-m", message]);
 }
 
 /**
@@ -257,7 +241,7 @@ export async function gitGetRemoteUrl(
   backend: SandboxService,
   repoDir: string,
 ): Promise<string | null> {
-  const result = await runGit(backend, repoDir, "git remote get-url origin");
+  const result = await runGit(backend, repoDir, ["remote", "get-url", "origin"]);
   const trimmed = result.trim();
   return trimmed || null;
 }
@@ -295,16 +279,8 @@ export async function cleanupGitCredentials(
  * @param command - Git command to run
  * @returns Execute response
  */
-async function gitWithCredentials(
-  backend: SandboxService,
-  repoDir: string,
-  command: string,
-): Promise<string> {
-  return await runGit(
-    backend,
-    repoDir,
-    `git -c credential.helper="store --file=${CRED_FILE_PATH}" ${command}`,
-  );
+async function gitWithCredentials(backend: SandboxService, repoDir: string, command: string[]): Promise<string> {
+  return await runGit(backend, repoDir, ["-c", `credential.helper=store --file=${CRED_FILE_PATH}`, ...command]);
 }
 
 /**
@@ -322,20 +298,12 @@ export async function gitPush(
   githubToken?: string,
 ): Promise<string> {
   if (!githubToken) {
-    return await runGit(
-      backend,
-      repoDir,
-      `git push origin ${shellEscapeSingleQuotes(branch)}`,
-    );
+    return await runGit(backend, repoDir, ["push", "origin", "--", branch]);
   }
 
   await setupGitCredentials(backend, githubToken);
   try {
-    return await gitWithCredentials(
-      backend,
-      repoDir,
-      `push origin ${shellEscapeSingleQuotes(branch)}`,
-    );
+    return await gitWithCredentials(backend, repoDir, ["push", "origin", "--", branch]);
   } finally {
     await cleanupGitCredentials(backend);
   }
@@ -353,9 +321,7 @@ export async function gitRemoteBranchExists(
   repoDir: string,
   branch: string,
 ): Promise<boolean> {
-  const result = await backend.execute(
-    `cd ${shellEscapeSingleQuotes(repoDir)} && git ls-remote --exit-code --heads origin ${shellEscapeSingleQuotes(branch)}`,
-  );
+  const result = await backend.execute(`cd ${shellEscapeSingleQuotes(repoDir)} && git ls-remote --exit-code --heads origin -- ${shellEscapeSingleQuotes(branch)}`);
   return (result.exitCode ?? 1) === 0;
 }
 
