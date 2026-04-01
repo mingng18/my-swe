@@ -1,0 +1,3 @@
+## 2024-04-01 - [Optimize Concurrent I/O]
+**Learning:** Sequential await loops on IO bound operations (like fetching multiple images from external sources) introduce unnecessary compounding latency. While standard `for...of` loops are simple and preserve order, they halt execution until each async operation finishes.
+**Action:** Always look for opportunities to replace sequential await loops with `Promise.all` for tasks without inter-dependencies (e.g. mapping over arrays of URLs to fetch data) to maximize parallel throughput.

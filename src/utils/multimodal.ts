@@ -71,9 +71,13 @@ export async function buildBlocksFromPayload(
   }
 
   // Add image blocks if present
+  // ⚡ Bolt: Fetch all images concurrently instead of sequentially for better performance
   if (payload.image_urls && payload.image_urls.length > 0) {
-    for (const imageUrl of payload.image_urls) {
-      const imageBlock = await fetchImageBlock(imageUrl);
+    const imageBlocks = await Promise.all(
+      payload.image_urls.map((imageUrl) => fetchImageBlock(imageUrl))
+    );
+
+    for (const imageBlock of imageBlocks) {
       if (imageBlock) {
         blocks.push(imageBlock);
       }
