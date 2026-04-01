@@ -230,42 +230,12 @@ app.post("/webhook/github", async (c) => {
     switch (githubEvent) {
       case "ping":
         return c.json({ ok: true, message: "Pong!" });
-
       case "pull_request":
-        // TODO: Handle PR events (e.g., review, comment)
-        log.info(
-          {
-            action: payload.action,
-            number: payload.pull_request?.number,
-            title: payload.pull_request?.title,
-          },
-          "[webapp][github] PR event",
-        );
-        return c.json({ ok: true, message: "PR event received" });
-
+        return handlePullRequestEvent(payload, c);
       case "issues":
-        // TODO: Handle issue events
-        log.info(
-          {
-            action: payload.action,
-            number: payload.issue?.number,
-            title: payload.issue?.title,
-          },
-          "[webapp][github] Issue event",
-        );
-        return c.json({ ok: true, message: "Issue event received" });
-
+        return handleIssueEvent(payload, c);
       case "push":
-        // TODO: Handle push events
-        log.info(
-          {
-            ref: payload.ref,
-            commits: payload.push?.commits?.length || 0,
-          },
-          "[webapp][github] Push event",
-        );
-        return c.json({ ok: true, message: "Push event received" });
-
+        return handlePushEvent(payload, c);
       default:
         log.info({ event: githubEvent }, "[webapp][github] Unhandled event");
         return c.json({ ok: true, message: `Event '${githubEvent}' received` });
@@ -280,3 +250,41 @@ app.post("/webhook/github", async (c) => {
 });
 
 export default app;
+
+function handlePullRequestEvent(payload: any, c: any) {
+  // TODO: Handle PR events (e.g., review, comment)
+  log.info(
+    {
+      action: payload.action,
+      number: payload.pull_request?.number,
+      title: payload.pull_request?.title,
+    },
+    "[webapp][github] PR event",
+  );
+  return c.json({ ok: true, message: "PR event received" });
+}
+
+function handleIssueEvent(payload: any, c: any) {
+  // TODO: Handle issue events
+  log.info(
+    {
+      action: payload.action,
+      number: payload.issue?.number,
+      title: payload.issue?.title,
+    },
+    "[webapp][github] Issue event",
+  );
+  return c.json({ ok: true, message: "Issue event received" });
+}
+
+function handlePushEvent(payload: any, c: any) {
+  // TODO: Handle push events
+  log.info(
+    {
+      ref: payload.ref,
+      commits: payload.push?.commits?.length || 0,
+    },
+    "[webapp][github] Push event",
+  );
+  return c.json({ ok: true, message: "Push event received" });
+}
