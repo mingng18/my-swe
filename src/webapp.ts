@@ -256,15 +256,31 @@ app.post("/webhook/github", async (c) => {
         return c.json({ ok: true, message: "Issue event received" });
 
       case "push":
-        // TODO: Handle push events
         log.info(
           {
             ref: payload.ref,
-            commits: payload.push?.commits?.length || 0,
+            commits: payload.push?.commits?.length || payload.commits?.length || 0,
           },
           "[webapp][github] Push event",
         );
-        return c.json({ ok: true, message: "Push event received" });
+
+        const pusher = payload.pusher?.name || payload.pusher?.email || "unknown";
+        const repoName = payload.repository?.full_name || "unknown";
+        const ref = payload.ref || "unknown";
+        const commits = payload.commits || payload.push?.commits || [];
+
+        const commitMessages = commits
+          .map((c: any) => `- ${c.id?.substring(0, 7) || "unknown"}: ${c.message || ""}`)
+          .join("\n");
+
+        const pushInput = `[System Context: Push event received from ${pusher} to ${repoName} (${ref})]\n\nCommits:\n${commitMessages}`;
+
+        // Run the agent graph asynchronously for the push event
+        runCodeagentTurn(pushInput).catch((err) => {
+          log.error({ err }, "[webapp][github] Error processing push event agent turn");
+        });
+
+        return c.json({ ok: true, message: "Push event received and processing started" });
 
       default:
         log.info({ event: githubEvent }, "[webapp][github] Unhandled event");
