@@ -13,6 +13,14 @@ import { getSandboxBackendSync } from "../utils/sandboxState";
 
 const logger = createLogger("sandbox-shell-tool");
 
+/**
+ * Safely embed an arbitrary string into a POSIX shell command.
+ * Produces: 'foo'"'"'bar' style quoting.
+ */
+function shellEscapeSingleQuotes(input: string): string {
+  return `'${input.replace(/'/g, `'"'"'`)}'`;
+}
+
 function getSandboxBackendFromConfig(config: any): any {
   const threadId = config?.configurable?.thread_id;
   const backend = threadId ? getSandboxBackendSync(threadId) : null;
@@ -27,15 +35,18 @@ function getSandboxBackendFromConfig(config: any): any {
  * Extended shell command tool with enhanced capabilities.
  */
 export const sandboxShellTool = tool(
-  async ({
-    command,
-    timeout,
-    shell,
-  }: {
-    command: string;
-    timeout?: number;
-    shell?: string;
-  }, config) => {
+  async (
+    {
+      command,
+      timeout,
+      shell,
+    }: {
+      command: string;
+      timeout?: number;
+      shell?: string;
+    },
+    config,
+  ) => {
     const backend = getSandboxBackendFromConfig(config);
     if (!backend) {
       throw new Error(
@@ -50,7 +61,16 @@ export const sandboxShellTool = tool(
 
     try {
       // If a specific shell is requested, prefix the command
-      const fullCommand = shell ? `${shell} -c "${command}"` : command;
+      let fullCommand = command;
+      if (shell) {
+        // Basic validation of shell executable name to prevent injection in the shell parameter itself
+        if (!/^[a-zA-Z0-9_./-]+$/.test(shell)) {
+          throw new Error(
+            "Invalid shell specified. Only alphanumeric characters, dashes, underscores, dots, and forward slashes are allowed.",
+          );
+        }
+        fullCommand = `${shell} -c ${shellEscapeSingleQuotes(command)}`;
+      }
       const result = await backend.execute(fullCommand);
 
       return {
@@ -126,11 +146,14 @@ export const sandboxMetricsTool = tool(
  * Update network egress policy for the sandbox.
  */
 export const sandboxNetworkTool = tool(
-  async ({
-    rules,
-  }: {
-    rules: Array<{ action: "allow" | "deny"; target: string }>;
-  }, config) => {
+  async (
+    {
+      rules,
+    }: {
+      rules: Array<{ action: "allow" | "deny"; target: string }>;
+    },
+    config,
+  ) => {
     const backend = getSandboxBackendFromConfig(config);
     if (!backend) {
       throw new Error(
