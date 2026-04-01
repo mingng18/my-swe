@@ -9,7 +9,7 @@
  */
 
 import { createLogger } from "../utils/logger";
-import { tool } from "langchain";
+import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { getSandboxBackendSync } from "../utils/sandboxState";
 
