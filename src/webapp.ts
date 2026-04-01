@@ -232,15 +232,41 @@ app.post("/webhook/github", async (c) => {
         return c.json({ ok: true, message: "Pong!" });
 
       case "pull_request":
-        // TODO: Handle PR events (e.g., review, comment)
-        log.info(
-          {
-            action: payload.action,
-            number: payload.pull_request?.number,
-            title: payload.pull_request?.title,
-          },
-          "[webapp][github] PR event",
-        );
+        switch (payload.action) {
+          case "opened":
+          case "reopened":
+          case "synchronize":
+            log.info(
+              {
+                action: payload.action,
+                number: payload.pull_request?.number,
+                title: payload.pull_request?.title,
+              },
+              "[webapp][github] PR opened/updated",
+            );
+            break;
+          case "closed":
+            log.info(
+              {
+                action: payload.action,
+                number: payload.pull_request?.number,
+                title: payload.pull_request?.title,
+                merged: payload.pull_request?.merged,
+              },
+              "[webapp][github] PR closed",
+            );
+            break;
+          default:
+            log.info(
+              {
+                action: payload.action,
+                number: payload.pull_request?.number,
+                title: payload.pull_request?.title,
+              },
+              "[webapp][github] PR event",
+            );
+            break;
+        }
         return c.json({ ok: true, message: "PR event received" });
 
       case "issues":
