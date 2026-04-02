@@ -5,7 +5,17 @@ import { logger as httpLogger } from "hono/logger";
 
 import { runCodeagentTurn } from "./server";
 import { loadTelegramConfig } from "./utils/config";
-import { verifyGithubSignature } from "./utils/github/github-comments";
+import {
+  verifyGithubSignature,
+  extractPrContext,
+  fetchPrCommentsSinceLastTag,
+  buildPrPrompt,
+  reactToGithubComment,
+} from "./utils/github/github-comments";
+import { getThreadIdFromBranch } from "./utils/github/github";
+import { getGithubAppInstallationToken } from "./utils/github/github-app";
+import { storeGithubTokenInThread } from "./utils/github/github-token";
+import { getEmailForIdentity } from "./utils/identity";
 
 const log = createLogger("webapp");
 
@@ -232,16 +242,107 @@ app.post("/webhook/github", async (c) => {
         return c.json({ ok: true, message: "Pong!" });
 
       case "pull_request":
-        // TODO: Handle PR events (e.g., review, comment)
+      case "pull_request_review":
+      case "pull_request_review_comment":
+      case "issue_comment": {
         log.info(
           {
             action: payload.action,
-            number: payload.pull_request?.number,
-            title: payload.pull_request?.title,
+            event: githubEvent,
+            repository: payload.repository?.full_name,
           },
-          "[webapp][github] PR event",
+          "[webapp][github] PR event received",
         );
-        return c.json({ ok: true, message: "PR event received" });
+
+        // Run this asynchronously so we return 200 OK to GitHub immediately
+        void (async () => {
+          try {
+            // Check if issue is a PR
+            if (
+              githubEvent === "issue_comment" &&
+              !payload.issue?.pull_request
+            ) {
+              return;
+            }
+
+            // Extract context
+            const [
+              repoConfig,
+              prNumber,
+              branchName,
+              githubLogin,
+              prUrl,
+              commentId,
+              nodeId,
+            ] = await extractPrContext(payload, githubEvent ?? "");
+
+            if (!prNumber) {
+              return;
+            }
+
+            const token =
+              (await getGithubAppInstallationToken()) ||
+              process.env.GITHUB_TOKEN?.trim() ||
+              "";
+
+            if (!token) {
+              log.error(
+                "[webapp][github] No GitHub token available to process PR event",
+              );
+              return;
+            }
+
+            const threadId = branchName
+              ? await getThreadIdFromBranch(branchName)
+              : null;
+            if (threadId) {
+              await storeGithubTokenInThread(threadId, token);
+            }
+
+            // Fetch comments
+            const comments = await fetchPrCommentsSinceLastTag(
+              repoConfig,
+              prNumber,
+              token,
+            );
+
+            if (comments.length === 0) {
+              return;
+            }
+
+            // React to comment
+            if (commentId) {
+              await reactToGithubComment(
+                repoConfig,
+                commentId,
+                githubEvent ?? "",
+                token,
+                prNumber,
+                nodeId ?? undefined,
+              );
+            }
+
+            // Build prompt
+            const prompt = buildPrPrompt(comments, prUrl);
+
+            // Get email mapping
+            const email =
+              getEmailForIdentity("github", githubLogin) ||
+              "No email found in identity map";
+
+            const finalMessage = `[System Context: Webhook event ${githubEvent} from GitHub user @${githubLogin} (Email: ${email})]\n\n${prompt}`;
+
+            await runCodeagentTurn(finalMessage);
+          } catch (err) {
+            log.error(
+              { err },
+              "[webapp][github] Background PR processing failed",
+            );
+          }
+        })();
+
+        return c.json({ ok: true, message: "PR event processing started" });
+      }
 
       case "issues":
         // TODO: Handle issue events
