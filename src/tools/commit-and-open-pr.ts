@@ -15,12 +15,9 @@ import {
 import { getSandboxBackendSync } from "../utils/sandboxState";
 import { getGithubTokenFromThread } from "../utils/github/github-token";
 import { createLogger } from "../utils/logger";
+import { shellEscapeSingleQuotes } from "../utils/shell";
 
 const logger = createLogger("commit-and-open-pr-tool");
-
-function shellEscapeSingleQuotes(input: string): string {
-  return `'${input.replace(/'/g, `'"'"'`)}'`;
-}
 
 function slugifyBranchPart(input: string): string {
   return input
@@ -182,8 +179,9 @@ export const commitAndOpenPrTool = tool(
 
       // Prefer an explicit branch name from metadata; otherwise follow the
       // open-swe/<thread_id> convention from the Python implementation.
-      const metadataBranchName =
-        (config as any)?.metadata?.branch_name as string | undefined;
+      const metadataBranchName = (config as any)?.metadata?.branch_name as
+        | string
+        | undefined;
       const targetBranch =
         metadataBranchName && metadataBranchName.trim().length > 0
           ? metadataBranchName.trim()
