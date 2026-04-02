@@ -9,19 +9,10 @@
 import { createLogger } from "../utils/logger";
 import { tool } from "langchain";
 import { z } from "zod";
-import { getSandboxBackendSync } from "../utils/sandboxState";
+import { getSandboxBackendFromConfig } from "../utils/sandboxState";
 
 const logger = createLogger("sandbox-shell-tool");
 
-function getSandboxBackendFromConfig(config: any): any {
-  const threadId = config?.configurable?.thread_id;
-  const backend = threadId ? getSandboxBackendSync(threadId) : null;
-  logger.debug(
-    { threadId, hasBackend: Boolean(backend) },
-    "[sandbox-shell] Resolved sandbox backend from config",
-  );
-  return backend;
-}
 
 /**
  * Extended shell command tool with enhanced capabilities.
@@ -141,7 +132,7 @@ export const sandboxNetworkTool = tool(
     logger.debug({ rules }, "[sandbox-network] Updating egress policy");
 
     try {
-      const success = await backend.patchEgressRules(rules);
+      const success = await (backend as any).patchEgressRules(rules);
       return {
         success,
         rules,

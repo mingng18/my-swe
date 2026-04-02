@@ -12,19 +12,9 @@ import { createLogger } from "../utils/logger";
 import { tool } from "langchain";
 import { z } from "zod";
 import { shellEscapeSingleQuotes } from "../utils/shell.js";
-import { getSandboxBackendSync } from "../utils/sandboxState";
+import { getSandboxBackendFromConfig } from "../utils/sandboxState";
 
 const logger = createLogger("sandbox-files-tool");
-
-function getSandboxBackendFromConfig(config: any): any {
-  const threadId = config?.configurable?.thread_id;
-  const backend = threadId ? getSandboxBackendSync(threadId) : null;
-  logger.debug(
-    { threadId, hasBackend: Boolean(backend) },
-    "[sandbox-files] Resolved sandbox backend from config",
-  );
-  return backend;
-}
 
 /**
  * Delete a file or directory in the sandbox.
