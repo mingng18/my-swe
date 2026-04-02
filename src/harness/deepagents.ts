@@ -873,28 +873,36 @@ export async function initDeepAgentsAtStartup(): Promise<void> {
 export async function cleanupDeepAgents(): Promise<void> {
   logger.info("[deepagents] Cleaning up...");
 
-  // Release sandboxes back to pool and dispose backends.
-  for (const [threadId, entry] of threadSandboxMap.entries()) {
-    try {
-      await releaseRepoSandbox({
-        apiKey: process.env.DAYTONA_API_KEY || "",
-        apiUrl: process.env.DAYTONA_API_URL,
-        target: process.env.DAYTONA_TARGET,
-        sandboxId: entry.backend.id,
-        profile: entry.profile,
-        repoOwner: entry.repo.owner,
-        repoName: entry.repo.name,
-      });
-    } catch (err) {
-      logger.warn({ error: err, threadId }, "[deepagents] Failed to release sandbox");
-    }
-    try {
-      await entry.backend.cleanup();
-    } catch (err) {
-      logger.warn({ error: err, threadId }, "[deepagents] Failed to cleanup backend");
-    }
-    clearSandboxBackend(threadId);
-  }
+  // Release sandboxes back to the pool and dispose backends in parallel.
+  await Promise.all(
+    Array.from(threadSandboxMap.entries()).map(async ([threadId, entry]) => {
+      try {
+        await releaseRepoSandbox({
+          apiKey: process.env.DAYTONA_API_KEY || "",
+          apiUrl: process.env.DAYTONA_API_URL,
+          target: process.env.DAYTONA_TARGET,
+          sandboxId: entry.backend.id,
+          profile: entry.profile,
+          repoOwner: entry.repo.owner,
+          repoName: entry.repo.name,
+        });
+      } catch (err) {
+        logger.warn(
+          { error: err, threadId },
+          "[deepagents] Failed to release sandbox",
+        );
+      }
+      try {
+        await entry.backend.cleanup();
+      } catch (err) {
+        logger.warn(
+          { error: err, threadId },
+          "[deepagents] Failed to cleanup backend",
+        );
+      }
+      clearSandboxBackend(threadId);
+    }),
+  );
   threadSandboxMap.clear();
   threadAgentMap.clear();
   threadRepoMap.clear();
