@@ -65,12 +65,12 @@ function runGit(
   return backend
     .execute(`cd ${shellEscapeSingleQuotes(repoDir)} && ${command}`)
     .then((r) => {
-    const exitCode = r.exitCode ?? 0;
-    if (exitCode !== 0) {
-      const details = (r.output || "unknown error").trim();
-      throw new Error(`Git command failed: ${command}\n${details}`);
-    }
-    return r.output;
+      const exitCode = r.exitCode ?? 0;
+      if (exitCode !== 0) {
+        const details = (r.output || "unknown error").trim();
+        throw new Error(`Git command failed: ${command}\n${details}`);
+      }
+      return r.output;
     });
 }
 
@@ -468,9 +468,7 @@ export async function createGithubPr(
 
       // For same-repo PRs, GitHub may reject owner-prefixed head refs. When
       // that happens, retry with the plain branch name.
-      const responseStr = JSON.stringify(
-        (octokitError.response as any) ?? {},
-      );
+      const responseStr = JSON.stringify((octokitError.response as any) ?? {});
       const likelyInvalidHead =
         String(octokitError.message || "").includes('"field":"head"') ||
         responseStr.includes('"field":"head"');

@@ -182,8 +182,9 @@ export const commitAndOpenPrTool = tool(
 
       // Prefer an explicit branch name from metadata; otherwise follow the
       // open-swe/<thread_id> convention from the Python implementation.
-      const metadataBranchName =
-        (config as any)?.metadata?.branch_name as string | undefined;
+      const metadataBranchName = (config as any)?.metadata?.branch_name as
+        | string
+        | undefined;
       const targetBranch =
         metadataBranchName && metadataBranchName.trim().length > 0
           ? metadataBranchName.trim()
