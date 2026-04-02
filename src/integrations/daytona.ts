@@ -604,36 +604,27 @@ export class DaytonaBackend implements FilesystemPort, SandboxBackendPort {
 
     logger.debug({ pathCount: paths.length }, "[daytona] Downloading files");
 
-    const results: Array<{
-      path: string;
-      content: Uint8Array | null;
-      error:
-        | "file_not_found"
-        | "permission_denied"
-        | "is_directory"
-        | "invalid_path"
-        | null;
-    }> = [];
-
-    for (const path of paths) {
-      try {
-        const buffer = await this.sandbox!.fs.downloadFile(path);
-        const data = new Uint8Array(buffer);
-        results.push({ path, content: data, error: null });
-      } catch (err) {
-        const error:
-          | "file_not_found"
-          | "permission_denied"
-          | "is_directory"
-          | "invalid_path" =
-          err instanceof Error && err.message.includes("not found")
-            ? "file_not_found"
-            : err instanceof Error && err.message.includes("permission")
-              ? "permission_denied"
-              : "invalid_path";
-        results.push({ path, content: null, error });
-      }
-    }
+    const results = await Promise.all(
+      paths.map(async (path) => {
+        try {
+          const buffer = await this.sandbox!.fs.downloadFile(path);
+          const data = new Uint8Array(buffer);
+          return { path, content: data, error: null };
+        } catch (err) {
+          const error:
+            | "file_not_found"
+            | "permission_denied"
+            | "is_directory"
+            | "invalid_path" =
+            err instanceof Error && err.message.includes("not found")
+              ? "file_not_found"
+              : err instanceof Error && err.message.includes("permission")
+                ? "permission_denied"
+                : "invalid_path";
+          return { path, content: null, error };
+        }
+      }),
+    );
 
     return results;
   }
@@ -805,7 +796,9 @@ export function createDaytonaBackendFromEnv(): DaytonaBackend {
 
   const languageEnv = process.env.DAYTONA_LANGUAGE?.trim().toLowerCase();
   const language =
-    languageEnv === "typescript" || languageEnv === "javascript" || languageEnv === "python"
+    languageEnv === "typescript" ||
+    languageEnv === "javascript" ||
+    languageEnv === "python"
       ? (languageEnv as "typescript" | "javascript" | "python")
       : undefined;
 
