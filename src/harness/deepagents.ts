@@ -39,8 +39,14 @@ const threadSandboxMap = new Map<
 
 // Check if sandbox mode is enabled via environment variable
 const useSandbox = process.env.USE_SANDBOX === "true";
-const RETRY_ATTEMPTS = Number.parseInt(process.env.LLM_RETRY_ATTEMPTS || "3", 10);
-const RETRY_BASE_MS = Number.parseInt(process.env.LLM_RETRY_BASE_MS || "750", 10);
+const RETRY_ATTEMPTS = Number.parseInt(
+  process.env.LLM_RETRY_ATTEMPTS || "3",
+  10,
+);
+const RETRY_BASE_MS = Number.parseInt(
+  process.env.LLM_RETRY_BASE_MS || "750",
+  10,
+);
 let hasLoadedPersistedRepos = false;
 
 async function createAgentInstance(args: {
@@ -52,7 +58,8 @@ async function createAgentInstance(args: {
     model: string;
   };
 }): Promise<DeepAgent> {
-  const { model, openaiApiKey, openaiBaseUrl } = args.llmOverride || loadLlmConfig();
+  const { model, openaiApiKey, openaiBaseUrl } =
+    args.llmOverride || loadLlmConfig();
 
   // Prefix with 'openai:' to force LangChain's initChatModel to use the OpenAI provider
   // This solves "Unable to infer model provider" for models like GLM-4.7
@@ -86,7 +93,9 @@ function isRateLimitError(err: unknown): boolean {
 
 function isTransientInvokeError(err: unknown): boolean {
   if (isRateLimitError(err)) return true;
-  const message = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  const message = (
+    err instanceof Error ? err.message : String(err)
+  ).toLowerCase();
   return (
     message.includes("timeout") ||
     message.includes("temporar") ||
@@ -119,9 +128,11 @@ function extractRepoFromInput(
   }
 }
 
-// Keep track of the last specified repository per thread.
-// This solves the problem of "configurable" values being lost across turns
-// if the user doesn't re-type `--repo foo/bar`.
+/**
+ * Keep track of the last specified repository per thread.
+ * This solves the problem of "configurable" values being lost across turns
+ * if the user doesn't re-type `--repo foo/bar`.
+ */
 const threadRepoMap = new Map<
   string,
   { owner: string; name: string; workspaceDir: string }
@@ -162,11 +173,15 @@ async function acquireDaytonaSandboxForThreadRepo(args: {
     threadId: args.threadId,
     image: process.env.DAYTONA_IMAGE || "debian:12.9",
     language: (process.env.DAYTONA_LANGUAGE as any) || undefined,
-    cpu: process.env.DAYTONA_CPU ? parseInt(process.env.DAYTONA_CPU, 10) : undefined,
+    cpu: process.env.DAYTONA_CPU
+      ? parseInt(process.env.DAYTONA_CPU, 10)
+      : undefined,
     memory: process.env.DAYTONA_MEMORY
       ? parseInt(process.env.DAYTONA_MEMORY, 10)
       : undefined,
-    disk: process.env.DAYTONA_DISK ? parseInt(process.env.DAYTONA_DISK, 10) : undefined,
+    disk: process.env.DAYTONA_DISK
+      ? parseInt(process.env.DAYTONA_DISK, 10)
+      : undefined,
     autoStopInterval: process.env.DAYTONA_AUTOSTOP
       ? parseInt(process.env.DAYTONA_AUTOSTOP, 10)
       : undefined,
@@ -228,7 +243,9 @@ export class DeepAgentWrapper implements AgentHarness {
       let activeRepo = threadRepoMap.get(threadId);
       const profile = getSandboxProfileFromEnv();
 
-      const hasBackendForThread = Boolean(threadSandboxMap.get(threadId)?.backend);
+      const hasBackendForThread = Boolean(
+        threadSandboxMap.get(threadId)?.backend,
+      );
 
       // Acquire/clone repo when:
       // 1) user specified a different repo, OR
@@ -278,12 +295,13 @@ export class DeepAgentWrapper implements AgentHarness {
           const cloneStart = Date.now();
 
           if (provider === "daytona") {
-            const { backend, workspaceDir } = await acquireDaytonaSandboxForThreadRepo({
-              threadId,
-              repoOwner: parsedRepo.owner,
-              repoName: parsedRepo.name,
-              profile,
-            });
+            const { backend, workspaceDir } =
+              await acquireDaytonaSandboxForThreadRepo({
+                threadId,
+                repoOwner: parsedRepo.owner,
+                repoName: parsedRepo.name,
+                profile,
+              });
             logger.info(
               `[deepagents] Repo acquire+clone took ${Date.now() - cloneStart}ms`,
             );
@@ -391,10 +409,7 @@ export class DeepAgentWrapper implements AgentHarness {
         }
 
         threadAgentMap.set(threadId, agent);
-        logger.info(
-          { threadId },
-          `[deepagents] Agent initialized for thread`,
-        );
+        logger.info({ threadId }, `[deepagents] Agent initialized for thread`);
       }
 
       logger.info(
@@ -424,9 +439,15 @@ export class DeepAgentWrapper implements AgentHarness {
           break;
         } catch (err) {
           lastError = err;
-          const shouldRetry = attempt < RETRY_ATTEMPTS && isTransientInvokeError(err);
+          const shouldRetry =
+            attempt < RETRY_ATTEMPTS && isTransientInvokeError(err);
           logger.warn(
-            { threadId, attempt, shouldRetry, message: err instanceof Error ? err.message : String(err) },
+            {
+              threadId,
+              attempt,
+              shouldRetry,
+              message: err instanceof Error ? err.message : String(err),
+            },
             "[deepagents] Invoke attempt failed",
           );
           if (shouldRetry) {
@@ -468,13 +489,18 @@ export class DeepAgentWrapper implements AgentHarness {
 
       if (!result) {
         const finalMessage =
-          (lastError instanceof Error ? lastError.message : String(lastError)) ||
-          "Unknown DeepAgents invoke failure";
+          (lastError instanceof Error
+            ? lastError.message
+            : String(lastError)) || "Unknown DeepAgents invoke failure";
         const degradedReply =
           "The coding model is temporarily unavailable after retries. " +
           "Please retry shortly or switch to a different MODEL/provider.";
         logger.error(
-          { threadId, elapsedMs: Date.now() - agentStart, message: finalMessage },
+          {
+            threadId,
+            elapsedMs: Date.now() - agentStart,
+            message: finalMessage,
+          },
           "[deepagents] Invoke failed after retries",
         );
         return { reply: degradedReply, error: finalMessage };
@@ -573,12 +599,18 @@ export async function cleanupDeepAgents(): Promise<void> {
         repoName: entry.repo.name,
       });
     } catch (err) {
-      logger.warn({ error: err, threadId }, "[deepagents] Failed to release sandbox");
+      logger.warn(
+        { error: err, threadId },
+        "[deepagents] Failed to release sandbox",
+      );
     }
     try {
       await entry.backend.cleanup();
     } catch (err) {
-      logger.warn({ error: err, threadId }, "[deepagents] Failed to cleanup backend");
+      logger.warn(
+        { error: err, threadId },
+        "[deepagents] Failed to cleanup backend",
+      );
     }
     clearSandboxBackend(threadId);
   }
