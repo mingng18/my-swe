@@ -615,11 +615,11 @@ export class DaytonaBackend implements FilesystemPort, SandboxBackendPort {
         | null;
     }> = [];
 
-    for (const path of paths) {
+    const downloadPromises = paths.map(async (path) => {
       try {
         const buffer = await this.sandbox!.fs.downloadFile(path);
         const data = new Uint8Array(buffer);
-        results.push({ path, content: data, error: null });
+        return { path, content: data, error: null };
       } catch (err) {
         const error:
           | "file_not_found"
@@ -631,9 +631,12 @@ export class DaytonaBackend implements FilesystemPort, SandboxBackendPort {
             : err instanceof Error && err.message.includes("permission")
               ? "permission_denied"
               : "invalid_path";
-        results.push({ path, content: null, error });
+        return { path, content: null, error };
       }
-    }
+    });
+
+    const resolvedResults = await Promise.all(downloadPromises);
+    results.push(...resolvedResults);
 
     return results;
   }
@@ -805,7 +808,9 @@ export function createDaytonaBackendFromEnv(): DaytonaBackend {
 
   const languageEnv = process.env.DAYTONA_LANGUAGE?.trim().toLowerCase();
   const language =
-    languageEnv === "typescript" || languageEnv === "javascript" || languageEnv === "python"
+    languageEnv === "typescript" ||
+    languageEnv === "javascript" ||
+    languageEnv === "python"
       ? (languageEnv as "typescript" | "javascript" | "python")
       : undefined;
 
