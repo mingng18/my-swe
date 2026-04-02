@@ -18,9 +18,7 @@ import { createLogger } from "../utils/logger";
 
 const logger = createLogger("commit-and-open-pr-tool");
 
-function shellEscapeSingleQuotes(input: string): string {
-  return `'${input.replace(/'/g, `'"'"'`)}'`;
-}
+import { shellEscapeSingleQuotes } from "../utils/shell";
 
 function slugifyBranchPart(input: string): string {
   return input
