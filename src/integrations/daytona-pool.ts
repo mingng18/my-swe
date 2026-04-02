@@ -3,6 +3,32 @@ import { createLogger } from "../utils/logger";
 
 const logger = createLogger("daytona-pool");
 
+function pLimit(concurrency: number) {
+  let activeCount = 0;
+  const queue: (() => void)[] = [];
+  const next = () => {
+    activeCount--;
+    if (queue.length > 0) {
+      const resolve = queue.shift()!;
+      resolve();
+    }
+  };
+  return async <T>(fn: () => Promise<T>): Promise<T> => {
+    if (activeCount >= concurrency) {
+      await new Promise<void>((resolve) => queue.push(resolve));
+    }
+    activeCount++;
+    try {
+      return await fn();
+    } finally {
+      next();
+    }
+  };
+}
+
+const sandboxCreateLimit = pLimit(Number(process.env.DAYTONA_CREATE_CONCURRENCY || "3"));
+
+
 export type SandboxProfile = "typescript" | "javascript" | "python" | "java" | "polyglot";
 
 export type PoolStatus = "idle" | "busy";
@@ -285,7 +311,7 @@ export async function acquireRepoSandbox(
       if (v === undefined) delete createParams[k];
     }
 
-    const sandbox = await daytona.create(createParams as any);
+    const sandbox = await sandboxCreateLimit(() => daytona.create(createParams as any));
     logger.info(
       { sandboxId: sandbox.id, repo, profile: params.profile },
       "[daytona-pool] Created new sandbox",
@@ -347,7 +373,7 @@ export async function createRepoSandbox(params: AcquireSandboxParams): Promise<s
       if (v === undefined) delete createParams[k];
     }
 
-    const sandbox = await daytona.create(createParams as any);
+    const sandbox = await sandboxCreateLimit(() => daytona.create(createParams as any));
     return sandbox.id;
   } finally {
     try {

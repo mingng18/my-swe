@@ -113,7 +113,9 @@ async function main(): Promise<void> {
       "[prewarm] Creating additional sandboxes",
     );
 
+    const promises = [];
     for (let i = 0; i < delta; i++) {
+      promises.push((async () => {
       const threadId = `prewarm-${owner}-${name}-${Date.now()}-${i}`;
 
       const sandboxId = await createRepoSandbox({
@@ -181,7 +183,9 @@ async function main(): Promise<void> {
         repoOwner: owner,
         repoName: name,
       });
+    })());
     }
+    await Promise.all(promises);
   }
 
   logger.info("[prewarm] Done");
