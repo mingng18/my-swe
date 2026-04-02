@@ -561,25 +561,34 @@ export class DaytonaBackend implements FilesystemPort, SandboxBackendPort {
         | null;
     }> = [];
 
-    for (const [path, data] of files) {
-      try {
-        // Convert Uint8Array to Buffer
-        const buffer = Buffer.from(data);
-        await this.sandbox!.fs.uploadFile(buffer, path);
-        results.push({ path, error: null });
-      } catch (err) {
-        const error:
-          | "file_not_found"
-          | "permission_denied"
-          | "is_directory"
-          | "invalid_path" =
-          err instanceof Error && err.message.includes("not found")
-            ? "file_not_found"
-            : err instanceof Error && err.message.includes("permission")
-              ? "permission_denied"
-              : "invalid_path";
-        results.push({ path, error });
-      }
+    // ⚡ Bolt: Chunked parallel uploads to eliminate N+1 sequential bottlenecks.
+    // Processes 5 files concurrently. Reduces total upload time significantly
+    // (e.g. from O(N) network roundtrips to O(N/5)).
+    const CONCURRENCY_LIMIT = 5;
+    for (let i = 0; i < files.length; i += CONCURRENCY_LIMIT) {
+      const chunk = files.slice(i, i + CONCURRENCY_LIMIT);
+      const chunkResults = await Promise.all(
+        chunk.map(async ([path, data]) => {
+          try {
+            const buffer = Buffer.from(data);
+            await this.sandbox!.fs.uploadFile(buffer, path);
+            return { path, error: null };
+          } catch (err) {
+            const error:
+              | "file_not_found"
+              | "permission_denied"
+              | "is_directory"
+              | "invalid_path" =
+              err instanceof Error && err.message.includes("not found")
+                ? "file_not_found"
+                : err instanceof Error && err.message.includes("permission")
+                  ? "permission_denied"
+                  : "invalid_path";
+            return { path, error };
+          }
+        })
+      );
+      results.push(...chunkResults);
     }
 
     return results;
@@ -615,24 +624,34 @@ export class DaytonaBackend implements FilesystemPort, SandboxBackendPort {
         | null;
     }> = [];
 
-    for (const path of paths) {
-      try {
-        const buffer = await this.sandbox!.fs.downloadFile(path);
-        const data = new Uint8Array(buffer);
-        results.push({ path, content: data, error: null });
-      } catch (err) {
-        const error:
-          | "file_not_found"
-          | "permission_denied"
-          | "is_directory"
-          | "invalid_path" =
-          err instanceof Error && err.message.includes("not found")
-            ? "file_not_found"
-            : err instanceof Error && err.message.includes("permission")
-              ? "permission_denied"
-              : "invalid_path";
-        results.push({ path, content: null, error });
-      }
+    // ⚡ Bolt: Chunked parallel downloads to eliminate N+1 sequential bottlenecks.
+    // Processes 5 files concurrently. Reduces total download time significantly
+    // (e.g. from O(N) network roundtrips to O(N/5)).
+    const CONCURRENCY_LIMIT = 5;
+    for (let i = 0; i < paths.length; i += CONCURRENCY_LIMIT) {
+      const chunk = paths.slice(i, i + CONCURRENCY_LIMIT);
+      const chunkResults = await Promise.all(
+        chunk.map(async (path) => {
+          try {
+            const buffer = await this.sandbox!.fs.downloadFile(path);
+            const data = new Uint8Array(buffer);
+            return { path, content: data, error: null };
+          } catch (err) {
+            const error:
+              | "file_not_found"
+              | "permission_denied"
+              | "is_directory"
+              | "invalid_path" =
+              err instanceof Error && err.message.includes("not found")
+                ? "file_not_found"
+                : err instanceof Error && err.message.includes("permission")
+                  ? "permission_denied"
+                  : "invalid_path";
+            return { path, content: null, error };
+          }
+        })
+      );
+      results.push(...chunkResults);
     }
 
     return results;
