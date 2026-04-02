@@ -343,8 +343,8 @@ export async function fetchIssueComments(
     });
 
     const comments: GitHubComment[] = [];
-    for await (const response of octokit.paginate.iterator(
-      octokit.rest.issues.listComments,
+    const issueComments = await fetchPaginatedParallel<GitHubIssueComment>(
+      octokit.rest.issues.listComments as any,
       {
         owner,
         repo,
@@ -352,16 +352,16 @@ export async function fetchIssueComments(
         headers: {
           "X-GitHub-Api-Version": "2022-11-28",
         },
-      },
-    )) {
-      for (const comment of response.data as GitHubIssueComment[]) {
-        comments.push({
-          body: comment.body ?? "",
-          author: comment.user?.login ?? "unknown",
-          created_at: comment.created_at,
-          comment_id: comment.id,
-        });
       }
+    );
+
+    for (const comment of issueComments) {
+      comments.push({
+        body: comment.body ?? "",
+        author: comment.user?.login ?? "unknown",
+        created_at: comment.created_at,
+        comment_id: comment.id,
+      });
     }
 
     return comments;
@@ -478,23 +478,72 @@ export async function fetchPrCommentsSinceLastTag(
 }
 
 /**
- * Helper to fetch paginated comments.
+ * Helper to fetch paginated GitHub API results in parallel.
+ * Replaces octokit.paginate.iterator for performance.
  */
-async function fetchPaginatedComments<T>(
+async function fetchPaginatedParallel<T>(
+  method: (...args: any[]) => any,
+  params: Record<string, unknown>,
+): Promise<T[]> {
+  const perPage = (params.per_page as number) || 100;
+  const firstPageParams = { ...params, per_page: perPage, page: 1 };
+
+  const response = await method(firstPageParams);
+  const results: T[] = [...(response.data as T[])];
+
+  const linkHeader = response.headers?.link as string | undefined;
+  if (linkHeader) {
+    const lastPageMatch = linkHeader.match(/[?&]page=(\d+)[^>]*>; rel="last"/);
+    if (lastPageMatch) {
+      const lastPage = parseInt(lastPageMatch[1], 10);
+      const promises: Promise<T[]>[] = [];
+      for (let p = 2; p <= lastPage; p++) {
+        promises.push(
+          method({ ...params, per_page: perPage, page: p }).then((r: any) => r.data as T[])
+        );
+      }
+      const pagesData = await Promise.all(promises);
+      for (const page of pagesData) {
+        results.push(...page);
+      }
+    } else {
+      // Fallback to sequential fetching if no 'last' page is found
+      const nextMatch = linkHeader.match(/[?&]page=(\d+)[^>]*>; rel="next"/);
+      if (nextMatch) {
+        let nextParams = { ...params, per_page: perPage, page: 2 };
+        let hasNext = true;
+        while (hasNext) {
+          const nextResponse = await method(nextParams);
+          results.push(...(nextResponse.data as T[]));
+          const nextLinkHeader = nextResponse.headers?.link as string | undefined;
+          if (nextLinkHeader) {
+            const nextNextMatch = nextLinkHeader.match(/[?&]page=(\d+)[^>]*>; rel="next"/);
+            if (nextNextMatch) {
+              nextParams.page = parseInt(nextNextMatch[1], 10);
+            } else {
+              hasNext = false;
+            }
+          } else {
+            hasNext = false;
+          }
+        }
+      }
+    }
+  }
+
+  return results;
+}
+
   octokit: Octokit,
   method: (...args: any[]) => any,
   params: Record<string, unknown>,
 ): Promise<T[]> {
-  const results: T[] = [];
-  for await (const response of octokit.paginate.iterator(method as any, {
+  return fetchPaginatedParallel<T>(method, {
     ...params,
     headers: {
       "X-GitHub-Api-Version": "2022-11-28",
     },
-  })) {
-    results.push(...(response.data as T[]));
-  }
-  return results;
+  });
 }
 
 /**
@@ -504,19 +553,12 @@ async function fetchPaginatedReviews(
   octokit: Octokit,
   params: Record<string, unknown>,
 ): Promise<GitHubReview[]> {
-  const results: GitHubReview[] = [];
-  for await (const response of octokit.paginate.iterator(
-    octokit.rest.pulls.listReviews as any,
-    {
-      ...params,
-      headers: {
-        "X-GitHub-Api-Version": "2022-11-28",
-      },
+  return fetchPaginatedParallel<GitHubReview>(octokit.rest.pulls.listReviews as any, {
+    ...params,
+    headers: {
+      "X-GitHub-Api-Version": "2022-11-28",
     },
-  )) {
-    results.push(...(response.data as GitHubReview[]));
-  }
-  return results;
+  });
 }
 
 /**
