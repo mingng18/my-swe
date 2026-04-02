@@ -55,9 +55,7 @@ interface ExecuteResult {
 /**
  * OpenSandbox backend implementing repo-owned sandbox ports.
  */
-export class OpenSandboxBackend
-  implements FilesystemPort, SandboxBackendPort
-{
+export class OpenSandboxBackend implements FilesystemPort, SandboxBackendPort {
   private sandbox?: Sandbox;
   private connectionConfig: ConnectionConfig;
   private config: OpenSandboxConfig;
@@ -539,37 +537,28 @@ export class OpenSandboxBackend
       "[opensandbox] Downloading files",
     );
 
-    const results: Array<{
-      path: string;
-      content: Uint8Array | null;
-      error:
-        | "file_not_found"
-        | "permission_denied"
-        | "is_directory"
-        | "invalid_path"
-        | null;
-    }> = [];
-
-    for (const path of paths) {
-      try {
-        const content = await this.sandbox!.files.readFile(path);
-        const data = new TextEncoder().encode(content);
-        results.push({ path, content: data, error: null });
-      } catch (err) {
-        // Map to FileOperationError
-        const error:
-          | "file_not_found"
-          | "permission_denied"
-          | "is_directory"
-          | "invalid_path" =
-          err instanceof Error && err.message.includes("not found")
-            ? "file_not_found"
-            : err instanceof Error && err.message.includes("permission")
-              ? "permission_denied"
-              : "invalid_path";
-        results.push({ path, content: null, error });
-      }
-    }
+    const results = await Promise.all(
+      paths.map(async (path) => {
+        try {
+          const content = await this.sandbox!.files.readFile(path);
+          const data = new TextEncoder().encode(content);
+          return { path, content: data, error: null };
+        } catch (err) {
+          // Map to FileOperationError
+          const error:
+            | "file_not_found"
+            | "permission_denied"
+            | "is_directory"
+            | "invalid_path" =
+            err instanceof Error && err.message.includes("not found")
+              ? "file_not_found"
+              : err instanceof Error && err.message.includes("permission")
+                ? "permission_denied"
+                : "invalid_path";
+          return { path, content: null, error };
+        }
+      }),
+    );
 
     return results;
   }
