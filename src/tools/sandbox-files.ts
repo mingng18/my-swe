@@ -12,6 +12,7 @@ import { createLogger } from "../utils/logger";
 import { tool } from "langchain";
 import { z } from "zod";
 import { getSandboxBackendSync } from "../utils/sandboxState";
+import { shellEscapeSingleQuotes } from "../utils/shell";
 
 const logger = createLogger("sandbox-files-tool");
 
@@ -384,7 +385,7 @@ export const sandboxFindTool = tool(
     try {
       const typeFlag = type ? `-type ${type}` : "";
       const result = await backend.execute(
-        `find "${searchPath}" -name "${pattern}" ${typeFlag}`,
+        `find ${shellEscapeSingleQuotes(searchPath)} -name ${shellEscapeSingleQuotes(pattern)} ${typeFlag}`,
       );
 
       const files = result.output

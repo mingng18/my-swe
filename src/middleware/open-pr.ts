@@ -22,12 +22,9 @@ import {
   type RepoConfig,
 } from "../utils/github";
 import type { SandboxService } from "../integrations/sandbox-service";
+import { shellEscapeSingleQuotes } from "../utils/shell";
 
 const logger = createLogger("open-pr-middleware");
-
-function shellEscapeSingleQuotes(input: string): string {
-  return `'${input.replace(/'/g, `'"'"'`)}'`;
-}
 
 /**
  * Message interface from the agent state.

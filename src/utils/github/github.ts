@@ -8,6 +8,7 @@
 import { Octokit } from "octokit";
 import type { Sandbox } from "@daytonaio/sdk";
 import { SandboxService } from "../../integrations/sandbox-service";
+import { shellEscapeSingleQuotes } from "../shell";
 
 const logger = console;
 
@@ -15,13 +16,6 @@ const logger = console;
 const HTTP_CREATED = 201;
 const HTTP_UNPROCESSABLE_ENTITY = 422;
 
-/**
- * Safely embed an arbitrary string into a POSIX shell command.
- * Produces: 'foo'"'"'bar' style quoting.
- */
-function shellEscapeSingleQuotes(input: string): string {
-  return `'${input.replace(/'/g, `'"'"'`)}'`;
-}
 
 export interface ExecuteResponse {
   exitCode: number;
