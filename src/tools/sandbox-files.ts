@@ -15,6 +15,14 @@ import { getSandboxBackendSync } from "../utils/sandboxState";
 
 const logger = createLogger("sandbox-files-tool");
 
+/**
+ * Safely embed an arbitrary string into a POSIX shell command.
+ * Produces: 'foo'"'"'bar' style quoting.
+ */
+function shellEscapeSingleQuotes(input: string): string {
+  return `'${input.replace(/'/g, `'"'"'`)}'`;
+}
+
 function getSandboxBackendFromConfig(config: any): any {
   const threadId = config?.configurable?.thread_id;
   const backend = threadId ? getSandboxBackendSync(threadId) : null;
@@ -41,7 +49,7 @@ export const sandboxDeleteTool = tool(
 
     try {
       const flag = recursive ? "-rf" : "-f";
-      const result = await backend.execute(`rm ${flag} "${path}"`);
+      const result = await backend.execute(`rm ${flag} ${shellEscapeSingleQuotes(path)}`);
 
       return {
         path,
@@ -98,7 +106,7 @@ export const sandboxMkdirTool = tool(
       const parentsFlag = parents ? "-p" : "";
       const modeFlag = mode ? `-m ${mode}` : "";
       const result = await backend.execute(
-        `mkdir ${parentsFlag} ${modeFlag} "${path}"`,
+        `mkdir ${parentsFlag} ${modeFlag} ${shellEscapeSingleQuotes(path)}`,
       );
 
       return {
@@ -152,7 +160,7 @@ export const sandboxMoveTool = tool(
     logger.debug({ source, destination }, "[sandbox-move] Moving path");
 
     try {
-      const result = await backend.execute(`mv "${source}" "${destination}"`);
+      const result = await backend.execute(`mv ${shellEscapeSingleQuotes(source)} ${shellEscapeSingleQuotes(destination)}`);
 
       return {
         source,
@@ -205,7 +213,7 @@ export const sandboxCopyTool = tool(
     try {
       const flag = recursive ? "-r" : "";
       const result = await backend.execute(
-        `cp ${flag} "${source}" "${destination}"`,
+        `cp ${flag} ${shellEscapeSingleQuotes(source)} ${shellEscapeSingleQuotes(destination)}`,
       );
 
       return {
@@ -252,7 +260,7 @@ export const sandboxStatTool = tool(
 
     try {
       const result = await backend.execute(
-        `stat -c "%A %U %G %s %y" "${path}"`,
+        `stat -c "%A %U %G %s %y" ${shellEscapeSingleQuotes(path)}`,
       );
 
       if (result.exitCode !== 0) {
@@ -314,7 +322,7 @@ export const sandboxChecksumTool = tool(
 
     try {
       const algo = algorithm || "sha256";
-      const result = await backend.execute(`${algo}sum "${path}"`);
+      const result = await backend.execute(`${algo}sum ${shellEscapeSingleQuotes(path)}`);
 
       if (result.exitCode !== 0) {
         return {
@@ -384,7 +392,7 @@ export const sandboxFindTool = tool(
     try {
       const typeFlag = type ? `-type ${type}` : "";
       const result = await backend.execute(
-        `find "${searchPath}" -name "${pattern}" ${typeFlag}`,
+        `find ${shellEscapeSingleQuotes(searchPath)} -name ${shellEscapeSingleQuotes(pattern)} ${typeFlag}`,
       );
 
       const files = result.output
