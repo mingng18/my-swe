@@ -481,36 +481,75 @@ export class OpenSandboxBackend
         | null;
     }> = [];
 
-    for (const [path, data] of files) {
-      try {
-        // Create directory if needed
+    if (files.length === 0) {
+      return results;
+    }
+
+    try {
+      // Collect unique directories
+      const uniqueDirs = new Set<string>();
+      for (const [path] of files) {
         const dirPath = path.substring(0, path.lastIndexOf("/"));
         if (dirPath) {
-          await this.sandbox!.files.createDirectories([
-            { path: dirPath, mode: 755 },
-          ]);
+          uniqueDirs.add(dirPath);
         }
+      }
 
-        // Convert Uint8Array to string
-        const content = new TextDecoder().decode(data);
-        await this.sandbox!.files.writeFiles([
-          { path, data: content, mode: 644 },
-        ]);
+      // Batch create directories if any
+      if (uniqueDirs.size > 0) {
+        const dirPayloads = Array.from(uniqueDirs).map((dirPath) => ({
+          path: dirPath,
+          mode: 755,
+        }));
+        await this.sandbox!.files.createDirectories(dirPayloads);
+      }
 
+      // Batch write files
+      const filePayloads = files.map(([path, data]) => ({
+        path,
+        data: new TextDecoder().decode(data),
+        mode: 644,
+      }));
+      await this.sandbox!.files.writeFiles(filePayloads);
+
+      // If successful, all files succeeded
+      for (const [path] of files) {
         results.push({ path, error: null });
-      } catch (err) {
-        // Map to FileOperationError
-        const error:
-          | "file_not_found"
-          | "permission_denied"
-          | "is_directory"
-          | "invalid_path" =
-          err instanceof Error && err.message.includes("not found")
-            ? "file_not_found"
-            : err instanceof Error && err.message.includes("permission")
-              ? "permission_denied"
-              : "invalid_path";
-        results.push({ path, error });
+      }
+    } catch (batchErr) {
+      logger.debug(
+        { error: batchErr },
+        "[opensandbox] Batch upload failed, falling back to sequential",
+      );
+      // Fallback to sequential to maintain granular error reporting
+      for (const [path, data] of files) {
+        try {
+          const dirPath = path.substring(0, path.lastIndexOf("/"));
+          if (dirPath) {
+            await this.sandbox!.files.createDirectories([
+              { path: dirPath, mode: 755 },
+            ]);
+          }
+
+          const content = new TextDecoder().decode(data);
+          await this.sandbox!.files.writeFiles([
+            { path, data: content, mode: 644 },
+          ]);
+
+          results.push({ path, error: null });
+        } catch (err) {
+          const error:
+            | "file_not_found"
+            | "permission_denied"
+            | "is_directory"
+            | "invalid_path" =
+            err instanceof Error && err.message.includes("not found")
+              ? "file_not_found"
+              : err instanceof Error && err.message.includes("permission")
+                ? "permission_denied"
+                : "invalid_path";
+          results.push({ path, error });
+        }
       }
     }
 
@@ -550,25 +589,31 @@ export class OpenSandboxBackend
         | null;
     }> = [];
 
-    for (const path of paths) {
-      try {
-        const content = await this.sandbox!.files.readFile(path);
-        const data = new TextEncoder().encode(content);
-        results.push({ path, content: data, error: null });
-      } catch (err) {
-        // Map to FileOperationError
-        const error:
-          | "file_not_found"
-          | "permission_denied"
-          | "is_directory"
-          | "invalid_path" =
-          err instanceof Error && err.message.includes("not found")
-            ? "file_not_found"
-            : err instanceof Error && err.message.includes("permission")
-              ? "permission_denied"
-              : "invalid_path";
-        results.push({ path, content: null, error });
-      }
+    const CHUNK_SIZE = 5;
+    for (let i = 0; i < paths.length; i += CHUNK_SIZE) {
+      const chunk = paths.slice(i, i + CHUNK_SIZE);
+      const chunkPromises = chunk.map(async (path) => {
+        try {
+          const content = await this.sandbox!.files.readFile(path);
+          const data = new TextEncoder().encode(content);
+          return { path, content: data, error: null };
+        } catch (err) {
+          // Map to FileOperationError
+          const error:
+            | "file_not_found"
+            | "permission_denied"
+            | "is_directory"
+            | "invalid_path" =
+            err instanceof Error && err.message.includes("not found")
+              ? "file_not_found"
+              : err instanceof Error && err.message.includes("permission")
+                ? "permission_denied"
+                : "invalid_path";
+          return { path, content: null, error };
+        }
+      });
+      const chunkResults = await Promise.all(chunkPromises);
+      results.push(...chunkResults);
     }
 
     return results;
