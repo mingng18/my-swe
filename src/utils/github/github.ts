@@ -262,30 +262,39 @@ export async function gitGetRemoteUrl(
   return trimmed || null;
 }
 
-const CRED_FILE_PATH = "/tmp/.git-credentials";
-
 /**
  * Write GitHub credentials to a temporary file.
  * @param backend - The sandbox backend
  * @param githubToken - GitHub access token
+ * @returns The path to the created credentials file
  */
 export async function setupGitCredentials(
   backend: SandboxService,
   githubToken: string,
-): Promise<void> {
+): Promise<string> {
+  const mktempResult = await backend.execute('mktemp /tmp/git-credentials-XXXXXX');
+  if (mktempResult.exitCode !== 0) {
+    throw new Error(`Failed to create temporary git credentials file: ${mktempResult.output}`);
+  }
+  const credFilePath = mktempResult.output.trim();
+
   const content = `https://git:${githubToken}@github.com\n`;
-  await backend.write(CRED_FILE_PATH, content);
-  await backend.execute(`chmod 600 ${CRED_FILE_PATH}`);
+  await backend.write(credFilePath, content);
+  await backend.execute(`chmod 600 ${shellEscapeSingleQuotes(credFilePath)}`);
+
+  return credFilePath;
 }
 
 /**
  * Remove the temporary credentials file.
  * @param backend - The sandbox backend
+ * @param credFilePath - Path to the credentials file
  */
 export async function cleanupGitCredentials(
   backend: SandboxService,
+  credFilePath: string,
 ): Promise<void> {
-  await backend.execute(`rm -f ${CRED_FILE_PATH}`);
+  await backend.execute(`rm -f ${shellEscapeSingleQuotes(credFilePath)}`);
 }
 
 /**
@@ -293,17 +302,19 @@ export async function cleanupGitCredentials(
  * @param backend - The sandbox backend
  * @param repoDir - Repository directory path
  * @param command - Git command to run
+ * @param credFilePath - Path to the credentials file
  * @returns Execute response
  */
 async function gitWithCredentials(
   backend: SandboxService,
   repoDir: string,
   command: string,
+  credFilePath: string,
 ): Promise<string> {
   return await runGit(
     backend,
     repoDir,
-    `git -c credential.helper="store --file=${CRED_FILE_PATH}" ${command}`,
+    `git -c credential.helper="store --file=${shellEscapeSingleQuotes(credFilePath)}" ${command}`,
   );
 }
 
@@ -329,15 +340,16 @@ export async function gitPush(
     );
   }
 
-  await setupGitCredentials(backend, githubToken);
+  const credFilePath = await setupGitCredentials(backend, githubToken);
   try {
     return await gitWithCredentials(
       backend,
       repoDir,
       `push origin ${shellEscapeSingleQuotes(branch)}`,
+      credFilePath,
     );
   } finally {
-    await cleanupGitCredentials(backend);
+    await cleanupGitCredentials(backend, credFilePath);
   }
 }
 
