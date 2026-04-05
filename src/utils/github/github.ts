@@ -118,8 +118,11 @@ export async function gitHasUncommittedChanges(
   backend: SandboxService,
   repoDir: string,
 ): Promise<boolean> {
+  console.error(`[gitHasUncommittedChanges] Checking status in ${repoDir}`);
   const result = await runGit(backend, repoDir, "git status --porcelain");
-  return result.trim().length > 0;
+  const hasChanges = result.trim().length > 0;
+  console.error(`[gitHasUncommittedChanges] Has uncommitted: ${hasChanges}`);
+  return hasChanges;
 }
 
 /**
@@ -132,7 +135,27 @@ export async function gitFetchOrigin(
   backend: SandboxService,
   repoDir: string,
 ): Promise<string> {
-  return await runGit(backend, repoDir, "git fetch origin 2>/dev/null || true");
+  console.error(`[gitFetchOrigin] Fetching origin in ${repoDir}`);
+  const result = await runGit(
+    backend,
+    repoDir,
+    "git fetch origin 2>/dev/null || true",
+  );
+  console.error(`[gitFetchOrigin] Fetch complete`);
+  return result;
+}
+
+/**
+ * Pull latest changes from the current branch's upstream.
+ * @param backend - The sandbox backend
+ * @param repoDir - Repository directory path
+ * @returns Execute response
+ */
+export async function gitPull(
+  backend: SandboxService,
+  repoDir: string,
+): Promise<string> {
+  return await runGit(backend, repoDir, "git pull 2>/dev/null || true");
 }
 
 /**
@@ -145,11 +168,17 @@ export async function gitHasUnpushedCommits(
   backend: SandboxService,
   repoDir: string,
 ): Promise<boolean> {
+  console.error(
+    `[gitHasUnpushedCommits] Checking for unpushed commits in ${repoDir}`,
+  );
   const gitLogCmd =
     "git log --oneline @{upstream}..HEAD 2>/dev/null " +
     "|| git log --oneline origin/HEAD..HEAD 2>/dev/null || echo ''";
+  console.error(`[gitHasUnpushedCommits] Running: ${gitLogCmd}`);
   const result = await runGit(backend, repoDir, gitLogCmd);
-  return result.trim().length > 0;
+  const hasUnpushed = result.trim().length > 0;
+  console.error(`[gitHasUnpushedCommits] Has unpushed: ${hasUnpushed}`);
+  return hasUnpushed;
 }
 
 /**
@@ -203,16 +232,21 @@ export async function gitConfigUser(
   name: string,
   email: string,
 ): Promise<void> {
+  console.error(`[gitConfigUser] Setting user.name: ${name} in ${repoDir}`);
   await runGit(
     backend,
     repoDir,
     `git config user.name ${shellEscapeSingleQuotes(name)}`,
+  );
+  console.error(
+    `[gitConfigUser] user.name set, now setting user.email: ${email}`,
   );
   await runGit(
     backend,
     repoDir,
     `git config user.email ${shellEscapeSingleQuotes(email)}`,
   );
+  console.error(`[gitConfigUser] Git user configured successfully`);
 }
 
 /**
@@ -240,11 +274,53 @@ export async function gitCommit(
   repoDir: string,
   message: string,
 ): Promise<string> {
+  // Only commit if there are actually changes to commit.
+  // This prevents "nothing to commit, working tree clean" errors.
   return await runGit(
     backend,
     repoDir,
-    `git commit -m ${shellEscapeSingleQuotes(message)}`,
+    `git diff --quiet && git diff --staged --quiet || git commit -m ${shellEscapeSingleQuotes(message)}`,
   );
+}
+
+/**
+ * Reset repository to clean state, discarding all uncommitted changes.
+ * @param backend - The sandbox backend
+ * @param repoDir - Repository directory path
+ * @returns Execute response
+ */
+export async function gitResetHard(
+  backend: SandboxService,
+  repoDir: string,
+): Promise<string> {
+  return await runGit(backend, repoDir, "git reset --hard");
+}
+
+/**
+ * Remove all untracked files and directories from the repository.
+ * @param backend - The sandbox backend
+ * @param repoDir - Repository directory path
+ * @returns Execute response
+ */
+export async function gitCleanFd(
+  backend: SandboxService,
+  repoDir: string,
+): Promise<string> {
+  return await runGit(backend, repoDir, "git clean -fd");
+}
+
+/**
+ * Clean the repository to a fresh state by resetting all changes and removing untracked files.
+ * @param backend - The sandbox backend
+ * @param repoDir - Repository directory path
+ * @returns Execute response
+ */
+export async function gitCleanRepository(
+  backend: SandboxService,
+  repoDir: string,
+): Promise<void> {
+  await gitResetHard(backend, repoDir);
+  await gitCleanFd(backend, repoDir);
 }
 
 /**
@@ -324,12 +400,27 @@ export async function gitPush(
   }
 
   // Save original remote URL so we can restore it in the finally block.
-  const originalUrl = await runGit(backend, repoDir, "git remote get-url origin").then(
-    (u) => u.trim(),
-  );
+  const originalUrl = await runGit(
+    backend,
+    repoDir,
+    "git remote get-url origin",
+  ).then((u) => u.trim());
+
+  // Convert SSH URL to HTTPS for token injection
+  // SSH: git@github.com:owner/repo.git -> HTTPS: https://github.com/owner/repo.git
+  let httpsUrl = originalUrl;
+  if (originalUrl.startsWith("git@")) {
+    const match = originalUrl.match(/^git@([^:]+):(.+)$/);
+    if (match) {
+      httpsUrl = `https://${match[1]}/${match[2]}`;
+    }
+  }
+
+  // Strip trailing slashes to avoid invalid URLs (e.g., "repo.git/" -> "repo.git")
+  httpsUrl = httpsUrl.replace(/\/+$/, "");
 
   // Build token-embedded URL: https://x-access-token:<TOKEN>@github.com/owner/repo.git
-  const urlWithoutScheme = originalUrl.replace(/^https:\/\//, "");
+  const urlWithoutScheme = httpsUrl.replace(/^https:\/\//, "");
   const tokenUrl = `https://x-access-token:${githubToken}@${urlWithoutScheme}`;
 
   await runGit(
@@ -567,7 +658,7 @@ export async function createGithubPr(
  * @param headBranch - Head branch name
  * @returns Tuple of [prUrl, prNumber] or [null, null] if not found
  */
-async function findExistingPr(
+export async function findExistingPr(
   baseRepoOwner: string,
   baseRepoName: string,
   headRepoOwner: string,

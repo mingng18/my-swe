@@ -63,6 +63,25 @@ describe("github utils", () => {
       gitPush(backend as unknown as SandboxService, "/tmp/repo", "feat"),
     ).rejects.toThrow("Git command failed");
   });
+
+  test("gitPush strips trailing slashes from remote URL", async () => {
+    // Simulate git remote get-url returning URL with trailing slash
+    const backend = new FakeSandbox([
+      { exitCode: 0, output: "https://github.com/owner/repo.git/\n" }, // git remote get-url (with trailing /)
+      { exitCode: 0, output: "" }, // git remote set-url
+      { exitCode: 0, output: "" }, // git push
+      { exitCode: 0, output: "" }, // git remote set-url (restore)
+    ]);
+    const { gitPush } = await import("./github");
+    const result = await gitPush(
+      backend as unknown as SandboxService,
+      "/tmp/repo",
+      "feat",
+      "test-token",
+    );
+    // Should succeed without throwing
+    expect(result).toBeDefined();
+  });
 });
 
 describe("createGithubPr", () => {
