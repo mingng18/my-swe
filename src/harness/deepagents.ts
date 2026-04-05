@@ -347,7 +347,7 @@ function logAgentTraceChunk(
   ns: unknown,
   mode: string,
   payload: unknown,
-  trace: { midLine: boolean },
+  trace: { midLine: boolean; loggedRequests: Set<string> },
 ): void {
   const src = formatStreamNs(ns);
   if (mode === "updates") {
@@ -360,9 +360,9 @@ function logAgentTraceChunk(
       const parts = entries.map(
         ([k, v]) => `${k}${summarizeUpdateForTrace(k, v)}`,
       );
-      console.error(`[agent-trace] [${src}] step: ${parts.join(", ")}`);
+      logger.info(`[agent-trace] [${src}] step: ${parts.join(", ")}`);
     } else {
-      console.error(
+      logger.info(
         `[agent-trace] [${src}] updates ${stringifyPayloadForTrace(payload, 400)}`,
       );
     }
@@ -379,6 +379,12 @@ function logAgentTraceChunk(
     if (!msg || typeof msg !== "object") return;
     const node = meta?.langgraph_node ?? "?";
 
+    // Prevent spam: track logged request/node combinations
+    // LLM streaming sends many chunks; only log the first occurrence
+    const requestKey = `${src}:${node}`;
+    const isFirstOccurrence = !trace.loggedRequests.has(requestKey);
+    trace.loggedRequests.add(requestKey);
+
     const toolChunks = msg.tool_call_chunks as
       | Array<{ name?: string; args?: string }>
       | undefined;
@@ -389,7 +395,7 @@ function logAgentTraceChunk(
       }
       for (const tc of toolChunks) {
         if (tc.name)
-          console.error(`[agent-trace] [${src}] tool-call: ${tc.name}`);
+          logger.info(`[agent-trace] [${src}] tool-call: ${tc.name}`);
         if (tc.args) process.stderr.write(String(tc.args));
       }
       process.stderr.write("\n");
@@ -415,13 +421,17 @@ function logAgentTraceChunk(
         typeof msg.content === "string"
           ? msg.content
           : stringifyPayloadForTrace(msg.content, 200);
-      console.error(
+      logger.info(
         `[agent-trace] [${src}] tool-result (${String(name ?? "?")} @${node}): ${trimStr(body, 240)}`,
       );
       return;
     }
 
-    console.error(`[agent-trace] [${src}] ${String(role)} @${node}`);
+    // Only log the first occurrence of each request to prevent spam
+    // LLM streaming sends many chunks; subsequent chunks are handled above (text/tool)
+    if (isFirstOccurrence) {
+      logger.info(`[agent-trace] [${src}] ${String(role)} @${node}`);
+    }
     return;
   }
 
@@ -453,7 +463,7 @@ async function runDeepAgentWithStreamTrace(
   );
 
   let latest: unknown;
-  const trace = { midLine: false };
+  const trace = { midLine: false, loggedRequests: new Set<string>() };
 
   for await (const raw of stream) {
     const parsed = parseLangGraphStreamChunk(raw);
@@ -847,8 +857,8 @@ export class DeepAgentWrapper implements AgentHarness {
             );
           }, 10_000);
         } else {
-          console.error(
-            "\n[agent-trace] Streaming agent run to stderr (set AGENT_TRACE_STDERR=false to disable).\n",
+          logger.info(
+            "[agent-trace] Streaming agent run to stderr (set AGENT_TRACE_STDERR=false to disable).",
           );
         }
 
