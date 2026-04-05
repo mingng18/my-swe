@@ -799,6 +799,30 @@ export class DeepAgentWrapper implements AgentHarness {
       let { agent, configurable } = await this.prepareAgent(input, threadId);
       const activeRepo = threadRepoMap.get(threadId);
 
+      // Blueprint selection: Choose workflow template based on task keywords
+      // This is a lightweight operation that just returns metadata
+      // The actual execution is still handled by DeepAgents + middleware
+      const { selectBlueprint, buildInputWithBlueprint } =
+        await import("../blueprints");
+      const blueprintSelection = selectBlueprint(input);
+      logger.info(
+        {
+          blueprintId: blueprintSelection.blueprint.id,
+          blueprintName: blueprintSelection.blueprint.name,
+          confidence: blueprintSelection.confidence,
+          matchedKeywords: blueprintSelection.matchedKeywords,
+        },
+        "[deepagents] Blueprint selected based on task analysis",
+      );
+
+      // Modify input based on blueprint prompt customization
+      const modifiedInput = buildInputWithBlueprint(input, blueprintSelection);
+      if (modifiedInput !== input) {
+        logger.debug(
+          "[deepagents] Input modified by blueprint prompt customization",
+        );
+      }
+
       // Clean repository state before agent run if using sandbox
       // This prevents the agent from being confused by leftover changes from previous runs
       const sandboxEntry = threadSandboxMap.get(threadId);
@@ -837,7 +861,7 @@ export class DeepAgentWrapper implements AgentHarness {
       // Log the input being sent to the agent
       console.log("");
       console.log("=== Agent Input ===");
-      console.log(input);
+      console.log(modifiedInput);
       console.log("=== End Agent Input ===");
       console.log("");
 
@@ -864,9 +888,13 @@ export class DeepAgentWrapper implements AgentHarness {
 
         // Retry/fallback is handled by middleware (modelRetryMiddleware, modelFallbackMiddleware)
         result = traceTerminal
-          ? await runDeepAgentWithStreamTrace(agent, input, configurable)
+          ? await runDeepAgentWithStreamTrace(
+              agent,
+              modifiedInput,
+              configurable,
+            )
           : await agent.invoke(
-              { messages: [{ role: "user", content: input }] },
+              { messages: [{ role: "user", content: modifiedInput }] },
               { configurable, recursionLimit: AGENT_RECURSION_LIMIT },
             );
       } catch (err) {
