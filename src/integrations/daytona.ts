@@ -344,7 +344,7 @@ export class DaytonaBackend extends BaseSandboxBackend {
     }
   }
 
-    /**
+  /**
    * Create/write a file.
    */
   async write(filePath: string, content: string): Promise<WriteResult> {
@@ -468,7 +468,7 @@ export class DaytonaBackend extends BaseSandboxBackend {
                   : "invalid_path";
             return { path, error };
           }
-        })
+        }),
       );
       results.push(...chunkResults);
     }
@@ -531,7 +531,7 @@ export class DaytonaBackend extends BaseSandboxBackend {
                   : "invalid_path";
             return { path, content: null, error };
           }
-        })
+        }),
       );
       results.push(...chunkResults);
     }
@@ -706,7 +706,9 @@ export function createDaytonaBackendFromEnv(): DaytonaBackend {
 
   const languageEnv = process.env.DAYTONA_LANGUAGE?.trim().toLowerCase();
   const language =
-    languageEnv === "typescript" || languageEnv === "javascript" || languageEnv === "python"
+    languageEnv === "typescript" ||
+    languageEnv === "javascript" ||
+    languageEnv === "python"
       ? (languageEnv as "typescript" | "javascript" | "python")
       : undefined;
 
@@ -715,7 +717,7 @@ export function createDaytonaBackendFromEnv(): DaytonaBackend {
     apiUrl: process.env.DAYTONA_API_URL,
     target: process.env.DAYTONA_TARGET,
     sandboxId: process.env.DAYTONA_SANDBOX_ID,
-    image: process.env.DAYTONA_IMAGE || "debian:12.9",
+    image: process.env.DAYTONA_IMAGE || "oven/bun:1",
     cpu: process.env.DAYTONA_CPU ? parseInt(process.env.DAYTONA_CPU, 10) : 2,
     memory: process.env.DAYTONA_MEMORY
       ? parseInt(process.env.DAYTONA_MEMORY, 10)

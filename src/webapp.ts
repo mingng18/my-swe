@@ -1,9 +1,57 @@
+import { createHash } from "crypto";
 import { createLogger } from "./utils/logger";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger as httpLogger } from "hono/logger";
 
 import { runCodeagentTurn } from "./server";
+
+// Message queue for concurrent requests (shared across all transports)
+const messageQueue = new Map<string, string[]>();
+const activeThreads = new Set<string>();
+
+/**
+ * Generate a deterministic thread ID from a Telegram chat ID.
+ */
+function generateThreadId(chatId: number): string {
+  return createHash("md5")
+    .update(chatId.toString())
+    .digest("hex")
+    .substring(0, 16);
+}
+
+/**
+ * Check if a thread is currently processing a request.
+ */
+function isThreadActive(threadId: string): boolean {
+  return activeThreads.has(threadId);
+}
+
+/**
+ * Enqueue a message for processing when the thread becomes available.
+ */
+function enqueueMessage(threadId: string, message: string): void {
+  if (!messageQueue.has(threadId)) {
+    messageQueue.set(threadId, []);
+  }
+  messageQueue.get(threadId)!.push(message);
+}
+
+/**
+ * Process a single message for a thread.
+ */
+async function processMessage(
+  threadId: string,
+  enrichedText: string,
+): Promise<string> {
+  activeThreads.add(threadId);
+  try {
+    const reply = await runCodeagentTurn(enrichedText, threadId);
+    return reply;
+  } finally {
+    activeThreads.delete(threadId);
+  }
+}
 import { loadTelegramConfig } from "./utils/config";
 import {
   verifyGithubSignature,
@@ -182,8 +230,33 @@ app.post("/webhook/telegram", async (c) => {
           "[webapp][telegram] message",
         );
 
-        // Run the agent graph
-        const reply = await runCodeagentTurn(msg.text);
+        // Generate threadId from chat ID for per-chat conversation history
+        const threadId = generateThreadId(msg.chat.id);
+
+        // Check if thread is active, queue if busy
+        if (isThreadActive(threadId)) {
+          log.info(
+            { threadId, chatId: msg.chat.id },
+            "[webapp][telegram] thread busy, queuing message",
+          );
+          enqueueMessage(threadId, msg.text);
+          // Send acknowledgment
+          await fetch(
+            `https://api.telegram.org/bot${telegramBotToken}/sendMessage`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                chat_id: msg.chat.id,
+                text: "Message queued. I'll get to it shortly...",
+              }),
+            },
+          );
+          return c.json({ ok: true, message: "Message queued" });
+        }
+
+        // Process the message
+        const reply = await processMessage(threadId, msg.text);
 
         // Send reply back to Telegram
         await fetch(
@@ -379,20 +452,29 @@ app.post("/webhook/github", async (c) => {
                 const prompt = `New issue opened in ${repoOwner}/${repoName}#${issueNumber}:\nTitle: ${issueTitle}\n\n${issueBody}\n\nPlease analyze this issue and provide a helpful response.`;
                 const reply = await runCodeagentTurn(prompt);
 
-                const token = getGithubToken() || (await getGithubAppInstallationToken());
+                const token =
+                  getGithubToken() || (await getGithubAppInstallationToken());
                 if (token) {
                   await postGithubComment(
                     { owner: repoOwner, name: repoName },
                     issueNumber,
                     reply,
-                    token
+                    token,
                   );
-                  log.info({ issueNumber }, "[webapp][github] Posted reply to issue");
+                  log.info(
+                    { issueNumber },
+                    "[webapp][github] Posted reply to issue",
+                  );
                 } else {
-                  log.warn("[webapp][github] No GitHub token available to post issue comment");
+                  log.warn(
+                    "[webapp][github] No GitHub token available to post issue comment",
+                  );
                 }
               } catch (err) {
-                log.error({ err }, "[webapp][github] Error processing issue event");
+                log.error(
+                  { err },
+                  "[webapp][github] Error processing issue event",
+                );
               }
             })();
           }
@@ -403,7 +485,8 @@ app.post("/webhook/github", async (c) => {
       case "push": {
         const repoName = payload.repository?.full_name || "unknown repository";
         const ref = payload.ref || "unknown ref";
-        const commitsCount = payload.commits?.length || payload.push?.commits?.length || 0;
+        const commitsCount =
+          payload.commits?.length || payload.push?.commits?.length || 0;
 
         log.info(
           {
@@ -417,10 +500,16 @@ app.post("/webhook/github", async (c) => {
 
         // Run the agent graph asynchronously so we don't block the webhook response
         runCodeagentTurn(input).catch((err) => {
-          log.error({ error: err }, "[webapp][github] Error running agent on push event");
+          log.error(
+            { error: err },
+            "[webapp][github] Error running agent on push event",
+          );
         });
 
-        return c.json({ ok: true, message: "Push event received and processing started" });
+        return c.json({
+          ok: true,
+          message: "Push event received and processing started",
+        });
       }
 
       default:

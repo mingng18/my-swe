@@ -3,10 +3,8 @@ import { z } from "zod";
 import {
   createGithubPr,
   gitAddAll,
-  gitCheckoutBranch,
   gitCommit,
   gitPush,
-  gitRemoteBranchExists,
   gitConfigUser,
   gitHasUncommittedChanges,
   gitFetchOrigin,
@@ -19,28 +17,7 @@ import { createLogger } from "../utils/logger";
 const logger = createLogger("commit-and-open-pr-tool");
 
 function shellEscapeSingleQuotes(input: string): string {
-  return `'${input.replace(/'/g, `'"'"'`)}'`;
-}
-
-function slugifyBranchPart(input: string): string {
-  return input
-    .toLowerCase()
-    .replace(/:/g, " ")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .replace(/-{2,}/g, "-");
-}
-
-function buildBranchName(title: string): string {
-  const slug = slugifyBranchPart(title)
-    .split("-")
-    .filter(Boolean)
-    .slice(0, 6)
-    .join("-");
-
-  const readable = slug || "update";
-  const suffix = Date.now().toString().slice(-8);
-  return `${readable}-${suffix}`;
+  return `'${input.replace(/'/g, `'"'"'`)}'}`;
 }
 
 /**
@@ -173,77 +150,168 @@ export const commitAndOpenPrTool = tool(
         });
       }
 
+      logger.info(
+        { threadId, workspaceDir },
+        "[commit_and_open_pr] Step 1/9: Configuring git user...",
+      );
       await gitConfigUser(
         sandbox,
         workspaceDir,
         "open-swe[bot]",
         "open-swe@users.noreply.github.com",
       );
+      logger.info(
+        { threadId },
+        "[commit_and_open_pr] Step 1/9: Git user configured ✓",
+      );
 
       // Prefer an explicit branch name from metadata; otherwise follow the
       // open-swe/<thread_id> convention from the Python implementation.
-      const metadataBranchName =
-        (config as any)?.metadata?.branch_name as string | undefined;
-      // Add timestamp to ensure branch name is unique for each invocation
-      const timestampSuffix = Date.now().toString(36).substring(0, 8);
+      const metadataBranchName = (config as any)?.metadata?.branch_name as
+        | string
+        | undefined;
+      // Match Python semantics: use simple branch name without timestamp
       const targetBranch =
         metadataBranchName && metadataBranchName.trim().length > 0
           ? metadataBranchName.trim()
-          : `open-swe/${threadId}-${timestampSuffix}`;
+          : `open-swe/${threadId}`;
 
-      // If a specific branch name is configured, checkout without resetting if it
-      // already exists (avoid -B semantics). For the fallback open-swe/<thread_id>
-      // branch, we continue to use gitCheckoutBranch which will create/reset it.
-      if (metadataBranchName && metadataBranchName.trim().length > 0) {
-        const safeBranch = metadataBranchName.trim();
+      logger.info(
+        { threadId, targetBranch, metadataBranchName },
+        "[commit_and_open_pr] Step 2/9: Checking if branch exists locally...",
+      );
+      // Match Python semantics: check if branch exists locally before deciding.
+      // If branch exists, checkout without reset. If not, create new branch.
+      const branchCheckResult = await sandbox.execute(
+        `cd ${shellEscapeSingleQuotes(workspaceDir)} && git branch --list ${shellEscapeSingleQuotes(targetBranch)}`,
+      );
+      const branchExists = branchCheckResult.output.trim().length > 0;
+      logger.info(
+        { threadId, targetBranch, branchExists },
+        "[commit_and_open_pr] Step 2/9: Branch check complete ✓",
+      );
+
+      logger.info(
+        { threadId, targetBranch, branchExists },
+        "[commit_and_open_pr] Step 3/9: Checking out branch...",
+      );
+      if (branchExists) {
+        // Branch exists: checkout without resetting (-B would discard commits)
+        logger.info(
+          { threadId, targetBranch },
+          "[commit_and_open_pr] Step 3/9: Checking out existing branch...",
+        );
         await sandbox.execute(
-          `cd ${shellEscapeSingleQuotes(workspaceDir)} && git checkout ${shellEscapeSingleQuotes(safeBranch)}`,
+          `cd ${shellEscapeSingleQuotes(workspaceDir)} && git checkout ${shellEscapeSingleQuotes(targetBranch)}`,
         );
       } else {
-        // Ensure commits are created on the PR branch so push+PR head are valid.
-        await gitCheckoutBranch(sandbox, workspaceDir, targetBranch);
+        // Branch doesn't exist: create it
+        logger.info(
+          { threadId, targetBranch },
+          "[commit_and_open_pr] Step 3/9: Creating new branch...",
+        );
+        await sandbox.execute(
+          `cd ${shellEscapeSingleQuotes(workspaceDir)} && git checkout -b ${shellEscapeSingleQuotes(targetBranch)}`,
+        );
       }
+      logger.info(
+        { threadId, targetBranch },
+        "[commit_and_open_pr] Step 3/9: Branch checkout complete ✓",
+      );
 
       // Detect both uncommitted changes and unpushed commits, matching the Python
       // behavior that proceeds when either exists.
+      logger.info(
+        { threadId },
+        "[commit_and_open_pr] Step 4/9: Fetching origin to check for unpushed commits...",
+      );
       await gitFetchOrigin(sandbox, workspaceDir);
+      logger.info(
+        { threadId },
+        "[commit_and_open_pr] Step 4/9: Git fetch complete ✓",
+      );
+
+      logger.info(
+        { threadId },
+        "[commit_and_open_pr] Step 5/9: Checking for uncommitted changes...",
+      );
       const hasUncommittedChanges = await gitHasUncommittedChanges(
         sandbox,
         workspaceDir,
+      );
+      logger.info(
+        { threadId, hasUncommittedChanges },
+        "[commit_and_open_pr] Step 5/9: Uncommitted changes check complete ✓",
+      );
+
+      logger.info(
+        { threadId },
+        "[commit_and_open_pr] Step 6/9: Checking for unpushed commits...",
       );
       const hasUnpushedCommits = await gitHasUnpushedCommits(
         sandbox,
         workspaceDir,
       );
+      logger.info(
+        { threadId, hasUnpushedCommits },
+        "[commit_and_open_pr] Step 6/9: Unpushed commits check complete ✓",
+      );
 
       if (!hasUncommittedChanges && !hasUnpushedCommits) {
+        logger.info(
+          { threadId },
+          "[commit_and_open_pr] No changes detected, aborting",
+        );
         return JSON.stringify({
           success: false,
           error: "No changes detected",
         });
       }
 
+      logger.info(
+        { threadId, hasUncommittedChanges, hasUnpushedCommits },
+        "[commit_and_open_pr] Step 7/9: Staging and committing changes...",
+      );
       // Only create a new commit when there are uncommitted changes; still allow
       // push + PR creation when there are only unpushed commits.
       if (hasUncommittedChanges) {
+        logger.info(
+          { threadId },
+          "[commit_and_open_pr] Step 7/9: Running git add --all...",
+        );
         await gitAddAll(sandbox, workspaceDir);
+        logger.info(
+          { threadId, commitMessage: commit_message || title },
+          "[commit_and_open_pr] Step 7/9: Running git commit...",
+        );
         await gitCommit(sandbox, workspaceDir, commit_message || title);
       }
+      logger.info(
+        { threadId },
+        "[commit_and_open_pr] Step 7/9: Commit complete ✓",
+      );
 
-      // Force checkout to ensure we're on a clean branch for this session
-      // This handles cases where the branch already exists but is diverged
-      if (!metadataBranchName || !metadataBranchName.trim()) {
-        await sandbox.execute(
-          `cd ${shellEscapeSingleQuotes(workspaceDir)} && git checkout -B ${shellEscapeSingleQuotes(targetBranch)}`,
-        );
-      }
+      // Note: We do NOT force checkout here. If the branch already exists and has
+      // commits from a previous run, we want to preserve them. This matches the
+      // Python implementation's behavior of reusing existing branches.
 
+      logger.info(
+        { threadId, targetBranch },
+        "[commit_and_open_pr] Step 8/9: Pushing to GitHub...",
+      );
       try {
         await gitPush(sandbox, workspaceDir, targetBranch, githubToken);
+        logger.info(
+          { threadId, targetBranch },
+          "[commit_and_open_pr] Step 8/9: Push complete ✓",
+        );
       } catch (pushError: any) {
         const pushErrorMsg = pushError?.message || String(pushError);
         // If push fails due to non-fast-forward, try force push with the same token-URL auth.
-        if (pushErrorMsg.includes("non-fast-forward") || pushErrorMsg.includes("rejected")) {
+        if (
+          pushErrorMsg.includes("non-fast-forward") ||
+          pushErrorMsg.includes("rejected")
+        ) {
           logger.warn(
             {
               threadId,
@@ -253,7 +321,12 @@ export const commitAndOpenPrTool = tool(
             "[commit_and_open_pr] Push rejected (diverged branch), force-pushing...",
           );
           try {
-            await gitPush(sandbox, workspaceDir, `+${targetBranch}`, githubToken);
+            await gitPush(
+              sandbox,
+              workspaceDir,
+              `+${targetBranch}`,
+              githubToken,
+            );
           } catch (forceError: any) {
             const forceErrorMsg = forceError?.message || String(forceError);
             logger.error(
@@ -288,22 +361,25 @@ export const commitAndOpenPrTool = tool(
           });
         }
       }
-      const branchExistsRemotely = await gitRemoteBranchExists(
-        sandbox,
-        workspaceDir,
-        targetBranch,
-      );
-      if (!branchExistsRemotely) {
-        return JSON.stringify({
-          success: false,
-          error: `Push verification failed: origin/${targetBranch} does not exist after push`,
-        });
-      }
+
+      // Note: We don't verify remote branch existence via local git (e.g., git rev-parse origin/branch)
+      // because shallow/single-branch clones (like Daytona's) have restricted refspecs that prevent
+      // local tracking of remote branches. Instead, we rely on:
+      // 1. gitPush throwing an error if the push actually fails
+      // 2. createGithubPr failing via GitHub API if the branch doesn't exist remotely
 
       // Open PR via GitHub API
+      logger.info(
+        { threadId, repo: `${repoOwner}/${repoName}`, title },
+        "[commit_and_open_pr] Step 9/9: Creating GitHub PR via API...",
+      );
       let prUrl: string | null = null;
       let prExisting = false;
       try {
+        logger.info(
+          { threadId, title, targetBranch },
+          "[commit_and_open_pr] Step 9/9: Calling createGithubPr...",
+        );
         [prUrl, , prExisting] = await createGithubPr(
           repoOwner,
           repoName,
@@ -311,6 +387,10 @@ export const commitAndOpenPrTool = tool(
           title,
           targetBranch,
           body,
+        );
+        logger.info(
+          { threadId, prUrl, prExisting },
+          "[commit_and_open_pr] Step 9/9: PR created successfully ✓",
         );
       } catch (error: any) {
         logger.error(

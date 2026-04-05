@@ -10,14 +10,20 @@ const logger = createLogger("server");
  * The outer StateGraph pipeline has been eliminated — all orchestration
  * (planning, retry, fallback, context management) is now handled by
  * prebuilt middleware inside the Deep Agent harness.
+ *
+ * @param userText - The user's input message
+ * @param threadId - Optional thread ID for conversation persistence. Defaults to "default-session"
  */
-export async function runCodeagentTurn(userText: string): Promise<string> {
+export async function runCodeagentTurn(
+  userText: string,
+  threadId?: string,
+): Promise<string> {
   const startedAt = Date.now();
 
   try {
     const harness = await getAgentHarness();
     const result = await harness.run(userText, {
-      threadId: "default-session",
+      threadId: threadId ?? "default-session",
     });
 
     logger.info(

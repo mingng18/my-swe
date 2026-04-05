@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { createLogger } from "./utils/logger";
 import { serve } from "bun";
 
@@ -6,6 +7,74 @@ import { initAgentProviderAtStartup } from "./harness";
 import { loadTelegramConfig, validateStartupConfig } from "./utils/config";
 import { runCodeagentTurn } from "./server";
 import { getEmailForIdentity } from "./utils/identity";
+
+// Message queue for concurrent requests
+const messageQueue = new Map<string, string[]>();
+const activeThreads = new Set<string>();
+
+/**
+ * Generate a deterministic thread ID from a Telegram chat ID.
+ * This ensures each chat has its own conversation history.
+ */
+function generateThreadId(chatId: number): string {
+  return createHash("md5")
+    .update(chatId.toString())
+    .digest("hex")
+    .substring(0, 16);
+}
+
+/**
+ * Check if a thread is currently processing a request.
+ */
+function isThreadActive(threadId: string): boolean {
+  return activeThreads.has(threadId);
+}
+
+/**
+ * Enqueue a message for processing when the thread becomes available.
+ */
+function enqueueMessage(threadId: string, message: string): void {
+  if (!messageQueue.has(threadId)) {
+    messageQueue.set(threadId, []);
+  }
+  messageQueue.get(threadId)!.push(message);
+}
+
+/**
+ * Process queued messages for a thread.
+ */
+async function processQueue(threadId: string): Promise<void> {
+  const queue = messageQueue.get(threadId);
+  if (!queue || queue.length === 0) return;
+
+  const message = queue.shift()!;
+  if (queue.length === 0) {
+    messageQueue.delete(threadId);
+  }
+
+  await processMessage(threadId, message);
+
+  // Continue processing if there are more messages
+  if (messageQueue.has(threadId) && messageQueue.get(threadId)!.length > 0) {
+    await processQueue(threadId);
+  }
+}
+
+/**
+ * Process a single message for a thread.
+ */
+async function processMessage(
+  threadId: string,
+  enrichedText: string,
+): Promise<string> {
+  activeThreads.add(threadId);
+  try {
+    const reply = await runCodeagentTurn(enrichedText, threadId);
+    return reply;
+  } finally {
+    activeThreads.delete(threadId);
+  }
+}
 
 const logger = createLogger("index");
 
@@ -61,8 +130,33 @@ async function startTelegramPolling() {
               // Enrich the text payload
               const enrichedText = `[System Context: Message sent by Telegram user @${username} (Email: ${email})]\n\n${msg.text}`;
 
-              // Run the agent graph
-              const reply = await runCodeagentTurn(enrichedText);
+              // Generate threadId from chat ID for per-chat conversation history
+              const threadId = generateThreadId(msg.chat.id);
+
+              // Check if thread is active, queue if busy
+              if (isThreadActive(threadId)) {
+                logger.info(
+                  { threadId, chatId: msg.chat.id },
+                  "[codeagent][telegram] thread busy, queuing message",
+                );
+                enqueueMessage(threadId, enrichedText);
+                // Send acknowledgment
+                await fetch(
+                  `https://api.telegram.org/bot${telegramBotToken}/sendMessage`,
+                  {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      chat_id: msg.chat.id,
+                      text: "Message queued. I'll get to it shortly...",
+                    }),
+                  },
+                );
+                continue;
+              }
+
+              // Process the message and send reply
+              const reply = await processMessage(threadId, enrichedText);
 
               // Send reply back to Telegram
               await fetch(
@@ -78,6 +172,11 @@ async function startTelegramPolling() {
               );
 
               logger.info("[codeagent][telegram] reply sent");
+
+              // Process any queued messages
+              if (messageQueue.has(threadId)) {
+                void processQueue(threadId);
+              }
             }
           }
         }

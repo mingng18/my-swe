@@ -9,6 +9,7 @@
 import { createLogger } from "../utils/logger";
 import {
   createGithubPr,
+  findExistingPr,
   gitAddAll,
   gitCheckoutBranch,
   gitCommit,
@@ -74,6 +75,9 @@ export interface PrPayload {
  */
 export interface OpenPrResult {
   messages?: BaseMessage[];
+  error?: string;
+  pushSucceeded?: boolean;
+  prCreated?: boolean;
 }
 
 /**
@@ -82,13 +86,19 @@ export interface OpenPrResult {
 export function extractPrParamsFromMessages(
   messages: BaseMessage[],
 ): PrPayload | null {
-  // Iterate in reverse to find the most recent tool call
+  // Iterate in reverse to find the most recent tool RESULT (not tool call)
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i]!;
     const content = msg.content;
     const name = msg.name;
+    const type = msg.type;
 
-    if (name === "commit_and_open_pr" && content) {
+    // Tool results have type === "tool" AND name === tool name
+    if (type === "tool" && name === "commit_and_open_pr" && content) {
+      logger.debug(
+        { index: i, name, contentType: typeof content, content },
+        "Found commit_and_open_pr tool result",
+      );
       try {
         let parsed: PrPayload;
         if (typeof content === "string") {
@@ -100,6 +110,7 @@ export function extractPrParamsFromMessages(
         }
 
         if (parsed && typeof parsed === "object") {
+          logger.debug({ parsed }, "Parsed prPayload");
           return parsed;
         }
       } catch {
@@ -108,6 +119,13 @@ export function extractPrParamsFromMessages(
     }
   }
 
+  logger.debug(
+    {
+      messageCount: messages.length,
+      messageTypes: messages.map((m) => ({ type: m.type, name: m.name })),
+    },
+    "No commit_and_open_pr tool result found in messages",
+  );
   return null;
 }
 
@@ -128,6 +146,11 @@ export async function openPrIfNeeded(
 ): Promise<OpenPrResult | null> {
   logger.info("After-agent middleware started");
 
+  const result: OpenPrResult = {
+    pushSucceeded: false,
+    prCreated: false,
+  };
+
   try {
     const threadId = config.configurable?.thread_id;
     logger.debug(`Middleware running for thread ${threadId}`);
@@ -144,6 +167,10 @@ export async function openPrIfNeeded(
 
     // Tool already handled commit/push/PR creation
     if ("success" in prPayload && prPayload.success) {
+      logger.info(
+        { prPayload },
+        "commit_and_open_pr already succeeded, skipping middleware",
+      );
       return null;
     }
 
@@ -182,11 +209,22 @@ export async function openPrIfNeeded(
     const hasChanges = hasUncommittedChanges || hasUnpushedCommits;
 
     if (!hasChanges) {
-      logger.info("No changes detected, skipping PR creation");
+      logger.info(
+        { threadId, repo: `${repoOwner}/${repoName}` },
+        "No changes detected, skipping PR creation",
+      );
       return null;
     }
 
-    logger.info(`Changes detected, preparing PR for thread ${threadId}`);
+    logger.info(
+      {
+        threadId,
+        repo: `${repoOwner}/${repoName}`,
+        hasUncommittedChanges,
+        hasUnpushedCommits,
+      },
+      "Changes detected, preparing PR",
+    );
 
     const branchName = config.metadata?.branch_name;
     const currentBranch = await gitCurrentBranch(
@@ -195,19 +233,85 @@ export async function openPrIfNeeded(
     );
     const targetBranch = branchName || `open-swe/${threadId}`;
 
-    // Checkout or create branch
-    if (currentBranch !== targetBranch) {
-      if (branchName) {
-        // Existing branch — plain checkout, do not create or reset
-        const safeTargetBranch = targetBranch;
-        const safeWorkingRepoDir = workingRepoDir;
-        await sandboxBackend.execute(
-          `cd ${shellEscapeSingleQuotes(
-            safeWorkingRepoDir,
-          )} && git checkout ${shellEscapeSingleQuotes(safeTargetBranch)}`,
+    // Resolve GitHub token early for both idempotency check and push/PR creation
+    let githubToken = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || "";
+    if (!githubToken && threadId) {
+      const [threadToken] = await getGithubTokenFromThread(threadId);
+      githubToken = threadToken?.trim() || "";
+    }
+
+    // Early idempotency check: see if PR already exists for this branch
+    // This avoids unnecessary git operations if PR is already open
+    if (repoOwner && githubToken) {
+      try {
+        const existingPr = await findExistingPr(
+          repoOwner,
+          repoName,
+          repoOwner,
+          githubToken,
+          targetBranch,
         );
-      } else {
-        await gitCheckoutBranch(sandboxBackend, workingRepoDir, targetBranch);
+        if (existingPr && existingPr[0]) {
+          logger.info(
+            {
+              threadId,
+              repo: `${repoOwner}/${repoName}`,
+              branch: targetBranch,
+              prUrl: existingPr[0],
+              prNumber: existingPr[1],
+            },
+            "PR already exists, skipping creation",
+          );
+          return null;
+        }
+      } catch (err) {
+        // Don't fail on early check - continue with normal flow
+        logger.warn(
+          {
+            error: err,
+            repo: `${repoOwner}/${repoName}`,
+            branch: targetBranch,
+          },
+          "Early PR check failed, continuing with normal flow",
+        );
+      }
+    }
+
+    // Checkout or create branch with better error handling
+    if (currentBranch !== targetBranch) {
+      try {
+        if (branchName) {
+          // Existing branch — try checkout first, if fails create it
+          await sandboxBackend.execute(
+            `cd ${shellEscapeSingleQuotes(
+              workingRepoDir,
+            )} && git checkout ${shellEscapeSingleQuotes(targetBranch)} 2>/dev/null || git checkout -b ${shellEscapeSingleQuotes(targetBranch)}`,
+          );
+        } else {
+          await gitCheckoutBranch(sandboxBackend, workingRepoDir, targetBranch);
+        }
+        // Verify checkout succeeded
+        const actualBranch = await gitCurrentBranch(
+          sandboxBackend,
+          workingRepoDir,
+        );
+        if (actualBranch !== targetBranch) {
+          logger.error(
+            { threadId, expected: targetBranch, actual: actualBranch },
+            "Branch checkout failed",
+          );
+          return {
+            error: `Branch checkout failed: expected ${targetBranch}, got ${actualBranch}`,
+          };
+        }
+      } catch (err) {
+        logger.error(
+          { error: err, threadId, targetBranch },
+          "Failed to checkout branch",
+        );
+        return {
+          error: `Failed to checkout branch ${targetBranch}: ${err instanceof Error ? err.message : String(err)}`,
+        };
       }
     }
 
@@ -223,33 +327,109 @@ export async function openPrIfNeeded(
     await gitAddAll(sandboxBackend, workingRepoDir);
     await gitCommit(sandboxBackend, workingRepoDir, commitMessage);
 
-    // Resolve GitHub token in the same way as the commit_and_open_pr tool:
-    // prefer env, then fall back to thread metadata.
-    let githubToken = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || "";
-    if (!githubToken && threadId) {
-      const [threadToken] = await getGithubTokenFromThread(threadId);
-      githubToken = threadToken?.trim() || "";
-    }
-
+    // Partial failure recovery: track push success separately from PR creation
+    let pushSucceeded = false;
     if (githubToken) {
-      await gitPush(sandboxBackend, workingRepoDir, targetBranch, githubToken);
-
-      if (repoOwner) {
-        await createGithubPr(
-          repoOwner,
-          repoName,
-          githubToken,
-          prTitle,
+      try {
+        await gitPush(
+          sandboxBackend,
+          workingRepoDir,
           targetBranch,
-          prBody,
+          githubToken,
         );
+        pushSucceeded = true;
+        result.pushSucceeded = true;
+        logger.info(
+          { threadId, repo: `${repoOwner}/${repoName}`, branch: targetBranch },
+          "Git push succeeded",
+        );
+      } catch (pushErr) {
+        const pushErrorMsg =
+          pushErr instanceof Error ? pushErr.message : String(pushErr);
+        logger.error(
+          {
+            error: pushErr,
+            threadId,
+            repo: `${repoOwner}/${repoName}`,
+            branch: targetBranch,
+          },
+          "Git push failed - aborting PR creation",
+        );
+        return {
+          error: `Git push failed: ${pushErrorMsg}`,
+          pushSucceeded: false,
+          prCreated: false,
+        };
+      }
+
+      // Only create PR if push succeeded
+      if (pushSucceeded && repoOwner) {
+        try {
+          await createGithubPr(
+            repoOwner,
+            repoName,
+            githubToken,
+            prTitle,
+            targetBranch,
+            prBody,
+          );
+          result.prCreated = true;
+          logger.info(
+            {
+              threadId,
+              repo: `${repoOwner}/${repoName}`,
+              branch: targetBranch,
+            },
+            "PR created successfully",
+          );
+        } catch (prErr) {
+          const prErrorMsg =
+            prErr instanceof Error ? prErr.message : String(prErr);
+          logger.error(
+            {
+              error: prErr,
+              threadId,
+              repo: `${repoOwner}/${repoName}`,
+              branch: targetBranch,
+            },
+            "PR creation failed (but push succeeded)",
+          );
+          // Return partial success info so caller knows what happened
+          return {
+            error: `PR creation failed: ${prErrorMsg}`,
+            pushSucceeded: true,
+            prCreated: false,
+          };
+        }
       }
     }
 
-    logger.info("After-agent middleware completed successfully");
+    logger.info(
+      {
+        threadId,
+        repo: `${repoOwner}/${repoName}`,
+        pushSucceeded,
+        prCreated: result.prCreated,
+      },
+      "After-agent middleware completed successfully",
+    );
   } catch (error) {
-    logger.error({ error }, "Error in after-agent middleware");
-    throw error;
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    logger.error(
+      {
+        error,
+        threadId,
+        repo: repoOwner ? `${repoOwner}/${repoName}` : undefined,
+        branch: config.metadata?.branch_name,
+      },
+      "Error in after-agent middleware",
+    );
+    // Return gracefully instead of crashing the server
+    return {
+      error: errorMsg,
+      pushSucceeded: result.pushSucceeded,
+      prCreated: result.prCreated,
+    };
   }
 
   return null;

@@ -1,14 +1,15 @@
 import { UNTRUSTED_GITHUB_COMMENT_OPEN_TAG } from "./utils/github/github-comments";
 
 export type SystemPrompt = readonly string[] & {
-  readonly __brand: 'SystemPrompt'
+  readonly __brand: "SystemPrompt";
 };
 
 export function asSystemPrompt(value: readonly string[]): SystemPrompt {
   return value as SystemPrompt;
 }
 
-export const SYSTEM_PROMPT_DYNAMIC_BOUNDARY = '__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__';
+export const SYSTEM_PROMPT_DYNAMIC_BOUNDARY =
+  "__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__";
 
 export function getWorkingEnvSection(workingDir: string): string {
   return `---
@@ -24,8 +25,13 @@ All code execution and file operations happen in this sandbox environment.
 - The \`execute\` tool enforces a 5-minute timeout by default (300 seconds)
 - If a command times out and needs longer, rerun it by explicitly passing \`timeout=<seconds>\` to the \`execute\` tool (e.g. \`timeout=600\` for 10 minutes)
 
-IMPORTANT: You must ALWAYS call a tool in EVERY SINGLE TURN. If you don't call a tool, the session will end and you won't be able to resume without the user manually restarting you.
-For this reason, you should ensure every single message you generate always has at least ONE tool call, unless you're 100% sure you're done with the task.
+IMPORTANT: You must call a tool in EVERY turn, EXCEPT when the task is complete. The ONLY valid way to end a session is:
+
+1. For code change tasks: After calling \`commit_and_open_pr\` and receiving \`success: true\` with a PR link, notify the user. For GitHub, call \`github_comment\`. For Telegram, OUTPUT your summary as text. Then STOP.
+
+2. For question/status tasks: After gathering the answer, notify the user. For GitHub, call \`github_comment\`. For Telegram, OUTPUT your answer as text. Then STOP.
+
+**After your final reply (tool call or text output), you MUST STOP. The session ends.**
 `;
 }
 
@@ -52,25 +58,50 @@ export const TASK_EXECUTION_SECTION = `---
 
 ### Task Execution
 
-If you make changes, communicate updates in the source channel:
-- Use \`linear_comment\` for Linear-triggered tasks.
-- Use \`slack_thread_reply\` for Slack-triggered tasks.
-- Use \`github_comment\` for GitHub-triggered tasks.
+**IMPORTANT: Identify your transport layer first.**
 
-For tasks that require code changes, follow this order:
+Check the system context in your input message:
+- **Telegram**: "Message sent by Telegram user" — OUTPUT your final response as text.
+- **GitHub**: GitHub-triggered task — Use \`github_comment\` tool for replies.
 
-1. **Understand** — Read the issue/task carefully. Explore relevant files before making any changes.
+NOTE: \`linear_comment\` and \`slack_thread_reply\` tools are not currently available.
+If you receive a Linear or Slack-triggered task, inform the user that these
+integrations are not yet implemented in the TypeScript version.
+
+For code change tasks, follow this order:
+
+1. **Understand** — Read the issue/task carefully. Check \`git status\` first to see if there are any uncommitted changes from a previous session. Use \`code_search\` to find relevant files. **CRITICAL: Do not read more than 2-3 files. Once you find the primary target file, STOP exploring and move immediately to the Implement step.**
 2. **Implement** — Make focused, minimal changes. Do not modify code outside the scope of the task.
-3. **Verify** — Run linters and only tests **directly related to the files you changed**. Do NOT run the full test suite — CI handles that. If no related tests exist, skip this step.
+3. **Verify** — Run linters and tests related to your changes. **DO NOT** use code_search to look for other places to make the same change. If you were asked to change a specific UI element (like an icon color), making the change in the primary component is sufficient. DO NOT hunt for edge cases.
 4. **Submit** — Call \`commit_and_open_pr\` to push changes to the existing PR branch.
-5. **Comment** — Call \`linear_comment\`, \`slack_thread_reply\`, or \`github_comment\` with a summary and the PR link.
+5. **Comment** — For GitHub, call \`github_comment\` with a summary and the PR link. **For Telegram: OUTPUT your summary as your final text response.**
 
 **Strict requirement:** You must call \`commit_and_open_pr\` before posting any completion message for a code change task. Only claim "PR updated/opened" if \`commit_and_open_pr\` returns \`success\` and a PR link. If it returns "No changes detected" or any error, you must state that explicitly and do not claim an update.
+
+**STOPPING RULE: After step 5 (Comment), the task is complete. For GitHub, do not make any additional tool calls. For Telegram, your final text output ends the session.**
 
 For questions or status checks (no code changes needed):
 
 1. **Answer** — Gather the information needed to respond.
-2. **Comment** — Call \`linear_comment\`, \`slack_thread_reply\`, or \`github_comment\` with your answer. Never leave a question unanswered.`;
+2. **Comment** — For GitHub, call \`github_comment\` with your answer. **For Telegram: OUTPUT your answer as your final text response.** Never leave a question unanswered.
+
+**STOPPING RULE: After step 2 (Comment), the task is complete. For GitHub, do not make any additional tool calls. For Telegram, your final text output ends the session.**
+
+### When Code Already Meets Requirements
+
+**CRITICAL:** During step 1 (Understand), if you discover the codebase **already implements** what the user is asking for:
+
+1. **Check the branch** — Run \`git branch --show-current\` to see which branch you're on.
+2. **If on main/master** — The feature is already deployed. Report and STOP: For GitHub, call \`github_comment\` with "The requested feature is already on main. No changes needed." For Telegram, OUTPUT this message.
+3. **If on a feature branch** — The changes exist but are not merged yet. Proceed to **Submit** step: Call \`commit_and_open_pr\` to open/merge the PR.
+
+**Example scenarios:**
+- User asks to "change the icon to blue" and you see it's already blue on main → Report and STOP
+- User asks to "fix null pointer bug" and the code already has the null check on main → Report and STOP
+- User asks to "add error handling" and error handling is already present on a feature branch → Call \`commit_and_open_pr\` to merge the branch
+
+**Key distinction:** If the implementation exists on a feature branch, it still needs to be merged via PR. Only STOP if the code is already on main/master.
+`;
 
 export const TOOL_USAGE_SECTION = `---
 
@@ -127,8 +158,7 @@ export const CODE_INVESTIGATION_SECTION = `---
 3. **No git history browsing.** Do not run \`git log\`, \`git blame\`, or read anything
    under \`.git/\` unless the task explicitly asks for historical analysis.
 
-4. **Stop when done.** Once the change is made and verified, call \`commit_and_open_pr\`
-   immediately. Do not continue reading unrelated files to "double-check" things out of scope.
+4. **STOP WHEN DONE (CRITICAL).** Once you have edited the primary file to fulfill the user's request, your coding task is done. **DO NOT** continue searching the codebase to "double-check" if you missed anything. **DO NOT** search for synonyms (e.g., if you changed a HeartIcon, do not search for BookmarkIcon).
 
 5. **Read slices, not files.** Use \`code_search\` slice mode with \`start_line\`/\`end_line\`
    to inspect file sections. Never dump an entire file into context unless it is under 50 lines.
@@ -137,6 +167,10 @@ export const CODE_INVESTIGATION_SECTION = `---
    than once. If you already found the target code, edit it immediately using \`edit_file\`
    or \`write_file\`. Repeating identical searches is a sign you are stuck — act on what
    you have.
+
+7. **Limit your reading.** If a search returns dozens of matches, DO NOT try to read every file. Pick the most likely 1 or 2 files (e.g., UI components for visual tasks), inspect them, and make your edit.
+
+8. **EDIT AND EXIT.** Once you edit the file, proceed IMMEDIATELY to the Verify and Submit steps. Do not read any more files.
 `;
 
 export const CODING_STANDARDS_SECTION = `---
@@ -167,7 +201,11 @@ export const CORE_BEHAVIOR_SECTION = `---
 
 ### Core Behavior
 
-- **Persistence:** Keep working until the current task is completely resolved. Only terminate when you are certain the task is complete.
+- **Persistence:** Keep working until the current task is completely resolved.
+- **Completion:** The task is complete when:
+  - For code changes: After \`commit_and_open_pr\` succeeds AND the reply tool is called with the PR link
+  - For questions: After the reply tool is called with the answer
+- **Stopping:** Once complete, STOP immediately. Do not make additional tool calls or "double-check" work.
 - **Accuracy:** Never guess or make up information. Always use tools to gather accurate data about files and codebase structure.
 - **Autonomy:** Never ask the user for permission mid-task. Run linters, fix errors, and call \`commit_and_open_pr\` without waiting for confirmation.`;
 
@@ -243,6 +281,8 @@ Before calling \`commit_and_open_pr\`, you **MUST** run these checks in order.
 
 5. **Call \`commit_and_open_pr\`** only after all checks pass.
 
+**CRITICAL: The moment you successfully edit the necessary code, you must stop exploring. Run your pre-submission checks, call \`commit_and_open_pr\`, and then reply. DO NOT KEEP SEARCHING.**
+
 ### Committing Changes and Opening Pull Requests
 
 When you have completed your implementation and pre-submission checks pass:
@@ -273,12 +313,13 @@ When you have completed your implementation and pre-submission checks pass:
 
 **IMPORTANT: Never claim a PR was created or updated unless \`commit_and_open_pr\` returned \`success\` and a PR link. If it returns "No changes detected" or any error, report that instead.**
 
+**ANTI-HALLUCINATION RULE: Never invent, guess, or hallucinate a Pull Request URL. If \`commit_and_open_pr\` fails, you MUST report the exact error to the user and explain that you could not open the PR. Do not output a fake github.com link.**
+
 2. **Notify the source** immediately after \`commit_and_open_pr\` succeeds. Include a brief summary and the PR link:
-   - Linear-triggered: use \`linear_comment\` with an \`@mention\` of the user who triggered the task
-   - Slack-triggered: use \`slack_thread_reply\`
+   - **Telegram**: OUTPUT the summary as your final text response
    - GitHub-triggered: use \`github_comment\`
 
-   Example:
+   Example (for GitHub):
    \`\`\`
    @username, I've completed the implementation and opened a PR: <pr_url>
 
@@ -287,46 +328,48 @@ When you have completed your implementation and pre-submission checks pass:
    - <change 2>
    \`\`\`
 
-Always call \`commit_and_open_pr\` followed by the appropriate reply tool once implementation is complete and code quality checks pass.`;
+Always call \`commit_and_open_pr\` followed by the appropriate reply (tool for GitHub, text output for Telegram) once implementation is complete and code quality checks pass.
+
+**CRITICAL: After your final reply (tool call or text output) with the PR summary and link, you MUST STOP. Do not call any additional tools. This is the final step — the task is complete.**`;
 
 export function constructSystemPrompt(
-    workingDir: string,
-    linearProjectId: string = "",
-    linearIssueNumber: string = "",
-    agentsMd: string = ""
+  workingDir: string,
+  linearProjectId: string = "",
+  linearIssueNumber: string = "",
+  agentsMd: string = "",
 ): string {
-    let taskOverview = TASK_OVERVIEW_SECTION;
-    const projId = linearProjectId || "<PROJECT_ID>";
-    const issueNum = linearIssueNumber || "<ISSUE_NUMBER>";
+  let taskOverview = TASK_OVERVIEW_SECTION;
+  const projId = linearProjectId || "<PROJECT_ID>";
+  const issueNum = linearIssueNumber || "<ISSUE_NUMBER>";
 
-    let agentsMdSection = "";
-    if (agentsMd) {
-        agentsMdSection = 
-            "\\nThe following text is pulled from the repository's AGENTS.md file. " +
-            "It may contain specific instructions and guidelines for the agent.\\n" +
-            "<agents_md>\\n" +
-            `${agentsMd}\\n` +
-            "</agents_md>\\n";
-    }
+  let agentsMdSection = "";
+  if (agentsMd) {
+    agentsMdSection =
+      "\\nThe following text is pulled from the repository's AGENTS.md file. " +
+      "It may contain specific instructions and guidelines for the agent.\\n" +
+      "<agents_md>\\n" +
+      `${agentsMd}\\n` +
+      "</agents_md>\\n";
+  }
 
-    const sections = asSystemPrompt([
-        taskOverview,
-        FILE_MANAGEMENT_SECTION,
-        TASK_EXECUTION_SECTION,
-        TOOL_USAGE_SECTION,
-        TOOL_BEST_PRACTICES_SECTION,
-        CODE_INVESTIGATION_SECTION,
-        CODING_STANDARDS_SECTION,
-        CORE_BEHAVIOR_SECTION,
-        DEPENDENCY_SECTION,
-        CODE_REVIEW_GUIDELINES_SECTION,
-        COMMUNICATION_SECTION,
-        EXTERNAL_UNTRUSTED_COMMENTS_SECTION,
-        COMMIT_PR_SECTION,
-        SYSTEM_PROMPT_DYNAMIC_BOUNDARY,
-        getWorkingEnvSection(workingDir),
-        agentsMdSection
-    ]);
+  const sections = asSystemPrompt([
+    taskOverview,
+    FILE_MANAGEMENT_SECTION,
+    TASK_EXECUTION_SECTION,
+    TOOL_USAGE_SECTION,
+    TOOL_BEST_PRACTICES_SECTION,
+    CODE_INVESTIGATION_SECTION,
+    CODING_STANDARDS_SECTION,
+    CORE_BEHAVIOR_SECTION,
+    DEPENDENCY_SECTION,
+    CODE_REVIEW_GUIDELINES_SECTION,
+    COMMUNICATION_SECTION,
+    EXTERNAL_UNTRUSTED_COMMENTS_SECTION,
+    COMMIT_PR_SECTION,
+    SYSTEM_PROMPT_DYNAMIC_BOUNDARY,
+    getWorkingEnvSection(workingDir),
+    agentsMdSection,
+  ]);
 
-    return sections.filter(Boolean).join('\\n\\n');
+  return sections.filter(Boolean).join("\n\n");
 }
