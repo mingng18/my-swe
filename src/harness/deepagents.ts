@@ -550,7 +550,8 @@ async function acquireDaytonaSandboxForThreadRepo(args: {
     repoOwner: args.repoOwner,
     repoName: args.repoName,
     threadId: args.threadId,
-    image: process.env.DAYTONA_IMAGE || "debian:12.9",
+    // Only pass image if explicitly set - otherwise use snapshots
+    image: process.env.DAYTONA_IMAGE,
     language: (process.env.DAYTONA_LANGUAGE as any) || undefined,
     cpu: process.env.DAYTONA_CPU
       ? parseInt(process.env.DAYTONA_CPU, 10)
