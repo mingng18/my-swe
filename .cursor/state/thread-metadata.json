@@ -15,10 +15,10 @@
       "name": "recipe-rn",
       "workspaceDir": "/root/recipe-rn",
       "sandbox": {
-        "sandboxId": "bd34e156-7e08-4410-8152-e8773dd9663b",
+        "sandboxId": "ee5a1a6b-2fcc-487f-a976-a24d84d60251",
         "profile": "typescript"
       },
-      "updatedAt": "2026-04-05T16:42:23.312Z"
+      "updatedAt": "2026-04-05T16:47:05.228Z"
     }
   }
 }

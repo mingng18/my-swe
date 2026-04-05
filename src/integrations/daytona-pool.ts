@@ -269,27 +269,23 @@ export async function acquireRepoSandbox(
     }
 
     // 4) None available in pool - create new sandbox
-    // Use profile-specific images with git pre-installed
-    let image: string;
-    switch (params.profile) {
-      case "typescript":
-      case "javascript":
-        // Use full node image (not -slim) which has git
-        image = params.image ?? "node:22-bookworm"; // Full image has git
-        break;
-      case "python":
-        // Python slim doesn't have git, use full image
-        image = params.image ?? "python:3.12";
-        break;
-      case "java":
-        image = params.image ?? "eclipse-temurin:21-jre";
-        break;
-      case "polyglot":
-        image = params.image ?? "node:22-bookworm";
-        break;
-      default:
-        image = params.image ?? "node:22-bookworm";
+    // Use Daytona's default snapshots (daytona-small, daytona-medium, daytona-large)
+    // These have Node.js, Python, git, TypeScript, and language servers pre-installed
+
+    // Determine snapshot size based on requested resources
+    let snapshotName = "daytona-medium"; // Default
+    if (params.cpu && params.cpu >= 4) {
+      snapshotName = "daytona-large";
+    } else if (
+      params.cpu &&
+      params.cpu <= 1 &&
+      (!params.memory || params.memory <= 2)
+    ) {
+      snapshotName = "daytona-small";
     }
+
+    // If custom image is explicitly provided, use it (overrides snapshot)
+    const useCustomImage = params.image !== undefined;
 
     const resources =
       params.cpu || params.memory || params.disk
@@ -297,8 +293,6 @@ export async function acquireRepoSandbox(
         : undefined;
 
     const createParams: Record<string, unknown> = {
-      image,
-      language: params.language,
       labels: buildLabels({
         profile: params.profile,
         repo,
@@ -318,6 +312,22 @@ export async function acquireRepoSandbox(
       volumes: params.volumes,
     };
 
+    // Add snapshot or image based on configuration
+    if (useCustomImage) {
+      createParams.image = params.image;
+      createParams.language = params.language;
+      logger.info(
+        { image: params.image, profile: params.profile },
+        "[daytona-pool] Using custom image (not snapshot)",
+      );
+    } else {
+      createParams.snapshot = snapshotName;
+      logger.info(
+        { snapshot: snapshotName, profile: params.profile },
+        "[daytona-pool] Using Daytona default snapshot",
+      );
+    }
+
     for (const [k, v] of Object.entries(createParams)) {
       if (v === undefined) delete createParams[k];
     }
@@ -326,8 +336,8 @@ export async function acquireRepoSandbox(
     const sandboxId = sandbox.id;
 
     logger.info(
-      { sandboxId, repo, profile: params.profile, image },
-      "[daytona-pool] Created new sandbox from image",
+      { sandboxId, repo, profile: params.profile },
+      "[daytona-pool] Created new sandbox",
     );
 
     return { sandboxId, createdNew: true };
@@ -356,15 +366,26 @@ export async function createRepoSandbox(
   const repo = repoKey(params.repoOwner, params.repoName);
 
   try {
-    const image = params.image ?? "debian:12.9";
+    // Use Daytona's default snapshots (same logic as acquireRepoSandbox)
+    let snapshotName = "daytona-medium";
+    if (params.cpu && params.cpu >= 4) {
+      snapshotName = "daytona-large";
+    } else if (
+      params.cpu &&
+      params.cpu <= 1 &&
+      (!params.memory || params.memory <= 2)
+    ) {
+      snapshotName = "daytona-small";
+    }
+
+    const useCustomImage = params.image !== undefined;
+
     const resources =
       params.cpu || params.memory || params.disk
         ? { cpu: params.cpu, memory: params.memory, disk: params.disk }
         : undefined;
 
     const createParams: Record<string, unknown> = {
-      image,
-      language: params.language,
       labels: buildLabels({
         profile: params.profile,
         repo,
@@ -383,6 +404,14 @@ export async function createRepoSandbox(
       user: params.user,
       volumes: params.volumes,
     };
+
+    // Add snapshot or image based on configuration
+    if (useCustomImage) {
+      createParams.image = params.image;
+      createParams.language = params.language;
+    } else {
+      createParams.snapshot = snapshotName;
+    }
 
     for (const [k, v] of Object.entries(createParams)) {
       if (v === undefined) delete createParams[k];
