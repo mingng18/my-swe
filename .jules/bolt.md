@@ -1,0 +1,3 @@
+## 2024-03-24 - OpenSandbox File Batching
+**Learning:** The OpenSandbox SDK (`@alibaba-group/opensandbox`) supports native batching for `createDirectories` and `writeFiles`, which is vastly superior to sequential execution. However, the `readFile` API lacks a bulk counterpart, requiring chunked parallel requests (e.g. `Promise.all` with a concurrency limit) to avoid socket exhaustion.
+**Action:** When working with OpenSandbox, always use the SDK's native batch methods (`writeFiles`, `createDirectories`) where available, and implement bounded chunked parallelism for operations that lack bulk APIs (`readFile`).
