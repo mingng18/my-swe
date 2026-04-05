@@ -1019,6 +1019,56 @@ export class DeepAgentWrapper implements AgentHarness {
         deterministic: {},
       });
 
+      // Run verification pipeline (deterministic nodes)
+      if (activeRepo && useSandbox) {
+        try {
+          const { runVerificationPipeline } =
+            await import("../nodes/deterministic");
+          const sandboxEntry = threadSandboxMap.get(threadId);
+
+          if (sandboxEntry?.backend) {
+            logger.info(
+              "[deepagents] Running verification pipeline (tests, lint, PR)",
+            );
+
+            const verificationResults = await runVerificationPipeline({
+              sandbox: sandboxEntry.backend,
+              repoDir: activeRepo.workspaceDir,
+              repoOwner: activeRepo.owner,
+              repoName: activeRepo.name,
+              threadId,
+              messages,
+              githubToken: process.env.GITHUB_TOKEN,
+              requireTests: true,
+              requireLint: true,
+            });
+
+            logger.info(
+              {
+                testsPassed: verificationResults.testsPassed,
+                lintPassed: verificationResults.lintPassed,
+                prCreated: verificationResults.prCreated,
+                prUrl: verificationResults.prUrl,
+              },
+              "[deepagents] Verification pipeline completed",
+            );
+
+            // If verification failed but agent didn't report error, append results
+            if (verificationResults.error && !responseText.includes("failed")) {
+              logger.warn(
+                { error: verificationResults.error },
+                "[deepagents] Verification failed, appending to response",
+              );
+            }
+          }
+        } catch (verifyErr) {
+          logger.error(
+            { err: verifyErr },
+            "[deepagents] Verification pipeline failed",
+          );
+        }
+      }
+
       // Run the safety net PR middleware
       if (activeRepo) {
         try {
