@@ -5,7 +5,7 @@ import {
   buildInputWithBlueprint,
   DEFAULT_BLUEPRINTS,
   type Blueprint,
-} from "./Blueprint";
+} from "./blueprint";
 
 describe("Blueprint Pattern", () => {
   let registry: BlueprintRegistry;
