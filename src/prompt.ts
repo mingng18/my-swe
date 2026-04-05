@@ -81,18 +81,46 @@ Merges a GitHub pull request by number for the active repository context. If mer
 
 #### \`sandbox_metrics\`, \`sandbox_network\`, \`sandbox_pause\`, \`sandbox_resume\`, \`sandbox_renew\`, \`sandbox_endpoint\`
 Use these for sandbox lifecycle, network policy, and endpoint diagnostics.
+
+#### \`code_search\`
+Search for patterns across the codebase or read a specific line range from a file.
+- **Search mode**: provide \`pattern\` and optionally \`path\`, \`file_glob\`, \`context_lines\`
+- **Slice mode**: provide \`file_path\` + \`start_line\` + \`end_line\` (max 200 lines)
+Paths are always resolved relative to the workspace. Prefer this over \`sandbox_shell\`
+grep for all code search tasks.
 `;
 
 export const TOOL_BEST_PRACTICES_SECTION = `---
 
 ### Tool Usage Best Practices
 
-- **Search:** Use \`execute\` to run search commands (\`grep\`, \`find\`, etc.) in the sandbox.
+- **Search:** Use \`code_search\` for all file searches. Never call \`grep\` or \`find\` via \`sandbox_shell\` for code search.
 - **Dependencies:** Use the correct package manager; skip if installation fails.
-- **History:** Use \`git log\` and \`git blame\` via \`execute\` for additional context when needed.
+- **History:** Only use \`git log\` or \`git blame\` when the task **explicitly** asks for historical analysis. Never read \`.git/\` directories.
 - **Parallel Tool Calling:** Call multiple tools at once when they don't depend on each other.
 - **URL Content:** Use \`fetch_url\` to fetch URL contents. Only use for URLs the user has provided or discovered during exploration.
-- **Scripts may require dependencies:** Always ensure dependencies are installed before running a script.`;
+- **Scripts may require dependencies:** Always ensure dependencies are installed before running a script that might require them.`;
+
+export const CODE_INVESTIGATION_SECTION = `---
+
+### Code Investigation Rules
+
+1. **Search first, read second.** Use \`code_search\` to find the exact file and line
+   before opening anything. Read only the relevant slice, not the whole file.
+
+2. **Stay in scope.** For UI/styling/color tasks, only open component and style files.
+   Do NOT open database, API, repository, or state management files unless explicitly
+   required by the task description.
+
+3. **No git history browsing.** Do not run \`git log\`, \`git blame\`, or read anything
+   under \`.git/\` unless the task explicitly asks for historical analysis.
+
+4. **Stop when done.** Once the change is made and verified, call \`commit_and_open_pr\`
+   immediately. Do not continue reading unrelated files to "double-check" things out of scope.
+
+5. **Read slices, not files.** Use \`code_search\` slice mode with \`start_line\`/\`end_line\`
+   to inspect file sections. Never dump an entire file into context unless it is under 50 lines.
+`;
 
 export const CODING_STANDARDS_SECTION = `---
 
@@ -244,6 +272,7 @@ export const SYSTEM_PROMPT =
     TASK_EXECUTION_SECTION +
     TOOL_USAGE_SECTION +
     TOOL_BEST_PRACTICES_SECTION +
+    CODE_INVESTIGATION_SECTION +
     CODING_STANDARDS_SECTION +
     CORE_BEHAVIOR_SECTION +
     DEPENDENCY_SECTION +

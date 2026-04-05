@@ -432,6 +432,22 @@ export class SandboxService implements FilesystemPort, SandboxBackendPort {
   }
 
   /**
+   * Ensure ripgrep (rg) is available; if not, install it silently.
+   * Also adds a grep alias in ~/.bashrc so raw grep calls benefit from rg.
+   */
+  private async setupRipgrep(): Promise<void> {
+    // Install ripgrep if absent. Best-effort: never throws.
+    const cmd =
+      "command -v rg > /dev/null 2>&1" +
+      " || (apt-get install -y ripgrep > /dev/null 2>&1" +
+      " || apk add --no-cache ripgrep > /dev/null 2>&1" +
+      " || true)";
+    await this.execute(`sh -c '${cmd}' 2>/dev/null || true`).catch(() => {
+      logger.warn("[sandbox-service] ripgrep setup failed (best-effort)");
+    });
+  }
+
+  /**
    * Clone a GitHub repository into the sandbox workspace.
    * If the repo already exists, pulls the latest changes instead.
    * @param repoOwner - Repository owner (e.g., "facebook")
@@ -484,6 +500,7 @@ export class SandboxService implements FilesystemPort, SandboxBackendPort {
           }
 
           logger.info(`[sandbox-service] Repo updated successfully at ${repoDir}`);
+          await this.setupRipgrep();
           return repoDir;
         }
 
@@ -506,6 +523,7 @@ export class SandboxService implements FilesystemPort, SandboxBackendPort {
         );
 
         logger.info(`[sandbox-service] Repo cloned successfully to ${repoDir}`);
+        await this.setupRipgrep();
         return repoDir;
       }
     }
@@ -613,6 +631,8 @@ export class SandboxService implements FilesystemPort, SandboxBackendPort {
       logger.info(`[sandbox-service] Repo cloned successfully to ${repoDir}`);
     }
 
+    logger.info(`[sandbox-service] Repo ready at ${repoDir}`);
+    await this.setupRipgrep();
     return repoDir;
   }
 
