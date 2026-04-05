@@ -9,7 +9,7 @@
 
 import { createLogger } from "../utils/logger";
 import { createMiddleware } from "langchain";
-import { v4 as uuidv4 } from "uuid";
+import { randomUUID } from "node:crypto";
 
 const logger = createLogger("ensure-no-empty-msg");
 
@@ -152,7 +152,7 @@ export function ensureNoEmptyMsg(
       return null;
     }
 
-    const tcId = uuidv4();
+    const tcId = randomUUID();
     const noOpToolCall: ToolCall = {
       name: "no_op",
       args: {},
@@ -192,7 +192,7 @@ export function ensureNoEmptyMsg(
       return null;
     }
 
-    const tcId = uuidv4();
+    const tcId = randomUUID();
     const confirmingCompletionToolCall: ToolCall = {
       name: "confirming_completion",
       args: {},

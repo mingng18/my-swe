@@ -14,6 +14,7 @@ import {
   Sandbox,
   SandboxException,
 } from "@alibaba-group/opensandbox";
+import { BaseSandboxBackend } from "./base-sandbox";
 import type {
   EditResult,
   ExecuteResponse,
@@ -56,7 +57,7 @@ interface ExecuteResult {
  * OpenSandbox backend implementing repo-owned sandbox ports.
  */
 export class OpenSandboxBackend
-  implements FilesystemPort, SandboxBackendPort
+  extends BaseSandboxBackend
 {
   private sandbox?: Sandbox;
   private connectionConfig: ConnectionConfig;
@@ -64,6 +65,7 @@ export class OpenSandboxBackend
   private _id: string;
 
   constructor(config: OpenSandboxConfig) {
+    super();
     this.config = config;
     this._id = `opensandbox-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     this.connectionConfig = new ConnectionConfig({
@@ -180,49 +182,6 @@ export class OpenSandboxBackend
   // ==================== BackendProtocol ====================
 
   /**
-   * List files and directories in a directory (non-recursive).
-   */
-  async lsInfo(path: string): Promise<FileInfo[]> {
-    await this.ensureInitialized();
-
-    logger.debug({ path }, "[opensandbox] Listing directory");
-
-    try {
-      // Use ls command to get directory listing
-      const result = await this.execute(
-        `ls -la --time-style=long-iso "${path}"`,
-      );
-      if (result.exitCode !== 0) {
-        return [];
-      }
-
-      const lines = result.output.split("\n").slice(1); // Skip header
-      const files: FileInfo[] = [];
-
-      for (const line of lines) {
-        if (!line.trim()) continue;
-
-        // Parse ls -la output
-        const parts = line.split(/\s+/);
-        if (parts.length < 8) continue;
-
-        const isDir = parts[0].startsWith("d");
-        const fileName = parts.slice(8).join(" ");
-
-        files.push({
-          path: isDir ? `${fileName}/` : fileName,
-          is_dir: isDir,
-        });
-      }
-
-      return files;
-    } catch (err) {
-      logger.error({ error: err, path }, "[opensandbox] lsInfo failed");
-      return [];
-    }
-  }
-
-  /**
    * Read file content with line numbers.
    */
   async read(
@@ -284,95 +243,7 @@ export class OpenSandboxBackend
     }
   }
 
-  /**
-   * Search file contents for a regex pattern.
-   */
-  async grepRaw(
-    pattern: string,
-    path: string | null = null,
-    glob: string | null = null,
-  ): Promise<GrepMatch[] | string> {
-    await this.ensureInitialized();
-
-    const searchPath = path || "/workspace";
-    logger.debug({ pattern, path, glob }, "[opensandbox] Searching files");
-
-    try {
-      // Build grep command
-      let cmd = `grep -rn --exclude-dir=node_modules "${pattern}" "${searchPath}"`;
-      if (glob) {
-        cmd = `find "${searchPath}" -name "${glob}" -exec grep -Hn "${pattern}" {} +`;
-      }
-
-      const result = await this.execute(cmd);
-      if (result.exitCode !== 0 && result.exitCode !== 1) {
-        return `Search error: ${result.output}`;
-      }
-
-      const matches: GrepMatch[] = [];
-      for (const line of result.output.split("\n")) {
-        if (!line.trim()) continue;
-
-        // Parse grep output: "file:line:content"
-        const colonIdx = line.indexOf(":");
-        if (colonIdx === -1) continue;
-
-        const filePath = line.substring(0, colonIdx);
-        const rest = line.substring(colonIdx + 1);
-        const secondColonIdx = rest.indexOf(":");
-        if (secondColonIdx === -1) continue;
-
-        const lineNum = parseInt(rest.substring(0, secondColonIdx), 10);
-        const text = rest.substring(secondColonIdx + 1);
-
-        matches.push({
-          path: filePath,
-          line: lineNum,
-          text,
-        });
-      }
-
-      return matches;
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      return `Search failed: ${errorMsg}`;
-    }
-  }
-
-  /**
-   * Glob pattern matching.
-   */
-  async globInfo(pattern: string, path: string = "/"): Promise<FileInfo[]> {
-    await this.ensureInitialized();
-
-    logger.debug({ pattern, path }, "[opensandbox] Glob search");
-
-    try {
-      // Use find command for glob matching
-      const result = await this.execute(
-        `find "${path}" -name "${pattern}" -type f`,
-      );
-      if (result.exitCode !== 0) {
-        return [];
-      }
-
-      const files: FileInfo[] = [];
-      for (const line of result.output.split("\n")) {
-        if (!line.trim()) continue;
-        files.push({ path: line.trim(), is_dir: false });
-      }
-
-      return files;
-    } catch (err) {
-      logger.error(
-        { error: err, pattern, path },
-        "[opensandbox] globInfo failed",
-      );
-      return [];
-    }
-  }
-
-  /**
+    /**
    * Create/write a file.
    */
   async write(filePath: string, content: string): Promise<WriteResult> {

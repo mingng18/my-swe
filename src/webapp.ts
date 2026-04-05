@@ -5,7 +5,19 @@ import { logger as httpLogger } from "hono/logger";
 
 import { runCodeagentTurn } from "./server";
 import { loadTelegramConfig } from "./utils/config";
-import { verifyGithubSignature } from "./utils/github/github-comments";
+import {
+  verifyGithubSignature,
+  extractPrContext,
+  fetchPrCommentsSinceLastTag,
+  buildPrPrompt,
+  reactToGithubComment,
+  getThreadIdFromBranch,
+  getGithubAppInstallationToken,
+  storeGithubTokenInThread,
+  postGithubComment,
+  getGithubToken,
+} from "./utils/github";
+import { getEmailForIdentity } from "./utils/identity";
 
 const log = createLogger("webapp");
 
@@ -237,39 +249,179 @@ app.post("/webhook/github", async (c) => {
         return c.json({ ok: true, message: "Pong!" });
 
       case "pull_request":
-        // TODO: Handle PR events (e.g., review, comment)
+      case "pull_request_review":
+      case "pull_request_review_comment":
+      case "issue_comment": {
         log.info(
           {
             action: payload.action,
-            number: payload.pull_request?.number,
-            title: payload.pull_request?.title,
+            event: githubEvent,
+            repository: payload.repository?.full_name,
           },
-          "[webapp][github] PR event",
+          "[webapp][github] PR event received",
         );
-        return c.json({ ok: true, message: "PR event received" });
 
-      case "issues":
-        // TODO: Handle issue events
+        // Run this asynchronously so we return 200 OK to GitHub immediately
+        void (async () => {
+          try {
+            // Check if issue is a PR
+            if (
+              githubEvent === "issue_comment" &&
+              !payload.issue?.pull_request
+            ) {
+              return;
+            }
+
+            // Extract context
+            const [
+              repoConfig,
+              prNumber,
+              branchName,
+              githubLogin,
+              prUrl,
+              commentId,
+              nodeId,
+            ] = await extractPrContext(payload, githubEvent ?? "");
+
+            if (!prNumber) {
+              return;
+            }
+
+            const token =
+              (await getGithubAppInstallationToken()) ||
+              process.env.GITHUB_TOKEN?.trim() ||
+              "";
+
+            if (!token) {
+              log.error(
+                "[webapp][github] No GitHub token available to process PR event",
+              );
+              return;
+            }
+
+            const threadId = branchName
+              ? await getThreadIdFromBranch(branchName)
+              : null;
+            if (threadId) {
+              await storeGithubTokenInThread(threadId, token);
+            }
+
+            // Fetch comments
+            const comments = await fetchPrCommentsSinceLastTag(
+              repoConfig,
+              prNumber,
+              token,
+            );
+
+            if (comments.length === 0) {
+              return;
+            }
+
+            // React to comment
+            if (commentId) {
+              await reactToGithubComment(
+                repoConfig,
+                commentId,
+                githubEvent ?? "",
+                token,
+                prNumber,
+                nodeId ?? undefined,
+              );
+            }
+
+            // Build prompt
+            const prompt = buildPrPrompt(comments, prUrl);
+
+            // Get email mapping
+            const email =
+              getEmailForIdentity("github", githubLogin) ||
+              "No email found in identity map";
+
+            const finalMessage = `[System Context: Webhook event ${githubEvent} from GitHub user @${githubLogin} (Email: ${email})]\n\n${prompt}`;
+
+            await runCodeagentTurn(finalMessage);
+          } catch (err) {
+            log.error(
+              { err },
+              "[webapp][github] Background PR processing failed",
+            );
+          }
+        })();
+
+        return c.json({ ok: true, message: "PR event processing started" });
+      }
+
+      case "issues": {
+        const action = payload.action;
+        const issue = payload.issue;
+        const repository = payload.repository;
+
         log.info(
           {
-            action: payload.action,
-            number: payload.issue?.number,
-            title: payload.issue?.title,
+            action,
+            number: issue?.number,
+            title: issue?.title,
           },
           "[webapp][github] Issue event",
         );
-        return c.json({ ok: true, message: "Issue event received" });
 
-      case "push":
-        // TODO: Handle push events
+        if (action === "opened" && issue && repository) {
+          const issueTitle = issue.title || "";
+          const issueBody = issue.body || "";
+          const repoOwner = repository.owner?.login;
+          const repoName = repository.name;
+          const issueNumber = issue.number;
+
+          if (repoOwner && repoName && issueNumber) {
+            // Process issue asynchronously
+            void (async () => {
+              try {
+                const prompt = `New issue opened in ${repoOwner}/${repoName}#${issueNumber}:\nTitle: ${issueTitle}\n\n${issueBody}\n\nPlease analyze this issue and provide a helpful response.`;
+                const reply = await runCodeagentTurn(prompt);
+
+                const token = getGithubToken() || (await getGithubAppInstallationToken());
+                if (token) {
+                  await postGithubComment(
+                    { owner: repoOwner, name: repoName },
+                    issueNumber,
+                    reply,
+                    token
+                  );
+                  log.info({ issueNumber }, "[webapp][github] Posted reply to issue");
+                } else {
+                  log.warn("[webapp][github] No GitHub token available to post issue comment");
+                }
+              } catch (err) {
+                log.error({ err }, "[webapp][github] Error processing issue event");
+              }
+            })();
+          }
+        }
+        return c.json({ ok: true, message: "Issue event received" });
+      }
+
+      case "push": {
+        const repoName = payload.repository?.full_name || "unknown repository";
+        const ref = payload.ref || "unknown ref";
+        const commitsCount = payload.commits?.length || payload.push?.commits?.length || 0;
+
         log.info(
           {
             ref: payload.ref,
-            commits: payload.push?.commits?.length || 0,
+            commits: commitsCount,
           },
           "[webapp][github] Push event",
         );
-        return c.json({ ok: true, message: "Push event received" });
+
+        const input = `A push event was received on repository ${repoName} for ref ${ref} with ${commitsCount} commits.`;
+
+        // Run the agent graph asynchronously so we don't block the webhook response
+        runCodeagentTurn(input).catch((err) => {
+          log.error({ error: err }, "[webapp][github] Error running agent on push event");
+        });
+
+        return c.json({ ok: true, message: "Push event received and processing started" });
+      }
 
       default:
         log.info({ event: githubEvent }, "[webapp][github] Unhandled event");

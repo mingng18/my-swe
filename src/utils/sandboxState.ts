@@ -13,6 +13,14 @@ export function getSandboxBackendSync(
   return sandboxByThread.get(threadId) || null;
 }
 
+/**
+ * Helper to get the sandbox backend from a tool's config.
+ */
+export function getSandboxBackendFromConfig(config: any): SandboxService | null {
+  const threadId = config?.configurable?.thread_id;
+  return threadId ? getSandboxBackendSync(threadId) : null;
+}
+
 export function setSandboxBackend(threadId: string, backend: SandboxService): void {
   if (!threadId) return;
   sandboxByThread.set(threadId, backend);

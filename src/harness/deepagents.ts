@@ -454,12 +454,8 @@ async function acquireDaytonaSandboxForThreadRepo(args: {
 export class DeepAgentWrapper implements AgentHarness {
   constructor() {}
 
-  async invoke(
-    input: string,
-    options?: AgentInvokeOptions,
-  ): Promise<AgentResponse> {
-    const startTime = Date.now();
-    try {
+
+  private async prepareAgent(input: string, threadId: string) {
       if (!hasLoadedPersistedRepos) {
         const persisted = await loadPersistedThreadRepos();
         for (const [id, repo] of persisted.entries()) {
@@ -468,7 +464,7 @@ export class DeepAgentWrapper implements AgentHarness {
         hasLoadedPersistedRepos = true;
       }
 
-      const threadId = options?.threadId || "default-session";
+
       const parsedRepo = extractRepoFromInput(input);
       let activeRepo = threadRepoMap.get(threadId);
       const profile = getSandboxProfileFromEnv();
@@ -641,6 +637,18 @@ export class DeepAgentWrapper implements AgentHarness {
           `[deepagents] Agent initialized for thread`,
         );
       }
+      return { agent, configurable, activeRepo };
+  }
+
+  async invoke(
+    input: string,
+    options?: AgentInvokeOptions,
+  ): Promise<AgentResponse> {
+    const startTime = Date.now();
+    try {
+      const threadId = options?.threadId || "default-session";
+      let { agent, configurable } = await this.prepareAgent(input, threadId);
+      const activeRepo = threadRepoMap.get(threadId);
 
       logger.info(
         `[deepagents] Calling DeepAgent invoke (input length: ${input.length} chars)`,
@@ -831,10 +839,17 @@ export class DeepAgentWrapper implements AgentHarness {
     input: string,
     options?: AgentInvokeOptions,
   ): AsyncGenerator<any, void, unknown> {
-    // TODO: implement pooled sandbox acquisition for streaming.
-    // For now, fall back to non-streaming behavior to avoid mixed backends.
-    const result = await this.invoke(input, options);
-    yield { messages: [{ role: "assistant", content: result.reply }] };
+    const threadId = options?.threadId || "default-session";
+    const { agent, configurable } = await this.prepareAgent(input, threadId);
+
+    const stream = await agent.stream(
+      { messages: [{ role: "user", content: input }] },
+      { configurable },
+    );
+
+    for await (const chunk of stream) {
+      yield chunk;
+    }
   }
 
   async getState(threadId: string): Promise<any> {
@@ -873,28 +888,36 @@ export async function initDeepAgentsAtStartup(): Promise<void> {
 export async function cleanupDeepAgents(): Promise<void> {
   logger.info("[deepagents] Cleaning up...");
 
-  // Release sandboxes back to pool and dispose backends.
-  for (const [threadId, entry] of threadSandboxMap.entries()) {
-    try {
-      await releaseRepoSandbox({
-        apiKey: process.env.DAYTONA_API_KEY || "",
-        apiUrl: process.env.DAYTONA_API_URL,
-        target: process.env.DAYTONA_TARGET,
-        sandboxId: entry.backend.id,
-        profile: entry.profile,
-        repoOwner: entry.repo.owner,
-        repoName: entry.repo.name,
-      });
-    } catch (err) {
-      logger.warn({ error: err, threadId }, "[deepagents] Failed to release sandbox");
-    }
-    try {
-      await entry.backend.cleanup();
-    } catch (err) {
-      logger.warn({ error: err, threadId }, "[deepagents] Failed to cleanup backend");
-    }
-    clearSandboxBackend(threadId);
-  }
+  // Release sandboxes back to the pool and dispose backends in parallel.
+  await Promise.all(
+    Array.from(threadSandboxMap.entries()).map(async ([threadId, entry]) => {
+      try {
+        await releaseRepoSandbox({
+          apiKey: process.env.DAYTONA_API_KEY || "",
+          apiUrl: process.env.DAYTONA_API_URL,
+          target: process.env.DAYTONA_TARGET,
+          sandboxId: entry.backend.id,
+          profile: entry.profile,
+          repoOwner: entry.repo.owner,
+          repoName: entry.repo.name,
+        });
+      } catch (err) {
+        logger.warn(
+          { error: err, threadId },
+          "[deepagents] Failed to release sandbox",
+        );
+      }
+      try {
+        await entry.backend.cleanup();
+      } catch (err) {
+        logger.warn(
+          { error: err, threadId },
+          "[deepagents] Failed to cleanup backend",
+        );
+      }
+      clearSandboxBackend(threadId);
+    }),
+  );
   threadSandboxMap.clear();
   threadAgentMap.clear();
   threadRepoMap.clear();

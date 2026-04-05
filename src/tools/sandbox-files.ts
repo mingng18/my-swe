@@ -11,25 +11,19 @@
 import { createLogger } from "../utils/logger";
 import { tool } from "langchain";
 import { z } from "zod";
-import { getSandboxBackendSync } from "../utils/sandboxState";
+import { shellEscapeSingleQuotes } from "../utils/shell.js";
+import { getSandboxBackendFromConfig } from "../utils/sandboxState";
 
 const logger = createLogger("sandbox-files-tool");
-
-function getSandboxBackendFromConfig(config: any): any {
-  const threadId = config?.configurable?.thread_id;
-  const backend = threadId ? getSandboxBackendSync(threadId) : null;
-  logger.debug(
-    { threadId, hasBackend: Boolean(backend) },
-    "[sandbox-files] Resolved sandbox backend from config",
-  );
-  return backend;
-}
 
 /**
  * Delete a file or directory in the sandbox.
  */
 export const sandboxDeleteTool = tool(
-  async ({ path, recursive }: { path: string; recursive?: boolean }, config) => {
+  async (
+    { path, recursive }: { path: string; recursive?: boolean },
+    config,
+  ) => {
     const backend = getSandboxBackendFromConfig(config);
     if (!backend) {
       throw new Error(
@@ -41,7 +35,9 @@ export const sandboxDeleteTool = tool(
 
     try {
       const flag = recursive ? "-rf" : "-f";
-      const result = await backend.execute(`rm ${flag} "${path}"`);
+      const result = await backend.execute(
+        `rm ${flag} ${shellEscapeSingleQuotes(path)}`,
+      );
 
       return {
         path,
@@ -76,15 +72,18 @@ export const sandboxDeleteTool = tool(
  * Create a directory in the sandbox.
  */
 export const sandboxMkdirTool = tool(
-  async ({
-    path,
-    parents,
-    mode,
-  }: {
-    path: string;
-    parents?: boolean;
-    mode?: number;
-  }, config) => {
+  async (
+    {
+      path,
+      parents,
+      mode,
+    }: {
+      path: string;
+      parents?: boolean;
+      mode?: number;
+    },
+    config,
+  ) => {
     const backend = getSandboxBackendFromConfig(config);
     if (!backend) {
       throw new Error(
@@ -98,7 +97,7 @@ export const sandboxMkdirTool = tool(
       const parentsFlag = parents ? "-p" : "";
       const modeFlag = mode ? `-m ${mode}` : "";
       const result = await backend.execute(
-        `mkdir ${parentsFlag} ${modeFlag} "${path}"`,
+        `mkdir ${parentsFlag} ${modeFlag} ${shellEscapeSingleQuotes(path)}`,
       );
 
       return {
@@ -152,7 +151,9 @@ export const sandboxMoveTool = tool(
     logger.debug({ source, destination }, "[sandbox-move] Moving path");
 
     try {
-      const result = await backend.execute(`mv "${source}" "${destination}"`);
+      const result = await backend.execute(
+        `mv ${shellEscapeSingleQuotes(source)} ${shellEscapeSingleQuotes(destination)}`,
+      );
 
       return {
         source,
@@ -181,15 +182,18 @@ export const sandboxMoveTool = tool(
  * Copy a file or directory.
  */
 export const sandboxCopyTool = tool(
-  async ({
-    source,
-    destination,
-    recursive,
-  }: {
-    source: string;
-    destination: string;
-    recursive?: boolean;
-  }, config) => {
+  async (
+    {
+      source,
+      destination,
+      recursive,
+    }: {
+      source: string;
+      destination: string;
+      recursive?: boolean;
+    },
+    config,
+  ) => {
     const backend = getSandboxBackendFromConfig(config);
     if (!backend) {
       throw new Error(
@@ -205,7 +209,7 @@ export const sandboxCopyTool = tool(
     try {
       const flag = recursive ? "-r" : "";
       const result = await backend.execute(
-        `cp ${flag} "${source}" "${destination}"`,
+        `cp ${flag} ${shellEscapeSingleQuotes(source)} ${shellEscapeSingleQuotes(destination)}`,
       );
 
       return {
@@ -252,7 +256,7 @@ export const sandboxStatTool = tool(
 
     try {
       const result = await backend.execute(
-        `stat -c "%A %U %G %s %y" "${path}"`,
+        `stat -c "%A %U %G %s %y" ${shellEscapeSingleQuotes(path)}`,
       );
 
       if (result.exitCode !== 0) {
@@ -293,13 +297,16 @@ export const sandboxStatTool = tool(
  * Calculate checksum of a file.
  */
 export const sandboxChecksumTool = tool(
-  async ({
-    path,
-    algorithm,
-  }: {
-    path: string;
-    algorithm?: "md5" | "sha1" | "sha256";
-  }, config) => {
+  async (
+    {
+      path,
+      algorithm,
+    }: {
+      path: string;
+      algorithm?: "md5" | "sha1" | "sha256";
+    },
+    config,
+  ) => {
     const backend = getSandboxBackendFromConfig(config);
     if (!backend) {
       throw new Error(
@@ -314,7 +321,9 @@ export const sandboxChecksumTool = tool(
 
     try {
       const algo = algorithm || "sha256";
-      const result = await backend.execute(`${algo}sum "${path}"`);
+      const result = await backend.execute(
+        `${algo}sum ${shellEscapeSingleQuotes(path)}`,
+      );
 
       if (result.exitCode !== 0) {
         return {
@@ -359,15 +368,18 @@ export const sandboxChecksumTool = tool(
  * Search for files by name pattern.
  */
 export const sandboxFindTool = tool(
-  async ({
-    path,
-    pattern,
-    type,
-  }: {
-    path?: string;
-    pattern: string;
-    type?: "f" | "d";
-  }, config) => {
+  async (
+    {
+      path,
+      pattern,
+      type,
+    }: {
+      path?: string;
+      pattern: string;
+      type?: "f" | "d";
+    },
+    config,
+  ) => {
     const backend = getSandboxBackendFromConfig(config);
     if (!backend) {
       throw new Error(
@@ -384,7 +396,7 @@ export const sandboxFindTool = tool(
     try {
       const typeFlag = type ? `-type ${type}` : "";
       const result = await backend.execute(
-        `find "${searchPath}" -name "${pattern}" ${typeFlag}`,
+        `find ${shellEscapeSingleQuotes(searchPath)} -name ${shellEscapeSingleQuotes(pattern)} ${typeFlag}`,
       );
 
       const files = result.output

@@ -173,10 +173,7 @@ export async function openPrIfNeeded(
     );
 
     // Fetch and check for unpushed commits
-    await gitFetchOrigin(
-      sandboxBackend,
-      workingRepoDir,
-    );
+    await gitFetchOrigin(sandboxBackend, workingRepoDir);
     const hasUnpushedCommits = await gitHasUnpushedCommits(
       sandboxBackend,
       workingRepoDir,
@@ -210,11 +207,7 @@ export async function openPrIfNeeded(
           )} && git checkout ${shellEscapeSingleQuotes(safeTargetBranch)}`,
         );
       } else {
-        await gitCheckoutBranch(
-          sandboxBackend,
-          workingRepoDir,
-          targetBranch,
-        );
+        await gitCheckoutBranch(sandboxBackend, workingRepoDir, targetBranch);
       }
     }
 
@@ -227,15 +220,8 @@ export async function openPrIfNeeded(
     );
 
     // Stage and commit changes
-    await gitAddAll(
-      sandboxBackend,
-      workingRepoDir,
-    );
-    await gitCommit(
-      sandboxBackend,
-      workingRepoDir,
-      commitMessage,
-    );
+    await gitAddAll(sandboxBackend, workingRepoDir);
+    await gitCommit(sandboxBackend, workingRepoDir, commitMessage);
 
     // Resolve GitHub token in the same way as the commit_and_open_pr tool:
     // prefer env, then fall back to thread metadata.
@@ -246,22 +232,17 @@ export async function openPrIfNeeded(
     }
 
     if (githubToken) {
-      await gitPush(
-        sandboxBackend,
-        workingRepoDir,
-        targetBranch,
-        githubToken,
-      );
+      await gitPush(sandboxBackend, workingRepoDir, targetBranch, githubToken);
 
       if (repoOwner) {
-          await createGithubPr(
-            repoOwner,
-            repoName,
-            githubToken,
-            prTitle,
-            targetBranch,
-            prBody,
-          );
+        await createGithubPr(
+          repoOwner,
+          repoName,
+          githubToken,
+          prTitle,
+          targetBranch,
+          prBody,
+        );
       }
     }
 
