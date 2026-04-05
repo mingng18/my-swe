@@ -8,22 +8,27 @@ import {
   modelFallbackMiddleware,
   toolRetryMiddleware,
   modelCallLimitMiddleware,
-  summarizationMiddleware,
   contextEditingMiddleware,
   ClearToolUsesEdit,
-  todoListMiddleware,
 } from "langchain";
 import { createLoopDetectionMiddleware } from "../middleware/loop-detection";
 import { createEnsureNoEmptyMsgMiddleware } from "../middleware/ensure-no-empty-msg";
+import { toolInvocationTracker } from "../middleware/tool-invocation-limits";
 import type {
   AgentHarness,
   AgentInvokeOptions,
   AgentResponse,
 } from "./agentHarness";
+import { createMiddleware } from "langchain";
 import { constructSystemPrompt } from "../prompt";
 import { allTools, sandboxAllTools } from "../tools";
 import { writeRepoMemoryAfterAgentTurn } from "../memory/supabaseRepoMemory";
 import { openPrIfNeeded } from "../middleware/open-pr";
+import {
+  gitHasUncommittedChanges,
+  gitCleanRepository,
+  gitPull,
+} from "../utils/github";
 import {
   SandboxService,
   createSandboxServiceWithConfig,
@@ -42,6 +47,129 @@ import { clearSandboxBackend, setSandboxBackend } from "../utils/sandboxState";
 
 const logger = createLogger("deepagents");
 
+/**
+ * Create middleware that tracks and limits tool invocations per thread.
+ *
+ * This middleware intercepts tool calls before execution to:
+ * 1. Track each tool invocation for analytics and debugging
+ * 2. Enforce per-tool invocation limits to prevent runaway loops
+ * 3. Detect and block duplicate calls within a debounce window
+ * 4. Provide actionable error messages to guide the agent
+ *
+ * When a tool call is blocked, an error message is injected that guides
+ * the agent toward alternative approaches.
+ */
+function createToolInvocationLimitsMiddleware() {
+  return createMiddleware({
+    name: "toolInvocationLimitsMiddleware",
+
+    wrapModelCall: async (request: any, handler: any) => {
+      const messages = request.messages as Array<Record<string, unknown>>;
+      const configurable = request.configurable as
+        | Record<string, unknown>
+        | undefined;
+      const threadId = (configurable?.thread_id as string) || "default-session";
+
+      // Extract tool calls from the last AI message
+      const lastMsg =
+        messages.length > 0 ? messages[messages.length - 1] : undefined;
+      const toolCalls = lastMsg?.tool_calls as
+        | Array<{ name?: string; args?: Record<string, unknown>; id?: string }>
+        | undefined;
+
+      if (!toolCalls || toolCalls.length === 0) {
+        // No tool calls in this request, proceed normally
+        return handler(request);
+      }
+
+      // Check each tool call against invocation limits
+      const blockedToolCalls: Array<{
+        index: number;
+        name: string;
+        blockReason: string;
+      }> = [];
+
+      for (let i = 0; i < toolCalls.length; i++) {
+        const tc = toolCalls[i];
+        const toolName = tc.name || "unknown";
+        const args = (tc.args || {}) as Record<string, unknown>;
+
+        // Check if this tool call should be blocked
+        const blockCheck = toolInvocationTracker.shouldBlockToolCall(
+          threadId,
+          toolName,
+          args,
+        );
+
+        if (blockCheck.block) {
+          blockedToolCalls.push({
+            index: i,
+            name: toolName,
+            blockReason: blockCheck.reason || "Tool invocation limit exceeded",
+          });
+
+          logger.warn(
+            {
+              threadId,
+              toolName,
+              args,
+              count: blockCheck.count,
+              reason: blockCheck.reason,
+            },
+            "[tool-invocation-limits] Tool call blocked",
+          );
+        } else {
+          // Track the tool call for future limit checking
+          toolInvocationTracker.trackToolCall(threadId, toolName, args);
+
+          logger.debug(
+            {
+              threadId,
+              toolName,
+              args,
+              count: blockCheck.count,
+            },
+            "[tool-invocation-limits] Tool call tracked",
+          );
+        }
+      }
+
+      // If any tool calls were blocked, inject error messages
+      if (blockedToolCalls.length > 0) {
+        const blockMessages = blockedToolCalls.map(
+          (blocked) => `[BLOCKED] ${blocked.name}: ${blocked.blockReason}`,
+        );
+
+        const errorMessage = {
+          role: "user" as const,
+          content: `The following tool calls were blocked due to invocation limits:\n\n${blockMessages.map((msg) => `- ${msg}`).join("\n")}\n\nPlease try a different approach or tool.`,
+        };
+
+        logger.warn(
+          {
+            threadId,
+            blockedCount: blockedToolCalls.length,
+            blockedTools: blockedToolCalls.map((b) => ({
+              name: b.name,
+              reason: b.blockReason,
+            })),
+          },
+          "[tool-invocation-limits] Injecting block error message to agent",
+        );
+
+        // Return early with error message, preventing tool execution
+        return handler({
+          ...request,
+          messages: [...messages, errorMessage],
+        });
+      }
+
+      // No tool calls were blocked, proceed normally
+      return handler(request);
+    },
+  });
+}
+
 const threadAgentMap = new Map<string, DeepAgent>();
 const threadSandboxMap = new Map<
   string,
@@ -54,7 +182,10 @@ const threadSandboxMap = new Map<
 
 // Check if sandbox mode is enabled via environment variable
 const useSandbox = process.env.USE_SANDBOX === "true";
-const AGENT_RECURSION_LIMIT = Number.parseInt(process.env.AGENT_RECURSION_LIMIT || "150", 10);
+const AGENT_RECURSION_LIMIT = Number.parseInt(
+  process.env.AGENT_RECURSION_LIMIT || "500",
+  10,
+);
 let hasLoadedPersistedRepos = false;
 
 async function createAgentInstance(args: {
@@ -66,8 +197,6 @@ async function createAgentInstance(args: {
   const { fallback } = loadLlmConfig();
 
   const middleware: any[] = [
-    // Planning: gives agent a write_todos tool for task tracking
-    todoListMiddleware(),
     // Resilience: automatic retry on transient model errors
     modelRetryMiddleware({
       maxRetries: 3,
@@ -85,12 +214,6 @@ async function createAgentInstance(args: {
       runLimit: AGENT_RECURSION_LIMIT,
       exitBehavior: "end",
     }),
-    // Context management: summarize older messages
-    summarizationMiddleware({
-      model: chatModel,
-      maxTokensBeforeSummary: 80000,
-      messagesToKeep: 30,
-    }),
     // Context management: clear old tool results
     contextEditingMiddleware({
       edits: [
@@ -100,6 +223,8 @@ async function createAgentInstance(args: {
         }),
       ],
     }),
+    // Custom: track and limit tool invocations to prevent runaway loops
+    createToolInvocationLimitsMiddleware(),
     // Custom: detect and break tool-call loops
     createLoopDetectionMiddleware(),
     // Custom: ensure model always produces meaningful output
@@ -113,7 +238,10 @@ async function createAgentInstance(args: {
       const fallbackModel = await createChatModel(fallbackModelConfig);
       middleware.push(modelFallbackMiddleware(fallbackModel));
     } catch (err) {
-      logger.warn({ err }, "[deepagents] Failed to create fallback model, skipping");
+      logger.warn(
+        { err },
+        "[deepagents] Failed to create fallback model, skipping",
+      );
     }
   }
 
@@ -129,7 +257,7 @@ async function createAgentInstance(args: {
     config.backend = args.backend;
   }
 
-  const agent = await createDeepAgent(config);
+  const agent = createDeepAgent(config);
   return agent;
 }
 
@@ -242,7 +370,10 @@ function logAgentTraceChunk(
   }
 
   if (mode === "messages") {
-    const tuple = payload as [Record<string, unknown>?, { langgraph_node?: string }?];
+    const tuple = payload as [
+      Record<string, unknown>?,
+      { langgraph_node?: string }?,
+    ];
     const msg = tuple?.[0];
     const meta = tuple?.[1];
     if (!msg || typeof msg !== "object") return;
@@ -257,7 +388,8 @@ function logAgentTraceChunk(
         trace.midLine = false;
       }
       for (const tc of toolChunks) {
-        if (tc.name) console.error(`[agent-trace] [${src}] tool-call: ${tc.name}`);
+        if (tc.name)
+          console.error(`[agent-trace] [${src}] tool-call: ${tc.name}`);
         if (tc.args) process.stderr.write(String(tc.args));
       }
       process.stderr.write("\n");
@@ -279,7 +411,10 @@ function logAgentTraceChunk(
     const role = msg.type ?? msg.role ?? "message";
     const name = msg.name;
     if (role === "tool" || String(msg.constructor?.name) === "ToolMessage") {
-      const body = typeof msg.content === "string" ? msg.content : stringifyPayloadForTrace(msg.content, 200);
+      const body =
+        typeof msg.content === "string"
+          ? msg.content
+          : stringifyPayloadForTrace(msg.content, 200);
       console.error(
         `[agent-trace] [${src}] tool-result (${String(name ?? "?")} @${node}): ${trimStr(body, 240)}`,
       );
@@ -407,11 +542,15 @@ async function acquireDaytonaSandboxForThreadRepo(args: {
     threadId: args.threadId,
     image: process.env.DAYTONA_IMAGE || "debian:12.9",
     language: (process.env.DAYTONA_LANGUAGE as any) || undefined,
-    cpu: process.env.DAYTONA_CPU ? parseInt(process.env.DAYTONA_CPU, 10) : undefined,
+    cpu: process.env.DAYTONA_CPU
+      ? parseInt(process.env.DAYTONA_CPU, 10)
+      : undefined,
     memory: process.env.DAYTONA_MEMORY
       ? parseInt(process.env.DAYTONA_MEMORY, 10)
       : undefined,
-    disk: process.env.DAYTONA_DISK ? parseInt(process.env.DAYTONA_DISK, 10) : undefined,
+    disk: process.env.DAYTONA_DISK
+      ? parseInt(process.env.DAYTONA_DISK, 10)
+      : undefined,
     autoStopInterval: process.env.DAYTONA_AUTOSTOP
       ? parseInt(process.env.DAYTONA_AUTOSTOP, 10)
       : undefined,
@@ -454,190 +593,190 @@ async function acquireDaytonaSandboxForThreadRepo(args: {
 export class DeepAgentWrapper implements AgentHarness {
   constructor() {}
 
-
   private async prepareAgent(input: string, threadId: string) {
-      if (!hasLoadedPersistedRepos) {
-        const persisted = await loadPersistedThreadRepos();
-        for (const [id, repo] of persisted.entries()) {
-          threadRepoMap.set(id, repo);
+    if (!hasLoadedPersistedRepos) {
+      const persisted = await loadPersistedThreadRepos();
+      for (const [id, repo] of persisted.entries()) {
+        threadRepoMap.set(id, repo);
+      }
+      hasLoadedPersistedRepos = true;
+    }
+
+    const parsedRepo = extractRepoFromInput(input);
+    let activeRepo = threadRepoMap.get(threadId);
+    const profile = getSandboxProfileFromEnv();
+
+    const hasBackendForThread = Boolean(
+      threadSandboxMap.get(threadId)?.backend,
+    );
+
+    // Acquire/clone repo when:
+    // 1) user specified a different repo, OR
+    // 2) sandbox mode is enabled and this thread has no backend yet (rehydration case)
+    if (
+      parsedRepo &&
+      (!activeRepo ||
+        activeRepo.owner !== parsedRepo.owner ||
+        activeRepo.name !== parsedRepo.name ||
+        (useSandbox && !hasBackendForThread))
+    ) {
+      // If we already held a sandbox for this thread, release it back to the pool.
+      const prior = threadSandboxMap.get(threadId);
+      if (prior) {
+        try {
+          await releaseRepoSandbox({
+            apiKey: process.env.DAYTONA_API_KEY || "",
+            apiUrl: process.env.DAYTONA_API_URL,
+            target: process.env.DAYTONA_TARGET,
+            sandboxId: prior.backend.id,
+            profile: prior.profile,
+            repoOwner: prior.repo.owner,
+            repoName: prior.repo.name,
+          });
+        } catch (err) {
+          logger.warn(
+            { error: err },
+            "[deepagents] Failed to release prior sandbox",
+          );
         }
-        hasLoadedPersistedRepos = true;
+        try {
+          await prior.backend.cleanup();
+        } catch (err) {
+          logger.warn(
+            { error: err },
+            "[deepagents] Failed to cleanup prior backend",
+          );
+        }
+        threadSandboxMap.delete(threadId);
+        threadAgentMap.delete(threadId);
+        clearSandboxBackend(threadId);
+        // Clean up tool invocation tracking for this thread
+        toolInvocationTracker.clearThread(threadId);
+        await removePersistedThreadRepo(threadId);
       }
 
+      if (useSandbox) {
+        const provider = process.env.SANDBOX_PROVIDER || "opensandbox";
+        const cloneStart = Date.now();
 
-      const parsedRepo = extractRepoFromInput(input);
-      let activeRepo = threadRepoMap.get(threadId);
-      const profile = getSandboxProfileFromEnv();
-
-      const hasBackendForThread = Boolean(threadSandboxMap.get(threadId)?.backend);
-
-      // Acquire/clone repo when:
-      // 1) user specified a different repo, OR
-      // 2) sandbox mode is enabled and this thread has no backend yet (rehydration case)
-      if (
-        parsedRepo &&
-        (!activeRepo ||
-          activeRepo.owner !== parsedRepo.owner ||
-          activeRepo.name !== parsedRepo.name ||
-          (useSandbox && !hasBackendForThread))
-      ) {
-        // If we already held a sandbox for this thread, release it back to the pool.
-        const prior = threadSandboxMap.get(threadId);
-        if (prior) {
-          try {
-            await releaseRepoSandbox({
-              apiKey: process.env.DAYTONA_API_KEY || "",
-              apiUrl: process.env.DAYTONA_API_URL,
-              target: process.env.DAYTONA_TARGET,
-              sandboxId: prior.backend.id,
-              profile: prior.profile,
-              repoOwner: prior.repo.owner,
-              repoName: prior.repo.name,
-            });
-          } catch (err) {
-            logger.warn(
-              { error: err },
-              "[deepagents] Failed to release prior sandbox",
-            );
-          }
-          try {
-            await prior.backend.cleanup();
-          } catch (err) {
-            logger.warn(
-              { error: err },
-              "[deepagents] Failed to cleanup prior backend",
-            );
-          }
-          threadSandboxMap.delete(threadId);
-          threadAgentMap.delete(threadId);
-          clearSandboxBackend(threadId);
-          await removePersistedThreadRepo(threadId);
-        }
-
-        if (useSandbox) {
-          const provider = process.env.SANDBOX_PROVIDER || "opensandbox";
-          const cloneStart = Date.now();
-
-          if (provider === "daytona") {
-            const { backend, workspaceDir } = await acquireDaytonaSandboxForThreadRepo({
+        if (provider === "daytona") {
+          const { backend, workspaceDir } =
+            await acquireDaytonaSandboxForThreadRepo({
               threadId,
               repoOwner: parsedRepo.owner,
               repoName: parsedRepo.name,
               profile,
             });
-            logger.info(
-              `[deepagents] Repo acquire+clone took ${Date.now() - cloneStart}ms`,
-            );
+          logger.info(
+            `[deepagents] Repo acquire+clone took ${Date.now() - cloneStart}ms`,
+          );
 
-            activeRepo = { ...parsedRepo, workspaceDir };
-            threadRepoMap.set(threadId, activeRepo);
-            await persistThreadRepo(threadId, {
-              ...activeRepo,
-              sandbox: {
-                sandboxId: backend.id,
-                profile,
-              },
-            });
-
-            threadSandboxMap.set(threadId, {
-              backend,
-              profile,
-              repo: activeRepo,
-            });
-            setSandboxBackend(threadId, backend);
-          } else {
-            const backend = await createSandboxServiceWithConfig({
-              provider: "opensandbox",
-              opensandbox: {
-                domain: process.env.OPENSANDBOX_DOMAIN,
-                apiKey: process.env.OPENSANDBOX_API_KEY || "",
-                image: process.env.OPENSANDBOX_IMAGE,
-                timeoutSeconds: process.env.OPENSANDBOX_TIMEOUT
-                  ? parseInt(process.env.OPENSANDBOX_TIMEOUT, 10)
-                  : undefined,
-                cpu: process.env.OPENSANDBOX_CPU,
-                memory: process.env.OPENSANDBOX_MEMORY,
-              },
-            });
-            const workspaceDir = await backend.cloneRepo(
-              parsedRepo.owner,
-              parsedRepo.name,
-              process.env.GITHUB_TOKEN,
-            );
-
-            logger.info(
-              `[deepagents] OpenSandbox repo acquire+clone took ${Date.now() - cloneStart}ms`,
-            );
-
-            activeRepo = { ...parsedRepo, workspaceDir };
-            threadRepoMap.set(threadId, activeRepo);
-            await persistThreadRepo(threadId, {
-              ...activeRepo,
-              sandbox: {
-                sandboxId: backend.id,
-                profile,
-              },
-            });
-
-            threadSandboxMap.set(threadId, {
-              backend,
-              profile,
-              repo: activeRepo,
-            });
-            setSandboxBackend(threadId, backend);
-          }
-        } else {
-          activeRepo = {
-            ...parsedRepo,
-            workspaceDir: `/workspace/${parsedRepo.name}`,
-          };
+          activeRepo = { ...parsedRepo, workspaceDir };
           threadRepoMap.set(threadId, activeRepo);
-          await persistThreadRepo(threadId, activeRepo);
-        }
-      }
+          await persistThreadRepo(threadId, {
+            ...activeRepo,
+            sandbox: {
+              sandboxId: backend.id,
+              profile,
+            },
+          });
 
-      const configurable: any = { thread_id: threadId };
-      if (activeRepo) {
-        configurable.repo = {
-          owner: activeRepo.owner,
-          name: activeRepo.name,
-          workspaceDir: activeRepo.workspaceDir,
-        };
-      }
-
-      // Get or create a DeepAgent instance for this thread.
-      let agent = threadAgentMap.get(threadId);
-      if (!agent) {
-        if (useSandbox) {
-          const backend = threadSandboxMap.get(threadId)?.backend;
-          if (!backend) {
-            throw new Error(
-              "Sandbox mode is enabled but no sandbox backend is available. Provide --repo or configure a default sandbox.",
-            );
-          }
-          agent = await createAgentInstance({
-            workspaceRoot: activeRepo?.workspaceDir,
+          threadSandboxMap.set(threadId, {
             backend,
+            profile,
+            repo: activeRepo,
           });
-        } else if (activeRepo?.workspaceDir) {
-          agent = await createAgentInstance({
-            workspaceRoot: activeRepo.workspaceDir,
-            backend: new FilesystemBackend({
-              rootDir: activeRepo.workspaceDir,
-              virtualMode: false,
-            }),
-          });
+          setSandboxBackend(threadId, backend);
         } else {
-          agent = await createAgentInstance({});
-        }
+          const backend = await createSandboxServiceWithConfig({
+            provider: "opensandbox",
+            opensandbox: {
+              domain: process.env.OPENSANDBOX_DOMAIN,
+              apiKey: process.env.OPENSANDBOX_API_KEY || "",
+              image: process.env.OPENSANDBOX_IMAGE,
+              timeoutSeconds: process.env.OPENSANDBOX_TIMEOUT
+                ? parseInt(process.env.OPENSANDBOX_TIMEOUT, 10)
+                : undefined,
+              cpu: process.env.OPENSANDBOX_CPU,
+              memory: process.env.OPENSANDBOX_MEMORY,
+            },
+          });
+          const workspaceDir = await backend.cloneRepo(
+            parsedRepo.owner,
+            parsedRepo.name,
+            process.env.GITHUB_TOKEN,
+          );
 
-        threadAgentMap.set(threadId, agent);
-        logger.info(
-          { threadId },
-          `[deepagents] Agent initialized for thread`,
-        );
+          logger.info(
+            `[deepagents] OpenSandbox repo acquire+clone took ${Date.now() - cloneStart}ms`,
+          );
+
+          activeRepo = { ...parsedRepo, workspaceDir };
+          threadRepoMap.set(threadId, activeRepo);
+          await persistThreadRepo(threadId, {
+            ...activeRepo,
+            sandbox: {
+              sandboxId: backend.id,
+              profile,
+            },
+          });
+
+          threadSandboxMap.set(threadId, {
+            backend,
+            profile,
+            repo: activeRepo,
+          });
+          setSandboxBackend(threadId, backend);
+        }
+      } else {
+        activeRepo = {
+          ...parsedRepo,
+          workspaceDir: `/workspace/${parsedRepo.name}`,
+        };
+        threadRepoMap.set(threadId, activeRepo);
+        await persistThreadRepo(threadId, activeRepo);
       }
-      return { agent, configurable, activeRepo };
+    }
+
+    const configurable: any = { thread_id: threadId };
+    if (activeRepo) {
+      configurable.repo = {
+        owner: activeRepo.owner,
+        name: activeRepo.name,
+        workspaceDir: activeRepo.workspaceDir,
+      };
+    }
+
+    // Get or create a DeepAgent instance for this thread.
+    let agent = threadAgentMap.get(threadId);
+    if (!agent) {
+      if (useSandbox) {
+        const backend = threadSandboxMap.get(threadId)?.backend;
+        if (!backend) {
+          throw new Error(
+            "Sandbox mode is enabled but no sandbox backend is available. Provide --repo or configure a default sandbox.",
+          );
+        }
+        agent = await createAgentInstance({
+          workspaceRoot: activeRepo?.workspaceDir,
+          backend,
+        });
+      } else if (activeRepo?.workspaceDir) {
+        agent = await createAgentInstance({
+          workspaceRoot: activeRepo.workspaceDir,
+          backend: new FilesystemBackend({
+            rootDir: activeRepo.workspaceDir,
+            virtualMode: false,
+          }),
+        });
+      } else {
+        agent = await createAgentInstance({});
+      }
+
+      threadAgentMap.set(threadId, agent);
+      logger.info({ threadId }, `[deepagents] Agent initialized for thread`);
+    }
+    return { agent, configurable, activeRepo };
   }
 
   async invoke(
@@ -649,6 +788,37 @@ export class DeepAgentWrapper implements AgentHarness {
       const threadId = options?.threadId || "default-session";
       let { agent, configurable } = await this.prepareAgent(input, threadId);
       const activeRepo = threadRepoMap.get(threadId);
+
+      // Clean repository state before agent run if using sandbox
+      // This prevents the agent from being confused by leftover changes from previous runs
+      const sandboxEntry = threadSandboxMap.get(threadId);
+      if (sandboxEntry && activeRepo) {
+        try {
+          const hasUncommitted = await gitHasUncommittedChanges(
+            sandboxEntry.backend,
+            activeRepo.workspaceDir,
+          );
+          if (hasUncommitted) {
+            logger.info(
+              `[deepagents] Found uncommitted changes from previous run, cleaning repository state`,
+            );
+            await gitCleanRepository(
+              sandboxEntry.backend,
+              activeRepo.workspaceDir,
+            );
+            logger.info(`[deepagents] Repository state cleaned successfully`);
+          }
+          // Always pull latest changes to ensure we're working with the latest code
+          logger.info(`[deepagents] Pulling latest changes from remote`);
+          await gitPull(sandboxEntry.backend, activeRepo.workspaceDir);
+        } catch (err) {
+          // Non-fatal: log and continue
+          logger.warn(
+            { err },
+            "[deepagents] Failed to clean repository state, continuing anyway",
+          );
+        }
+      }
 
       logger.info(
         `[deepagents] Calling DeepAgent invoke (input length: ${input.length} chars)`,
@@ -696,7 +866,8 @@ export class DeepAgentWrapper implements AgentHarness {
           "[deepagents] Invoke failed",
         );
         return {
-          reply: "The coding model encountered an error. Please retry shortly or switch to a different MODEL/provider.",
+          reply:
+            "The coding model encountered an error. Please retry shortly or switch to a different MODEL/provider.",
           error: errorMsg,
         };
       } finally {
@@ -732,7 +903,10 @@ export class DeepAgentWrapper implements AgentHarness {
             console.log(`     • ${tc.name} (ID: ${tc.id})`);
             if (tc.args) {
               const argsStr = JSON.stringify(tc.args, null, 2);
-              const truncatedArgs = argsStr.length > 500 ? argsStr.substring(0, 500) + "..." : argsStr;
+              const truncatedArgs =
+                argsStr.length > 500
+                  ? argsStr.substring(0, 500) + "..."
+                  : argsStr;
               console.log(`       Arguments: ${truncatedArgs}`);
             }
           });
@@ -749,14 +923,22 @@ export class DeepAgentWrapper implements AgentHarness {
               } else if (item.type === "tool_use") {
                 console.log(`  🛠️  Calling tool: ${item.name}`);
                 console.log(`     ID: ${item.id}`);
-                console.log(`     Input: ${JSON.stringify(item.input, null, 2)}`);
+                console.log(
+                  `     Input: ${JSON.stringify(item.input, null, 2)}`,
+                );
               } else if (item.type === "tool_result") {
                 console.log(`  ✅ Tool result: ${item.tool_use_id}`);
                 if (item.is_error) {
                   console.log(`     ❌ Error: ${item.content}`);
                 } else {
-                  const contentStr = typeof item.content === "string" ? item.content : JSON.stringify(item.content);
-                  const truncated = contentStr.length > 300 ? contentStr.substring(0, 300) + "..." : contentStr;
+                  const contentStr =
+                    typeof item.content === "string"
+                      ? item.content
+                      : JSON.stringify(item.content);
+                  const truncated =
+                    contentStr.length > 300
+                      ? contentStr.substring(0, 300) + "..."
+                      : contentStr;
                   console.log(`     📄 Result: ${truncated}`);
                 }
               }
@@ -769,7 +951,8 @@ export class DeepAgentWrapper implements AgentHarness {
         console.log("");
       });
 
-      const responseText = typeof text === "string" ? text : JSON.stringify(text);
+      const responseText =
+        typeof text === "string" ? text : JSON.stringify(text);
 
       logger.info(
         { responseLength: responseText, totalMessages: messages.length },
@@ -801,15 +984,20 @@ export class DeepAgentWrapper implements AgentHarness {
       // Run the safety net PR middleware
       if (activeRepo) {
         try {
-          const expectedSandbox = useSandbox ? threadSandboxMap.get(threadId)?.backend : undefined;
+          const expectedSandbox = useSandbox
+            ? threadSandboxMap.get(threadId)?.backend
+            : undefined;
           await openPrIfNeeded(
             { messages },
             { configurable },
             expectedSandbox,
-            activeRepo.workspaceDir
+            activeRepo.workspaceDir,
           );
         } catch (prErr) {
-          logger.error({ err: prErr }, "[deepagents] openPrIfNeeded middleware failed");
+          logger.error(
+            { err: prErr },
+            "[deepagents] openPrIfNeeded middleware failed",
+          );
         }
       }
 
@@ -916,6 +1104,8 @@ export async function cleanupDeepAgents(): Promise<void> {
         );
       }
       clearSandboxBackend(threadId);
+      // Clean up tool invocation tracking for this thread
+      toolInvocationTracker.clearThread(threadId);
     }),
   );
   threadSandboxMap.clear();
