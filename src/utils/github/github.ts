@@ -341,8 +341,7 @@ export async function gitGetRemoteUrl(
 const CRED_FILE_PATH = "/tmp/.git-credentials";
 
 /**
- * Write GitHub credentials to a temporary file.
- * Kept for backward compatibility; no longer called by gitPush.
+ * Write GitHub credentials to a temporary file for use with credential.helper.
  * @param backend - The sandbox backend
  * @param githubToken - GitHub access token
  */
@@ -357,7 +356,6 @@ export async function setupGitCredentials(
 
 /**
  * Remove the temporary credentials file.
- * Kept for backward compatibility; no longer called by gitPush.
  * @param backend - The sandbox backend
  */
 export async function cleanupGitCredentials(
@@ -399,55 +397,21 @@ export async function gitPush(
     );
   }
 
-  // Save original remote URL so we can restore it in the finally block.
-  const originalUrl = await runGit(
-    backend,
-    repoDir,
-    "git remote get-url origin",
-  ).then((u) => u.trim());
-
-  // Convert SSH URL to HTTPS for token injection
-  // SSH: git@github.com:owner/repo.git -> HTTPS: https://github.com/owner/repo.git
-  let httpsUrl = originalUrl;
-  if (originalUrl.startsWith("git@")) {
-    const match = originalUrl.match(/^git@([^:]+):(.+)$/);
-    if (match) {
-      httpsUrl = `https://${match[1]}/${match[2]}`;
-    }
-  }
-
-  // Strip trailing slashes to avoid invalid URLs (e.g., "repo.git/" -> "repo.git")
-  httpsUrl = httpsUrl.replace(/\/+$/, "");
-
-  // Build token-embedded URL: https://x-access-token:<TOKEN>@github.com/owner/repo.git
-  const urlWithoutScheme = httpsUrl.replace(/^https:\/\//, "");
-  const tokenUrl = `https://x-access-token:${githubToken}@${urlWithoutScheme}`;
-
-  await runGit(
-    backend,
-    repoDir,
-    `git remote set-url origin ${shellEscapeSingleQuotes(tokenUrl)}`,
-  );
+  await setupGitCredentials(backend, githubToken);
 
   try {
     return await runGit(
       backend,
       repoDir,
-      `git push origin ${shellEscapeSingleQuotes(branch)}`,
+      `git -c credential.helper='store --file=${CRED_FILE_PATH}' push origin ${shellEscapeSingleQuotes(branch)}`,
     );
   } catch (err: any) {
     const rawMsg: string = err?.message ?? String(err);
     const safeMsg = sanitizeTokenFromString(rawMsg, githubToken);
     throw new Error(safeMsg);
   } finally {
-    // Always restore the clean remote URL — never leave the token URL in config.
-    await runGit(
-      backend,
-      repoDir,
-      `git remote set-url origin ${shellEscapeSingleQuotes(originalUrl)}`,
-    ).catch(() => {
-      // Best-effort: log but don't mask the original error.
-      logger.error("[github] Failed to restore origin URL after push");
+    await cleanupGitCredentials(backend).catch(() => {
+      logger.error("[github] Failed to cleanup credentials after push");
     });
   }
 }
