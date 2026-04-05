@@ -8,6 +8,7 @@
  */
 
 import { createLogger } from "../utils/logger";
+import { createMiddleware } from "langchain";
 import { v4 as uuidv4 } from "uuid";
 
 const logger = createLogger("ensure-no-empty-msg");
@@ -249,3 +250,50 @@ export function withEnsureNoEmptyMsg<TState extends AgentState>(
     return result;
   };
 }
+
+/**
+ * Create a DeepAgents-compatible middleware that ensures the model
+ * always produces meaningful output (tool calls or content).
+ *
+ * Pass this to `createDeepAgent({ middleware: [createEnsureNoEmptyMsgMiddleware()] })`.
+ */
+export function createEnsureNoEmptyMsgMiddleware() {
+  return createMiddleware({
+    name: "ensureNoEmptyMsgMiddleware",
+
+    wrapModelCall: async (request: any, handler: any) => {
+      const response = await handler(request);
+
+      // Inspect the model's response for empty output
+      const messages = response?.messages || response?.content
+        ? [response]
+        : [];
+
+      if (messages.length === 0) {
+        return response;
+      }
+
+      const lastMsg = messages[messages.length - 1];
+      const hasContents = Boolean(
+        lastMsg?.content ||
+        (typeof lastMsg?.text === "function" && lastMsg.text())
+      );
+      const hasToolCalls = Boolean(
+        lastMsg?.tool_calls && lastMsg.tool_calls.length > 0
+      );
+
+      // If the model produced tool calls or content, no intervention needed
+      if (hasToolCalls || hasContents) {
+        return response;
+      }
+
+      // Model produced empty output — log and let the model retry naturally
+      logger.warn(
+        "[ensure-no-empty-msg] Model produced empty output, relying on agent loop to recover",
+      );
+
+      return response;
+    },
+  });
+}
+

@@ -1,4 +1,3 @@
-import { existsSync, readFileSync } from "node:fs";
 import { detectProvider, type LlmProvider, type ModelConfig } from "./model-factory";
 
 /** Load env for the Telegram bot. Extend as other subsystems are added. */
@@ -113,16 +112,4 @@ export function loadModelConfig(override?: {
 export function validateStartupConfig(): void {
   // Validate LLM configuration and optional fallback pairings.
   loadLlmConfig();
-
-  const langgraphPath = "langgraph.json";
-  if (existsSync(langgraphPath)) {
-    const raw = readFileSync(langgraphPath, "utf8");
-    const parsed = JSON.parse(raw) as { graphs?: Record<string, string> };
-    const agentExport = parsed.graphs?.agent || "";
-    if (!agentExport.endsWith("getGraphForExport")) {
-      throw new Error(
-        `Invalid langgraph graph export '${agentExport}'. Expected export ending with 'getGraphForExport'.`,
-      );
-    }
-  }
 }

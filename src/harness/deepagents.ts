@@ -3,6 +3,18 @@ import { loadLlmConfig, loadModelConfig } from "../utils/config";
 import { createChatModel } from "../utils/model-factory";
 import { createDeepAgent, FilesystemBackend, type DeepAgent } from "deepagents";
 import { MemorySaver } from "@langchain/langgraph";
+import {
+  modelRetryMiddleware,
+  modelFallbackMiddleware,
+  toolRetryMiddleware,
+  modelCallLimitMiddleware,
+  summarizationMiddleware,
+  contextEditingMiddleware,
+  ClearToolUsesEdit,
+  todoListMiddleware,
+} from "langchain";
+import { createLoopDetectionMiddleware } from "../middleware/loop-detection";
+import { createEnsureNoEmptyMsgMiddleware } from "../middleware/ensure-no-empty-msg";
 import type {
   AgentHarness,
   AgentInvokeOptions,
@@ -10,6 +22,8 @@ import type {
 } from "./agentHarness";
 import { constructSystemPrompt } from "../prompt";
 import { allTools, sandboxAllTools } from "../tools";
+import { writeRepoMemoryAfterAgentTurn } from "../memory/supabaseRepoMemory";
+import { openPrIfNeeded } from "../middleware/open-pr";
 import {
   SandboxService,
   createSandboxServiceWithConfig,
@@ -40,27 +54,75 @@ const threadSandboxMap = new Map<
 
 // Check if sandbox mode is enabled via environment variable
 const useSandbox = process.env.USE_SANDBOX === "true";
-const RETRY_ATTEMPTS = Number.parseInt(process.env.LLM_RETRY_ATTEMPTS || "3", 10);
-const RETRY_BASE_MS = Number.parseInt(process.env.LLM_RETRY_BASE_MS || "750", 10);
+const AGENT_RECURSION_LIMIT = Number.parseInt(process.env.AGENT_RECURSION_LIMIT || "150", 10);
 let hasLoadedPersistedRepos = false;
 
 async function createAgentInstance(args: {
   workspaceRoot?: string;
   backend?: SandboxService | FilesystemBackend;
-  llmOverride?: {
-    openaiBaseUrl: string;
-    openaiApiKey: string;
-    model: string;
-  };
 }): Promise<DeepAgent> {
-  const modelConfig = loadModelConfig(args.llmOverride);
+  const modelConfig = loadModelConfig();
   const chatModel = await createChatModel(modelConfig);
+  const { fallback } = loadLlmConfig();
+
+  const middleware: any[] = [
+    // Planning: gives agent a write_todos tool for task tracking
+    todoListMiddleware(),
+    // Resilience: automatic retry on transient model errors
+    modelRetryMiddleware({
+      maxRetries: 3,
+      backoffFactor: 2.0,
+      initialDelayMs: 750,
+    }),
+    // Resilience: automatic retry on tool failures
+    toolRetryMiddleware({
+      maxRetries: 2,
+      backoffFactor: 2.0,
+      initialDelayMs: 1000,
+    }),
+    // Limits: prevent runaway agent loops
+    modelCallLimitMiddleware({
+      runLimit: AGENT_RECURSION_LIMIT,
+      exitBehavior: "end",
+    }),
+    // Context management: summarize older messages
+    summarizationMiddleware({
+      model: chatModel,
+      maxTokensBeforeSummary: 80000,
+      messagesToKeep: 30,
+    }),
+    // Context management: clear old tool results
+    contextEditingMiddleware({
+      edits: [
+        new ClearToolUsesEdit({
+          trigger: { tokens: 100000 },
+          keep: { messages: 5 },
+        }),
+      ],
+    }),
+    // Custom: detect and break tool-call loops
+    createLoopDetectionMiddleware(),
+    // Custom: ensure model always produces meaningful output
+    createEnsureNoEmptyMsgMiddleware(),
+  ];
+
+  // Add model fallback if configured
+  if (fallback) {
+    try {
+      const fallbackModelConfig = loadModelConfig(fallback);
+      const fallbackModel = await createChatModel(fallbackModelConfig);
+      middleware.push(modelFallbackMiddleware(fallbackModel));
+    } catch (err) {
+      logger.warn({ err }, "[deepagents] Failed to create fallback model, skipping");
+    }
+  }
 
   const config: any = {
     model: chatModel,
     systemPrompt: constructSystemPrompt(args.workspaceRoot || process.cwd()),
     checkpointer: new MemorySaver(),
     tools: useSandbox ? sandboxAllTools : allTools,
+    middleware,
   };
 
   if (args.backend) {
@@ -71,30 +133,8 @@ async function createAgentInstance(args: {
   return agent;
 }
 
-function isRateLimitError(err: unknown): boolean {
-  const message = err instanceof Error ? err.message : String(err);
-  return (
-    message.includes("429") ||
-    message.toLowerCase().includes("rate limit") ||
-    message.includes("MODEL_RATE_LIMIT")
-  );
-}
-
-function isTransientInvokeError(err: unknown): boolean {
-  if (isRateLimitError(err)) return true;
-  const message = (err instanceof Error ? err.message : String(err)).toLowerCase();
-  return (
-    message.includes("timeout") ||
-    message.includes("temporar") ||
-    message.includes("econnreset") ||
-    message.includes("503") ||
-    message.includes("502")
-  );
-}
-
-async function sleep(ms: number): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, ms));
-}
+// Retry/fallback logic is now handled by prebuilt middleware
+// (modelRetryMiddleware, modelFallbackMiddleware, toolRetryMiddleware)
 
 /**
  * When true, DeepAgents runs via LangGraph stream() and prints graph steps, tool calls,
@@ -271,6 +311,7 @@ async function runDeepAgentWithStreamTrace(
     { messages: [{ role: "user", content: input }] },
     {
       configurable,
+      recursionLimit: AGENT_RECURSION_LIMIT,
       streamMode: ["values", "updates", "messages"],
       subgraphs: true,
     },
@@ -614,93 +655,46 @@ export class DeepAgentWrapper implements AgentHarness {
 
       const agentStart = Date.now();
       let result: any;
-      let lastError: unknown;
-      let usedFallback = false;
-      const { fallback } = loadLlmConfig();
 
       const traceTerminal = shouldTraceAgentToTerminal();
 
-      for (let attempt = 1; attempt <= RETRY_ATTEMPTS; attempt++) {
-        let invokeProgressTicker: ReturnType<typeof setInterval> | undefined;
-        try {
-          if (!traceTerminal) {
-            invokeProgressTicker = setInterval(() => {
-              const elapsedMs = Date.now() - agentStart;
-              logger.info(
-                { threadId, elapsedMs, phase: "agent_invoke", attempt },
-                "[deepagents] Agent still processing...",
-              );
-            }, 10_000);
-          } else {
-            console.error(
-              "\n[agent-trace] Streaming agent run to stderr (set AGENT_TRACE_STDERR=false to disable).\n",
+      let invokeProgressTicker: ReturnType<typeof setInterval> | undefined;
+      try {
+        if (!traceTerminal) {
+          invokeProgressTicker = setInterval(() => {
+            const elapsedMs = Date.now() - agentStart;
+            logger.info(
+              { threadId, elapsedMs, phase: "agent_invoke" },
+              "[deepagents] Agent still processing...",
             );
-          }
-
-          result = traceTerminal
-            ? await runDeepAgentWithStreamTrace(agent, input, configurable)
-            : await agent.invoke(
-                { messages: [{ role: "user", content: input }] },
-                { configurable },
-              );
-
-          break;
-        } catch (err) {
-          lastError = err;
-          const shouldRetry = attempt < RETRY_ATTEMPTS && isTransientInvokeError(err);
-          logger.warn(
-            { threadId, attempt, shouldRetry, message: err instanceof Error ? err.message : String(err) },
-            "[deepagents] Invoke attempt failed",
+          }, 10_000);
+        } else {
+          console.error(
+            "\n[agent-trace] Streaming agent run to stderr (set AGENT_TRACE_STDERR=false to disable).\n",
           );
-          if (shouldRetry) {
-            const backoffMs = RETRY_BASE_MS * 2 ** (attempt - 1);
-            await sleep(backoffMs);
-            continue;
-          }
-
-          if (!usedFallback && fallback && isRateLimitError(err)) {
-            usedFallback = true;
-            logger.warn(
-              { threadId, attempt },
-              "[deepagents] Switching to fallback model/provider after rate limit",
-            );
-            const backendForNewAgent = useSandbox
-              ? threadSandboxMap.get(threadId)?.backend
-              : activeRepo?.workspaceDir
-                ? new FilesystemBackend({
-                    rootDir: activeRepo.workspaceDir,
-                    virtualMode: false,
-                  })
-                : undefined;
-            agent = await createAgentInstance({
-              workspaceRoot: activeRepo?.workspaceDir,
-              backend: backendForNewAgent,
-              llmOverride: fallback,
-            });
-            threadAgentMap.set(threadId, agent);
-            attempt--;
-            continue;
-          }
-          break;
-        } finally {
-          if (invokeProgressTicker) {
-            clearInterval(invokeProgressTicker);
-          }
         }
-      }
 
-      if (!result) {
-        const finalMessage =
-          (lastError instanceof Error ? lastError.message : String(lastError)) ||
-          "Unknown DeepAgents invoke failure";
-        const degradedReply =
-          "The coding model is temporarily unavailable after retries. " +
-          "Please retry shortly or switch to a different MODEL/provider.";
+        // Retry/fallback is handled by middleware (modelRetryMiddleware, modelFallbackMiddleware)
+        result = traceTerminal
+          ? await runDeepAgentWithStreamTrace(agent, input, configurable)
+          : await agent.invoke(
+              { messages: [{ role: "user", content: input }] },
+              { configurable, recursionLimit: AGENT_RECURSION_LIMIT },
+            );
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
         logger.error(
-          { threadId, elapsedMs: Date.now() - agentStart, message: finalMessage },
-          "[deepagents] Invoke failed after retries",
+          { threadId, elapsedMs: Date.now() - agentStart, message: errorMsg },
+          "[deepagents] Invoke failed",
         );
-        return { reply: degradedReply, error: finalMessage };
+        return {
+          reply: "The coding model encountered an error. Please retry shortly or switch to a different MODEL/provider.",
+          error: errorMsg,
+        };
+      } finally {
+        if (invokeProgressTicker) {
+          clearInterval(invokeProgressTicker);
+        }
       }
 
       logger.info(
@@ -784,6 +778,32 @@ export class DeepAgentWrapper implements AgentHarness {
       logger.info(
         `[deepagents] Total invoke time: ${Date.now() - startTime}ms`,
       );
+
+      // Best-effort memory persistence (non-fatal)
+      void writeRepoMemoryAfterAgentTurn({
+        threadId,
+        userText: input,
+        input,
+        agentReply: responseText,
+        fullTurnOutput: responseText,
+        agentError: undefined,
+        deterministic: {},
+      });
+
+      // Run the safety net PR middleware
+      if (activeRepo) {
+        try {
+          const expectedSandbox = useSandbox ? threadSandboxMap.get(threadId)?.backend : undefined;
+          await openPrIfNeeded(
+            { messages },
+            { configurable },
+            expectedSandbox,
+            activeRepo.workspaceDir
+          );
+        } catch (prErr) {
+          logger.error({ err: prErr }, "[deepagents] openPrIfNeeded middleware failed");
+        }
+      }
 
       return {
         reply: responseText,

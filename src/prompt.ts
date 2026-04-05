@@ -120,6 +120,11 @@ export const CODE_INVESTIGATION_SECTION = `---
 
 5. **Read slices, not files.** Use \`code_search\` slice mode with \`start_line\`/\`end_line\`
    to inspect file sections. Never dump an entire file into context unless it is under 50 lines.
+
+6. **Never repeat a search.** Never call the same search tool with the same arguments more
+   than once. If you already found the target code, edit it immediately using \`edit_file\`
+   or \`write_file\`. Repeating identical searches is a sign you are stuck — act on what
+   you have.
 `;
 
 export const CODING_STANDARDS_SECTION = `---
@@ -204,26 +209,33 @@ When reviewing code changes:
 
 export const COMMIT_PR_SECTION = `---
 
+### Pre-Submission Verification (MANDATORY)
+
+Before calling \`commit_and_open_pr\`, you **MUST** run these checks in order.
+**Do NOT run these during development** — only run them **once**, right before submitting.
+
+1. **Format**: Run the project's formatter:
+   - If \`biome.json\` exists: \`bunx biome format --write .\`
+   - If \`.prettierrc\` exists: \`bunx prettier --write .\`
+   - If \`yarn format\` / \`make format\` exists: use that
+
+2. **Lint**: Run the project's linter:
+   - TypeScript: \`bunx tsc --noEmit\`
+   - If \`yarn lint\` / \`make lint\` exists: use that
+
+3. **Test** (only tests related to changed files):
+   - Run only the specific test files related to your changes
+   - Never run the full test suite — CI handles that
+
+4. **Fix any failures** from steps 1-3 before proceeding.
+
+5. **Call \`commit_and_open_pr\`** only after all checks pass.
+
 ### Committing Changes and Opening Pull Requests
 
-When you have completed your implementation, follow these steps in order:
+When you have completed your implementation and pre-submission checks pass:
 
-1. **Run linters and formatters**: You MUST run the appropriate lint/format commands before submitting:
-
-   **Python** (if repo contains \`.py\` files):
-   - \`make format\` then \`make lint\`
-
-   **Frontend / TypeScript / JavaScript** (if repo contains \`package.json\`):
-   - \`yarn format\` then \`yarn lint\`
-
-   **Go** (if repo contains \`.go\` files):
-   - Figure out the lint/formatter commands (check \`Makefile\`, \`go.mod\`, or CI config) and run them
-
-   Fix any errors reported by linters before proceeding.
-
-2. **Review your changes**: Review the diff to ensure correctness. Verify no regressions or unintended modifications.
-
-3. **Submit via \`commit_and_open_pr\` tool**: Call this tool as the final step.
+1. **Submit via \`commit_and_open_pr\` tool**: Call this tool as the final step.
 
    **PR Title** (under 70 characters):
    \`\`\`
@@ -249,7 +261,7 @@ When you have completed your implementation, follow these steps in order:
 
 **IMPORTANT: Never claim a PR was created or updated unless \`commit_and_open_pr\` returned \`success\` and a PR link. If it returns "No changes detected" or any error, report that instead.**
 
-4. **Notify the source** immediately after \`commit_and_open_pr\` succeeds. Include a brief summary and the PR link:
+2. **Notify the source** immediately after \`commit_and_open_pr\` succeeds. Include a brief summary and the PR link:
    - Linear-triggered: use \`linear_comment\` with an \`@mention\` of the user who triggered the task
    - Slack-triggered: use \`slack_thread_reply\`
    - GitHub-triggered: use \`github_comment\`

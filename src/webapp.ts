@@ -33,16 +33,21 @@ app.get("/health", (c) => {
  * Get graph info
  */
 app.get("/info", (c) => {
-  const extendedMode = process.env.EXTENDED_MODE === "true";
-  const nodes = extendedMode
-    ? ["planner", "coder", "format", "linter", "validate", "tests", "fixer"]
-    : ["coder", "format", "linter", "validate", "tests"];
   return c.json({
     name: "codeagent",
-    version: "1.0.0",
-    description: "Agentic coder + deterministic linter pipeline",
-    mode: extendedMode ? "extended" : "standard",
-    nodes,
+    version: "2.0.0",
+    description: "Single Deep Agent with prebuilt middleware pipeline",
+    architecture: "middleware",
+    middleware: [
+      "todoListMiddleware",
+      "modelRetryMiddleware",
+      "toolRetryMiddleware",
+      "modelCallLimitMiddleware",
+      "summarizationMiddleware",
+      "contextEditingMiddleware",
+      "loopDetectionMiddleware",
+      "ensureNoEmptyMsgMiddleware",
+    ],
   });
 });
 
