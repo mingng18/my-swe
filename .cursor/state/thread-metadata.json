@@ -2,13 +2,13 @@
   "repos": {
     "default-session": {
       "owner": "mingng18",
-      "name": "my-swe",
-      "workspaceDir": "/root/my-swe",
+      "name": "recipe-rn",
+      "workspaceDir": "/root/recipe-rn",
       "sandbox": {
-        "sandboxId": "c4302954-367d-4ee0-a9ad-91f6f7cd2989",
+        "sandboxId": "a2ee8db4-9a21-490a-926a-75713ebf398e",
         "profile": "typescript"
       },
-      "updatedAt": "2026-03-27T11:22:57.855Z"
+      "updatedAt": "2026-04-04T07:06:13.312Z"
     }
   }
 }

@@ -184,10 +184,12 @@ export const commitAndOpenPrTool = tool(
       // open-swe/<thread_id> convention from the Python implementation.
       const metadataBranchName =
         (config as any)?.metadata?.branch_name as string | undefined;
+      // Add timestamp to ensure branch name is unique for each invocation
+      const timestampSuffix = Date.now().toString(36).substring(0, 8);
       const targetBranch =
         metadataBranchName && metadataBranchName.trim().length > 0
           ? metadataBranchName.trim()
-          : `open-swe/${threadId}`;
+          : `open-swe/${threadId}-${timestampSuffix}`;
 
       // If a specific branch name is configured, checkout without resetting if it
       // already exists (avoid -B semantics). For the fallback open-swe/<thread_id>
@@ -228,22 +230,63 @@ export const commitAndOpenPrTool = tool(
         await gitCommit(sandbox, workspaceDir, commit_message || title);
       }
 
+      // Force checkout to ensure we're on a clean branch for this session
+      // This handles cases where the branch already exists but is diverged
+      if (!metadataBranchName || !metadataBranchName.trim()) {
+        await sandbox.execute(
+          `cd ${shellEscapeSingleQuotes(workspaceDir)} && git checkout -B ${shellEscapeSingleQuotes(targetBranch)}`,
+        );
+      }
+
       try {
         await gitPush(sandbox, workspaceDir, targetBranch, githubToken);
       } catch (error: any) {
-        logger.error(
-          {
-            threadId,
-            repo: `${repoOwner}/${repoName}`,
-            branch: targetBranch,
-            tokenSource,
-            error: error?.message || String(error),
-          },
-          "[commit_and_open_pr] git push failed",
-        );
-        throw new Error(
-          `Push failed for ${repoOwner}/${repoName}:${targetBranch}. ${error?.message || "Unknown push error"}`,
-        );
+        // If push fails due to non-fast-forward, try force push
+        const errorMsg = error?.message || String(error);
+        if (errorMsg.includes("non-fast-forward") || errorMsg.includes("rejected")) {
+          logger.warn(
+            {
+              threadId,
+              repo: `${repoOwner}/${repoName}`,
+              branch: targetBranch,
+            },
+            "[commit_and_open_pr] Push failed due to diverged branch, forcing push...",
+          );
+          try {
+            // Force push since we know this is a new PR attempt
+            await sandbox.execute(
+              `cd ${shellEscapeSingleQuotes(workspaceDir)} && git -c credential.helper="store --file=/tmp/.git-credentials" push origin ${shellEscapeSingleQuotes(targetBranch)} --force`,
+            );
+          } catch (forceError: any) {
+            logger.error(
+              {
+                threadId,
+                repo: `${repoOwner}/${repoName}`,
+                branch: targetBranch,
+                tokenSource,
+                error: forceError?.message || String(forceError),
+              },
+              "[commit_and_open_pr] Force push also failed",
+            );
+            throw new Error(
+              `Force push failed for ${repoOwner}/${repoName}:${targetBranch}. ${forceError?.message || "Unknown force push error"}`,
+            );
+          }
+        } else {
+          logger.error(
+            {
+              threadId,
+              repo: `${repoOwner}/${repoName}`,
+              branch: targetBranch,
+              tokenSource,
+              error: errorMsg,
+            },
+            "[commit_and_open_pr] git push failed",
+          );
+          throw new Error(
+            `Push failed for ${repoOwner}/${repoName}:${targetBranch}. ${errorMsg}`,
+          );
+        }
       }
       const branchExistsRemotely = await gitRemoteBranchExists(
         sandbox,

@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
+import { detectProvider, type LlmProvider, type ModelConfig } from "./model-factory";
 
 /** Load env for the Telegram bot. Extend as other subsystems are added. */
 export function loadTelegramConfig(): { telegramBotToken: string } {
@@ -24,26 +25,39 @@ export function loadPipelineConfig(): {
 
 /** OpenAI-compatible API (OpenAI, OpenRouter, Z.ai, etc.) */
 export function loadLlmConfig(): {
+  provider: LlmProvider;
   openaiBaseUrl: string;
   openaiApiKey: string;
   model: string;
+  googleApiKey?: string;
   fallback?: {
     openaiBaseUrl: string;
     openaiApiKey: string;
     model: string;
   };
 } {
-  const openaiApiKey = process.env.OPENAI_API_KEY?.trim();
+  const provider = detectProvider();
   const model = process.env.MODEL?.trim();
+
+  if (!model) {
+    throw new Error("Missing MODEL. Set it in .env (see .env.example).");
+  }
+
+  // Provider-specific key validation
+  const openaiApiKey = process.env.OPENAI_API_KEY?.trim() || "";
   const openaiBaseUrl =
     process.env.OPENAI_BASE_URL?.trim() || "https://api.openai.com/v1";
-  if (!openaiApiKey) {
+  const googleApiKey = process.env.GOOGLE_API_KEY?.trim();
+
+  if (provider === "google" && !googleApiKey) {
+    throw new Error(
+      "LLM_PROVIDER is 'google' but GOOGLE_API_KEY is not set. Set it in .env.",
+    );
+  }
+  if (provider === "openai" && !openaiApiKey) {
     throw new Error(
       "Missing OPENAI_API_KEY. Set it in .env (see .env.example).",
     );
-  }
-  if (!model) {
-    throw new Error("Missing MODEL. Set it in .env (see .env.example).");
   }
 
   const fallbackApiKey = process.env.OPENAI_API_KEY_FALLBACK?.trim();
@@ -71,7 +85,26 @@ export function loadLlmConfig(): {
         }
       : undefined;
 
-  return { openaiBaseUrl, openaiApiKey, model, fallback };
+  return { provider, openaiBaseUrl, openaiApiKey, model, googleApiKey, fallback };
+}
+
+/**
+ * Build a `ModelConfig` ready for `createChatModel()` from environment variables.
+ * Optionally override with explicit LLM settings (e.g. for fallback switching).
+ */
+export function loadModelConfig(override?: {
+  openaiBaseUrl?: string;
+  openaiApiKey?: string;
+  model?: string;
+}): ModelConfig {
+  const llm = loadLlmConfig();
+  return {
+    provider: override ? "openai" : llm.provider,
+    model: override?.model || llm.model,
+    openaiApiKey: override?.openaiApiKey || llm.openaiApiKey,
+    openaiBaseUrl: override?.openaiBaseUrl || llm.openaiBaseUrl,
+    googleApiKey: llm.googleApiKey,
+  };
 }
 
 /**
