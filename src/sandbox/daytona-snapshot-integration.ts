@@ -49,8 +49,12 @@ export class ProfileImageBuilder {
    */
   static forNode(): Image {
     return Image.base("node:22-bookworm-slim").runCommands(
+      // Install git first
+      "apt-get update && apt-get install -y git ca-certificates",
+      // Enable corepack and install Bun
       "corepack enable && corepack prepare bun@latest --activate",
-      "npm install -g typescript tsx nodemon",
+      // Install dev tools
+      "npm install -g typescript tsx nodemon yarn",
     );
   }
 

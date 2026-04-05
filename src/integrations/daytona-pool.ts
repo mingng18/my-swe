@@ -268,88 +268,67 @@ export async function acquireRepoSandbox(
       return { sandboxId: candidate.id, createdNew: false };
     }
 
-    // 4) None available in pool - try to create from snapshot or create new
-    const branch = getDefaultBranch();
-    const snapshotKey: SnapshotKey = {
-      repoOwner: params.repoOwner,
-      repoName: params.repoName,
-      profile: params.profile,
-      branch,
+    // 4) None available in pool - create new sandbox
+    // Use profile-specific images with git pre-installed
+    let image: string;
+    switch (params.profile) {
+      case "typescript":
+      case "javascript":
+        // Use full node image (not -slim) which has git
+        image = params.image ?? "node:22-bookworm"; // Full image has git
+        break;
+      case "python":
+        // Python slim doesn't have git, use full image
+        image = params.image ?? "python:3.12";
+        break;
+      case "java":
+        image = params.image ?? "eclipse-temurin:21-jre";
+        break;
+      case "polyglot":
+        image = params.image ?? "node:22-bookworm";
+        break;
+      default:
+        image = params.image ?? "node:22-bookworm";
+    }
+
+    const resources =
+      params.cpu || params.memory || params.disk
+        ? { cpu: params.cpu, memory: params.memory, disk: params.disk }
+        : undefined;
+
+    const createParams: Record<string, unknown> = {
+      image,
+      language: params.language,
+      labels: buildLabels({
+        profile: params.profile,
+        repo,
+        status: "busy",
+        threadId: params.threadId,
+      }),
+      envVars: params.envVars,
+      resources,
+      autoStopInterval: params.autoStopInterval,
+      autoArchiveInterval: params.autoArchiveInterval,
+      autoDeleteInterval: params.autoDeleteInterval,
+      ephemeral: params.ephemeral,
+      networkBlockAll: params.networkBlockAll,
+      networkAllowList: params.networkAllowList,
+      public: params.public,
+      user: params.user,
+      volumes: params.volumes,
     };
 
-    // Try to find an existing snapshot for this repo/profile/branch
-    const snapshotMetadata = await globalSnapshotStore.get(snapshotKey);
-
-    let sandboxId: string;
-    if (snapshotMetadata && snapshotMetadata.snapshotId) {
-      // Create from existing snapshot - this is MUCH faster
-      logger.info(
-        {
-          snapshotId: snapshotMetadata.snapshotId,
-          repo,
-          profile: params.profile,
-          branch,
-        },
-        "[daytona-pool] Creating sandbox from snapshot",
-      );
-
-      const snapshotSandbox = await daytona.create({
-        snapshot: snapshotMetadata.snapshotId,
-        labels: buildLabels({
-          profile: params.profile,
-          repo,
-          status: "busy",
-          threadId: params.threadId,
-        }),
-      });
-      sandboxId = snapshotSandbox.id;
-
-      logger.info(
-        { sandboxId, snapshotId: snapshotMetadata.snapshotId },
-        "[daytona-pool] Sandbox created from snapshot successfully",
-      );
-    } else {
-      // No snapshot exists - create from image
-      const image = params.image ?? "debian:12.9";
-      const resources =
-        params.cpu || params.memory || params.disk
-          ? { cpu: params.cpu, memory: params.memory, disk: params.disk }
-          : undefined;
-
-      const createParams: Record<string, unknown> = {
-        image,
-        language: params.language,
-        labels: buildLabels({
-          profile: params.profile,
-          repo,
-          status: "busy",
-          threadId: params.threadId,
-        }),
-        envVars: params.envVars,
-        resources,
-        autoStopInterval: params.autoStopInterval,
-        autoArchiveInterval: params.autoArchiveInterval,
-        autoDeleteInterval: params.autoDeleteInterval,
-        ephemeral: params.ephemeral,
-        networkBlockAll: params.networkBlockAll,
-        networkAllowList: params.networkAllowList,
-        public: params.public,
-        user: params.user,
-        volumes: params.volumes,
-      };
-
-      for (const [k, v] of Object.entries(createParams)) {
-        if (v === undefined) delete createParams[k];
-      }
-
-      const sandbox = await daytona.create(createParams as any);
-      sandboxId = sandbox.id;
-
-      logger.info(
-        { sandboxId, repo, profile: params.profile },
-        "[daytona-pool] Created new sandbox from image",
-      );
+    for (const [k, v] of Object.entries(createParams)) {
+      if (v === undefined) delete createParams[k];
     }
+
+    const sandbox = await daytona.create(createParams as any);
+    const sandboxId = sandbox.id;
+
+    logger.info(
+      { sandboxId, repo, profile: params.profile, image },
+      "[daytona-pool] Created new sandbox from image",
+    );
 
     return { sandboxId, createdNew: true };
   } finally {
