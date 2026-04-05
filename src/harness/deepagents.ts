@@ -1,5 +1,6 @@
 import { createLogger } from "../utils/logger";
-import { loadLlmConfig } from "../utils/config";
+import { loadLlmConfig, loadModelConfig } from "../utils/config";
+import { createChatModel } from "../utils/model-factory";
 import { createDeepAgent, FilesystemBackend, type DeepAgent } from "deepagents";
 import { MemorySaver } from "@langchain/langgraph";
 import type {
@@ -52,16 +53,11 @@ async function createAgentInstance(args: {
     model: string;
   };
 }): Promise<DeepAgent> {
-  const { model, openaiApiKey, openaiBaseUrl } = args.llmOverride || loadLlmConfig();
-
-  // Prefix with 'openai:' to force LangChain's initChatModel to use the OpenAI provider
-  // This solves "Unable to infer model provider" for models like GLM-4.7
-  const modelStr = model.includes(":") ? model : `openai:${model}`;
+  const modelConfig = loadModelConfig(args.llmOverride);
+  const chatModel = await createChatModel(modelConfig);
 
   const config: any = {
-    model: modelStr,
-    apiKey: openaiApiKey,
-    apiBaseUrl: openaiBaseUrl,
+    model: chatModel,
     systemPrompt: constructSystemPrompt(args.workspaceRoot || process.cwd()),
     checkpointer: new MemorySaver(),
     tools: useSandbox ? sandboxAllTools : allTools,
@@ -100,6 +96,214 @@ async function sleep(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * When true, DeepAgents runs via LangGraph stream() and prints graph steps, tool calls,
+ * and streamed LLM tokens to stderr. User-facing channels (Telegram, GitHub, HTTP JSON)
+ * still only receive the final harness reply — this is for the operator terminal only.
+ *
+ * Default: on when stderr is a TTY (local `bun run start`), off in typical Docker/CI.
+ * Override: AGENT_TRACE_STDERR=true | false | 1 | 0
+ */
+function shouldTraceAgentToTerminal(): boolean {
+  const v = process.env.AGENT_TRACE_STDERR?.trim().toLowerCase();
+  if (v === "true" || v === "1") return true;
+  if (v === "false" || v === "0") return false;
+  return Boolean(process.stderr.isTTY);
+}
+
+function trimStr(s: string, max: number): string {
+  if (s.length <= max) return s;
+  return `${s.slice(0, max)}…`;
+}
+
+function formatStreamNs(ns: unknown): string {
+  if (ns == null) return "main";
+  if (Array.isArray(ns)) return ns.length === 0 ? "main" : ns.join(" > ");
+  return String(ns);
+}
+
+function parseLangGraphStreamChunk(raw: unknown): {
+  ns: unknown;
+  mode: string;
+  payload: unknown;
+} | null {
+  if (!Array.isArray(raw) || raw.length < 2) return null;
+  if (raw.length >= 3) {
+    return { ns: raw[0], mode: String(raw[1]), payload: raw[2] };
+  }
+  return { ns: null, mode: String(raw[0]), payload: raw[1] };
+}
+
+function summarizeUpdateForTrace(node: string, data: unknown): string {
+  if (!data || typeof data !== "object") return "";
+  const d = data as Record<string, unknown>;
+  const msgs = d.messages;
+  if (!Array.isArray(msgs) || msgs.length === 0) return "";
+  const last = msgs[msgs.length - 1] as Record<string, unknown> | undefined;
+  if (!last) return "";
+  const toolCalls = last.tool_calls as Array<{ name?: string }> | undefined;
+  if (toolCalls?.length) {
+    return ` → ${toolCalls.map((t) => t.name ?? "?").join(", ")}`;
+  }
+  if (last.type === "tool" || last.role === "tool") {
+    return ` → tool:${String(last.name ?? "?")}`;
+  }
+  void node;
+  return "";
+}
+
+function stringifyPayloadForTrace(data: unknown, max: number): string {
+  try {
+    return trimStr(JSON.stringify(data), max);
+  } catch {
+    return trimStr(String(data), max);
+  }
+}
+
+function messageChunkText(msg: Record<string, unknown>): string {
+  const c = msg.content;
+  if (typeof c === "string") return c;
+  if (Array.isArray(c)) {
+    return c
+      .map((part: unknown) => {
+        if (!part || typeof part !== "object") return "";
+        const p = part as { type?: string; text?: string };
+        return p.type === "text" && typeof p.text === "string" ? p.text : "";
+      })
+      .join("");
+  }
+  return "";
+}
+
+function logAgentTraceChunk(
+  ns: unknown,
+  mode: string,
+  payload: unknown,
+  trace: { midLine: boolean },
+): void {
+  const src = formatStreamNs(ns);
+  if (mode === "updates") {
+    if (trace.midLine) {
+      process.stderr.write("\n");
+      trace.midLine = false;
+    }
+    if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+      const entries = Object.entries(payload as Record<string, unknown>);
+      const parts = entries.map(
+        ([k, v]) => `${k}${summarizeUpdateForTrace(k, v)}`,
+      );
+      console.error(`[agent-trace] [${src}] step: ${parts.join(", ")}`);
+    } else {
+      console.error(
+        `[agent-trace] [${src}] updates ${stringifyPayloadForTrace(payload, 400)}`,
+      );
+    }
+    return;
+  }
+
+  if (mode === "messages") {
+    const tuple = payload as [Record<string, unknown>?, { langgraph_node?: string }?];
+    const msg = tuple?.[0];
+    const meta = tuple?.[1];
+    if (!msg || typeof msg !== "object") return;
+    const node = meta?.langgraph_node ?? "?";
+
+    const toolChunks = msg.tool_call_chunks as
+      | Array<{ name?: string; args?: string }>
+      | undefined;
+    if (toolChunks?.length) {
+      if (trace.midLine) {
+        process.stderr.write("\n");
+        trace.midLine = false;
+      }
+      for (const tc of toolChunks) {
+        if (tc.name) console.error(`[agent-trace] [${src}] tool-call: ${tc.name}`);
+        if (tc.args) process.stderr.write(String(tc.args));
+      }
+      process.stderr.write("\n");
+      return;
+    }
+
+    const text = messageChunkText(msg);
+    if (text) {
+      process.stderr.write(text);
+      trace.midLine = true;
+      return;
+    }
+
+    if (trace.midLine) {
+      process.stderr.write("\n");
+      trace.midLine = false;
+    }
+
+    const role = msg.type ?? msg.role ?? "message";
+    const name = msg.name;
+    if (role === "tool" || String(msg.constructor?.name) === "ToolMessage") {
+      const body = typeof msg.content === "string" ? msg.content : stringifyPayloadForTrace(msg.content, 200);
+      console.error(
+        `[agent-trace] [${src}] tool-result (${String(name ?? "?")} @${node}): ${trimStr(body, 240)}`,
+      );
+      return;
+    }
+
+    console.error(`[agent-trace] [${src}] ${String(role)} @${node}`);
+    return;
+  }
+
+  if (trace.midLine) {
+    process.stderr.write("\n");
+    trace.midLine = false;
+  }
+  console.error(
+    `[agent-trace] [${src}] ${mode} ${stringifyPayloadForTrace(payload, 280)}`,
+  );
+}
+
+/**
+ * Same end state as invoke(), with optional stderr trace of updates + LLM message chunks.
+ */
+async function runDeepAgentWithStreamTrace(
+  agent: DeepAgent,
+  input: string,
+  configurable: Record<string, unknown>,
+): Promise<unknown> {
+  const stream = await agent.stream(
+    { messages: [{ role: "user", content: input }] },
+    {
+      configurable,
+      streamMode: ["values", "updates", "messages"],
+      subgraphs: true,
+    },
+  );
+
+  let latest: unknown;
+  const trace = { midLine: false };
+
+  for await (const raw of stream) {
+    const parsed = parseLangGraphStreamChunk(raw);
+    if (!parsed) continue;
+    const { ns, mode, payload } = parsed;
+    if (mode === "values") {
+      latest = payload;
+      continue;
+    }
+    logAgentTraceChunk(ns, mode, payload, trace);
+  }
+
+  if (trace.midLine) {
+    process.stderr.write("\n");
+  }
+
+  if (latest === undefined) {
+    const snap = (await agent.getState({ configurable })) as {
+      values?: unknown;
+    };
+    latest = snap.values;
+  }
+
+  return latest;
+}
+
 function extractRepoFromInput(
   input: string,
 ): { owner: string; name: string } | undefined {
@@ -119,7 +323,7 @@ function extractRepoFromInput(
   }
 }
 
-// Keep track of the last specified repository per thread.
+// Keep track of last specified repository per thread.
 // This solves the problem of "configurable" values being lost across turns
 // if the user doesn't re-type `--repo foo/bar`.
 const threadRepoMap = new Map<
@@ -400,27 +604,46 @@ export class DeepAgentWrapper implements AgentHarness {
       logger.info(
         `[deepagents] Calling DeepAgent invoke (input length: ${input.length} chars)`,
       );
+
+      // Log the input being sent to the agent
+      console.log("");
+      console.log("=== Agent Input ===");
+      console.log(input);
+      console.log("=== End Agent Input ===");
+      console.log("");
+
       const agentStart = Date.now();
       let result: any;
       let lastError: unknown;
       let usedFallback = false;
       const { fallback } = loadLlmConfig();
 
+      const traceTerminal = shouldTraceAgentToTerminal();
+
       for (let attempt = 1; attempt <= RETRY_ATTEMPTS; attempt++) {
         let invokeProgressTicker: ReturnType<typeof setInterval> | undefined;
         try {
-          invokeProgressTicker = setInterval(() => {
-            const elapsedMs = Date.now() - agentStart;
-            logger.info(
-              { threadId, elapsedMs, phase: "agent_invoke", attempt },
-              "[deepagents] Invoke still running",
+          if (!traceTerminal) {
+            invokeProgressTicker = setInterval(() => {
+              const elapsedMs = Date.now() - agentStart;
+              logger.info(
+                { threadId, elapsedMs, phase: "agent_invoke", attempt },
+                "[deepagents] Agent still processing...",
+              );
+            }, 10_000);
+          } else {
+            console.error(
+              "\n[agent-trace] Streaming agent run to stderr (set AGENT_TRACE_STDERR=false to disable).\n",
             );
-          }, 10_000);
+          }
 
-          result = await agent.invoke(
-            { messages: [{ role: "user", content: input }] },
-            { configurable },
-          );
+          result = traceTerminal
+            ? await runDeepAgentWithStreamTrace(agent, input, configurable)
+            : await agent.invoke(
+                { messages: [{ role: "user", content: input }] },
+                { configurable },
+              );
+
           break;
         } catch (err) {
           lastError = err;
@@ -488,12 +711,82 @@ export class DeepAgentWrapper implements AgentHarness {
       const lastMessage = messages[messages.length - 1];
       const text = lastMessage?.content || "";
 
+      // Log all messages with detailed information
+      console.log("");
+      console.log("=".repeat(80));
+      console.log("=== Agent Execution Log ===");
+      console.log("=".repeat(80));
+      console.log("");
+
+      messages.forEach((msg: any, index: number) => {
+        console.log(`[Message ${index + 1}]`);
+        console.log(`Role: ${msg.role}`);
+        console.log(`Type: ${msg.type || "message"}`);
+
+        if (msg.type === "tool" || msg.tool_calls) {
+          console.log("  📦 Tool Calls:");
+          const toolCalls = msg.tool_calls || [];
+          toolCalls.forEach((tc: any) => {
+            console.log(`     • ${tc.name} (ID: ${tc.id})`);
+            if (tc.args) {
+              const argsStr = JSON.stringify(tc.args, null, 2);
+              const truncatedArgs = argsStr.length > 500 ? argsStr.substring(0, 500) + "..." : argsStr;
+              console.log(`       Arguments: ${truncatedArgs}`);
+            }
+          });
+        }
+
+        if (msg.content) {
+          console.log("Content:");
+          if (typeof msg.content === "string") {
+            console.log(`  💭 ${msg.content}`);
+          } else if (Array.isArray(msg.content)) {
+            msg.content.forEach((item: any) => {
+              if (item.type === "text") {
+                console.log(`  💭 ${item.text}`);
+              } else if (item.type === "tool_use") {
+                console.log(`  🛠️  Calling tool: ${item.name}`);
+                console.log(`     ID: ${item.id}`);
+                console.log(`     Input: ${JSON.stringify(item.input, null, 2)}`);
+              } else if (item.type === "tool_result") {
+                console.log(`  ✅ Tool result: ${item.tool_use_id}`);
+                if (item.is_error) {
+                  console.log(`     ❌ Error: ${item.content}`);
+                } else {
+                  const contentStr = typeof item.content === "string" ? item.content : JSON.stringify(item.content);
+                  const truncated = contentStr.length > 300 ? contentStr.substring(0, 300) + "..." : contentStr;
+                  console.log(`     📄 Result: ${truncated}`);
+                }
+              }
+            });
+          }
+        }
+
+        console.log("");
+        console.log("-".repeat(80));
+        console.log("");
+      });
+
+      const responseText = typeof text === "string" ? text : JSON.stringify(text);
+
+      logger.info(
+        { responseLength: responseText, totalMessages: messages.length },
+        `[deepagents] Agent response received (${responseText.length} chars, ${messages.length} messages total)`,
+      );
+
+      console.log("=".repeat(80));
+      console.log("=== Final Agent Response ===");
+      console.log("=".repeat(80));
+      console.log(responseText);
+      console.log("=".repeat(80));
+      console.log("");
+
       logger.info(
         `[deepagents] Total invoke time: ${Date.now() - startTime}ms`,
       );
 
       return {
-        reply: typeof text === "string" ? text : JSON.stringify(text),
+        reply: responseText,
         messages,
       };
     } catch (e) {
@@ -554,13 +847,13 @@ export async function initDeepAgentsAtStartup(): Promise<void> {
 }
 
 /**
- * Cleanup function to properly shutdown the agent and sandbox.
+ * Cleanup function to properly shutdown agent and sandbox.
  * Should be called on application shutdown.
  */
 export async function cleanupDeepAgents(): Promise<void> {
   logger.info("[deepagents] Cleaning up...");
 
-  // Release sandboxes back to the pool and dispose backends.
+  // Release sandboxes back to pool and dispose backends.
   for (const [threadId, entry] of threadSandboxMap.entries()) {
     try {
       await releaseRepoSandbox({

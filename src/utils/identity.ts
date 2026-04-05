@@ -19,8 +19,8 @@ export const IDENTITY_MAP: Record<string, string> = {
     ])
   ),
 
-  // 2. Add Telegram mappings here
-  // "telegram:your_telegram_username": "your.email@example.com",
+  // 2. Add Telegram mappings here (username as returned by Telegram API, no @)
+  "telegram:Minng02": "n.gihming@yahoo.com",
 
   // 3. Add Linear/Slack mappings here
   // "linear:uuid-1234": "your.email@example.com",
