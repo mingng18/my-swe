@@ -266,6 +266,7 @@ const CRED_FILE_PATH = "/tmp/.git-credentials";
 
 /**
  * Write GitHub credentials to a temporary file.
+ * Kept for backward compatibility; no longer called by gitPush.
  * @param backend - The sandbox backend
  * @param githubToken - GitHub access token
  */
@@ -280,6 +281,7 @@ export async function setupGitCredentials(
 
 /**
  * Remove the temporary credentials file.
+ * Kept for backward compatibility; no longer called by gitPush.
  * @param backend - The sandbox backend
  */
 export async function cleanupGitCredentials(
@@ -289,26 +291,18 @@ export async function cleanupGitCredentials(
 }
 
 /**
- * Run a git command using the temporary credential file.
- * @param backend - The sandbox backend
- * @param repoDir - Repository directory path
- * @param command - Git command to run
- * @returns Execute response
+ * Replace all occurrences of a token in a string with '***'.
+ * Prevents accidental token leakage in error messages and logs.
  */
-async function gitWithCredentials(
-  backend: SandboxService,
-  repoDir: string,
-  command: string,
-): Promise<string> {
-  return await runGit(
-    backend,
-    repoDir,
-    `git -c credential.helper="store --file=${CRED_FILE_PATH}" ${command}`,
-  );
+export function sanitizeTokenFromString(msg: string, token: string): string {
+  if (!token) return msg;
+  return msg.split(token).join("***");
 }
 
 /**
- * Push the branch to origin, using a token if needed.
+ * Push branch to origin using URL-embedded token authentication.
+ * Uses `https://x-access-token:<TOKEN>@github.com/...` so no credential
+ * helper or credential file is needed — works reliably in headless sandboxes.
  * @param backend - The sandbox backend
  * @param repoDir - Repository directory path
  * @param branch - Branch name to push
@@ -329,15 +323,41 @@ export async function gitPush(
     );
   }
 
-  await setupGitCredentials(backend, githubToken);
+  // Save original remote URL so we can restore it in the finally block.
+  const originalUrl = await runGit(backend, repoDir, "git remote get-url origin").then(
+    (u) => u.trim(),
+  );
+
+  // Build token-embedded URL: https://x-access-token:<TOKEN>@github.com/owner/repo.git
+  const urlWithoutScheme = originalUrl.replace(/^https:\/\//, "");
+  const tokenUrl = `https://x-access-token:${githubToken}@${urlWithoutScheme}`;
+
+  await runGit(
+    backend,
+    repoDir,
+    `git remote set-url origin ${shellEscapeSingleQuotes(tokenUrl)}`,
+  );
+
   try {
-    return await gitWithCredentials(
+    return await runGit(
       backend,
       repoDir,
-      `push origin ${shellEscapeSingleQuotes(branch)}`,
+      `git push origin ${shellEscapeSingleQuotes(branch)}`,
     );
+  } catch (err: any) {
+    const rawMsg: string = err?.message ?? String(err);
+    const safeMsg = sanitizeTokenFromString(rawMsg, githubToken);
+    throw new Error(safeMsg);
   } finally {
-    await cleanupGitCredentials(backend);
+    // Always restore the clean remote URL — never leave the token URL in config.
+    await runGit(
+      backend,
+      repoDir,
+      `git remote set-url origin ${shellEscapeSingleQuotes(originalUrl)}`,
+    ).catch(() => {
+      // Best-effort: log but don't mask the original error.
+      logger.error("[github] Failed to restore origin URL after push");
+    });
   }
 }
 

@@ -240,37 +240,36 @@ export const commitAndOpenPrTool = tool(
 
       try {
         await gitPush(sandbox, workspaceDir, targetBranch, githubToken);
-      } catch (error: any) {
-        // If push fails due to non-fast-forward, try force push
-        const errorMsg = error?.message || String(error);
-        if (errorMsg.includes("non-fast-forward") || errorMsg.includes("rejected")) {
+      } catch (pushError: any) {
+        const pushErrorMsg = pushError?.message || String(pushError);
+        // If push fails due to non-fast-forward, try force push with the same token-URL auth.
+        if (pushErrorMsg.includes("non-fast-forward") || pushErrorMsg.includes("rejected")) {
           logger.warn(
             {
               threadId,
               repo: `${repoOwner}/${repoName}`,
               branch: targetBranch,
             },
-            "[commit_and_open_pr] Push failed due to diverged branch, forcing push...",
+            "[commit_and_open_pr] Push rejected (diverged branch), force-pushing...",
           );
           try {
-            // Force push since we know this is a new PR attempt
-            await sandbox.execute(
-              `cd ${shellEscapeSingleQuotes(workspaceDir)} && git -c credential.helper="store --file=/tmp/.git-credentials" push origin ${shellEscapeSingleQuotes(targetBranch)} --force`,
-            );
+            await gitPush(sandbox, workspaceDir, `+${targetBranch}`, githubToken);
           } catch (forceError: any) {
+            const forceErrorMsg = forceError?.message || String(forceError);
             logger.error(
               {
                 threadId,
                 repo: `${repoOwner}/${repoName}`,
                 branch: targetBranch,
                 tokenSource,
-                error: forceError?.message || String(forceError),
+                error: forceErrorMsg,
               },
               "[commit_and_open_pr] Force push also failed",
             );
-            throw new Error(
-              `Force push failed for ${repoOwner}/${repoName}:${targetBranch}. ${forceError?.message || "Unknown force push error"}`,
-            );
+            return JSON.stringify({
+              success: false,
+              error: `Force push failed for ${repoOwner}/${repoName}:${targetBranch}. ${forceErrorMsg}`,
+            });
           }
         } else {
           logger.error(
@@ -279,13 +278,14 @@ export const commitAndOpenPrTool = tool(
               repo: `${repoOwner}/${repoName}`,
               branch: targetBranch,
               tokenSource,
-              error: errorMsg,
+              error: pushErrorMsg,
             },
             "[commit_and_open_pr] git push failed",
           );
-          throw new Error(
-            `Push failed for ${repoOwner}/${repoName}:${targetBranch}. ${errorMsg}`,
-          );
+          return JSON.stringify({
+            success: false,
+            error: `Push failed for ${repoOwner}/${repoName}:${targetBranch}. ${pushErrorMsg}`,
+          });
         }
       }
       const branchExistsRemotely = await gitRemoteBranchExists(
