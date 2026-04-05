@@ -4,20 +4,19 @@
  * Provides snapshot functionality for fast sandbox initialization.
  * Supports multiple profiles (Node.js, Python, Java, etc.) per repository.
  *
+ * Provider Support:
+ * - Daytona: Full snapshot API (create, list, delete, create from snapshot)
+ * - OpenSandbox: Pause/resume for state preservation
+ *
  * Usage:
  * ```ts
- * import { globalSnapshotManager, globalSnapshotStore } from './sandbox';
+ * import { DaytonaSnapshotManager, createDaytonaSnapshot } from './sandbox';
  *
- * // Create a snapshot
- * const result = await globalSnapshotManager.createSnapshot(sandbox, {
- *   repoOwner: 'facebook',
- *   repoName: 'react',
- *   profile: 'typescript',
- *   branch: 'main',
- * });
+ * // Daytona: Create snapshot for TypeScript profile
+ * const result = await createDaytonaSnapshot(daytona, repoDir, 'typescript', 'main');
+ * const sandbox = await manager.createSandboxFromSnapshot(result.snapshotName);
  *
- * // Restore from snapshot
- * const restored = await globalSnapshotManager.restoreSnapshot(key, () => acquireSandbox());
+ * // Restore is automatic - snapshots are checked before creating new sandboxes
  * ```
  *
  * References:
@@ -38,14 +37,14 @@ export {
   getDefaultBranch,
   PROFILE_SETUP_COMMANDS,
   PROFILE_DEPENDENCY_FILES,
-} from './snapshot-metadata';
+} from "./snapshot-metadata";
 
 // Snapshot store
 export {
   FilesystemSnapshotStore,
   globalSnapshotStore,
   initializeSnapshotStore,
-} from './snapshot-store';
+} from "./snapshot-store";
 
 // Snapshot manager
 export {
@@ -54,7 +53,7 @@ export {
   initializeSnapshotManager,
   type SnapshotResult,
   type RestoreResult,
-} from './snapshot-manager';
+} from "./snapshot-manager";
 
 // Snapshot scheduler
 export {
@@ -64,4 +63,13 @@ export {
   stopSnapshotScheduler,
   type SchedulerConfig,
   DEFAULT_SCHEDULER_CONFIG,
-} from './snapshot-scheduler';
+} from "./snapshot-scheduler";
+
+// Daytona snapshot integration
+export {
+  DaytonaSnapshotManager,
+  ProfileImageBuilder,
+  createDaytonaSnapshot,
+  createImageFromRepo,
+  type DaytonaSnapshotResult,
+} from "./daytona-snapshot-integration";
