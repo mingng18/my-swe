@@ -1,21 +1,33 @@
 import { UNTRUSTED_GITHUB_COMMENT_OPEN_TAG } from "./utils/github/github-comments";
 
-export const WORKING_ENV_SECTION = `---
+export type SystemPrompt = readonly string[] & {
+  readonly __brand: 'SystemPrompt'
+};
+
+export function asSystemPrompt(value: readonly string[]): SystemPrompt {
+  return value as SystemPrompt;
+}
+
+export const SYSTEM_PROMPT_DYNAMIC_BOUNDARY = '__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__';
+
+export function getWorkingEnvSection(workingDir: string): string {
+  return `---
 
 ### Working Environment
 
-You are operating in a **remote Linux sandbox** at \`{working_dir}\`.
+You are operating in a **remote Linux sandbox** at \`${workingDir}\`.
 
 All code execution and file operations happen in this sandbox environment.
 
 **Important:**
-- Use \`{working_dir}\` as your working directory for all operations
+- Use \`${workingDir}\` as your working directory for all operations
 - The \`execute\` tool enforces a 5-minute timeout by default (300 seconds)
 - If a command times out and needs longer, rerun it by explicitly passing \`timeout=<seconds>\` to the \`execute\` tool (e.g. \`timeout=600\` for 10 minutes)
 
 IMPORTANT: You must ALWAYS call a tool in EVERY SINGLE TURN. If you don't call a tool, the session will end and you won't be able to resume without the user manually restarting you.
 For this reason, you should ensure every single message you generate always has at least ONE tool call, unless you're 100% sure you're done with the task.
 `;
+}
 
 export const TASK_OVERVIEW_SECTION = `---
 
@@ -277,32 +289,16 @@ When you have completed your implementation and pre-submission checks pass:
 
 Always call \`commit_and_open_pr\` followed by the appropriate reply tool once implementation is complete and code quality checks pass.`;
 
-export const SYSTEM_PROMPT = 
-    WORKING_ENV_SECTION +
-    FILE_MANAGEMENT_SECTION +
-    TASK_OVERVIEW_SECTION +
-    TASK_EXECUTION_SECTION +
-    TOOL_USAGE_SECTION +
-    TOOL_BEST_PRACTICES_SECTION +
-    CODE_INVESTIGATION_SECTION +
-    CODING_STANDARDS_SECTION +
-    CORE_BEHAVIOR_SECTION +
-    DEPENDENCY_SECTION +
-    CODE_REVIEW_GUIDELINES_SECTION +
-    COMMUNICATION_SECTION +
-    EXTERNAL_UNTRUSTED_COMMENTS_SECTION +
-    COMMIT_PR_SECTION +
-    `
-
-{agents_md_section}
-`;
-
 export function constructSystemPrompt(
     workingDir: string,
     linearProjectId: string = "",
     linearIssueNumber: string = "",
     agentsMd: string = ""
 ): string {
+    let taskOverview = TASK_OVERVIEW_SECTION;
+    const projId = linearProjectId || "<PROJECT_ID>";
+    const issueNum = linearIssueNumber || "<ISSUE_NUMBER>";
+
     let agentsMdSection = "";
     if (agentsMd) {
         agentsMdSection = 
@@ -313,10 +309,24 @@ export function constructSystemPrompt(
             "</agents_md>\\n";
     }
 
-    let prompt = SYSTEM_PROMPT.replace(/\\{working_dir\\}/g, workingDir);
-    prompt = prompt.replace(/\\{linear_project_id\\}/g, linearProjectId || "<PROJECT_ID>");
-    prompt = prompt.replace(/\\{linear_issue_number\\}/g, linearIssueNumber || "<ISSUE_NUMBER>");
-    prompt = prompt.replace(/\\{agents_md_section\\}/g, agentsMdSection);
+    const sections = asSystemPrompt([
+        taskOverview,
+        FILE_MANAGEMENT_SECTION,
+        TASK_EXECUTION_SECTION,
+        TOOL_USAGE_SECTION,
+        TOOL_BEST_PRACTICES_SECTION,
+        CODE_INVESTIGATION_SECTION,
+        CODING_STANDARDS_SECTION,
+        CORE_BEHAVIOR_SECTION,
+        DEPENDENCY_SECTION,
+        CODE_REVIEW_GUIDELINES_SECTION,
+        COMMUNICATION_SECTION,
+        EXTERNAL_UNTRUSTED_COMMENTS_SECTION,
+        COMMIT_PR_SECTION,
+        SYSTEM_PROMPT_DYNAMIC_BOUNDARY,
+        getWorkingEnvSection(workingDir),
+        agentsMdSection
+    ]);
 
-    return prompt;
+    return sections.filter(Boolean).join('\\n\\n');
 }
