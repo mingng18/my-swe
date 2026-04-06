@@ -171,12 +171,20 @@ export interface ToolInvocationTracker {
 function createArgsFingerprint(args: Record<string, unknown>): string {
   try {
     // Sort keys to ensure consistent ordering
+    // Optimized version: iterate and build JSON string without intermediary object allocation
     const sortedKeys = Object.keys(args).sort();
-    const sortedArgs: Record<string, unknown> = {};
-    for (const key of sortedKeys) {
-      sortedArgs[key] = args[key];
+    let jsonStr = "{";
+    for (let i = 0; i < sortedKeys.length; i++) {
+      const key = sortedKeys[i];
+      const val = JSON.stringify(args[key]);
+      // JSON.stringify can return undefined for functions/undefined values.
+      if (val !== undefined) {
+        if (jsonStr.length > 1) jsonStr += ",";
+        jsonStr += JSON.stringify(key) + ":" + val;
+      }
     }
-    return JSON.stringify(sortedArgs);
+    jsonStr += "}";
+    return jsonStr;
   } catch (err) {
     // Fallback for circular references or unserializable objects
     logger.warn({ err }, "[tool-invocation-limits] Failed to serialize args");
