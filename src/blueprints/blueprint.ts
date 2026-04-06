@@ -118,9 +118,12 @@ export interface BlueprintSelection {
  */
 export class BlueprintRegistry {
   private blueprints: Blueprint[];
+  private defaultBlueprint?: Blueprint;
+  private lowercasedKeywords: Map<string, string[]>;
 
   constructor() {
     this.blueprints = [];
+    this.lowercasedKeywords = new Map();
   }
 
   /**
@@ -130,13 +133,24 @@ export class BlueprintRegistry {
     this.blueprints.push(blueprint);
     // Sort by priority (descending)
     this.blueprints.sort((a, b) => b.priority - a.priority);
+
+    // Cache default blueprint for O(1) lookup
+    if (blueprint.isDefault) {
+      this.defaultBlueprint = blueprint;
+    }
+
+    // Pre-compute lowercased keywords to avoid string creation in hot loop
+    this.lowercasedKeywords.set(
+      blueprint.id,
+      blueprint.triggerKeywords.map((k) => k.toLowerCase())
+    );
   }
 
   /**
    * Select the best blueprint for a given task.
    *
-   Returns the blueprint with the highest priority that matches any keywords.
-   If no blueprint matches, returns the default blueprint.
+   * Returns the blueprint with the highest priority that matches any keywords.
+   * If no blueprint matches, returns the default blueprint.
    */
   select(task: string): BlueprintSelection {
     const lowerTask = task.toLowerCase();
@@ -144,10 +158,11 @@ export class BlueprintRegistry {
     // Try to find a matching blueprint (checked in priority order)
     for (const blueprint of this.blueprints) {
       const matchedKeywords: string[] = [];
+      const lowerKeywords = this.lowercasedKeywords.get(blueprint.id) || [];
 
-      for (const keyword of blueprint.triggerKeywords) {
-        if (lowerTask.includes(keyword.toLowerCase())) {
-          matchedKeywords.push(keyword);
+      for (let i = 0; i < lowerKeywords.length; i++) {
+        if (lowerTask.includes(lowerKeywords[i])) {
+          matchedKeywords.push(blueprint.triggerKeywords[i]);
         }
       }
 
@@ -161,13 +176,12 @@ export class BlueprintRegistry {
     }
 
     // No match found - return default blueprint
-    const defaultBlueprint = this.blueprints.find((b) => b.isDefault);
-    if (!defaultBlueprint) {
+    if (!this.defaultBlueprint) {
       throw new Error("No default blueprint registered");
     }
 
     return {
-      blueprint: defaultBlueprint,
+      blueprint: this.defaultBlueprint,
       confidence: 0,
       matchedKeywords: [],
     };
