@@ -1,3 +1,4 @@
+import { loadTelegramConfig } from "../utils/config";
 /**
  * Bounded Retry Loop
  *
@@ -331,8 +332,31 @@ export async function defaultEscalationHandler(
   console.error(`[Blueprint Escalation] Last error: ${lastError}`);
   console.error("[Blueprint Escalation] Please review and provide guidance");
 
-  // TODO: Integrate with Telegram/webapp to notify user
-  // TODO: Store escalation in database for audit trail
+  try {
+    const { telegramBotToken, telegramAdminChatId } = loadTelegramConfig();
+    if (telegramBotToken && telegramAdminChatId) {
+      const message = `🚨 *Blueprint Escalation*\n\n*Node:* \`${nodeId}\`\n*Failed after:* ${attempts.length} attempts\n*Last error:* \`${lastError}\`\n\nPlease review and provide guidance.`;
+
+      await fetch(
+        `https://api.telegram.org/bot${telegramBotToken}/sendMessage`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: telegramAdminChatId,
+            text: message,
+            parse_mode: "Markdown",
+          }),
+        },
+      );
+      console.log("[Blueprint Escalation] Admin notified via Telegram.");
+    }
+  } catch (err) {
+    console.error(
+      "[Blueprint Escalation] Failed to notify admin via Telegram:",
+      err,
+    );
+  }
 }
 
 /**
