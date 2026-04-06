@@ -439,13 +439,13 @@ export async function fetchPrCommentsSinceLastTag(
     allComments.sort((a, b) => a.created_at.localeCompare(b.created_at));
 
     // Find all @openswe / @open-swe mention positions
-    const tagIndices = allComments
-      .map((comment, i) => ({
-        index: i,
-        body: (comment.body ?? "").toLowerCase(),
-      }))
-      .filter(({ body }) => OPEN_SWE_TAGS.some((tag) => body.includes(tag)))
-      .map(({ index }) => index);
+    const tagIndices = allComments.reduce((acc, comment, i) => {
+      const body = (comment.body ?? "").toLowerCase();
+      if (OPEN_SWE_TAGS.some((tag) => body.includes(tag))) {
+        acc.push(i);
+      }
+      return acc;
+    }, [] as number[]);
 
     if (tagIndices.length === 0) {
       return [];
