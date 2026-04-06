@@ -14,6 +14,94 @@ import { z } from "zod";
 import { shellEscapeSingleQuotes } from "../utils/shell.js";
 import { getSandboxBackendFromConfig } from "../utils/sandboxState";
 
+import fs from "fs/promises";
+import path from "path";
+
+/**
+ * Tool to read file contents from the sandbox
+ */
+export const readSandboxFileTool = tool(
+  async ({ filePath, startLine, endLine }: { filePath: string; startLine?: number; endLine?: number }) => {
+    try {
+      const content = await fs.readFile(filePath, "utf-8");
+
+      if (startLine !== undefined && endLine !== undefined) {
+        const lines = content.split('\n');
+        // Convert 1-based lines to 0-based index
+        const startIdx = Math.max(0, startLine - 1);
+        const endIdx = Math.min(lines.length, endLine);
+        return lines.slice(startIdx, endIdx).join('\n');
+      }
+
+      return content;
+    } catch (err: any) {
+      logger.error({ error: err }, "[sandbox-read] Failed to read file");
+      throw new Error(`Failed to read file: ${err.message}`);
+    }
+  },
+  {
+    name: "read_sandbox_file",
+    description: "Read contents of a file in the sandbox environment.",
+    schema: z.object({
+      filePath: z.string().describe("Absolute or relative path to the file"),
+      startLine: z.number().optional().describe("Starting line number (1-indexed)"),
+      endLine: z.number().optional().describe("Ending line number (inclusive)")
+    }),
+  }
+);
+
+/**
+ * Tool to write contents to a file in the sandbox
+ */
+export const writeSandboxFileTool = tool(
+  async ({ filePath, content }: { filePath: string; content: string }) => {
+    try {
+      // Ensure directory exists
+      await fs.mkdir(path.dirname(filePath), { recursive: true });
+      await fs.writeFile(filePath, content, "utf-8");
+      return `Successfully wrote to ${filePath}`;
+    } catch (err: any) {
+      logger.error({ error: err }, "[sandbox-write] Failed to write file");
+      throw new Error(`Failed to write file: ${err.message}`);
+    }
+  },
+  {
+    name: "write_sandbox_file",
+    description: "Write content to a file in the sandbox environment. Will create parent directories if needed.",
+    schema: z.object({
+      filePath: z.string().describe("Absolute or relative path to the file"),
+      content: z.string().describe("Content to write to the file")
+    }),
+  }
+);
+
+/**
+ * Tool to list files in a directory in the sandbox
+ */
+export const listSandboxFilesTool = tool(
+  async ({ dirPath }: { dirPath: string }) => {
+    try {
+      const entries = await fs.readdir(dirPath, { withFileTypes: true });
+      const result = entries.map(entry => ({
+        name: entry.name,
+        isDirectory: entry.isDirectory()
+      }));
+      return JSON.stringify(result, null, 2);
+    } catch (err: any) {
+      logger.error({ error: err }, "[sandbox-list] Failed to list directory");
+      throw new Error(`Failed to list directory: ${err.message}`);
+    }
+  },
+  {
+    name: "list_sandbox_files",
+    description: "List files and directories in a given path.",
+    schema: z.object({
+      dirPath: z.string().describe("Path to the directory to list")
+    }),
+  }
+);
+
+
 const logger = createLogger("sandbox-files-tool");
 
 /**
@@ -447,4 +535,7 @@ export const sandboxFileTools = [
   sandboxStatTool,
   sandboxChecksumTool,
   sandboxFindTool,
+  readSandboxFileTool,
+  writeSandboxFileTool,
+  listSandboxFilesTool,
 ];
