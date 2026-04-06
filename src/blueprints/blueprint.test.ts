@@ -18,6 +18,20 @@ describe("Blueprint Pattern", () => {
     }
   });
 
+
+  describe("BlueprintRegistry.getById", () => {
+    test("returns undefined for a non-existent blueprint ID", () => {
+      const blueprint = registry.getById("invalid_key");
+      expect(blueprint).toBeUndefined();
+    });
+
+    test("returns the correct blueprint for an existing ID", () => {
+      const blueprint = registry.getById("bug-fix");
+      expect(blueprint).toBeDefined();
+      expect(blueprint?.id).toBe("bug-fix");
+    });
+  });
+
   describe("BlueprintRegistry.select", () => {
     test("selects bug-fix blueprint for 'fix' keyword", () => {
       const selection = registry.select("fix the login bug");
