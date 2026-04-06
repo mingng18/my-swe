@@ -44,6 +44,7 @@ import {
   removePersistedThreadRepo,
 } from "../utils/thread-metadata-store";
 import { clearSandboxBackend, setSandboxBackend } from "../utils/sandboxState";
+import { type BaseMessage, type ToolCall } from "@langchain/core/messages";
 
 const logger = createLogger("deepagents");
 
@@ -929,15 +930,15 @@ export class DeepAgentWrapper implements AgentHarness {
       console.log("=".repeat(80));
       console.log("");
 
-      messages.forEach((msg: any, index: number) => {
+      messages.forEach((msg: BaseMessage & { tool_calls?: ToolCall[], role?: string, type?: string }, index: number) => {
         console.log(`[Message ${index + 1}]`);
-        console.log(`Role: ${msg.role}`);
+        console.log(`Role: ${msg.role || msg._getType()}`);
         console.log(`Type: ${msg.type || "message"}`);
 
         if (msg.type === "tool" || msg.tool_calls) {
           console.log("  📦 Tool Calls:");
           const toolCalls = msg.tool_calls || [];
-          toolCalls.forEach((tc: any) => {
+          toolCalls.forEach((tc: ToolCall) => {
             console.log(`     • ${tc.name} (ID: ${tc.id})`);
             if (tc.args) {
               const argsStr = JSON.stringify(tc.args, null, 2);
