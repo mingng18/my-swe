@@ -5,7 +5,7 @@
  * reactions, and fetching comments from issues and PRs.
  */
 
-import { createHmac } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { Octokit } from "octokit";
 
 import { IDENTITY_MAP } from "../identity";
@@ -106,24 +106,17 @@ export function verifyGithubSignature(
   const expected =
     "sha256=" + createHmac("sha256", secret).update(bodyStr).digest("hex");
 
-  return timingSafeEqual(expected, signature);
-}
+  const expectedBuffer = Buffer.from(expected);
+  const signatureBuffer = Buffer.from(signature);
 
-/**
- * Timing-safe string comparison to prevent timing attacks.
- */
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) {
+  if (expectedBuffer.length !== signatureBuffer.length) {
     return false;
   }
 
-  let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-
-  return result === 0;
+  return timingSafeEqual(expectedBuffer, signatureBuffer);
 }
+
+
 
 /**
  * Extract thread ID (UUID) from a branch name.
