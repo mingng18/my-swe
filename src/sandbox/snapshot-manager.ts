@@ -15,7 +15,7 @@
  */
 
 import { createLogger } from "../utils/logger";
-import type { SandboxService } from "../integrations/sandbox-service";
+import { type SandboxService, createSandboxServiceWithConfig } from "../integrations/sandbox-service";
 import {
   type SnapshotMetadata,
   type SnapshotKey,
@@ -28,6 +28,8 @@ import {
   detectProfileFromFiles,
 } from "./snapshot-metadata";
 import type { SandboxProfile } from "../integrations/daytona-pool";
+import { DaytonaSnapshotManager } from "./daytona-snapshot-integration";
+import { Daytona } from "@daytonaio/sdk";
 
 const logger = createLogger("snapshot-manager");
 
@@ -259,19 +261,38 @@ export class SnapshotManager {
       // 1. Call provider's restore API with snapshot ID
       // 2. Verify the restored sandbox is ready
 
-      // TODO: Integrate with provider snapshot APIs when available
-      // For OpenSandbox: use their snapshot/checkpoint API
-      // For Daytona: use their workspace template API
+      if (metadata.provider === "daytona") {
+        const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY || "" });
+        const manager = new DaytonaSnapshotManager(daytona);
+
+        const createResult = await manager.createSandboxFromSnapshot(metadata.snapshotId);
+        if (createResult.success && createResult.sandboxId) {
+          const sandbox = await createSandboxServiceWithConfig({
+            provider: "daytona",
+            daytona: {
+              sandboxId: createResult.sandboxId
+            }
+          });
+          return {
+            success: true,
+            sandbox,
+            fromCache: true
+          };
+        }
+        throw new Error(`Failed to create Daytona sandbox from snapshot: ${createResult.error}`);
+      }
+
+      // TODO: Integrate with OpenSandbox snapshot/checkpoint API when available
 
       logger.debug(
-        `[snapshot-manager] Provider snapshot APIs not yet integrated, using fresh sandbox`,
+        `[snapshot-manager] Provider ${metadata.provider} snapshot APIs not yet integrated, using fresh sandbox`,
       );
 
       return {
         success: true,
         sandbox: null,
         fromCache: false,
-        error: "Provider snapshot APIs not yet integrated",
+        error: `Provider ${metadata.provider} snapshot APIs not yet integrated`,
       };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
