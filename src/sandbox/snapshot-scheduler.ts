@@ -16,7 +16,7 @@
 import { createLogger } from "../utils/logger";
 import { SnapshotManager } from "./snapshot-manager";
 import type { SandboxProfile } from "../integrations/daytona-pool";
-import type { SandboxService } from "../integrations/sandbox-service";
+import { type SandboxService, createSandboxService } from "../integrations/sandbox-service";
 import type {
   SnapshotMetadata,
   SnapshotKey,
@@ -232,17 +232,75 @@ export class SnapshotScheduler {
   private async refreshSnapshot(key: SnapshotKey): Promise<void> {
     logger.debug({ key }, `[snapshot-scheduler] Refreshing snapshot`);
 
-    // TODO: Implement actual refresh logic
-    // This would:
-    // 1. Acquire a sandbox with the correct profile
-    // 2. Pull latest changes
-    // 3. Reinstall dependencies if changed
-    // 4. Update snapshot metadata
+    const metadata = await this.store.get(key);
+    if (!metadata) {
+      logger.warn({ key }, `[snapshot-scheduler] Snapshot not found for refresh`);
+      return;
+    }
 
-    logger.debug(
-      { key },
-      `[snapshot-scheduler] Refresh complete (not yet implemented)`,
-    );
+    if (metadata.refreshing) {
+      logger.debug({ key }, `[snapshot-scheduler] Snapshot is already refreshing`);
+      return;
+    }
+
+    // Mark as refreshing
+    metadata.refreshing = true;
+    await this.store.save(metadata);
+
+    let sandbox: SandboxService | null = null;
+    let refreshSuccess = false;
+
+    try {
+      // 1. Acquire a sandbox. We use restoreSnapshot to get a sandbox with the old snapshot state,
+      // so we can efficiently pull changes instead of cloning from scratch.
+      const restoreResult = await this.manager.restoreSnapshot(key, async () => {
+        return createSandboxService();
+      });
+
+      if (!restoreResult.success || !restoreResult.sandbox) {
+        throw new Error(restoreResult.error || "Failed to restore snapshot for refresh");
+      }
+      sandbox = restoreResult.sandbox;
+
+      // 2-4. Pull latest changes, reinstall dependencies, and update snapshot metadata
+      // createSnapshot does all of these steps efficiently because the sandbox already has the repo
+      // and createSnapshot will run cloneRepo (which pulls if it exists), install dependencies,
+      // and update the metadata.
+      const result = await this.manager.createSnapshot(sandbox, {
+        repoOwner: key.repoOwner,
+        repoName: key.repoName,
+        profile: key.profile,
+        branch: key.branch,
+      });
+
+      if (!result.success) {
+        throw new Error(result.error || "Unknown error during snapshot creation");
+      }
+
+      refreshSuccess = true;
+      logger.debug(
+        { key, snapshotId: result.snapshotId },
+        `[snapshot-scheduler] Refresh complete`,
+      );
+    } catch (error) {
+      logger.error(
+        { key, error },
+        `[snapshot-scheduler] Failed to refresh snapshot`,
+      );
+    } finally {
+      // Always reset refreshing state
+      const currentMetadata = await this.store.get(key);
+      if (currentMetadata) {
+        currentMetadata.refreshing = false;
+        await this.store.save(currentMetadata);
+      }
+
+      if (sandbox) {
+        await sandbox.cleanup().catch(e => {
+          logger.warn({ key, error: e }, `[snapshot-scheduler] Failed to cleanup sandbox after refresh`);
+        });
+      }
+    }
   }
 }
 
