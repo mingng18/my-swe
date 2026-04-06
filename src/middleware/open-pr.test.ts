@@ -1,0 +1,124 @@
+import { describe, expect, it, mock, beforeEach, afterEach } from "bun:test";
+import { type SandboxService } from "../integrations/sandbox-service";
+
+const originalEnv = { ...process.env };
+
+// Mock logger
+mock.module("../utils/logger", () => ({
+  createLogger: () => ({
+    info: mock(),
+    error: mock(),
+    debug: mock(),
+    warn: mock(),
+  }),
+}));
+
+// We must mock octokit to satisfy the problem requirement.
+// We are verifying that openPrIfNeeded gracefully handles octokit throwing.
+mock.module("octokit", () => {
+  return {
+    Octokit: class {
+      rest = {
+        repos: {
+          get: mock().mockResolvedValue({
+            data: {
+              default_branch: "main",
+              parent: undefined // simulate non-fork
+            }
+          })
+        },
+        pulls: {
+          create: mock().mockImplementation(async () => {
+            throw new Error("Octokit PR creation error!");
+          }),
+          list: mock().mockResolvedValue({ data: [] })
+        }
+      };
+      // Prevent Octokit constructor itself from throwing if it is called somewhere we don't expect
+      constructor() {}
+    }
+  };
+});
+
+describe("openPrIfNeeded", () => {
+  beforeEach(() => {
+    process.env = { ...originalEnv, GITHUB_TOKEN: "fake-token" };
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+    mock.restore();
+  });
+
+  it("handles PR creation failure gracefully when gitPush succeeds and octokit throws", async () => {
+    // We mock only the git utilities from github.ts, BUT NOT createGithubPr.
+    // This allows createGithubPr to execute and hit our octokit mock.
+    const githubModule = await import("../utils/github");
+
+    mock.module("../utils/github", () => {
+      return {
+        ...githubModule,
+        getGithubTokenFromThread: mock().mockResolvedValue(["fake-token"]),
+        gitHasUncommittedChanges: mock().mockResolvedValue(true),
+        gitFetchOrigin: mock().mockResolvedValue("fetched"),
+        gitHasUnpushedCommits: mock().mockResolvedValue(true),
+        gitCurrentBranch: mock().mockResolvedValue("test-branch"),
+        gitCheckoutBranch: mock().mockResolvedValue(true),
+        gitConfigUser: mock().mockResolvedValue(undefined),
+        gitAddAll: mock().mockResolvedValue("added"),
+        gitCommit: mock().mockResolvedValue("committed"),
+        findExistingPr: mock().mockResolvedValue(null),
+        gitPush: mock().mockResolvedValue("pushed"),
+      };
+    });
+
+    const { openPrIfNeeded } = await import("./open-pr");
+
+    const mockSandboxBackend = {
+      execute: mock().mockResolvedValue({ exitCode: 0, output: "" }),
+    } as unknown as SandboxService;
+
+    const mockState = {
+      messages: [
+        {
+          type: "tool",
+          name: "commit_and_open_pr",
+          content: JSON.stringify({
+            title: "Test PR",
+            body: "Test Body",
+            commit_message: "Test Commit",
+          })
+        }
+      ]
+    };
+
+    const mockConfig = {
+      configurable: {
+        thread_id: "test-thread",
+        repo: {
+          owner: "test-owner",
+          name: "test-repo"
+        }
+      },
+      metadata: {
+        branch_name: "test-branch"
+      }
+    };
+
+    const result = await openPrIfNeeded(
+      mockState,
+      mockConfig,
+      mockSandboxBackend,
+      "test-repo"
+    );
+
+    expect(result).toEqual({
+      error: expect.stringContaining("PR creation failed:"),
+      pushSucceeded: true,
+      prCreated: false,
+    });
+
+    // Ensure the message actually contains the error from our mocked Octokit
+    expect(result?.error).toContain("Octokit PR creation error!");
+  });
+});
