@@ -354,14 +354,14 @@ export async function fetchIssueComments(
         },
       },
     )) {
-      for (const comment of response.data as GitHubIssueComment[]) {
-        comments.push({
+      comments.push(
+        ...(response.data as GitHubIssueComment[]).map((comment) => ({
           body: comment.body ?? "",
           author: comment.user?.login ?? "unknown",
           created_at: comment.created_at,
           comment_id: comment.id,
-        });
-      }
+        })),
+      );
     }
 
     return comments;
