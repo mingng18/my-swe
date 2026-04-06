@@ -1,8 +1,8 @@
 import { describe, expect, test, mock, beforeEach, afterEach } from "bun:test";
 import type { SandboxService } from "../../integrations/sandbox-service";
 
-const pullsCreateMock = mock(() => Promise.resolve({ data: {} }));
-const pullsListMock = mock(() => Promise.resolve({ data: [] }));
+const pullsCreateMock = mock((params?: any) => Promise.resolve({ data: {} as any }));
+const pullsListMock = mock((params?: any) => Promise.resolve({ data: [] as any[] }));
 const reposGetMock = mock(() =>
   Promise.resolve({ data: { default_branch: "main" } }),
 );
@@ -102,7 +102,7 @@ describe("createGithubPr", () => {
     reposGetMock.mockResolvedValue({
       data: {
         default_branch: "main",
-        parent: undefined,
+
       },
     });
 
@@ -141,15 +141,15 @@ describe("createGithubPr", () => {
 
     expect(result).toEqual(["https://github.com/owner/repo/pull/1", 1, false]);
     expect(pullsCreateMock).toHaveBeenCalledTimes(2);
-    expect(pullsCreateMock.mock.calls[0][0].head).toBe("headOwner:feature");
-    expect(pullsCreateMock.mock.calls[1][0].head).toBe("feature");
+    expect((pullsCreateMock.mock.calls[0]![0] as any).head).toBe("headOwner:feature");
+    expect((pullsCreateMock.mock.calls[1]![0] as any).head).toBe("feature");
   });
 
   test("falls back to finding existing PR when 422 does not include field:head", async () => {
     reposGetMock.mockResolvedValue({
       data: {
         default_branch: "main",
-        parent: undefined,
+
       },
     });
 
@@ -162,7 +162,7 @@ describe("createGithubPr", () => {
       return Promise.reject(error);
     });
 
-    pullsListMock.mockImplementationOnce(() => {
+    pullsListMock.mockImplementation((params: any) => {
       return Promise.resolve({
         data: [{ html_url: "https://github.com/owner/repo/pull/2", number: 2 }],
       });
@@ -179,15 +179,15 @@ describe("createGithubPr", () => {
 
     expect(result).toEqual(["https://github.com/owner/repo/pull/2", 2, true]);
     expect(pullsCreateMock).toHaveBeenCalledTimes(1);
-    expect(pullsListMock).toHaveBeenCalledTimes(1);
-    expect(pullsListMock.mock.calls[0][0].head).toBe("headOwner:feature");
+    expect(pullsListMock).toHaveBeenCalledTimes(2);
+    expect((pullsListMock.mock.calls[0]![0] as any).head).toBe("headOwner:feature");
   });
 
   test("falls back to finding existing PR when retry with plain head branch also throws 422", async () => {
     reposGetMock.mockResolvedValue({
       data: {
         default_branch: "main",
-        parent: undefined,
+
       },
     });
 
@@ -209,7 +209,7 @@ describe("createGithubPr", () => {
       return Promise.reject(error);
     });
 
-    pullsListMock.mockImplementationOnce(() => {
+    pullsListMock.mockImplementation((params: any) => {
       return Promise.resolve({
         data: [{ html_url: "https://github.com/owner/repo/pull/3", number: 3 }],
       });
@@ -226,7 +226,7 @@ describe("createGithubPr", () => {
 
     expect(result).toEqual(["https://github.com/owner/repo/pull/3", 3, true]);
     expect(pullsCreateMock).toHaveBeenCalledTimes(2);
-    expect(pullsListMock).toHaveBeenCalledTimes(1);
-    expect(pullsListMock.mock.calls[0][0].head).toBe("headOwner:feature");
+    expect(pullsListMock).toHaveBeenCalledTimes(2);
+    expect((pullsListMock.mock.calls[0]![0] as any).head).toBe("headOwner:feature");
   });
 });

@@ -632,7 +632,7 @@ export async function findExistingPr(
   const octokit = new Octokit({ auth: githubToken });
   const headRef = `${headRepoOwner}:${headBranch}`;
 
-  for (const state of ["open", "all"] as const) {
+  const fetchState = async (state: "open" | "all") => {
     try {
       const { data: pulls } = await octokit.rest.pulls.list({
         owner: baseRepoOwner,
@@ -641,11 +641,7 @@ export async function findExistingPr(
         state,
         per_page: 1,
       });
-
-      if (pulls.length > 0) {
-        const pr = pulls[0]!;
-        return [pr.html_url ?? null, pr.number ?? null];
-      }
+      return pulls.length > 0 ? pulls[0]! : null;
     } catch (listError: unknown) {
       logger.error(
         {
@@ -661,6 +657,16 @@ export async function findExistingPr(
       );
       throw listError;
     }
+  };
+
+  const [openPr, allPr] = await Promise.all([
+    fetchState("open"),
+    fetchState("all"),
+  ]);
+
+  const pr = openPr || allPr;
+  if (pr) {
+    return [pr.html_url ?? null, pr.number ?? null];
   }
 
   return null;
