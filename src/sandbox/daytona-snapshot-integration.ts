@@ -15,6 +15,7 @@
  */
 
 import { createLogger } from "../utils/logger";
+// @ts-ignore
 import { Daytona, Image } from "@daytonaio/sdk";
 import type { SandboxProfile } from "../integrations/daytona-pool";
 import {

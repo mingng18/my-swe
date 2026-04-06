@@ -1214,3 +1214,15 @@ export async function cleanupDeepAgents(): Promise<void> {
   threadRepoMap.clear();
   logger.info("[deepagents] Cleanup complete");
 }
+
+// Exposed for testing purposes
+export function resetDeepAgentsStateForTesting(): void {
+  hasLoadedPersistedRepos = false;
+  threadRepoMap.clear();
+  threadSandboxMap.clear();
+  threadAgentMap.clear();
+}
+
+export function getThreadRepoMapForTesting() {
+  return threadRepoMap;
+}
