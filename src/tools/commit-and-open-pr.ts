@@ -9,6 +9,8 @@ import {
   gitHasUncommittedChanges,
   gitFetchOrigin,
   gitHasUnpushedCommits,
+  gitCurrentBranch,
+  runGit,
 } from "../utils/github/index";
 import { getSandboxBackendSync } from "../utils/sandboxState";
 import { getGithubTokenFromThread } from "../utils/github/github-token";
@@ -170,54 +172,33 @@ export const commitAndOpenPrTool = tool(
       const metadataBranchName = (config as any)?.metadata?.branch_name as
         | string
         | undefined;
-      // Match Python semantics: use simple branch name without timestamp
+      const currentBranch = await gitCurrentBranch(sandbox, workspaceDir);
       const targetBranch =
         metadataBranchName && metadataBranchName.trim().length > 0
           ? metadataBranchName.trim()
           : `open-swe/${threadId}`;
 
-      logger.info(
-        { threadId, targetBranch, metadataBranchName },
-        "[commit_and_open_pr] Step 2/9: Checking if branch exists locally...",
-      );
-      // Match Python semantics: check if branch exists locally before deciding.
-      // If branch exists, checkout without reset. If not, create new branch.
-      const branchCheckResult = await sandbox.execute(
-        `cd ${shellEscapeSingleQuotes(workspaceDir)} && git branch --list ${shellEscapeSingleQuotes(targetBranch)}`,
-      );
-      const branchExists = branchCheckResult.output.trim().length > 0;
-      logger.info(
-        { threadId, targetBranch, branchExists },
-        "[commit_and_open_pr] Step 2/9: Branch check complete ✓",
-      );
-
-      logger.info(
-        { threadId, targetBranch, branchExists },
-        "[commit_and_open_pr] Step 3/9: Checking out branch...",
-      );
-      if (branchExists) {
-        // Branch exists: checkout without resetting (-B would discard commits)
+      if (currentBranch !== targetBranch) {
         logger.info(
           { threadId, targetBranch },
-          "[commit_and_open_pr] Step 3/9: Checking out existing branch...",
+          "[commit_and_open_pr] Step 3/9: Checking out branch...",
         );
-        await sandbox.execute(
-          `cd ${shellEscapeSingleQuotes(workspaceDir)} && git checkout ${shellEscapeSingleQuotes(targetBranch)}`,
-        );
+        try {
+          // Try checking out the existing branch first
+          await runGit(sandbox, workspaceDir, `git checkout ${shellEscapeSingleQuotes(targetBranch)}`);
+          logger.info("[commit_and_open_pr] Step 3/9: Checked out existing branch ✓");
+        } catch (err) {
+          // Branch doesn't exist locally, create it
+          logger.info(
+            { threadId, targetBranch },
+            "[commit_and_open_pr] Step 3/9: Branch not found, creating new branch...",
+          );
+          await runGit(sandbox, workspaceDir, `git checkout -b ${shellEscapeSingleQuotes(targetBranch)}`);
+          logger.info("[commit_and_open_pr] Step 3/9: New branch created ✓");
+        }
       } else {
-        // Branch doesn't exist: create it
-        logger.info(
-          { threadId, targetBranch },
-          "[commit_and_open_pr] Step 3/9: Creating new branch...",
-        );
-        await sandbox.execute(
-          `cd ${shellEscapeSingleQuotes(workspaceDir)} && git checkout -b ${shellEscapeSingleQuotes(targetBranch)}`,
-        );
+        logger.info("[commit_and_open_pr] Step 3/9: Already on target branch ✓");
       }
-      logger.info(
-        { threadId, targetBranch },
-        "[commit_and_open_pr] Step 3/9: Branch checkout complete ✓",
-      );
 
       // Detect both uncommitted changes and unpushed commits, matching the Python
       // behavior that proceeds when either exists.

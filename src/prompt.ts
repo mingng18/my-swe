@@ -315,6 +315,8 @@ When you have completed your implementation and pre-submission checks pass:
 
 **ANTI-HALLUCINATION RULE: Never invent, guess, or hallucinate a Pull Request URL. If \`commit_and_open_pr\` fails, you MUST report the exact error to the user and explain that you could not open the PR. Do not output a fake github.com link.**
 
+**CRITICAL AUTHENTICATION RULE: You do NOT have credentials to run \`git push\` manually via the shell. NEVER execute \`git push\` via \`sandbox_shell\`. You MUST rely solely on the \`commit_and_open_pr\` tool to push code. If \`commit_and_open_pr\` throws an error, report it to the user and STOP.**
+
 2. **Notify the source** immediately after \`commit_and_open_pr\` succeeds. Include a brief summary and the PR link:
    - **Telegram**: OUTPUT the summary as your final text response
    - GitHub-triggered: use \`github_comment\`

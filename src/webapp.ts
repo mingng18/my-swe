@@ -5,6 +5,7 @@ import { cors } from "hono/cors";
 import { logger as httpLogger } from "hono/logger";
 
 import { runCodeagentTurn } from "./server";
+import { isDuplicateMessage } from "./utils/telegram";
 
 // Message queue for concurrent requests (shared across all transports)
 const messageQueue = new Map<string, string[]>();
@@ -221,6 +222,11 @@ app.post("/webhook/telegram", async (c) => {
     if ("message" in update) {
       const msg = update.message;
       if ("text" in msg && msg.text) {
+        // Skip duplicate messages
+        if (isDuplicateMessage(msg.chat.id, msg.message_id)) {
+          return c.json({ ok: true, message: "Duplicate ignored" });
+        }
+
         log.info(
           {
             chatId: msg.chat.id,

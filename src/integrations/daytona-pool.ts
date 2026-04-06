@@ -68,6 +68,44 @@ function repoKey(owner: string, name: string): string {
   return `${owner}/${name}`;
 }
 
+/**
+ * Retry a function with exponential backoff for 409 conflicts.
+ * Daytona returns 409 when a sandbox state change is already in progress.
+ */
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelayMs: number = 1000,
+): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      const isError = error instanceof Error;
+      const errorMsg = isError ? error.message : String(error);
+      const isConflict =
+        errorMsg.includes("409") ||
+        errorMsg.toLowerCase().includes("conflict") ||
+        errorMsg.toLowerCase().includes("state change in progress");
+
+      if (!isConflict || attempt === maxRetries) {
+        throw error;
+      }
+
+      const delayMs = baseDelayMs * Math.pow(2, attempt);
+      logger.warn(
+        { attempt, maxRetries, delayMs, error: errorMsg },
+        "[daytona-pool] Retrying due to conflict (409/state change)",
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+  throw lastError;
+}
+
 function buildLabels(args: {
   profile: SandboxProfile;
   repo: string;
@@ -140,214 +178,224 @@ export async function countIdleRepoSandboxes(args: {
 export async function acquireRepoSandbox(
   params: AcquireSandboxParams,
 ): Promise<AcquiredSandbox> {
-  const daytona = new Daytona({
-    apiKey: params.apiKey,
-    apiUrl: params.apiUrl,
-    target: params.target,
-  });
-
-  const repo = repoKey(params.repoOwner, params.repoName);
-
-  try {
-    // 1) Prefer reusing an in-flight sandbox already owned by the same thread.
-    // This avoids unnecessary churn when a thread makes consecutive requests.
-    const busySameThreadFilter = buildLabels({
-      profile: params.profile,
-      repo,
-      status: "busy",
-      threadId: params.threadId,
+  // Wrap the entire acquisition in retry logic to handle 409 conflicts
+  return retryWithBackoff(async () => {
+    const daytona = new Daytona({
+      apiKey: params.apiKey,
+      apiUrl: params.apiUrl,
+      target: params.target,
     });
-    const busySameThreadList = await daytona.list(busySameThreadFilter, 1, 50);
-    const busySameThread = busySameThreadList.items?.[0];
-    if (busySameThread) {
-      logger.info(
-        {
-          sandboxId: busySameThread.id,
-          repo,
-          profile: params.profile,
-          threadId: params.threadId,
-        },
-        "[daytona-pool] Reusing busy sandbox for same thread",
-      );
 
-      if (busySameThread.state !== "started") {
-        await busySameThread.start(120);
+    const repo = repoKey(params.repoOwner, params.repoName);
+
+    try {
+      // 1) Prefer reusing an in-flight sandbox already owned by the same thread.
+      // This avoids unnecessary churn when a thread makes consecutive requests.
+      const busySameThreadFilter = buildLabels({
+        profile: params.profile,
+        repo,
+        status: "busy",
+        threadId: params.threadId,
+      });
+      const busySameThreadList = await daytona.list(
+        busySameThreadFilter,
+        1,
+        50,
+      );
+      const busySameThread = busySameThreadList.items?.[0];
+      if (busySameThread) {
+        logger.info(
+          {
+            sandboxId: busySameThread.id,
+            repo,
+            profile: params.profile,
+            threadId: params.threadId,
+          },
+          "[daytona-pool] Reusing busy sandbox for same thread",
+        );
+
+        if (busySameThread.state !== "started") {
+          await busySameThread.start(120);
+        }
+
+        return { sandboxId: busySameThread.id, createdNew: false };
       }
 
-      return { sandboxId: busySameThread.id, createdNew: false };
-    }
+      // 2) Reclaim stopped busy sandboxes (safe fallback), and optionally
+      // auto-demote stale busy sandboxes before checking idle pool.
+      const busyFilter = buildLabels({
+        profile: params.profile,
+        repo,
+        status: "busy",
+      });
+      const busyList = await daytona.list(busyFilter, 1, 50);
+      const staleBusyTimeoutMinutes = params.staleBusyTimeoutMinutes ?? 0;
+      const cutoffMs =
+        staleBusyTimeoutMinutes > 0
+          ? Date.now() - staleBusyTimeoutMinutes * 60_000
+          : undefined;
 
-    // 2) Reclaim stopped busy sandboxes (safe fallback), and optionally
-    // auto-demote stale busy sandboxes before checking idle pool.
-    const busyFilter = buildLabels({
-      profile: params.profile,
-      repo,
-      status: "busy",
-    });
-    const busyList = await daytona.list(busyFilter, 1, 50);
-    const staleBusyTimeoutMinutes = params.staleBusyTimeoutMinutes ?? 0;
-    const cutoffMs =
-      staleBusyTimeoutMinutes > 0
-        ? Date.now() - staleBusyTimeoutMinutes * 60_000
-        : undefined;
+      for (const sb of busyList.items ?? []) {
+        if (sb.labels?.[BULLHORSE_LABELS.threadId] === params.threadId)
+          continue;
 
-    for (const sb of busyList.items ?? []) {
-      if (sb.labels?.[BULLHORSE_LABELS.threadId] === params.threadId) continue;
+        const state = (sb.state || "").toLowerCase();
+        const isStopped = state === "stopped" || state === "stopping";
 
-      const state = (sb.state || "").toLowerCase();
-      const isStopped = state === "stopped" || state === "stopping";
+        const tsMs = getSandboxTimestampMs(sb);
+        const isStaleBusy =
+          cutoffMs !== undefined && tsMs !== undefined && tsMs <= cutoffMs;
 
-      const tsMs = getSandboxTimestampMs(sb);
-      const isStaleBusy =
-        cutoffMs !== undefined && tsMs !== undefined && tsMs <= cutoffMs;
+        // Always reclaim stopped busy sandboxes.
+        // Also reclaim stale busy sandboxes when configured.
+        if (!isStopped && !isStaleBusy) continue;
 
-      // Always reclaim stopped busy sandboxes.
-      // Also reclaim stale busy sandboxes when configured.
-      if (!isStopped && !isStaleBusy) continue;
+        try {
+          await sb.setLabels(
+            buildLabels({
+              profile: params.profile,
+              repo,
+              status: "idle",
+            }),
+          );
+          logger.info(
+            {
+              sandboxId: sb.id,
+              repo,
+              profile: params.profile,
+              state: sb.state,
+              reclaimedBy: isStopped
+                ? "stopped_busy_fallback"
+                : "stale_busy_timeout",
+              staleBusyTimeoutMinutes:
+                staleBusyTimeoutMinutes > 0
+                  ? staleBusyTimeoutMinutes
+                  : undefined,
+            },
+            "[daytona-pool] Reclaimed busy sandbox to idle",
+          );
+        } catch (err) {
+          logger.warn(
+            { error: err, sandboxId: sb.id },
+            "[daytona-pool] Failed to reclaim busy sandbox",
+          );
+        }
+      }
 
-      try {
-        await sb.setLabels(
+      // 3) Fallback to shared idle pool.
+      const labelsFilter = buildLabels({
+        profile: params.profile,
+        repo,
+        status: "idle",
+      });
+
+      const listed = await daytona.list(labelsFilter, 1, 50);
+      const candidate = listed.items?.[0];
+
+      if (candidate) {
+        logger.info(
+          { sandboxId: candidate.id, repo, profile: params.profile },
+          "[daytona-pool] Reusing idle sandbox",
+        );
+
+        // Ensure it is started and then lock it (busy).
+        if (candidate.state !== "started") {
+          await candidate.start(120);
+        }
+
+        await candidate.setLabels(
           buildLabels({
             profile: params.profile,
             repo,
-            status: "idle",
+            status: "busy",
+            threadId: params.threadId,
           }),
         );
-        logger.info(
-          {
-            sandboxId: sb.id,
-            repo,
-            profile: params.profile,
-            state: sb.state,
-            reclaimedBy: isStopped
-              ? "stopped_busy_fallback"
-              : "stale_busy_timeout",
-            staleBusyTimeoutMinutes:
-              staleBusyTimeoutMinutes > 0 ? staleBusyTimeoutMinutes : undefined,
-          },
-          "[daytona-pool] Reclaimed busy sandbox to idle",
-        );
-      } catch (err) {
-        logger.warn(
-          { error: err, sandboxId: sb.id },
-          "[daytona-pool] Failed to reclaim busy sandbox",
-        );
-      }
-    }
 
-    // 3) Fallback to shared idle pool.
-    const labelsFilter = buildLabels({
-      profile: params.profile,
-      repo,
-      status: "idle",
-    });
-
-    const listed = await daytona.list(labelsFilter, 1, 50);
-    const candidate = listed.items?.[0];
-
-    if (candidate) {
-      logger.info(
-        { sandboxId: candidate.id, repo, profile: params.profile },
-        "[daytona-pool] Reusing idle sandbox",
-      );
-
-      // Ensure it is started and then lock it (busy).
-      if (candidate.state !== "started") {
-        await candidate.start(120);
+        return { sandboxId: candidate.id, createdNew: false };
       }
 
-      await candidate.setLabels(
-        buildLabels({
+      // 4) None available in pool - create new sandbox
+      // Use Daytona's default snapshots (daytona-small, daytona-medium, daytona-large)
+      // These have Node.js, Python, git, TypeScript, and language servers pre-installed
+
+      // Determine snapshot size based on requested resources
+      let snapshotName = "daytona-medium"; // Default
+      if (params.cpu && params.cpu >= 4) {
+        snapshotName = "daytona-large";
+      } else if (
+        params.cpu &&
+        params.cpu <= 1 &&
+        (!params.memory || params.memory <= 2)
+      ) {
+        snapshotName = "daytona-small";
+      }
+
+      // If custom image is explicitly provided, use it (overrides snapshot)
+      const useCustomImage = params.image !== undefined;
+
+      const resources =
+        params.cpu || params.memory || params.disk
+          ? { cpu: params.cpu, memory: params.memory, disk: params.disk }
+          : undefined;
+
+      const createParams: Record<string, unknown> = {
+        labels: buildLabels({
           profile: params.profile,
           repo,
           status: "busy",
           threadId: params.threadId,
         }),
-      );
+        envVars: params.envVars,
+        resources,
+        autoStopInterval: params.autoStopInterval,
+        autoArchiveInterval: params.autoArchiveInterval,
+        autoDeleteInterval: params.autoDeleteInterval,
+        ephemeral: params.ephemeral,
+        networkBlockAll: params.networkBlockAll,
+        networkAllowList: params.networkAllowList,
+        public: params.public,
+        user: params.user,
+        volumes: params.volumes,
+      };
 
-      return { sandboxId: candidate.id, createdNew: false };
-    }
+      // Add snapshot or image based on configuration
+      if (useCustomImage) {
+        createParams.image = params.image;
+        createParams.language = params.language;
+        logger.info(
+          { image: params.image, profile: params.profile },
+          "[daytona-pool] Using custom image (not snapshot)",
+        );
+      } else {
+        createParams.snapshot = snapshotName;
+        logger.info(
+          { snapshot: snapshotName, profile: params.profile },
+          "[daytona-pool] Using Daytona default snapshot",
+        );
+      }
 
-    // 4) None available in pool - create new sandbox
-    // Use Daytona's default snapshots (daytona-small, daytona-medium, daytona-large)
-    // These have Node.js, Python, git, TypeScript, and language servers pre-installed
+      for (const [k, v] of Object.entries(createParams)) {
+        if (v === undefined) delete createParams[k];
+      }
 
-    // Determine snapshot size based on requested resources
-    let snapshotName = "daytona-medium"; // Default
-    if (params.cpu && params.cpu >= 4) {
-      snapshotName = "daytona-large";
-    } else if (
-      params.cpu &&
-      params.cpu <= 1 &&
-      (!params.memory || params.memory <= 2)
-    ) {
-      snapshotName = "daytona-small";
-    }
+      const sandbox = await daytona.create(createParams as any);
+      const sandboxId = sandbox.id;
 
-    // If custom image is explicitly provided, use it (overrides snapshot)
-    const useCustomImage = params.image !== undefined;
-
-    const resources =
-      params.cpu || params.memory || params.disk
-        ? { cpu: params.cpu, memory: params.memory, disk: params.disk }
-        : undefined;
-
-    const createParams: Record<string, unknown> = {
-      labels: buildLabels({
-        profile: params.profile,
-        repo,
-        status: "busy",
-        threadId: params.threadId,
-      }),
-      envVars: params.envVars,
-      resources,
-      autoStopInterval: params.autoStopInterval,
-      autoArchiveInterval: params.autoArchiveInterval,
-      autoDeleteInterval: params.autoDeleteInterval,
-      ephemeral: params.ephemeral,
-      networkBlockAll: params.networkBlockAll,
-      networkAllowList: params.networkAllowList,
-      public: params.public,
-      user: params.user,
-      volumes: params.volumes,
-    };
-
-    // Add snapshot or image based on configuration
-    if (useCustomImage) {
-      createParams.image = params.image;
-      createParams.language = params.language;
       logger.info(
-        { image: params.image, profile: params.profile },
-        "[daytona-pool] Using custom image (not snapshot)",
+        { sandboxId, repo, profile: params.profile },
+        "[daytona-pool] Created new sandbox",
       );
-    } else {
-      createParams.snapshot = snapshotName;
-      logger.info(
-        { snapshot: snapshotName, profile: params.profile },
-        "[daytona-pool] Using Daytona default snapshot",
-      );
+
+      return { sandboxId, createdNew: true };
+    } finally {
+      try {
+        await daytona[Symbol.asyncDispose]();
+      } catch (err) {
+        logger.warn({ error: err }, "[daytona-pool] Failed to dispose client");
+      }
     }
-
-    for (const [k, v] of Object.entries(createParams)) {
-      if (v === undefined) delete createParams[k];
-    }
-
-    const sandbox = await daytona.create(createParams as any);
-    const sandboxId = sandbox.id;
-
-    logger.info(
-      { sandboxId, repo, profile: params.profile },
-      "[daytona-pool] Created new sandbox",
-    );
-
-    return { sandboxId, createdNew: true };
-  } finally {
-    try {
-      await daytona[Symbol.asyncDispose]();
-    } catch (err) {
-      logger.warn({ error: err }, "[daytona-pool] Failed to dispose client");
-    }
-  }
+  });
 }
 
 /**

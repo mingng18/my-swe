@@ -44,6 +44,7 @@ import {
   removePersistedThreadRepo,
 } from "../utils/thread-metadata-store";
 import { clearSandboxBackend, setSandboxBackend } from "../utils/sandboxState";
+import { installDependencies } from "../nodes/deterministic/DependencyInstallerNode";
 
 const logger = createLogger("deepagents");
 
@@ -179,6 +180,9 @@ const threadSandboxMap = new Map<
     repo: { owner: string; name: string; workspaceDir: string };
   }
 >();
+
+// Export for use in other modules (e.g., PR context checking)
+export { threadRepoMap };
 
 // Check if sandbox mode is enabled via environment variable
 const useSandbox = process.env.USE_SANDBOX === "true";
@@ -698,6 +702,19 @@ export class DeepAgentWrapper implements AgentHarness {
             repo: activeRepo,
           });
           setSandboxBackend(threadId, backend);
+
+          // Pre-install dependencies for agent context
+          try {
+            logger.info(
+              "[deepagents] Pre-installing dependencies for agent context...",
+            );
+            await installDependencies(backend, workspaceDir);
+          } catch (depErr) {
+            logger.warn(
+              { err: depErr },
+              "[deepagents] Pre-install dependencies failed (non-fatal)",
+            );
+          }
         } else {
           const backend = await createSandboxServiceWithConfig({
             provider: "opensandbox",
@@ -738,6 +755,19 @@ export class DeepAgentWrapper implements AgentHarness {
             repo: activeRepo,
           });
           setSandboxBackend(threadId, backend);
+
+          // Pre-install dependencies for agent context
+          try {
+            logger.info(
+              "[deepagents] Pre-installing dependencies for agent context...",
+            );
+            await installDependencies(backend, workspaceDir);
+          } catch (depErr) {
+            logger.warn(
+              { err: depErr },
+              "[deepagents] Pre-install dependencies failed (non-fatal)",
+            );
+          }
         }
       } else {
         activeRepo = {
@@ -817,11 +847,56 @@ export class DeepAgentWrapper implements AgentHarness {
       );
 
       // Modify input based on blueprint prompt customization
-      const modifiedInput = buildInputWithBlueprint(input, blueprintSelection);
+      let modifiedInput = buildInputWithBlueprint(input, blueprintSelection);
       if (modifiedInput !== input) {
         logger.debug(
           "[deepagents] Input modified by blueprint prompt customization",
         );
+      }
+
+      // Check for existing PRs before starting work
+      let existingPrContext: {
+        exists: boolean;
+        prUrl?: string;
+        message?: string;
+      } = { exists: false };
+      if (activeRepo) {
+        try {
+          const { checkExistingPRForThread } =
+            await import("../utils/pr-context");
+          const prContext = await checkExistingPRForThread(
+            threadId,
+            process.env.GITHUB_TOKEN,
+          );
+          existingPrContext = prContext;
+
+          if (prContext.exists) {
+            logger.info(
+              {
+                threadId,
+                prUrl: prContext.prUrl,
+                prNumber: prContext.prNumber,
+              },
+              "[deepagents] Existing PR found for this thread",
+            );
+
+            // Add context to the input so the agent knows about the existing PR
+            const prNotice = `
+[IMPORTANT: Existing Pull Request]
+A pull request already exists for this conversation: ${prContext.prUrl}
+
+If the task has already been completed in that PR, please inform the user.
+If you need to make additional changes, continue working and they'll be added to the same PR.
+`;
+            modifiedInput = prNotice + modifiedInput;
+          }
+        } catch (err) {
+          // Non-fatal: log and continue
+          logger.warn(
+            { err },
+            "[deepagents] Failed to check for existing PRs, continuing anyway",
+          );
+        }
       }
 
       // Clean repository state before agent run if using sandbox

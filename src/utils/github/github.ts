@@ -57,7 +57,7 @@ interface GitHubRepoResponse {
  * @param command - Git command to run
  * @returns Execute response with exit code and output
  */
-function runGit(
+export function runGit(
   backend: SandboxService,
   repoDir: string,
   command: string,
@@ -338,32 +338,6 @@ export async function gitGetRemoteUrl(
   return trimmed || null;
 }
 
-const CRED_FILE_PATH = "/tmp/.git-credentials";
-
-/**
- * Write GitHub credentials to a temporary file for use with credential.helper.
- * @param backend - The sandbox backend
- * @param githubToken - GitHub access token
- */
-export async function setupGitCredentials(
-  backend: SandboxService,
-  githubToken: string,
-): Promise<void> {
-  const content = `https://git:${githubToken}@github.com\n`;
-  await backend.write(CRED_FILE_PATH, content);
-  await backend.execute(`chmod 600 ${CRED_FILE_PATH}`);
-}
-
-/**
- * Remove the temporary credentials file.
- * @param backend - The sandbox backend
- */
-export async function cleanupGitCredentials(
-  backend: SandboxService,
-): Promise<void> {
-  await backend.execute(`rm -f ${CRED_FILE_PATH}`);
-}
-
 /**
  * Replace all occurrences of a token in a string with '***'.
  * Prevents accidental token leakage in error messages and logs.
@@ -371,6 +345,15 @@ export async function cleanupGitCredentials(
 export function sanitizeTokenFromString(msg: string, token: string): string {
   if (!token) return msg;
   return msg.split(token).join("***");
+}
+
+/**
+ * Sanitize an authenticated GitHub URL by hiding the token.
+ * Prevents token leakage in logs and error messages.
+ */
+export function sanitizeAuthUrl(url: string): string {
+  // Replace x-access-token:TOKEN@ with ***
+  return url.replace(/\/\/x-access-token:[^@]+@/, "//***@");
 }
 
 /**
@@ -397,22 +380,56 @@ export async function gitPush(
     );
   }
 
-  await setupGitCredentials(backend, githubToken);
+  // Get current remote URL
+  const remoteUrl = await gitGetRemoteUrl(backend, repoDir);
+  if (!remoteUrl) {
+    throw new Error("Could not get git remote URL");
+  }
+
+  // Construct authenticated URL by embedding token
+  const authUrl = remoteUrl.replace(
+    "https://github.com/",
+    `https://x-access-token:${githubToken}@github.com/`,
+  );
+
+  // Log sanitized URL (without token) for debugging
+  logger.debug(
+    { sanitizedAuthUrl: sanitizeAuthUrl(authUrl) },
+    "[github] Using authenticated git remote",
+  );
 
   try {
-    return await runGit(
+    // Temporarily set remote to authenticated URL
+    await backend.execute(
+      `cd ${shellEscapeSingleQuotes(repoDir)} && git remote set-url origin ${authUrl}`,
+    );
+
+    // Push using the authenticated remote
+    const result = await runGit(
       backend,
       repoDir,
-      `git -c credential.helper='store --file=${CRED_FILE_PATH}' push origin ${shellEscapeSingleQuotes(branch)}`,
+      `git push origin ${shellEscapeSingleQuotes(branch)}`,
     );
+
+    return result;
   } catch (err: any) {
     const rawMsg: string = err?.message ?? String(err);
     const safeMsg = sanitizeTokenFromString(rawMsg, githubToken);
     throw new Error(safeMsg);
   } finally {
-    await cleanupGitCredentials(backend).catch(() => {
-      logger.error("[github] Failed to cleanup credentials after push");
-    });
+    // Restore original remote URL
+    if (remoteUrl) {
+      try {
+        await backend.execute(
+          `cd ${shellEscapeSingleQuotes(repoDir)} && git remote set-url origin ${remoteUrl}`,
+        );
+      } catch (restoreError) {
+        logger.error(
+          "[github] Failed to restore original remote URL",
+          restoreError,
+        );
+      }
+    }
   }
 }
 
@@ -473,6 +490,22 @@ export async function createGithubPr(
     baseRepoName,
     githubToken,
   );
+
+  // Check for existing PR BEFORE attempting creation (prevents 422 errors)
+  const existingPr = await findExistingPr(
+    baseRepoOwner,
+    baseRepoName,
+    headRepoOwner,
+    githubToken,
+    headBranch,
+  );
+  if (existingPr) {
+    logger.info(
+      { prUrl: existingPr[0], prNumber: existingPr[1], headBranch },
+      "[github] Existing PR found, returning without creating new one",
+    );
+    return [existingPr[0], existingPr[1], true];
+  }
 
   const tryCreate = async (
     headRef: string,
@@ -541,14 +574,48 @@ export async function createGithubPr(
         "[github] GitHub API validation error (422) while creating PR",
       );
 
+      // Check if the error is about an existing PR
+      const responseStr = JSON.stringify((octokitError.response as any) ?? {});
+      const errorMsg = String(octokitError.message || "");
+      const isExistingPrError =
+        errorMsg.toLowerCase().includes("already exists") ||
+        errorMsg.toLowerCase().includes("a pull request already exists") ||
+        responseStr.toLowerCase().includes("already exists");
+
+      if (isExistingPrError) {
+        logger.info(
+          {
+            headRef: crossRepoHeadRef,
+            baseRepo: `${baseRepoOwner}/${baseRepoName}`,
+          },
+          "[github] 422 error indicates existing PR, searching for it...",
+        );
+        const existing = await findExistingPr(
+          baseRepoOwner,
+          baseRepoName,
+          headRepoOwner,
+          githubToken,
+          headBranch,
+        );
+        if (existing) {
+          logger.info(
+            `[github] Found existing PR for head branch: ${existing[0]}`,
+          );
+          return [existing[0], existing[1], true];
+        }
+        logger.warn(
+          { headRef: crossRepoHeadRef },
+          "[github] 422 error indicated existing PR but search found none, falling through",
+        );
+      }
+
       // For same-repo PRs, GitHub may reject owner-prefixed head refs. When
       // that happens, retry with the plain branch name.
-      const responseStr = JSON.stringify((octokitError.response as any) ?? {});
       const likelyInvalidHead =
         String(octokitError.message || "").includes('"field":"head"') ||
         responseStr.includes('"field":"head"');
 
-      if (likelyInvalidHead) {
+      if (likelyInvalidHead && !isExistingPrError) {
         try {
           logger.info(
             {
@@ -575,7 +642,7 @@ export async function createGithubPr(
         }
       }
 
-      // Try to find existing PR
+      // Final attempt: search for existing PR as fallback
       const existing = await findExistingPr(
         baseRepoOwner,
         baseRepoName,
@@ -584,10 +651,8 @@ export async function createGithubPr(
         headBranch,
       );
       if (existing) {
-        logger.info(
-          `[github] Using existing PR for head branch: ${existing[0]}`,
-        );
-        return [...existing, true];
+        logger.info(`[github] Using existing PR as fallback: ${existing[0]}`);
+        return [existing[0], existing[1], true];
       }
     } else {
       logger.error(
@@ -616,11 +681,12 @@ export async function createGithubPr(
 
 /**
  * Find an existing PR for the given head branch.
- * @param repoOwner - Repository owner
- * @param repoName - Repository name
+ * @param baseRepoOwner - Base repository owner
+ * @param baseRepoName - Base repository name
+ * @param headRepoOwner - Head repository owner
  * @param githubToken - GitHub access token
  * @param headBranch - Head branch name
- * @returns Tuple of [prUrl, prNumber] or [null, null] if not found
+ * @returns Tuple of [prUrl, prNumber] or null if not found
  */
 export async function findExistingPr(
   baseRepoOwner: string,
@@ -630,39 +696,71 @@ export async function findExistingPr(
   headBranch: string,
 ): Promise<[string | null, number | null] | null> {
   const octokit = new Octokit({ auth: githubToken });
-  const headRef = `${headRepoOwner}:${headBranch}`;
+
+  logger.info(
+    {
+      baseRepo: `${baseRepoOwner}/${baseRepoName}`,
+      headBranch,
+    },
+    "[github] Searching for existing PR",
+  );
 
   for (const state of ["open", "all"] as const) {
     try {
+      logger.debug(
+        { state, baseRepo: `${baseRepoOwner}/${baseRepoName}` },
+        "[github] Listing PRs",
+      );
+
       const { data: pulls } = await octokit.rest.pulls.list({
         owner: baseRepoOwner,
         repo: baseRepoName,
-        head: headRef,
         state,
-        per_page: 1,
+        per_page: 50,
       });
 
-      if (pulls.length > 0) {
-        const pr = pulls[0]!;
+      logger.debug(
+        { state, pullCount: pulls.length },
+        "[github] PR list response received",
+      );
+
+      // Filter in-memory instead of relying on the GitHub API `head` param
+      const pr = pulls.find((p) => p.head.ref === headBranch);
+
+      if (pr) {
+        logger.info(
+          {
+            prNumber: pr.number,
+            prUrl: pr.html_url,
+            prState: pr.state,
+            headLabel: pr.head?.label,
+            headRef: pr.head?.ref,
+          },
+          "[github] Found existing PR",
+        );
         return [pr.html_url ?? null, pr.number ?? null];
       }
     } catch (listError: unknown) {
       logger.error(
         {
           baseRepo: `${baseRepoOwner}/${baseRepoName}`,
-          headRef,
+          headBranch,
           state,
           error:
             (listError as any)?.message ??
             (listError as any)?.toString?.() ??
             String(listError),
         },
-        "[github] Failed to list existing PRs for head ref",
+        "[github] Failed to list PRs",
       );
-      throw listError;
+      // Continue to next state instead of throwing
     }
   }
 
+  logger.info(
+    { headBranch, baseRepo: `${baseRepoOwner}/${baseRepoName}` },
+    "[github] No existing PR found",
+  );
   return null;
 }
 

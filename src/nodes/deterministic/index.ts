@@ -10,6 +10,10 @@
  * - Used for verification and enforcement
  */
 
+import { createLogger } from "../../utils/logger";
+
+const logger = createLogger("verification-pipeline");
+
 export {
   runTests,
   formatTestResults,
@@ -29,10 +33,16 @@ export {
   type PRSubmitNodeState,
 } from "./PRSubmitNode";
 
+export {
+  installDependencies,
+  formatInstallationResults,
+  type DependencyInstallerResult,
+} from "./DependencyInstallerNode";
+
 /**
  * Run the full verification pipeline
  *
- * This runs tests, linting, and enforces PR submission in order.
+ * This runs dependency installation, tests, linting, and enforces PR submission in order.
  * If any step fails, execution stops (unless continueOnFailure is true).
  */
 export async function runVerificationPipeline(params: {
@@ -47,6 +57,7 @@ export async function runVerificationPipeline(params: {
   requireTests?: boolean;
   requireLint?: boolean;
 }): Promise<{
+  dependenciesInstalled?: boolean;
   testsPassed?: boolean;
   lintPassed?: boolean;
   prCreated?: boolean;
@@ -54,6 +65,29 @@ export async function runVerificationPipeline(params: {
   error?: string;
 }> {
   const results: any = {};
+
+  // Install dependencies first (before tests/linting)
+  const { installDependencies: installDeps } =
+    await import("./DependencyInstallerNode");
+  const depResults = await installDeps(params.sandbox, params.repoDir);
+  results.dependenciesInstalled = depResults.installed;
+
+  // Log if dependencies were installed or already present
+  if (depResults.installed) {
+    logger.info(
+      { packageManager: depResults.packageManager },
+      "[VerificationPipeline] Dependencies installed",
+    );
+  } else if (depResults.packageManager === null) {
+    logger.info(
+      "[VerificationPipeline] No package manager found or dependencies already present",
+    );
+  } else {
+    logger.warn(
+      { output: depResults.output },
+      "[VerificationPipeline] Dependency installation failed, continuing anyway",
+    );
+  }
 
   // Run tests if required
   if (params.requireTests !== false) {

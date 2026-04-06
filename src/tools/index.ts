@@ -3,6 +3,7 @@ import { codeSearchTool } from "./code-search";
 import { fetchUrlTool } from "./fetch-url";
 import { mergePrTool } from "./merge-pr";
 import { searchTool } from "./search";
+import { githubCommentTool } from "./github-comment";
 import { sandboxTools } from "./sandbox-shell";
 
 export const allTools = [
@@ -11,6 +12,7 @@ export const allTools = [
   mergePrTool,
   fetchUrlTool,
   searchTool,
+  githubCommentTool,
 ];
 
 export const sandboxAllTools = [

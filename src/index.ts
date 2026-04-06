@@ -7,10 +7,13 @@ import { initAgentProviderAtStartup } from "./harness";
 import { loadTelegramConfig, validateStartupConfig } from "./utils/config";
 import { runCodeagentTurn } from "./server";
 import { getEmailForIdentity } from "./utils/identity";
+import { isDuplicateMessage } from "./utils/telegram";
 
 // Message queue for concurrent requests
 const messageQueue = new Map<string, string[]>();
 const activeThreads = new Set<string>();
+
+const logger = createLogger("index");
 
 /**
  * Generate a deterministic thread ID from a Telegram chat ID.
@@ -76,8 +79,6 @@ async function processMessage(
   }
 }
 
-const logger = createLogger("index");
-
 const PORT = Number.parseInt(process.env.PORT || "7860", 10);
 
 // Telegram polling for local development
@@ -111,6 +112,11 @@ async function startTelegramPolling() {
           if ("message" in update) {
             const msg = update.message;
             if ("text" in msg && msg.text) {
+              // Skip duplicate messages
+              if (isDuplicateMessage(msg.chat.id, msg.message_id)) {
+                continue;
+              }
+
               logger.info(
                 {
                   chatId: msg.chat.id,

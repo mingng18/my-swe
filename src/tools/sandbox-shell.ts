@@ -13,20 +13,30 @@ import { getSandboxBackendFromConfig } from "../utils/sandboxState";
 
 const logger = createLogger("sandbox-shell-tool");
 
+/**
+ * Safely embed an arbitrary string into a POSIX shell command.
+ * Produces: 'foo'"'"'bar' style quoting.
+ */
+function shellEscapeSingleQuotes(input: string): string {
+  return `'${input.replace(/'/g, `'"'"'`)}'}`;
+}
 
 /**
  * Extended shell command tool with enhanced capabilities.
  */
 export const sandboxShellTool = tool(
-  async ({
-    command,
-    timeout,
-    shell,
-  }: {
-    command: string;
-    timeout?: number;
-    shell?: string;
-  }, config) => {
+  async (
+    {
+      command,
+      timeout,
+      shell,
+    }: {
+      command: string;
+      timeout?: number;
+      shell?: string;
+    },
+    config,
+  ) => {
     const backend = getSandboxBackendFromConfig(config);
     if (!backend) {
       throw new Error(
@@ -34,15 +44,23 @@ export const sandboxShellTool = tool(
       );
     }
 
+    // Auto-prefix with workspace directory if available
+    const workspaceDir = config?.configurable?.repo?.workspaceDir as
+      | string
+      | undefined;
+    const fullCommand = workspaceDir
+      ? `cd ${shellEscapeSingleQuotes(workspaceDir)} && ${command}`
+      : command;
+
     logger.debug(
-      { command, timeout, shell },
+      { command, fullCommand, workspaceDir, timeout, shell },
       "[sandbox-shell] Executing command",
     );
 
     try {
-      // If a specific shell is requested, prefix the command
-      const fullCommand = shell ? `${shell} -c "${command}"` : command;
-      const result = await backend.execute(fullCommand);
+      // If a specific shell is requested, wrap the full command
+      const shellCommand = shell ? `${shell} -c "${fullCommand}"` : fullCommand;
+      const result = await backend.execute(shellCommand);
 
       return {
         stdout: result.output,
@@ -117,11 +135,14 @@ export const sandboxMetricsTool = tool(
  * Update network egress policy for the sandbox.
  */
 export const sandboxNetworkTool = tool(
-  async ({
-    rules,
-  }: {
-    rules: Array<{ action: "allow" | "deny"; target: string }>;
-  }, config) => {
+  async (
+    {
+      rules,
+    }: {
+      rules: Array<{ action: "allow" | "deny"; target: string }>;
+    },
+    config,
+  ) => {
     const backend = getSandboxBackendFromConfig(config);
     if (!backend) {
       throw new Error(
