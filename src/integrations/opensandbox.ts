@@ -154,8 +154,8 @@ export class OpenSandboxBackend
     try {
       const execution = await this.sandbox!.commands.run(command);
 
-      const stdout = execution.logs.stdout.map((log) => log.text).join("");
-      const stderr = execution.logs.stderr.map((log) => log.text).join("");
+      const stdout = execution.logs.stdout.reduce((acc, log) => acc + log.text, "");
+      const stderr = execution.logs.stderr.reduce((acc, log) => acc + log.text, "");
       const output = stdout + stderr;
       const exitCode = execution.exitCode || 0;
 
