@@ -127,6 +127,7 @@ export const codeSearchTool = tool(
 
     const results: SearchResult[] = [];
     const pendingContext: Map<string, { result: SearchResult; expectAfter: number }> = new Map();
+    let pendingBefore: string[] = [];
 
     for (const rawLine of result.output.split("\n")) {
       const trimmed = rawLine.trim();
@@ -145,22 +146,29 @@ export const codeSearchTool = tool(
           file: msg.data?.path?.text ?? "",
           line: msg.data?.line_number ?? 0,
           content: (msg.data?.lines?.text ?? "").replace(/\n$/, ""),
-          context_before: [],
+          context_before: [...pendingBefore],
           context_after: [],
         };
         results.push(sr);
+        pendingBefore = [];
         const key = `${sr.file}:${sr.line}`;
         pendingContext.set(key, { result: sr, expectAfter: context_lines ?? 0 });
       } else if (msg.type === "context") {
         const contextLine = msg.data?.line_number ?? 0;
         const contextContent = (msg.data?.lines?.text ?? "").replace(/\n$/, "");
-        // Attach to the most recent match that hasn't got its context_after filled
+        let addedToExisting = false;
         for (const entry of pendingContext.values()) {
-          if (contextLine < entry.result.line) {
-            entry.result.context_before.push(contextContent);
-          } else if (contextLine > entry.result.line && entry.result.context_after.length < entry.expectAfter) {
+          if (contextLine > entry.result.line && entry.result.context_after.length < entry.expectAfter) {
             entry.result.context_after.push(contextContent);
+            addedToExisting = true;
           }
+        }
+
+        if (!addedToExisting) {
+           pendingBefore.push(contextContent);
+           if (context_lines && pendingBefore.length > context_lines) {
+               pendingBefore.shift();
+           }
         }
       }
     }
