@@ -544,6 +544,10 @@ export class DaytonaBackend extends BaseSandboxBackend {
   /**
    * Get the underlying Daytona Sandbox instance.
    */
+  getDaytonaClient(): Daytona {
+    return this.daytona;
+  }
+
   getSandbox(): typeof this.sandbox {
     return this.sandbox;
   }
