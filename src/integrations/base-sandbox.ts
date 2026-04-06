@@ -1,4 +1,5 @@
 import { createLogger } from "../utils/logger";
+import { shellEscapeSingleQuotes } from "../utils/shell.js";
 import type {
   EditResult,
   ExecuteResponse,
@@ -16,12 +17,18 @@ const logger = createLogger("sandbox-backend");
  * Abstract base class for sandbox backends.
  * Provides common implementations for filesystem operations that rely on shell commands.
  */
-export abstract class BaseSandboxBackend implements SandboxBackendPort, FilesystemPort {
+export abstract class BaseSandboxBackend
+  implements SandboxBackendPort, FilesystemPort
+{
   // Required implementation from SandboxBackendPort
   abstract execute(command: string): Promise<ExecuteResponse>;
 
   // Required implementations from FilesystemPort for native file operations
-  abstract read(filePath: string, offset?: number, limit?: number): Promise<string>;
+  abstract read(
+    filePath: string,
+    offset?: number,
+    limit?: number,
+  ): Promise<string>;
   abstract readRaw(filePath: string): Promise<FileData>;
   abstract write(filePath: string, content: string): Promise<WriteResult>;
   abstract edit(
@@ -30,9 +37,7 @@ export abstract class BaseSandboxBackend implements SandboxBackendPort, Filesyst
     newString: string,
     replaceAll?: boolean,
   ): Promise<EditResult>;
-  abstract uploadFiles(
-    files: Array<[string, Uint8Array]>,
-  ): Promise<
+  abstract uploadFiles(files: Array<[string, Uint8Array]>): Promise<
     Array<{
       path: string;
       error:
@@ -43,9 +48,7 @@ export abstract class BaseSandboxBackend implements SandboxBackendPort, Filesyst
         | null;
     }>
   >;
-  abstract downloadFiles(
-    paths: string[],
-  ): Promise<
+  abstract downloadFiles(paths: string[]): Promise<
     Array<{
       path: string;
       content: Uint8Array | null;
@@ -73,7 +76,9 @@ export abstract class BaseSandboxBackend implements SandboxBackendPort, Filesyst
     logger.debug({ path }, "[sandbox] Listing directory");
 
     try {
-      const result = await this.execute(`ls -la --time-style=long-iso "${path}"`);
+      const result = await this.execute(
+        `ls -la --time-style=long-iso ${shellEscapeSingleQuotes(path)}`,
+      );
       if (result.exitCode !== 0) {
         return [];
       }
@@ -117,9 +122,9 @@ export abstract class BaseSandboxBackend implements SandboxBackendPort, Filesyst
 
     try {
       // Build grep command
-      let cmd = `grep -rn --exclude-dir=node_modules "${pattern}" "${searchPath}"`;
+      let cmd = `grep -rn --exclude-dir=node_modules ${shellEscapeSingleQuotes(pattern)} ${shellEscapeSingleQuotes(searchPath)}`;
       if (glob) {
-        cmd = `find "${searchPath}" -name "${glob}" -exec grep -Hn "${pattern}" {} +`;
+        cmd = `find ${shellEscapeSingleQuotes(searchPath)} -name ${shellEscapeSingleQuotes(glob)} -exec grep -Hn ${shellEscapeSingleQuotes(pattern)} {} +`;
       }
 
       const result = await this.execute(cmd);
@@ -165,7 +170,9 @@ export abstract class BaseSandboxBackend implements SandboxBackendPort, Filesyst
 
     try {
       // Use find command for glob matching
-      const result = await this.execute(`find "${path}" -name "${pattern}" -type f`);
+      const result = await this.execute(
+        `find ${shellEscapeSingleQuotes(path)} -name ${shellEscapeSingleQuotes(pattern)} -type f`,
+      );
       if (result.exitCode !== 0) {
         return [];
       }
