@@ -631,7 +631,7 @@ export function buildPrPrompt(
   comments: GitHubComment[],
   prUrl: string,
 ): string {
-  const lines: string[] = [];
+  let commentsText = "";
 
   for (const c of comments) {
     const author = c.author ?? "unknown";
@@ -641,12 +641,10 @@ export function buildPrPrompt(
       const path = c.path ?? "";
       const line = c.line ?? "";
       const loc = path ? ` (file: \`${path}\`, line: ${line})` : "";
-      lines.push(`\n**${author}**${loc}:\n${body}\n`);
+      commentsText += `\n**${author}**${loc}:\n${body}\n`;
     } else {
-      lines.push(`\n**${author}**:\n${body}\n`);
+      commentsText += `\n**${author}**:\n${body}\n`;
     }
   }
-
-  const commentsText = lines.join("");
   return `You've been tagged in GitHub PR comments. Please resolve them.\n\nPR: ${prUrl}\n\n## Comments:\n${commentsText}\n\nIf code changes are needed:\n1. Make the changes in the sandbox\n2. Call \`commit_and_open_pr\` to push them to GitHub — this is REQUIRED, do NOT skip it\n3. Call \`github_comment\` with the PR number to post a summary on GitHub\n\nIf no code changes are needed:\n1. Call \`github_comment\` with the PR number to explain your answer — this is REQUIRED, never end silently\n\n**You MUST always call \`github_comment\` before finishing — whether or not changes were made.**`;
 }
