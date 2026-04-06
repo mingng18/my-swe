@@ -409,43 +409,33 @@ export async function fetchPrCommentsSinceLastTag(
       fetchPaginatedReviews(octokit, { owner, repo, pull_number: prNumber }),
     ]);
 
-    const allComments: GitHubComment[] = [];
-
-    // Process PR comments
-    for (const c of prComments) {
-      allComments.push({
+    const allComments: GitHubComment[] = [
+      ...prComments.map((c) => ({
         body: c.body ?? "",
         author: c.user?.login ?? "unknown",
         created_at: c.created_at,
-        type: "pr_comment",
+        type: "pr_comment" as const,
         comment_id: c.id,
-      });
-    }
-
-    // Process review comments
-    for (const c of reviewComments as GitHubPRComment[]) {
-      allComments.push({
+      })),
+      ...(reviewComments as GitHubPRComment[]).map((c) => ({
         body: c.body ?? "",
         author: c.user?.login ?? "unknown",
         created_at: c.created_at,
-        type: "review_comment",
+        type: "review_comment" as const,
         comment_id: c.id,
         path: c.path,
         line: c.line ?? c.original_line,
-      });
-    }
-
-    // Process reviews
-    for (const r of reviews) {
-      if (!r.body) continue;
-      allComments.push({
-        body: r.body,
-        author: r.user?.login ?? "unknown",
-        created_at: r.submitted_at,
-        type: "review",
-        comment_id: r.id,
-      });
-    }
+      })),
+      ...reviews
+        .filter((r) => r.body)
+        .map((r) => ({
+          body: r.body!,
+          author: r.user?.login ?? "unknown",
+          created_at: r.submitted_at!,
+          type: "review" as const,
+          comment_id: r.id,
+        })),
+    ];
 
     // Sort all comments chronologically
     allComments.sort((a, b) => a.created_at.localeCompare(b.created_at));
