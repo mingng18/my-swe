@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 /**
  * Daytona Snapshot Integration
  *
@@ -392,7 +393,7 @@ export class DaytonaSnapshotManager {
     const repoPart = `${key.repoOwner}-${key.repoName}`;
     const profilePart = key.profile;
     const branchPart = key.branch.replace(/\//g, "-");
-    const hash = Math.random().toString(36).slice(2, 8);
+    const hash = randomUUID().slice(0, 6);
     return `${repoPart}-${profilePart}-${branchPart}-${hash}`.toLowerCase();
   }
 }
