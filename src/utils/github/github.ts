@@ -118,10 +118,10 @@ export async function gitHasUncommittedChanges(
   backend: SandboxService,
   repoDir: string,
 ): Promise<boolean> {
-  console.error(`[gitHasUncommittedChanges] Checking status in ${repoDir}`);
+  logger.debug(`[gitHasUncommittedChanges] Checking status in ${repoDir}`);
   const result = await runGit(backend, repoDir, "git status --porcelain");
   const hasChanges = result.trim().length > 0;
-  console.error(`[gitHasUncommittedChanges] Has uncommitted: ${hasChanges}`);
+  logger.debug(`[gitHasUncommittedChanges] Has uncommitted: ${hasChanges}`);
   return hasChanges;
 }
 
@@ -135,13 +135,13 @@ export async function gitFetchOrigin(
   backend: SandboxService,
   repoDir: string,
 ): Promise<string> {
-  console.error(`[gitFetchOrigin] Fetching origin in ${repoDir}`);
+  logger.debug(`[gitFetchOrigin] Fetching origin in ${repoDir}`);
   const result = await runGit(
     backend,
     repoDir,
     "git fetch origin 2>/dev/null || true",
   );
-  console.error(`[gitFetchOrigin] Fetch complete`);
+  logger.debug(`[gitFetchOrigin] Fetch complete`);
   return result;
 }
 
@@ -168,16 +168,16 @@ export async function gitHasUnpushedCommits(
   backend: SandboxService,
   repoDir: string,
 ): Promise<boolean> {
-  console.error(
+  logger.debug(
     `[gitHasUnpushedCommits] Checking for unpushed commits in ${repoDir}`,
   );
   const gitLogCmd =
     "git log --oneline @{upstream}..HEAD 2>/dev/null " +
     "|| git log --oneline origin/HEAD..HEAD 2>/dev/null || echo ''";
-  console.error(`[gitHasUnpushedCommits] Running: ${gitLogCmd}`);
+  logger.debug(`[gitHasUnpushedCommits] Running: ${gitLogCmd}`);
   const result = await runGit(backend, repoDir, gitLogCmd);
   const hasUnpushed = result.trim().length > 0;
-  console.error(`[gitHasUnpushedCommits] Has unpushed: ${hasUnpushed}`);
+  logger.debug(`[gitHasUnpushedCommits] Has unpushed: ${hasUnpushed}`);
   return hasUnpushed;
 }
 
@@ -232,13 +232,13 @@ export async function gitConfigUser(
   name: string,
   email: string,
 ): Promise<void> {
-  console.error(`[gitConfigUser] Setting user.name: ${name} in ${repoDir}`);
+  logger.debug(`[gitConfigUser] Setting user.name: ${name} in ${repoDir}`);
   await runGit(
     backend,
     repoDir,
     `git config user.name ${shellEscapeSingleQuotes(name)}`,
   );
-  console.error(
+  logger.debug(
     `[gitConfigUser] user.name set, now setting user.email: ${email}`,
   );
   await runGit(
@@ -246,7 +246,7 @@ export async function gitConfigUser(
     repoDir,
     `git config user.email ${shellEscapeSingleQuotes(email)}`,
   );
-  console.error(`[gitConfigUser] Git user configured successfully`);
+  logger.debug(`[gitConfigUser] Git user configured successfully`);
 }
 
 /**
