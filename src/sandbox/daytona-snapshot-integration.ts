@@ -15,6 +15,7 @@
  */
 
 import { createLogger } from "../utils/logger";
+import { randomUUID } from "node:crypto";
 import { Daytona, Image } from "@daytonaio/sdk";
 import type { SandboxProfile } from "../integrations/daytona-pool";
 import {
@@ -387,7 +388,7 @@ export class DaytonaSnapshotManager {
     const repoPart = `${key.repoOwner}-${key.repoName}`;
     const profilePart = key.profile;
     const branchPart = key.branch.replace(/\//g, "-");
-    const hash = Math.random().toString(36).slice(2, 8);
+    const hash = randomUUID().split("-")[0];
     return `${repoPart}-${profilePart}-${branchPart}-${hash}`.toLowerCase();
   }
 }
