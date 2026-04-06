@@ -315,7 +315,7 @@ function summarizeUpdateForTrace(node: string, data: unknown): string {
   if (!last) return "";
   const toolCalls = last.tool_calls as Array<{ name?: string }> | undefined;
   if (toolCalls?.length) {
-    return ` → ${toolCalls.map((t) => t.name ?? "?").join(", ")}`;
+    return toolCalls.reduce((acc, t, i) => acc + (i === 0 ? "" : ", ") + (t.name ?? "?"), " → ");
   }
   if (last.type === "tool" || last.role === "tool") {
     return ` → tool:${String(last.name ?? "?")}`;
