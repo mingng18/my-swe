@@ -935,11 +935,9 @@ If you need to make additional changes, continue working and they'll be added to
       );
 
       // Log the input being sent to the agent
-      console.log("");
-      console.log("=== Agent Input ===");
-      console.log(modifiedInput);
-      console.log("=== End Agent Input ===");
-      console.log("");
+      if (process.env.DEBUG_DEEPAGENTS === "true") {
+        logger.debug({ input: modifiedInput }, "=== Agent Input ===");
+      }
 
       const agentStart = Date.now();
       let result: any;
@@ -998,72 +996,63 @@ If you need to make additional changes, continue working and they'll be added to
       const lastMessage = messages[messages.length - 1];
       const text = lastMessage?.content || "";
 
-      // Log all messages with detailed information
-      console.log("");
-      console.log("=".repeat(80));
-      console.log("=== Agent Execution Log ===");
-      console.log("=".repeat(80));
-      console.log("");
-
-      messages.forEach((msg: any, index: number) => {
-        console.log(`[Message ${index + 1}]`);
-        console.log(`Role: ${msg.role}`);
-        console.log(`Type: ${msg.type || "message"}`);
-
-        if (msg.type === "tool" || msg.tool_calls) {
-          console.log("  📦 Tool Calls:");
-          const toolCalls = msg.tool_calls || [];
-          toolCalls.forEach((tc: any) => {
-            console.log(`     • ${tc.name} (ID: ${tc.id})`);
-            if (tc.args) {
-              const argsStr = JSON.stringify(tc.args, null, 2);
-              const truncatedArgs =
-                argsStr.length > 500
-                  ? argsStr.substring(0, 500) + "..."
-                  : argsStr;
-              console.log(`       Arguments: ${truncatedArgs}`);
-            }
-          });
-        }
-
-        if (msg.content) {
-          console.log("Content:");
-          if (typeof msg.content === "string") {
-            console.log(`  💭 ${msg.content}`);
-          } else if (Array.isArray(msg.content)) {
-            msg.content.forEach((item: any) => {
-              if (item.type === "text") {
-                console.log(`  💭 ${item.text}`);
-              } else if (item.type === "tool_use") {
-                console.log(`  🛠️  Calling tool: ${item.name}`);
-                console.log(`     ID: ${item.id}`);
-                console.log(
-                  `     Input: ${JSON.stringify(item.input, null, 2)}`,
-                );
-              } else if (item.type === "tool_result") {
-                console.log(`  ✅ Tool result: ${item.tool_use_id}`);
-                if (item.is_error) {
-                  console.log(`     ❌ Error: ${item.content}`);
-                } else {
-                  const contentStr =
-                    typeof item.content === "string"
-                      ? item.content
-                      : JSON.stringify(item.content);
-                  const truncated =
-                    contentStr.length > 300
-                      ? contentStr.substring(0, 300) + "..."
-                      : contentStr;
-                  console.log(`     📄 Result: ${truncated}`);
-                }
-              }
-            });
-          }
-        }
-
-        console.log("");
-        console.log("-".repeat(80));
-        console.log("");
-      });
+      // Log all messages with detailed information using logger
+      if (process.env.DEBUG_DEEPAGENTS === "true") {
+        logger.debug(
+          { messages: messages.length },
+          "=== Agent Execution Log ===",
+        );
+        messages.forEach((msg: any, index: number) => {
+          const msgLog = {
+            index: index + 1,
+            role: msg.role,
+            type: msg.type || "message",
+            tool_calls: msg.tool_calls?.map((tc: any) => ({
+              name: tc.name,
+              id: tc.id,
+              args: tc.args
+                ? JSON.stringify(tc.args).length > 500
+                  ? JSON.stringify(tc.args).substring(0, 500) + "..."
+                  : JSON.stringify(tc.args)
+                : undefined,
+            })),
+            content: typeof msg.content === "string" ? msg.content : undefined,
+            content_items: Array.isArray(msg.content)
+              ? msg.content.map((item: any) => {
+                  if (item.type === "text")
+                    return { type: "text", text: item.text };
+                  if (item.type === "tool_use")
+                    return {
+                      type: "tool_use",
+                      name: item.name,
+                      id: item.id,
+                      input: item.input,
+                    };
+                  if (item.type === "tool_result") {
+                    const contentStr =
+                      typeof item.content === "string"
+                        ? item.content
+                        : JSON.stringify(item.content);
+                    return {
+                      type: "tool_result",
+                      id: item.tool_use_id,
+                      is_error: item.is_error,
+                      content:
+                        contentStr.length > 300
+                          ? contentStr.substring(0, 300) + "..."
+                          : contentStr,
+                    };
+                  }
+                  return item;
+                })
+              : undefined,
+          };
+          logger.debug(
+            { msg: msgLog },
+            `[Message ${index + 1}] Role: ${msg.role}`,
+          );
+        });
+      }
 
       const responseText =
         typeof text === "string" ? text : JSON.stringify(text);
@@ -1073,12 +1062,9 @@ If you need to make additional changes, continue working and they'll be added to
         `[deepagents] Agent response received (${responseText.length} chars, ${messages.length} messages total)`,
       );
 
-      console.log("=".repeat(80));
-      console.log("=== Final Agent Response ===");
-      console.log("=".repeat(80));
-      console.log(responseText);
-      console.log("=".repeat(80));
-      console.log("");
+      if (process.env.DEBUG_DEEPAGENTS === "true") {
+        logger.debug({ responseText }, "=== Final Agent Response ===");
+      }
 
       logger.info(
         `[deepagents] Total invoke time: ${Date.now() - startTime}ms`,
