@@ -22,6 +22,8 @@
 /**
  * Node execution type for retry configuration.
  */
+import { storeEscalation } from "../utils/escalation-store";
+
 export enum NodeType {
   DETERMINISTIC = "deterministic",
   AGENTIC = "agentic",
@@ -332,7 +334,13 @@ export async function defaultEscalationHandler(
   console.error("[Blueprint Escalation] Please review and provide guidance");
 
   // TODO: Integrate with Telegram/webapp to notify user
-  // TODO: Store escalation in database for audit trail
+  try {
+    await storeEscalation(nodeId, attempts, lastError);
+  } catch (error) {
+    console.error(
+      `[Blueprint Escalation] Failed to store escalation record: ${error}`,
+    );
+  }
 }
 
 /**
