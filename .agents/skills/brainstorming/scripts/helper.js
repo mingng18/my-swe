@@ -32,9 +32,7 @@
     }
   }
 
-  // Capture clicks on choice elements
-  document.addEventListener('click', (e) => {
-    const target = e.target.closest('[data-choice]');
+  function handleChoiceInteraction(target) {
     if (!target) return;
 
     sendEvent({
@@ -59,6 +57,48 @@
         indicator.innerHTML = '<span class="selected-text">' + selected.length + ' selected</span> — return to terminal to continue';
       }
     }, 0);
+  }
+
+  // Keyboard accessibility for choices
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      const target = e.target.closest('[data-choice]');
+      if (target) {
+        e.preventDefault();
+        if (window.toggleSelect) {
+            window.toggleSelect(target);
+        }
+        handleChoiceInteraction(target);
+      }
+    }
+  });
+
+  // Automatically make injected choices accessible
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach(mutation => {
+      mutation.addedNodes.forEach(node => {
+        if (node.nodeType === 1) { // ELEMENT_NODE
+          const choices = node.matches && node.matches('[data-choice]') ? [node] : node.querySelectorAll('[data-choice]');
+          choices.forEach(choice => {
+            if (!choice.hasAttribute('tabindex')) choice.setAttribute('tabindex', '0');
+            if (!choice.hasAttribute('role')) choice.setAttribute('role', 'button');
+          });
+        }
+      });
+    });
+  });
+
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  // Initial pass for elements already in DOM
+  document.querySelectorAll('[data-choice]').forEach(choice => {
+    if (!choice.hasAttribute('tabindex')) choice.setAttribute('tabindex', '0');
+    if (!choice.hasAttribute('role')) choice.setAttribute('role', 'button');
+  });
+
+  // Capture clicks on choice elements
+  document.addEventListener('click', (e) => {
+    handleChoiceInteraction(e.target.closest('[data-choice]'));
   });
 
   // Frame UI: selection tracking
