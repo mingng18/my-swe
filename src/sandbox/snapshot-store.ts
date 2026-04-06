@@ -19,9 +19,10 @@ import {
   snapshotKeyToString,
   isSnapshotExpired,
 } from "./snapshot-metadata";
+import fs from "node:fs";
 import { mkdir, readFile, writeFile, readdir, unlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 const logger = createLogger("snapshot-store");
 
@@ -29,8 +30,7 @@ const logger = createLogger("snapshot-store");
  * Storage directory for snapshot metadata.
  * Can be overridden via SNAPSHOT_STORAGE_DIR env var.
  */
-const STORAGE_DIR =
-  process.env.SNAPSHOT_STORAGE_DIR || "/tmp/snapshots";
+const STORAGE_DIR = process.env.SNAPSHOT_STORAGE_DIR || "/tmp/snapshots";
 
 /**
  * File extension for snapshot metadata files.
@@ -107,7 +107,10 @@ export class FilesystemSnapshotStore implements SnapshotStore {
         `[snapshot-store] Saved snapshot metadata`,
       );
     } catch (error) {
-      logger.error({ error, metadata }, `[snapshot-store] Failed to save snapshot`);
+      logger.error(
+        { error, metadata },
+        `[snapshot-store] Failed to save snapshot`,
+      );
       throw error;
     }
   }
@@ -115,7 +118,10 @@ export class FilesystemSnapshotStore implements SnapshotStore {
   /**
    * List all snapshots for a repo (all profiles and branches).
    */
-  async listByRepo(repoOwner: string, repoName: string): Promise<SnapshotMetadata[]> {
+  async listByRepo(
+    repoOwner: string,
+    repoName: string,
+  ): Promise<SnapshotMetadata[]> {
     await this.initialize();
 
     const snapshots: SnapshotMetadata[] = [];
@@ -137,7 +143,10 @@ export class FilesystemSnapshotStore implements SnapshotStore {
           metadata.refreshedAt = new Date(metadata.refreshedAt);
           snapshots.push(metadata);
         } catch (error) {
-          logger.warn({ error, file }, `[snapshot-store] Failed to read snapshot file`);
+          logger.warn(
+            { error, file },
+            `[snapshot-store] Failed to read snapshot file`,
+          );
         }
       }
     } catch (error) {
@@ -150,7 +159,9 @@ export class FilesystemSnapshotStore implements SnapshotStore {
   /**
    * List all snapshots for a specific profile (all branches).
    */
-  async listByProfile(params: Omit<SnapshotKey, "branch">): Promise<SnapshotMetadata[]> {
+  async listByProfile(
+    params: Omit<SnapshotKey, "branch">,
+  ): Promise<SnapshotMetadata[]> {
     await this.initialize();
 
     const snapshots: SnapshotMetadata[] = [];
@@ -172,11 +183,70 @@ export class FilesystemSnapshotStore implements SnapshotStore {
           metadata.refreshedAt = new Date(metadata.refreshedAt);
           snapshots.push(metadata);
         } catch (error) {
-          logger.warn({ error, file }, `[snapshot-store] Failed to read snapshot file`);
+          logger.warn(
+            { error, file },
+            `[snapshot-store] Failed to read snapshot file`,
+          );
         }
       }
     } catch (error) {
       logger.error({ error }, `[snapshot-store] Failed to list snapshots`);
+    }
+
+    return snapshots;
+  }
+
+  /**
+   * Delete a snapshot.
+   */
+  /**
+   * List all snapshots.
+   */
+  async listAll(): Promise<SnapshotMetadata[]> {
+    await this.initialize();
+
+    const snapshots: SnapshotMetadata[] = [];
+
+    try {
+      // Find all JSON files recursively using a helper function
+      const findFiles = async (dir: string): Promise<string[]> => {
+        const dirents = await fs.promises.readdir(dir, { withFileTypes: true });
+        const files = await Promise.all(
+          dirents.map((dirent) => {
+            const res = resolve(dir, dirent.name);
+            return dirent.isDirectory() ? findFiles(res) : res;
+          }),
+        );
+        return Array.prototype.concat(...files);
+      };
+
+      const files = await findFiles(this.storageDir);
+
+      for (const filePath of files) {
+        if (!filePath.endsWith(METADATA_EXT)) {
+          continue;
+        }
+
+        try {
+          const data = await readFile(filePath, "utf-8");
+          const metadata = JSON.parse(data) as SnapshotMetadata;
+          metadata.createdAt = new Date(metadata.createdAt);
+          metadata.refreshedAt = new Date(metadata.refreshedAt);
+          snapshots.push(metadata);
+        } catch (error) {
+          logger.warn(
+            { error, file: filePath },
+            `[snapshot-store] Failed to read snapshot file`,
+          );
+        }
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+        logger.error(
+          { error },
+          `[snapshot-store] Failed to list all snapshots`,
+        );
+      }
     }
 
     return snapshots;
@@ -232,9 +302,12 @@ export class FilesystemSnapshotStore implements SnapshotStore {
             );
           }
         } catch (error) {
-          logger.warn({ error, file }, `[snapshot-store] Failed to process snapshot file`);
+          logger.warn(
+            { error, file },
+            `[snapshot-store] Failed to process snapshot file`,
+          );
         }
-    }
+      }
     } catch (error) {
       logger.error({ error }, `[snapshot-store] Failed during cleanup`);
     }

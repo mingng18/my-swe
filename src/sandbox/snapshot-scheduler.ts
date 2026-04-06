@@ -186,15 +186,15 @@ export class SnapshotScheduler {
    * Find snapshots that need refresh based on max age.
    */
   private async findExpiredSnapshots(): Promise<SnapshotMetadata[]> {
-    const allSnapshots: SnapshotMetadata[] = [];
+    const allSnapshots = await this.store.listAll();
     const expired: SnapshotMetadata[] = [];
 
-    // Get all snapshots from the store
-    // Note: This requires the store to have a listAll method or similar
-    // For now, we'll use the cleanup method to get an idea
+    for (const snapshot of allSnapshots) {
+      if (isSnapshotExpired(snapshot, this.config.maxAgeHours)) {
+        expired.push(snapshot);
+      }
+    }
 
-    // TODO: Implement listAll in SnapshotStore
-    // For now, return empty array
     return expired;
   }
 
