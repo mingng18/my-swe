@@ -72,10 +72,12 @@ export async function buildBlocksFromPayload(
 
   // Add image blocks if present
   if (payload.image_urls && payload.image_urls.length > 0) {
-    for (const imageUrl of payload.image_urls) {
-      const imageBlock = await fetchImageBlock(imageUrl);
-      if (imageBlock) {
-        blocks.push(imageBlock);
+    const imageBlocks = await Promise.all(
+      payload.image_urls.map(fetchImageBlock),
+    );
+    for (const block of imageBlocks) {
+      if (block) {
+        blocks.push(block);
       }
     }
   }
