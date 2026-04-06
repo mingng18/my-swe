@@ -443,9 +443,35 @@ export class SnapshotManager {
     sandbox: SandboxService,
     snapshotData: Record<string, unknown>,
   ): Promise<number> {
-    // TODO: Get actual size from provider
-    // For now, return a reasonable estimate
-    return 1024 * 1024 * 100; // 100 MB default
+    const defaultSize = 1024 * 1024 * 100; // 100 MB default
+
+    try {
+      const result = await sandbox.execute("du -sb .");
+      if (result.exitCode === 0 && result.output) {
+        const match = result.output.match(/^(\d+)/);
+        if (match && match[1]) {
+          const sizeBytes = parseInt(match[1], 10);
+          if (!isNaN(sizeBytes) && sizeBytes > 0) {
+            return sizeBytes;
+          }
+        }
+      }
+      logger.warn(
+        {
+          provider: sandbox.getProvider(),
+          output: result.output,
+          exitCode: result.exitCode,
+        },
+        `[snapshot-manager] Failed to parse actual snapshot size, using default size`,
+      );
+    } catch (error) {
+      logger.warn(
+        { error, provider: sandbox.getProvider() },
+        `[snapshot-manager] Error calculating snapshot size via provider, using default size`,
+      );
+    }
+
+    return defaultSize;
   }
 
   /**
