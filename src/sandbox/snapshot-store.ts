@@ -124,20 +124,28 @@ export class FilesystemSnapshotStore implements SnapshotStore {
     try {
       const files = await readdir(this.storageDir);
 
-      for (const file of files) {
-        if (!file.startsWith(prefix) || !file.endsWith(METADATA_EXT)) {
-          continue;
-        }
+      const filteredFiles = files.filter(
+        (file) => file.startsWith(prefix) && file.endsWith(METADATA_EXT)
+      );
 
+      const metadataPromises = filteredFiles.map(async (file) => {
         try {
           const filePath = join(this.storageDir, file);
           const data = await readFile(filePath, "utf-8");
           const metadata = JSON.parse(data) as SnapshotMetadata;
           metadata.createdAt = new Date(metadata.createdAt);
           metadata.refreshedAt = new Date(metadata.refreshedAt);
-          snapshots.push(metadata);
+          return metadata;
         } catch (error) {
           logger.warn({ error, file }, `[snapshot-store] Failed to read snapshot file`);
+          return null;
+        }
+      });
+
+      const results = await Promise.all(metadataPromises);
+      for (const metadata of results) {
+        if (metadata) {
+          snapshots.push(metadata);
         }
       }
     } catch (error) {
@@ -159,20 +167,28 @@ export class FilesystemSnapshotStore implements SnapshotStore {
     try {
       const files = await readdir(this.storageDir);
 
-      for (const file of files) {
-        if (!file.startsWith(prefix) || !file.endsWith(METADATA_EXT)) {
-          continue;
-        }
+      const filteredFiles = files.filter(
+        (file) => file.startsWith(prefix) && file.endsWith(METADATA_EXT)
+      );
 
+      const metadataPromises = filteredFiles.map(async (file) => {
         try {
           const filePath = join(this.storageDir, file);
           const data = await readFile(filePath, "utf-8");
           const metadata = JSON.parse(data) as SnapshotMetadata;
           metadata.createdAt = new Date(metadata.createdAt);
           metadata.refreshedAt = new Date(metadata.refreshedAt);
-          snapshots.push(metadata);
+          return metadata;
         } catch (error) {
           logger.warn({ error, file }, `[snapshot-store] Failed to read snapshot file`);
+          return null;
+        }
+      });
+
+      const results = await Promise.all(metadataPromises);
+      for (const metadata of results) {
+        if (metadata) {
+          snapshots.push(metadata);
         }
       }
     } catch (error) {
@@ -211,11 +227,9 @@ export class FilesystemSnapshotStore implements SnapshotStore {
     try {
       const files = await readdir(this.storageDir);
 
-      for (const file of files) {
-        if (!file.endsWith(METADATA_EXT)) {
-          continue;
-        }
+      const filteredFiles = files.filter((file) => file.endsWith(METADATA_EXT));
 
+      const deletePromises = filteredFiles.map(async (file) => {
         try {
           const filePath = join(this.storageDir, file);
           const data = await readFile(filePath, "utf-8");
@@ -225,16 +239,21 @@ export class FilesystemSnapshotStore implements SnapshotStore {
 
           if (isSnapshotExpired(metadata, maxAgeHours)) {
             await unlink(filePath);
-            deleted++;
             logger.debug(
               { snapshotId: metadata.snapshotId, file },
               `[snapshot-store] Deleted expired snapshot`,
             );
+            return 1;
           }
+          return 0;
         } catch (error) {
           logger.warn({ error, file }, `[snapshot-store] Failed to process snapshot file`);
+          return 0;
         }
-    }
+      });
+
+      const results = await Promise.all(deletePromises);
+      deleted = results.reduce((sum: number, count) => sum + count, 0);
     } catch (error) {
       logger.error({ error }, `[snapshot-store] Failed during cleanup`);
     }
