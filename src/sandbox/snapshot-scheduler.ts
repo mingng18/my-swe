@@ -17,6 +17,8 @@ import { createLogger } from "../utils/logger";
 import { SnapshotManager } from "./snapshot-manager";
 import type { SandboxProfile } from "../integrations/daytona-pool";
 import type { SandboxService } from "../integrations/sandbox-service";
+import { createSandboxService } from "../integrations/sandbox-service";
+
 import type {
   SnapshotMetadata,
   SnapshotKey,
@@ -232,17 +234,70 @@ export class SnapshotScheduler {
   private async refreshSnapshot(key: SnapshotKey): Promise<void> {
     logger.debug({ key }, `[snapshot-scheduler] Refreshing snapshot`);
 
-    // TODO: Implement actual refresh logic
-    // This would:
-    // 1. Acquire a sandbox with the correct profile
-    // 2. Pull latest changes
-    // 3. Reinstall dependencies if changed
-    // 4. Update snapshot metadata
+    const metadata = await this.store.get(key);
+    if (!metadata) {
+      logger.warn({ key }, `[snapshot-scheduler] Snapshot not found for refresh`);
+      return;
+    }
 
-    logger.debug(
-      { key },
-      `[snapshot-scheduler] Refresh complete (not yet implemented)`,
-    );
+    if (metadata.refreshing) {
+      logger.debug({ key }, `[snapshot-scheduler] Snapshot already refreshing`);
+      return;
+    }
+
+    // Mark as refreshing
+    metadata.refreshing = true;
+    await this.store.save(metadata);
+
+    let sandbox;
+    try {
+      // 1. Acquire a sandbox with the correct profile
+      sandbox = await createSandboxService();
+
+      // 2. Use SnapshotManager to re-create the snapshot
+      // SnapshotManager handles cloning, dependency detection, and pre-builds
+      const result = await this.manager.createSnapshot(sandbox, {
+        repoOwner: key.repoOwner,
+        repoName: key.repoName,
+        profile: key.profile,
+        branch: key.branch,
+        runPreBuild: true,
+      });
+
+      if (!result.success) {
+        logger.error(
+          { key, error: result.error },
+          `[snapshot-scheduler] Failed to refresh snapshot`
+        );
+      } else {
+        logger.debug(
+          { key, snapshotId: result.snapshotId },
+          `[snapshot-scheduler] Refresh complete`
+        );
+      }
+    } catch (error) {
+      logger.error(
+        { key, error },
+        `[snapshot-scheduler] Error during snapshot refresh`
+      );
+    } finally {
+      // 3. Cleanup sandbox
+      if (sandbox) {
+        await sandbox.cleanup().catch((err) => {
+          logger.error(
+            { err },
+            `[snapshot-scheduler] Failed to cleanup sandbox after refresh`
+          );
+        });
+      }
+
+      // 4. Restore refreshing state
+      const currentMetadata = await this.store.get(key);
+      if (currentMetadata) {
+        currentMetadata.refreshing = false;
+        await this.store.save(currentMetadata);
+      }
+    }
   }
 }
 
