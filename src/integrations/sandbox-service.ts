@@ -313,6 +313,13 @@ export class SandboxService implements FilesystemPort, SandboxBackendPort {
   /**
    * Provider-specific: Get the underlying sandbox instance.
    */
+  getDaytonaClient(): any {
+    if ("getDaytonaClient" in this.backend) {
+      return (this.backend as any).getDaytonaClient();
+    }
+    return undefined;
+  }
+
   getSandbox(): any {
     if ("getSandbox" in this.backend) {
       return (this.backend as any).getSandbox();

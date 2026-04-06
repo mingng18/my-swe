@@ -425,12 +425,43 @@ export class SnapshotManager {
   private async captureSnapshot(
     sandbox: SandboxService,
   ): Promise<Record<string, unknown>> {
-    // TODO: Integrate with OpenSandbox and Daytona snapshot APIs
-    // For now, return empty data
+    const provider = sandbox.getProvider();
     const info = await sandbox.getInfo();
+
+    if (provider === "daytona") {
+      try {
+        const daytonaClient = sandbox.getDaytonaClient?.();
+        if (daytonaClient && daytonaClient.snapshot) {
+          const snapshotName = `snapshot-${info?.id || Date.now()}`;
+
+          logger.info(`[snapshot-manager] Creating Daytona snapshot: ${snapshotName}`);
+
+          const image = await this.getImageName(sandbox);
+          const snapshot = await daytonaClient.snapshot.create({
+            name: snapshotName,
+            image,
+            resources: {},
+            entrypoint: [],
+          });
+
+          return {
+            sandboxId: sandbox.id,
+            provider,
+            snapshotId: snapshot.id,
+            snapshotName: snapshot.name,
+            info
+          };
+        }
+      } catch (err) {
+        logger.error({ error: err }, "[snapshot-manager] Failed to create Daytona snapshot");
+      }
+    } else if (provider === "opensandbox") {
+      logger.debug("[snapshot-manager] OpenSandbox backend; returning info for snapshot");
+    }
+
     return {
       sandboxId: sandbox.id,
-      provider: sandbox.getProvider(),
+      provider,
       info,
     };
   }
