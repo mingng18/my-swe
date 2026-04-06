@@ -169,7 +169,11 @@ export class SnapshotManager {
       const snapshotData = await this.captureSnapshot(sandbox);
 
       // Calculate size (estimate based on diff or provider info)
-      const size = await this.calculateSnapshotSize(sandbox, snapshotData);
+      const size = await this.calculateSnapshotSize(
+        sandbox,
+        repoDir,
+        snapshotData,
+      );
 
       const metadata: SnapshotMetadata = {
         snapshotId,
@@ -493,10 +497,41 @@ export class SnapshotManager {
    */
   private async calculateSnapshotSize(
     sandbox: SandboxService,
+    repoDir: string,
     snapshotData: Record<string, unknown>,
   ): Promise<number> {
-    // TODO: Get actual size from provider
-    // For now, return a reasonable estimate
+    // If the provider specifically reported its snapshot/workspace size in snapshotData, use it.
+    if (snapshotData && typeof snapshotData === "object" && snapshotData.info) {
+      const info = snapshotData.info as Record<string, unknown>;
+      // Example fields we might expect from future provider APIs:
+      if (typeof info.sizeBytes === "number") {
+        return info.sizeBytes;
+      }
+      if (typeof info.diskUsage === "number") {
+        return info.diskUsage;
+      }
+    }
+
+    // Fallback: estimate based on repository size if we don't have provider size
+    try {
+      const result = await sandbox.execute(`du -sb ${repoDir}`);
+      if (result.exitCode === 0) {
+        const match = result.output.match(/^(\d+)/);
+        if (match) {
+          // Multiply by a factor to estimate full environment overhead (e.g., node_modules, system deps)
+          // A 2x or 3x multiplier is a common heuristic for full container vs source code size
+          const repoSize = parseInt(match[1], 10);
+          return Math.max(repoSize * 2, 1024 * 1024 * 50); // At least 50MB
+        }
+      }
+    } catch (error) {
+      logger.warn(
+        { error },
+        "[snapshot-manager] Failed to calculate actual snapshot size, falling back to default",
+      );
+    }
+
+    // Fallback default
     return 1024 * 1024 * 100; // 100 MB default
   }
 
