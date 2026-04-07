@@ -15,6 +15,7 @@
  */
 
 import { createLogger } from "../utils/logger";
+import { randomUUID } from "node:crypto";
 import { type SandboxService, createSandboxServiceWithConfig } from "../integrations/sandbox-service";
 import {
   type SnapshotMetadata,
@@ -95,7 +96,7 @@ export class SnapshotManager {
     } = options;
 
     const key = createSnapshotKey({ repoOwner, repoName, profile, branch });
-    const snapshotId = `snap-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const snapshotId = `snap-${Date.now()}-${randomUUID().slice(0, 8)}`;
 
     logger.info(
       {
