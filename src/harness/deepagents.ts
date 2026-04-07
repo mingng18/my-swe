@@ -45,6 +45,7 @@ import {
 } from "../utils/thread-metadata-store";
 import { clearSandboxBackend, setSandboxBackend } from "../utils/sandboxState";
 import { installDependencies } from "../nodes/deterministic/DependencyInstallerNode";
+import { type BaseMessage, type ToolCall } from "@langchain/core/messages";
 
 const logger = createLogger("deepagents");
 
@@ -996,18 +997,18 @@ If you need to make additional changes, continue working and they'll be added to
       const lastMessage = messages[messages.length - 1];
       const text = lastMessage?.content || "";
 
-      // Log all messages with detailed information using logger
+      // Log all messages with detailed information using logger when DEBUG_DEEPAGENTS is set
       if (process.env.DEBUG_DEEPAGENTS === "true") {
         logger.debug(
           { messages: messages.length },
           "=== Agent Execution Log ===",
         );
-        messages.forEach((msg: any, index: number) => {
+        messages.forEach((msg: BaseMessage & { tool_calls?: ToolCall[], role?: string, type?: string }, index: number) => {
           const msgLog = {
             index: index + 1,
-            role: msg.role,
+            role: msg.role || msg._getType(),
             type: msg.type || "message",
-            tool_calls: msg.tool_calls?.map((tc: any) => ({
+            tool_calls: (msg.tool_calls || []).map((tc: ToolCall) => ({
               name: tc.name,
               id: tc.id,
               args: tc.args
@@ -1049,7 +1050,7 @@ If you need to make additional changes, continue working and they'll be added to
           };
           logger.debug(
             { msg: msgLog },
-            `[Message ${index + 1}] Role: ${msg.role}`,
+            `[Message ${index + 1}] Role: ${msgLog.role}`,
           );
         });
       }
