@@ -5,7 +5,7 @@
  * reactions, and fetching comments from issues and PRs.
  */
 
-import { createHmac } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { Octokit } from "octokit";
 
 import { IDENTITY_MAP } from "../identity";
@@ -106,23 +106,14 @@ export function verifyGithubSignature(
   const expected =
     "sha256=" + createHmac("sha256", secret).update(bodyStr).digest("hex");
 
-  return timingSafeEqual(expected, signature);
-}
+  const expectedBuffer = Buffer.from(expected);
+  const signatureBuffer = Buffer.from(signature);
 
-/**
- * Timing-safe string comparison to prevent timing attacks.
- */
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) {
+  if (expectedBuffer.length !== signatureBuffer.length) {
     return false;
   }
 
-  let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-
-  return result === 0;
+  return timingSafeEqual(expectedBuffer, signatureBuffer);
 }
 
 /**
@@ -354,14 +345,14 @@ export async function fetchIssueComments(
         },
       },
     )) {
-      for (const comment of response.data as GitHubIssueComment[]) {
-        comments.push({
+      comments.push(
+        ...(response.data as GitHubIssueComment[]).map((comment) => ({
           body: comment.body ?? "",
           author: comment.user?.login ?? "unknown",
           created_at: comment.created_at,
           comment_id: comment.id,
-        });
-      }
+        })),
+      );
     }
 
     return comments;
@@ -409,55 +400,45 @@ export async function fetchPrCommentsSinceLastTag(
       fetchPaginatedReviews(octokit, { owner, repo, pull_number: prNumber }),
     ]);
 
-    const allComments: GitHubComment[] = [];
-
-    // Process PR comments
-    for (const c of prComments) {
-      allComments.push({
+    const allComments: GitHubComment[] = [
+      ...prComments.map((c) => ({
         body: c.body ?? "",
         author: c.user?.login ?? "unknown",
         created_at: c.created_at,
-        type: "pr_comment",
+        type: "pr_comment" as const,
         comment_id: c.id,
-      });
-    }
-
-    // Process review comments
-    for (const c of reviewComments as GitHubPRComment[]) {
-      allComments.push({
+      })),
+      ...(reviewComments as GitHubPRComment[]).map((c) => ({
         body: c.body ?? "",
         author: c.user?.login ?? "unknown",
         created_at: c.created_at,
-        type: "review_comment",
+        type: "review_comment" as const,
         comment_id: c.id,
         path: c.path,
         line: c.line ?? c.original_line,
-      });
-    }
-
-    // Process reviews
-    for (const r of reviews) {
-      if (!r.body) continue;
-      allComments.push({
-        body: r.body,
-        author: r.user?.login ?? "unknown",
-        created_at: r.submitted_at,
-        type: "review",
-        comment_id: r.id,
-      });
-    }
+      })),
+      ...reviews
+        .filter((r) => r.body)
+        .map((r) => ({
+          body: r.body!,
+          author: r.user?.login ?? "unknown",
+          created_at: r.submitted_at!,
+          type: "review" as const,
+          comment_id: r.id,
+        })),
+    ];
 
     // Sort all comments chronologically
     allComments.sort((a, b) => a.created_at.localeCompare(b.created_at));
 
     // Find all @openswe / @open-swe mention positions
-    const tagIndices = allComments
-      .map((comment, i) => ({
-        index: i,
-        body: (comment.body ?? "").toLowerCase(),
-      }))
-      .filter(({ body }) => OPEN_SWE_TAGS.some((tag) => body.includes(tag)))
-      .map(({ index }) => index);
+    const tagIndices = allComments.reduce((acc, comment, i) => {
+      const body = (comment.body ?? "").toLowerCase();
+      if (OPEN_SWE_TAGS.some((tag) => body.includes(tag))) {
+        acc.push(i);
+      }
+      return acc;
+    }, [] as number[]);
 
     if (tagIndices.length === 0) {
       return [];
@@ -631,7 +612,7 @@ export function buildPrPrompt(
   comments: GitHubComment[],
   prUrl: string,
 ): string {
-  const lines: string[] = [];
+  let commentsText = "";
 
   for (const c of comments) {
     const author = c.author ?? "unknown";
@@ -641,12 +622,10 @@ export function buildPrPrompt(
       const path = c.path ?? "";
       const line = c.line ?? "";
       const loc = path ? ` (file: \`${path}\`, line: ${line})` : "";
-      lines.push(`\n**${author}**${loc}:\n${body}\n`);
+      commentsText += `\n**${author}**${loc}:\n${body}\n`;
     } else {
-      lines.push(`\n**${author}**:\n${body}\n`);
+      commentsText += `\n**${author}**:\n${body}\n`;
     }
   }
-
-  const commentsText = lines.join("");
   return `You've been tagged in GitHub PR comments. Please resolve them.\n\nPR: ${prUrl}\n\n## Comments:\n${commentsText}\n\nIf code changes are needed:\n1. Make the changes in the sandbox\n2. Call \`commit_and_open_pr\` to push them to GitHub — this is REQUIRED, do NOT skip it\n3. Call \`github_comment\` with the PR number to post a summary on GitHub\n\nIf no code changes are needed:\n1. Call \`github_comment\` with the PR number to explain your answer — this is REQUIRED, never end silently\n\n**You MUST always call \`github_comment\` before finishing — whether or not changes were made.**`;
 }

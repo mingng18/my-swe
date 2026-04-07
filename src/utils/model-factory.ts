@@ -147,9 +147,9 @@ function stripUnsupportedGeminiProps(obj: unknown): unknown {
       cleaned.properties &&
       typeof cleaned.properties === "object"
     ) {
-      const validProps = new Set(Object.keys(cleaned.properties as object));
+      const props = cleaned.properties as object;
       cleaned.required = (cleaned.required as string[]).filter((k) =>
-        validProps.has(k),
+        Object.prototype.hasOwnProperty.call(props, k),
       );
       // Remove empty required array entirely
       if ((cleaned.required as string[]).length === 0) {

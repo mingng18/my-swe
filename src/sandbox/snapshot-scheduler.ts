@@ -16,11 +16,12 @@
 import { createLogger } from "../utils/logger";
 import { SnapshotManager } from "./snapshot-manager";
 import type { SandboxProfile } from "../integrations/daytona-pool";
-import type { SandboxService } from "../integrations/sandbox-service";
-import type {
-  SnapshotMetadata,
-  SnapshotKey,
-  SnapshotStore,
+import { type SandboxService, createSandboxService } from "../integrations/sandbox-service";
+import {
+  isSnapshotExpired,
+  type SnapshotMetadata,
+  type SnapshotKey,
+  type SnapshotStore,
 } from "./snapshot-metadata";
 
 const logger = createLogger("snapshot-scheduler");
@@ -186,15 +187,15 @@ export class SnapshotScheduler {
    * Find snapshots that need refresh based on max age.
    */
   private async findExpiredSnapshots(): Promise<SnapshotMetadata[]> {
-    const allSnapshots: SnapshotMetadata[] = [];
+    const allSnapshots = await this.store.listAll();
     const expired: SnapshotMetadata[] = [];
 
-    // Get all snapshots from the store
-    // Note: This requires the store to have a listAll method or similar
-    // For now, we'll use the cleanup method to get an idea
+    for (const snapshot of allSnapshots) {
+      if (isSnapshotExpired(snapshot, this.config.maxAgeHours)) {
+        expired.push(snapshot);
+      }
+    }
 
-    // TODO: Implement listAll in SnapshotStore
-    // For now, return empty array
     return expired;
   }
 
@@ -232,17 +233,74 @@ export class SnapshotScheduler {
   private async refreshSnapshot(key: SnapshotKey): Promise<void> {
     logger.debug({ key }, `[snapshot-scheduler] Refreshing snapshot`);
 
-    // TODO: Implement actual refresh logic
-    // This would:
-    // 1. Acquire a sandbox with the correct profile
-    // 2. Pull latest changes
-    // 3. Reinstall dependencies if changed
-    // 4. Update snapshot metadata
+    const metadata = await this.store.get(key);
+    if (!metadata) {
+      logger.warn({ key }, `[snapshot-scheduler] Snapshot not found for refresh`);
+      return;
+    }
 
-    logger.debug(
-      { key },
-      `[snapshot-scheduler] Refresh complete (not yet implemented)`,
-    );
+    if (metadata.refreshing) {
+      logger.debug({ key }, `[snapshot-scheduler] Snapshot already refreshing`);
+      return;
+    }
+
+    // Mark as refreshing
+    metadata.refreshing = true;
+    await this.store.save(metadata);
+
+    let sandbox: SandboxService | null = null;
+
+    try {
+      // 1. Acquire a sandbox. We use restoreSnapshot to get a sandbox with the old snapshot state,
+      // so we can efficiently pull changes instead of cloning from scratch.
+      const restoreResult = await this.manager.restoreSnapshot(key, async () => {
+        return createSandboxService();
+      });
+
+      if (!restoreResult.success || !restoreResult.sandbox) {
+        throw new Error(restoreResult.error || "Failed to restore snapshot for refresh");
+      }
+      sandbox = restoreResult.sandbox;
+
+      // 2. Refresh the snapshot
+      const result = await this.manager.createSnapshot(sandbox, {
+        repoOwner: key.repoOwner,
+        repoName: key.repoName,
+        profile: key.profile,
+        branch: key.branch,
+        runPreBuild: true,
+      });
+
+      if (!result.success) {
+        throw new Error(result.error || "Unknown error during snapshot creation");
+      }
+
+      logger.debug(
+        { key, snapshotId: result.snapshotId },
+        `[snapshot-scheduler] Refresh complete`,
+      );
+    } catch (error) {
+      logger.error(
+        { key, error },
+        `[snapshot-scheduler] Failed to refresh snapshot`,
+      );
+    } finally {
+      // Always reset refreshing state
+      const currentMetadata = await this.store.get(key);
+      if (currentMetadata) {
+        currentMetadata.refreshing = false;
+        await this.store.save(currentMetadata);
+      }
+
+      if (sandbox) {
+        await sandbox.cleanup().catch((err) => {
+          logger.warn(
+            { key, error: err },
+            `[snapshot-scheduler] Failed to cleanup sandbox after refresh`,
+          );
+        });
+      }
+    }
   }
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, test, mock, afterEach } from "bun:test";
-import { fetchUrl } from "./fetch-url";
+import { fetchUrl, fetchUrlTool } from "./fetch-url";
 
 describe("fetchUrl", () => {
   const originalFetch = globalThis.fetch;
@@ -43,13 +43,39 @@ describe("fetchUrl", () => {
   });
 
   test("handles fetch throwing an error", async () => {
-    globalThis.fetch = mock().mockRejectedValue(new Error("Network Error")) as unknown as typeof fetch;
+    globalThis.fetch = mock().mockRejectedValue(
+      new Error("Network Error"),
+    ) as unknown as typeof fetch;
 
     const result = await fetchUrl("https://example.com/error");
 
     expect(result).toEqual({
       error: "Fetch URL error: Network Error",
       url: "https://example.com/error",
+    });
+  });
+
+  test("fetchUrlTool returns stringified result", async () => {
+    globalThis.fetch = mock().mockResolvedValue({
+      ok: true,
+      status: 200,
+      url: "https://example.com/tool",
+      text: async () => "<p>Tool Test</p>",
+    }) as unknown as typeof fetch;
+
+    const result = await fetchUrlTool.invoke({
+      url: "https://example.com/tool",
+    });
+
+    // Result should be a JSON string
+    expect(typeof result).toBe("string");
+
+    const parsed = JSON.parse(result);
+    expect(parsed).toEqual({
+      url: "https://example.com/tool",
+      markdown_content: "Tool Test",
+      status_code: 200,
+      content_length: 9,
     });
   });
 });

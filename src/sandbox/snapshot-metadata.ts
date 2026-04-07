@@ -111,6 +111,9 @@ export interface SnapshotStore {
 
   /** Clean up old snapshots beyond max age */
   cleanup(maxAgeHours: number): Promise<number>;
+
+  /** List all snapshots */
+  listAll(): Promise<SnapshotMetadata[]>;
 }
 
 /**
@@ -145,7 +148,13 @@ export function parseSnapshotKey(key: string): SnapshotKey | null {
   if (parts.length !== 4) return null;
 
   const [repoOwner, repoName, profile, branch] = parts;
-  const validProfiles: SandboxProfile[] = ["typescript", "javascript", "python", "java", "polyglot"];
+  const validProfiles: SandboxProfile[] = [
+    "typescript",
+    "javascript",
+    "python",
+    "java",
+    "polyglot",
+  ];
 
   if (!validProfiles.includes(profile as SandboxProfile)) {
     return null;
@@ -174,24 +183,11 @@ export function isSnapshotExpired(
 /**
  * Profile-specific default setup commands.
  */
-export const PROFILE_SETUP_COMMANDS: Record<
-  SandboxProfile,
-  string[]
-> = {
-  typescript: [
-    "npm install -g typescript",
-    "npm install -g tsx",
-  ],
-  javascript: [
-    "npm install -g nodemon",
-  ],
-  python: [
-    "pip install --upgrade pip",
-    "pip install pytest black mypy pylint",
-  ],
-  java: [
-    "mvn dependency:resolve",
-  ],
+export const PROFILE_SETUP_COMMANDS: Record<SandboxProfile, string[]> = {
+  typescript: ["npm install -g typescript", "npm install -g tsx"],
+  javascript: ["npm install -g nodemon"],
+  python: ["pip install --upgrade pip", "pip install pytest black mypy pylint"],
+  java: ["mvn dependency:resolve"],
   polyglot: [
     // Multi-language setup
     "npm install -g typescript",
@@ -202,10 +198,7 @@ export const PROFILE_SETUP_COMMANDS: Record<
 /**
  * Profile-specific dependency detection files.
  */
-export const PROFILE_DEPENDENCY_FILES: Record<
-  SandboxProfile,
-  string[]
-> = {
+export const PROFILE_DEPENDENCY_FILES: Record<SandboxProfile, string[]> = {
   typescript: ["package.json", "tsconfig.json"],
   javascript: ["package.json"],
   python: ["requirements.txt", "pyproject.toml", "setup.py"],
@@ -224,23 +217,41 @@ export function getDefaultBranch(): string {
  * Detect the appropriate profile from repository files.
  */
 export function detectProfileFromFiles(files: string[]): SandboxProfile | null {
-  const fileSet = new Set(files.map((f) => f.toLowerCase()));
+  let hasTsConfigOrPackageJson = false;
+  let hasTsFiles = false;
+  let hasPythonFiles = false;
+  let hasJavaFiles = false;
 
-  if (fileSet.has("tsconfig.json") || fileSet.has("package.json")) {
-    // Check for TypeScript
-    for (const file of files) {
-      if (file.endsWith(".ts") || file.endsWith(".tsx")) {
-        return "typescript";
-      }
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    const lowerFile = file.toLowerCase();
+
+    if (lowerFile === "tsconfig.json" || lowerFile === "package.json") {
+      hasTsConfigOrPackageJson = true;
+    } else if (
+      lowerFile === "requirements.txt" ||
+      lowerFile === "pyproject.toml" ||
+      lowerFile === "setup.py"
+    ) {
+      hasPythonFiles = true;
+    } else if (lowerFile === "pom.xml" || lowerFile === "build.gradle") {
+      hasJavaFiles = true;
     }
-    return "javascript";
+
+    if (!hasTsFiles && (file.endsWith(".ts") || file.endsWith(".tsx"))) {
+      hasTsFiles = true;
+    }
   }
 
-  if (fileSet.has("requirements.txt") || fileSet.has("pyproject.toml") || fileSet.has("setup.py")) {
+  if (hasTsConfigOrPackageJson) {
+    return hasTsFiles ? "typescript" : "javascript";
+  }
+
+  if (hasPythonFiles) {
     return "python";
   }
 
-  if (fileSet.has("pom.xml") || fileSet.has("build.gradle")) {
+  if (hasJavaFiles) {
     return "java";
   }
 

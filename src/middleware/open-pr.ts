@@ -415,11 +415,15 @@ export async function openPrIfNeeded(
     );
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
+    const threadId = config.configurable?.thread_id;
+    const repoConfig = config.configurable?.repo;
+    const repoOwner = repoConfig?.owner;
+    const repoName = repoConfig?.name;
     logger.error(
       {
         error,
         threadId,
-        repo: repoOwner ? `${repoOwner}/${repoName}` : undefined,
+        repo: repoOwner && repoName ? `${repoOwner}/${repoName}` : undefined,
         branch: config.metadata?.branch_name,
       },
       "Error in after-agent middleware",

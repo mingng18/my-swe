@@ -15,7 +15,8 @@
  */
 
 import { createLogger } from "../utils/logger";
-import type { SandboxService } from "../integrations/sandbox-service";
+import { randomUUID } from "node:crypto";
+import { type SandboxService, createSandboxServiceWithConfig } from "../integrations/sandbox-service";
 import {
   type SnapshotMetadata,
   type SnapshotKey,
@@ -28,6 +29,8 @@ import {
   detectProfileFromFiles,
 } from "./snapshot-metadata";
 import type { SandboxProfile } from "../integrations/daytona-pool";
+import { DaytonaSnapshotManager } from "./daytona-snapshot-integration";
+import { Daytona } from "@daytonaio/sdk";
 
 const logger = createLogger("snapshot-manager");
 
@@ -93,7 +96,7 @@ export class SnapshotManager {
     } = options;
 
     const key = createSnapshotKey({ repoOwner, repoName, profile, branch });
-    const snapshotId = `snap-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const snapshotId = `snap-${Date.now()}-${randomUUID().split("-")[0]}`;
 
     logger.info(
       {
@@ -167,7 +170,11 @@ export class SnapshotManager {
       const snapshotData = await this.captureSnapshot(sandbox);
 
       // Calculate size (estimate based on diff or provider info)
-      const size = await this.calculateSnapshotSize(sandbox, snapshotData);
+      const size = await this.calculateSnapshotSize(
+        sandbox,
+        repoDir,
+        snapshotData,
+      );
 
       const metadata: SnapshotMetadata = {
         snapshotId,
@@ -259,19 +266,38 @@ export class SnapshotManager {
       // 1. Call provider's restore API with snapshot ID
       // 2. Verify the restored sandbox is ready
 
-      // TODO: Integrate with provider snapshot APIs when available
-      // For OpenSandbox: use their snapshot/checkpoint API
-      // For Daytona: use their workspace template API
+      if (metadata.provider === "daytona") {
+        const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY || "" });
+        const manager = new DaytonaSnapshotManager(daytona);
+
+        const createResult = await manager.createSandboxFromSnapshot(metadata.snapshotId);
+        if (createResult.success && createResult.sandboxId) {
+          const sandbox = await createSandboxServiceWithConfig({
+            provider: "daytona",
+            daytona: {
+              sandboxId: createResult.sandboxId
+            }
+          });
+          return {
+            success: true,
+            sandbox,
+            fromCache: true
+          };
+        }
+        throw new Error(`Failed to create Daytona sandbox from snapshot: ${createResult.error}`);
+      }
+
+      // TODO: Integrate with OpenSandbox snapshot/checkpoint API when available
 
       logger.debug(
-        `[snapshot-manager] Provider snapshot APIs not yet integrated, using fresh sandbox`,
+        `[snapshot-manager] Provider ${metadata.provider} snapshot APIs not yet integrated, using fresh sandbox`,
       );
 
       return {
         success: true,
         sandbox: null,
         fromCache: false,
-        error: "Provider snapshot APIs not yet integrated",
+        error: `Provider ${metadata.provider} snapshot APIs not yet integrated`,
       };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
@@ -425,27 +451,96 @@ export class SnapshotManager {
   private async captureSnapshot(
     sandbox: SandboxService,
   ): Promise<Record<string, unknown>> {
-    // TODO: Integrate with OpenSandbox and Daytona snapshot APIs
-    // For now, return empty data
+    const provider = sandbox.getProvider();
     const info = await sandbox.getInfo();
+
+    if (provider === "daytona") {
+      try {
+        const daytonaClient = sandbox.getDaytonaClient?.();
+        if (daytonaClient && daytonaClient.snapshot) {
+          const snapshotName = `snapshot-${info?.id || Date.now()}`;
+
+          logger.info(`[snapshot-manager] Creating Daytona snapshot: ${snapshotName}`);
+
+          const image = await this.getImageName(sandbox);
+          const snapshot = await daytonaClient.snapshot.create({
+            name: snapshotName,
+            image,
+            resources: {},
+            entrypoint: [],
+          });
+
+          return {
+            sandboxId: sandbox.id,
+            provider,
+            snapshotId: snapshot.id,
+            snapshotName: snapshot.name,
+            info
+          };
+        }
+      } catch (err) {
+        logger.error({ error: err }, "[snapshot-manager] Failed to create Daytona snapshot");
+      }
+    } else if (provider === "opensandbox") {
+      logger.debug("[snapshot-manager] OpenSandbox backend; returning info for snapshot");
+    }
+
     return {
       sandboxId: sandbox.id,
-      provider: sandbox.getProvider(),
+      provider,
       info,
     };
   }
 
-  /**
-   * Calculate snapshot size.
-   * TODO: Implement actual size calculation via provider API.
-   */
   private async calculateSnapshotSize(
     sandbox: SandboxService,
+    repoDir: string,
     snapshotData: Record<string, unknown>,
   ): Promise<number> {
-    // TODO: Get actual size from provider
-    // For now, return a reasonable estimate
-    return 1024 * 1024 * 100; // 100 MB default
+    const defaultSize = 1024 * 1024 * 100; // 100 MB default
+
+    // If the provider specifically reported its snapshot/workspace size in snapshotData, use it.
+    if (snapshotData && typeof snapshotData === "object" && snapshotData.info) {
+      const info = snapshotData.info as Record<string, unknown>;
+      // Example fields we might expect from future provider APIs:
+      if (typeof info.sizeBytes === "number") {
+        return info.sizeBytes;
+      }
+      if (typeof info.diskUsage === "number") {
+        return info.diskUsage;
+      }
+    }
+
+    // Fallback: estimate based on repository size if we don't have provider size
+    try {
+      const result = await sandbox.execute(`du -sb ${repoDir}`);
+      if (result.exitCode === 0 && result.output) {
+        const match = result.output.match(/^(\d+)/);
+        if (match && match[1]) {
+          // Multiply by a factor to estimate full environment overhead (e.g., node_modules, system deps)
+          const repoSize = parseInt(match[1], 10);
+          if (!isNaN(repoSize) && repoSize > 0) {
+            return Math.max(repoSize * 2, 1024 * 1024 * 50); // At least 50MB
+          }
+        }
+      }
+      logger.warn(
+        {
+          provider: sandbox.getProvider(),
+          repoDir,
+          output: result.output,
+          exitCode: result.exitCode,
+        },
+        `[snapshot-manager] Failed to parse actual snapshot size, using default size`,
+      );
+    } catch (error) {
+      logger.warn(
+        { error, provider: sandbox.getProvider(), repoDir },
+        `[snapshot-manager] Error calculating snapshot size via provider, using default size`,
+      );
+    }
+
+    return defaultSize;
   }
 
   /**

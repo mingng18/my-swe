@@ -9,6 +9,7 @@
  */
 
 import { createLogger } from "../utils/logger";
+import { randomUUID } from "node:crypto";
 import {
   ConnectionConfig,
   Sandbox,
@@ -56,9 +57,7 @@ interface ExecuteResult {
 /**
  * OpenSandbox backend implementing repo-owned sandbox ports.
  */
-export class OpenSandboxBackend
-  extends BaseSandboxBackend
-{
+export class OpenSandboxBackend extends BaseSandboxBackend {
   private sandbox?: Sandbox;
   private connectionConfig: ConnectionConfig;
   private config: OpenSandboxConfig;
@@ -67,7 +66,7 @@ export class OpenSandboxBackend
   constructor(config: OpenSandboxConfig) {
     super();
     this.config = config;
-    this._id = `opensandbox-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    this._id = `opensandbox-${Date.now()}-${randomUUID().split("-")[0]}`;
     this.connectionConfig = new ConnectionConfig({
       domain: config.domain,
       apiKey: config.apiKey,
@@ -154,8 +153,8 @@ export class OpenSandboxBackend
     try {
       const execution = await this.sandbox!.commands.run(command);
 
-      const stdout = execution.logs.stdout.map((log) => log.text).join("");
-      const stderr = execution.logs.stderr.map((log) => log.text).join("");
+      const stdout = execution.logs.stdout.reduce((acc, log) => acc + log.text, "");
+      const stderr = execution.logs.stderr.reduce((acc, log) => acc + log.text, "");
       const output = stdout + stderr;
       const exitCode = execution.exitCode || 0;
 
@@ -243,7 +242,7 @@ export class OpenSandboxBackend
     }
   }
 
-    /**
+  /**
    * Create/write a file.
    */
   async write(filePath: string, content: string): Promise<WriteResult> {
@@ -352,40 +351,79 @@ export class OpenSandboxBackend
         | null;
     }> = [];
 
-    for (const [path, data] of files) {
-      try {
-        // Create directory if needed
+    // ⚡ Bolt: Fast path using OpenSandbox SDK batching
+    try {
+      // 1. Collect all unique directories
+      const dirs = new Set<string>();
+      for (const [path] of files) {
         const dirPath = path.substring(0, path.lastIndexOf("/"));
-        if (dirPath) {
-          await this.sandbox!.files.createDirectories([
-            { path: dirPath, mode: 755 },
-          ]);
-        }
-
-        // Convert Uint8Array to string
-        const content = new TextDecoder().decode(data);
-        await this.sandbox!.files.writeFiles([
-          { path, data: content, mode: 644 },
-        ]);
-
-        results.push({ path, error: null });
-      } catch (err) {
-        // Map to FileOperationError
-        const error:
-          | "file_not_found"
-          | "permission_denied"
-          | "is_directory"
-          | "invalid_path" =
-          err instanceof Error && err.message.includes("not found")
-            ? "file_not_found"
-            : err instanceof Error && err.message.includes("permission")
-              ? "permission_denied"
-              : "invalid_path";
-        results.push({ path, error });
+        if (dirPath) dirs.add(dirPath);
       }
-    }
 
-    return results;
+      // 2. Batch create directories
+      if (dirs.size > 0) {
+        const dirRequests = Array.from(dirs).map((path) => ({
+          path,
+          mode: 755,
+        }));
+        await this.sandbox!.files.createDirectories(dirRequests);
+      }
+
+      // 3. Batch write all files
+      const writeRequests = files.map(([path, data]) => ({
+        path,
+        data: new TextDecoder().decode(data),
+        mode: 644,
+      }));
+
+      if (writeRequests.length > 0) {
+        await this.sandbox!.files.writeFiles(writeRequests);
+      }
+
+      // If batch succeeds, all files were uploaded successfully
+      return files.map(([path]) => ({ path, error: null }));
+    } catch (batchErr) {
+      logger.debug(
+        { error: batchErr },
+        "[opensandbox] Batch upload failed, falling back to sequential",
+      );
+
+      // Fallback: sequential upload for granular error reporting
+      for (const [path, data] of files) {
+        try {
+          // Create directory if needed
+          const dirPath = path.substring(0, path.lastIndexOf("/"));
+          if (dirPath) {
+            await this.sandbox!.files.createDirectories([
+              { path: dirPath, mode: 755 },
+            ]);
+          }
+
+          // Convert Uint8Array to string
+          const content = new TextDecoder().decode(data);
+          await this.sandbox!.files.writeFiles([
+            { path, data: content, mode: 644 },
+          ]);
+
+          results.push({ path, error: null });
+        } catch (err) {
+          // Map to FileOperationError
+          const error:
+            | "file_not_found"
+            | "permission_denied"
+            | "is_directory"
+            | "invalid_path" =
+            err instanceof Error && err.message.includes("not found")
+              ? "file_not_found"
+              : err instanceof Error && err.message.includes("permission")
+                ? "permission_denied"
+                : "invalid_path";
+          results.push({ path, error });
+        }
+      }
+
+      return results;
+    }
   }
 
   /**
@@ -421,25 +459,35 @@ export class OpenSandboxBackend
         | null;
     }> = [];
 
-    for (const path of paths) {
-      try {
-        const content = await this.sandbox!.files.readFile(path);
-        const data = new TextEncoder().encode(content);
-        results.push({ path, content: data, error: null });
-      } catch (err) {
-        // Map to FileOperationError
-        const error:
-          | "file_not_found"
-          | "permission_denied"
-          | "is_directory"
-          | "invalid_path" =
-          err instanceof Error && err.message.includes("not found")
-            ? "file_not_found"
-            : err instanceof Error && err.message.includes("permission")
-              ? "permission_denied"
-              : "invalid_path";
-        results.push({ path, content: null, error });
-      }
+    // ⚡ Bolt: Chunked parallel downloads to eliminate N+1 sequential bottlenecks.
+    // Processes 5 files concurrently. Reduces total download time significantly
+    // (e.g. from O(N) network roundtrips to O(N/5)).
+    const CONCURRENCY_LIMIT = 5;
+    for (let i = 0; i < paths.length; i += CONCURRENCY_LIMIT) {
+      const chunk = paths.slice(i, i + CONCURRENCY_LIMIT);
+      const chunkResults = await Promise.all(
+        chunk.map(async (path) => {
+          try {
+            const content = await this.sandbox!.files.readFile(path);
+            const data = new TextEncoder().encode(content);
+            return { path, content: data, error: null };
+          } catch (err) {
+            // Map to FileOperationError
+            const error:
+              | "file_not_found"
+              | "permission_denied"
+              | "is_directory"
+              | "invalid_path" =
+              err instanceof Error && err.message.includes("not found")
+                ? "file_not_found"
+                : err instanceof Error && err.message.includes("permission")
+                  ? "permission_denied"
+                  : "invalid_path";
+            return { path, content: null, error };
+          }
+        }),
+      );
+      results.push(...chunkResults);
     }
 
     return results;

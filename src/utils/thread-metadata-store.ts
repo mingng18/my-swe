@@ -17,7 +17,8 @@ interface PersistedThreadMetadata {
 }
 
 const STORE_PATH =
-  process.env.THREAD_METADATA_PATH?.trim() || ".cursor/state/thread-metadata.json";
+  process.env.THREAD_METADATA_PATH?.trim() ||
+  ".cursor/state/thread-metadata.json";
 const MAX_AGE_MS =
   Number.parseInt(process.env.THREAD_METADATA_TTL_MS || "", 10) ||
   1000 * 60 * 60 * 24 * 7;
@@ -41,12 +42,23 @@ async function writeStore(data: PersistedThreadMetadata): Promise<void> {
   await writeFile(STORE_PATH, JSON.stringify(data, null, 2), "utf8");
 }
 
+let memoryCache: Map<
+  string,
+  { owner: string; name: string; workspaceDir: string }
+> | null = null;
+let lastCacheTime = 0;
+
 export async function loadPersistedThreadRepos(): Promise<
   Map<string, { owner: string; name: string; workspaceDir: string }>
 > {
+  if (memoryCache && Date.now() - lastCacheTime < 5000) return memoryCache;
+
   const store = await readStore();
   const now = Date.now();
-  const result = new Map<string, { owner: string; name: string; workspaceDir: string }>();
+  const result = new Map<
+    string,
+    { owner: string; name: string; workspaceDir: string }
+  >();
   let changed = false;
 
   for (const [threadId, value] of Object.entries(store.repos)) {
@@ -67,6 +79,8 @@ export async function loadPersistedThreadRepos(): Promise<
     await writeStore(store);
   }
 
+  memoryCache = result;
+  lastCacheTime = Date.now();
   return result;
 }
 
@@ -79,6 +93,7 @@ export async function persistThreadRepo(
     sandbox?: { sandboxId: string; profile: string };
   },
 ): Promise<void> {
+  memoryCache = null;
   const store = await readStore();
   store.repos[threadId] = {
     ...repo,
@@ -87,7 +102,10 @@ export async function persistThreadRepo(
   await writeStore(store);
 }
 
-export async function removePersistedThreadRepo(threadId: string): Promise<void> {
+export async function removePersistedThreadRepo(
+  threadId: string,
+): Promise<void> {
+  memoryCache = null;
   const store = await readStore();
   if (store.repos[threadId]) {
     delete store.repos[threadId];

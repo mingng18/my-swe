@@ -38,7 +38,11 @@ function toolCallFingerprint(tc: { name?: string; args?: unknown }): string {
 function turnFingerprint(
   toolCalls: Array<{ name?: string; args?: unknown }>,
 ): string {
-  return toolCalls.map(toolCallFingerprint).join("|");
+  return toolCalls.reduce((acc, tc, i) => {
+    return i === 0
+      ? toolCallFingerprint(tc)
+      : acc + "|" + toolCallFingerprint(tc);
+  }, "");
 }
 
 /**
@@ -48,9 +52,10 @@ function turnFingerprint(
  * Counts how many consecutive AI messages have the same tool-call fingerprint
  * as the most recent one.
  */
-function countConsecutiveRepeats(
-  messages: Array<Record<string, unknown>>,
-): { count: number; fingerprint: string | null } {
+function countConsecutiveRepeats(messages: Array<Record<string, unknown>>): {
+  count: number;
+  fingerprint: string | null;
+} {
   // Collect fingerprints of recent AI-message tool-call turns, newest first.
   const fingerprints: string[] = [];
 

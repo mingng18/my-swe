@@ -9,6 +9,7 @@
  */
 
 import { createLogger } from "../utils/logger";
+import { randomUUID } from "node:crypto";
 import { Daytona } from "@daytonaio/sdk";
 import { BaseSandboxBackend } from "./base-sandbox";
 import type {
@@ -87,7 +88,7 @@ export class DaytonaBackend extends BaseSandboxBackend {
   constructor(config: DaytonaConfig) {
     super();
     this.config = config;
-    this._id = `daytona-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    this._id = `daytona-${Date.now()}-${randomUUID().split("-")[0]}`;
 
     this.daytona = new Daytona({
       apiKey: config.apiKey,
@@ -544,6 +545,10 @@ export class DaytonaBackend extends BaseSandboxBackend {
   /**
    * Get the underlying Daytona Sandbox instance.
    */
+  getDaytonaClient(): Daytona {
+    return this.daytona;
+  }
+
   getSandbox(): typeof this.sandbox {
     return this.sandbox;
   }
