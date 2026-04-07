@@ -1,15 +1,11 @@
 /**
- * Blueprint Pattern - Workflow Selection Metadata
+ * Blueprint System
  *
- * Blueprints are NOT a new execution engine. They are workflow templates
- * that select the appropriate configuration for the existing DeepAgents harness.
+ * This system helps the agent self-organize by selecting an execution blueprint
+ * based on the task description. The blueprint defines what needs to be done,
+ * what verification steps are required, and how to format the PR.
  *
- * The actual execution is handled by:
- * - DeepAgents (agentic LLM work)
- * - Middleware (retry, loop detection, tool limits)
- * - After-agent middleware (PR creation, verification)
- *
- * Blueprints answer: "How should we configure the agent for THIS task?"
+ * Think of it as answering the question: "How should we configure the agent for THIS task?"
  *
  * References:
  * - https://github.com/stripe/minions
@@ -111,6 +107,14 @@ export interface BlueprintSelection {
 }
 
 /**
+ * Internal optimized representation of a blueprint.
+ */
+interface OptimizedBlueprint {
+  blueprint: Blueprint;
+  lowerKeywords: string[];
+}
+
+/**
  * Blueprint registry - manages available blueprints and selects appropriate ones.
  *
  * This is the ONLY new component needed. Everything else (execution, retry,
@@ -118,12 +122,12 @@ export interface BlueprintSelection {
  */
 export class BlueprintRegistry {
   private blueprints: Blueprint[];
-  private defaultBlueprint?: Blueprint;
-  private lowercasedKeywords: Map<string, string[]>;
+  private optimizedBlueprints: OptimizedBlueprint[];
+  private cachedDefaultBlueprint: Blueprint | undefined;
 
   constructor() {
     this.blueprints = [];
-    this.lowercasedKeywords = new Map();
+    this.optimizedBlueprints = [];
   }
 
   /**
@@ -134,16 +138,18 @@ export class BlueprintRegistry {
     // Sort by priority (descending)
     this.blueprints.sort((a, b) => b.priority - a.priority);
 
-    // Cache default blueprint for O(1) lookup
+    // Update cached default blueprint
     if (blueprint.isDefault) {
-      this.defaultBlueprint = blueprint;
+      this.cachedDefaultBlueprint = blueprint;
+    } else if (!this.cachedDefaultBlueprint) {
+      this.cachedDefaultBlueprint = this.blueprints.find((b) => b.isDefault);
     }
 
-    // Pre-compute lowercased keywords to avoid string creation in hot loop
-    this.lowercasedKeywords.set(
-      blueprint.id,
-      blueprint.triggerKeywords.map((k) => k.toLowerCase())
-    );
+    // Rebuild optimized representations to keep them sorted
+    this.optimizedBlueprints = this.blueprints.map((b) => ({
+      blueprint: b,
+      lowerKeywords: b.triggerKeywords ? b.triggerKeywords.map(k => k.toLowerCase()) : []
+    }));
   }
 
   /**
@@ -156,32 +162,32 @@ export class BlueprintRegistry {
     const lowerTask = task.toLowerCase();
 
     // Try to find a matching blueprint (checked in priority order)
-    for (const blueprint of this.blueprints) {
+    for (const opt of this.optimizedBlueprints) {
       const matchedKeywords: string[] = [];
-      const lowerKeywords = this.lowercasedKeywords.get(blueprint.id) || [];
+      const lowerKeywords = opt.lowerKeywords;
 
       for (let i = 0; i < lowerKeywords.length; i++) {
         if (lowerTask.includes(lowerKeywords[i])) {
-          matchedKeywords.push(blueprint.triggerKeywords[i]);
+          matchedKeywords.push(opt.blueprint.triggerKeywords[i]);
         }
       }
 
       if (matchedKeywords.length > 0) {
         return {
-          blueprint,
-          confidence: matchedKeywords.length / blueprint.triggerKeywords.length,
+          blueprint: opt.blueprint,
+          confidence: matchedKeywords.length / opt.blueprint.triggerKeywords.length,
           matchedKeywords,
         };
       }
     }
 
     // No match found - return default blueprint
-    if (!this.defaultBlueprint) {
+    if (!this.cachedDefaultBlueprint) {
       throw new Error("No default blueprint registered");
     }
 
     return {
-      blueprint: this.defaultBlueprint,
+      blueprint: this.cachedDefaultBlueprint,
       confidence: 0,
       matchedKeywords: [],
     };
@@ -205,7 +211,7 @@ export class BlueprintRegistry {
    * Get the default blueprint.
    */
   getDefault(): Blueprint | undefined {
-    return this.blueprints.find((b) => b.isDefault);
+    return this.cachedDefaultBlueprint;
   }
 }
 
