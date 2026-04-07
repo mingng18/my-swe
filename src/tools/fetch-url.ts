@@ -1,6 +1,10 @@
 import TurndownService from "turndown";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
+import * as dns from "node:dns";
+import { promisify } from "node:util";
+
+const lookupAsync = promisify(dns.lookup);
 
 interface FetchUrlSuccessResult {
   url: string;
@@ -43,6 +47,39 @@ export async function fetchUrl(
   url: string,
   timeout: number = 30,
 ): Promise<FetchUrlResult> {
+
+  try {
+    const parsedUrl = new URL(url);
+    if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+      throw new Error("Invalid protocol: only http and https are allowed");
+    }
+
+    // Resolve IP address to prevent DNS rebinding and IP obfuscation SSRF
+    const { address } = await lookupAsync(parsedUrl.hostname);
+
+    // Check for private / loopback IP addresses
+    // Match common local/private IPv4 and IPv6 ranges
+    if (
+      address.startsWith("127.") ||
+      address.startsWith("169.254.") ||
+      address.startsWith("10.") ||
+      address.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./) ||
+      address.startsWith("192.168.") ||
+      address === "0.0.0.0" ||
+      address === "::1" ||
+      address.toLowerCase().startsWith("fc00:") ||
+      address.toLowerCase().startsWith("fd") ||
+      address.toLowerCase().startsWith("fe80:")
+    ) {
+      throw new Error("Invalid hostname: local and private addresses are not allowed");
+    }
+  } catch (err) {
+    return {
+      error: `Fetch URL error: ${err instanceof Error ? err.message : String(err)}`,
+      url,
+    };
+  }
+
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout * 1000);
