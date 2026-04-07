@@ -76,7 +76,7 @@ export async function buildBlocksFromPayload(
     for (let i = 0; i < payload.image_urls.length; i += chunkSize) {
       const chunk = payload.image_urls.slice(i, i + chunkSize);
       const chunkBlocks = await Promise.all(
-        chunk.map((imageUrl) => fetchImageBlock(imageUrl))
+        chunk.map((imageUrl) => fetchImageBlock(imageUrl)),
       );
       for (const imageBlock of chunkBlocks) {
         if (imageBlock) {
