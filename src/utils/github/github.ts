@@ -705,7 +705,7 @@ export async function findExistingPr(
     "[github] Searching for existing PR",
   );
 
-  for (const state of ["open", "all"] as const) {
+  const fetchState = async (state: "open" | "all") => {
     try {
       logger.debug(
         { state, baseRepo: `${baseRepoOwner}/${baseRepoName}` },
@@ -755,6 +755,16 @@ export async function findExistingPr(
       );
       // Continue to next state instead of throwing
     }
+  };
+
+  const [openPr, allPr] = await Promise.all([
+    fetchState("open"),
+    fetchState("all"),
+  ]);
+
+  const pr = openPr || allPr;
+  if (pr) {
+    return [pr.html_url ?? null, pr.number ?? null];
   }
 
   logger.info(
