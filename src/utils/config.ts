@@ -1,14 +1,22 @@
-import { detectProvider, type LlmProvider, type ModelConfig } from "./model-factory";
+import {
+  detectProvider,
+  type LlmProvider,
+  type ModelConfig,
+} from "./model-factory";
 
 /** Load env for the Telegram bot. Extend as other subsystems are added. */
-export function loadTelegramConfig(): { telegramBotToken: string } {
+export function loadTelegramConfig(): {
+  telegramBotToken: string;
+  telegramAdminChatId?: string;
+} {
   const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
   if (!token) {
     throw new Error(
       "Missing TELEGRAM_BOT_TOKEN. Copy .env.example to .env and set your bot token from @BotFather.",
     );
   }
-  return { telegramBotToken: token };
+  const adminChatId = process.env.TELEGRAM_ADMIN_CHAT_ID?.trim();
+  return { telegramBotToken: token, telegramAdminChatId: adminChatId };
 }
 
 /** Where the linter runs (clone target later; defaults to process cwd). */
@@ -84,7 +92,14 @@ export function loadLlmConfig(): {
         }
       : undefined;
 
-  return { provider, openaiBaseUrl, openaiApiKey, model, googleApiKey, fallback };
+  return {
+    provider,
+    openaiBaseUrl,
+    openaiApiKey,
+    model,
+    googleApiKey,
+    fallback,
+  };
 }
 
 /**
