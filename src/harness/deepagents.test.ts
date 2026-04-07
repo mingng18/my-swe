@@ -11,23 +11,17 @@ mock.module("../utils/thread-metadata-store", () => ({
   removePersistedThreadRepo: mock(() => Promise.resolve()),
 }));
 
-
 mock.module("@daytonaio/sdk", () => ({}));
-
 mock.module("../sandbox/daytona-snapshot-integration", () => ({}));
-
-
 mock.module("deepagents", () => ({}));
 mock.module("@alibaba-group/opensandbox", () => ({}));
 mock.module("@langchain/langgraph", () => ({}));
 mock.module("langchain", () => ({}));
 mock.module("zod", () => ({}));
 mock.module("octokit", () => ({}));
-
 mock.module("../sandbox", () => ({
   initializeSnapshotStore: mock(() => Promise.resolve()),
 }));
-
 
 mock.module("../utils/logger", () => ({
   createLogger: () => ({
@@ -44,7 +38,7 @@ mock.module("../utils/logger", () => ({
   }
 }));
 
-import { initDeepAgentsAtStartup, resetDeepAgentsStateForTesting, getThreadRepoMapForTesting } from "./deepagents";
+import { initDeepAgentsAtStartup, resetDeepAgentsStateForTesting, getThreadRepoMapForTesting, cleanupDeepAgents } from "./deepagents";
 import * as threadMetadataStore from "../utils/thread-metadata-store";
 import * as sandbox from "../sandbox";
 import { logger } from "../utils/logger";
@@ -92,5 +86,13 @@ describe("initDeepAgentsAtStartup", () => {
     // We can't easily check the local logger inside deepagents.ts since it uses createLogger at module level,
     // but the test checks that the error doesn't bubble up. Let's make sure it doesn't throw.
     expect(true).toBe(true);
+  });
+});
+
+describe("deepagents cleanup", () => {
+  test("cleanupDeepAgents executes successfully when maps are empty", async () => {
+    // Wait for the cleanup function to complete.
+    // If it throws or returns a rejected promise, the test will automatically fail.
+    await cleanupDeepAgents();
   });
 });
