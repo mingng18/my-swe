@@ -14,6 +14,7 @@
  */
 
 import { createLogger } from "../utils/logger";
+import { randomUUID } from "node:crypto";
 
 const logger = createLogger("tool-invocation-limits");
 
@@ -295,7 +296,7 @@ class InMemoryToolInvocationTracker implements ToolInvocationTracker {
       toolName,
       args,
       timestamp: Date.now(),
-      id: `${threadId}-${toolName}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      id: `${threadId}-${toolName}-${Date.now()}-${randomUUID().split("-")[0]}`,
     };
 
     let invocations = this.threadInvocations.get(threadId);

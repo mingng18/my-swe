@@ -9,6 +9,7 @@
  */
 
 import { createLogger } from "../utils/logger";
+import { randomUUID } from "node:crypto";
 import {
   ConnectionConfig,
   Sandbox,
@@ -67,7 +68,7 @@ export class OpenSandboxBackend
   constructor(config: OpenSandboxConfig) {
     super();
     this.config = config;
-    this._id = `opensandbox-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    this._id = `opensandbox-${Date.now()}-${randomUUID().split("-")[0]}`;
     this.connectionConfig = new ConnectionConfig({
       domain: config.domain,
       apiKey: config.apiKey,

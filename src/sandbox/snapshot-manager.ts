@@ -96,7 +96,7 @@ export class SnapshotManager {
     } = options;
 
     const key = createSnapshotKey({ repoOwner, repoName, profile, branch });
-    const snapshotId = `snap-${Date.now()}-${randomUUID().slice(0, 8)}`;
+    const snapshotId = `snap-${Date.now()}-${randomUUID().split("-")[0]}`;
 
     logger.info(
       {
