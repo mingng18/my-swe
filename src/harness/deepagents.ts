@@ -9,8 +9,8 @@ import {
   toolRetryMiddleware,
   modelCallLimitMiddleware,
   contextEditingMiddleware,
-  ClearToolUsesEdit,
 } from "langchain";
+import { createProgressiveContextEdit } from "../middleware/progressive-context-edit";
 import { createLoopDetectionMiddleware } from "../middleware/loop-detection";
 import { createEnsureNoEmptyMsgMiddleware } from "../middleware/ensure-no-empty-msg";
 import { toolInvocationTracker } from "../middleware/tool-invocation-limits";
@@ -219,14 +219,9 @@ async function createAgentInstance(args: {
       runLimit: AGENT_RECURSION_LIMIT,
       exitBehavior: "end",
     }),
-    // Context management: clear old tool results
+    // Context management: progressive compaction with message importance scoring
     contextEditingMiddleware({
-      edits: [
-        new ClearToolUsesEdit({
-          trigger: { tokens: 100000 },
-          keep: { messages: 5 },
-        }),
-      ],
+      edits: [createProgressiveContextEdit()],
     }),
     // Custom: track and limit tool invocations to prevent runaway loops
     createToolInvocationLimitsMiddleware(),
@@ -316,7 +311,10 @@ function summarizeUpdateForTrace(node: string, data: unknown): string {
   if (!last) return "";
   const toolCalls = last.tool_calls as Array<{ name?: string }> | undefined;
   if (toolCalls?.length) {
-    return toolCalls.reduce((acc, t, i) => acc + (i === 0 ? "" : ", ") + (t.name ?? "?"), " → ");
+    return toolCalls.reduce(
+      (acc, t, i) => acc + (i === 0 ? "" : ", ") + (t.name ?? "?"),
+      " → ",
+    );
   }
   if (last.type === "tool" || last.role === "tool") {
     return ` → tool:${String(last.name ?? "?")}`;
@@ -1003,56 +1001,66 @@ If you need to make additional changes, continue working and they'll be added to
           { messages: messages.length },
           "=== Agent Execution Log ===",
         );
-        messages.forEach((msg: BaseMessage & { tool_calls?: ToolCall[], role?: string, type?: string }, index: number) => {
-          const msgLog = {
-            index: index + 1,
-            role: msg.role || msg._getType(),
-            type: msg.type || "message",
-            tool_calls: (msg.tool_calls || []).map((tc: ToolCall) => ({
-              name: tc.name,
-              id: tc.id,
-              args: tc.args
-                ? JSON.stringify(tc.args).length > 500
-                  ? JSON.stringify(tc.args).substring(0, 500) + "..."
-                  : JSON.stringify(tc.args)
+        messages.forEach(
+          (
+            msg: BaseMessage & {
+              tool_calls?: ToolCall[];
+              role?: string;
+              type?: string;
+            },
+            index: number,
+          ) => {
+            const msgLog = {
+              index: index + 1,
+              role: msg.role || msg._getType(),
+              type: msg.type || "message",
+              tool_calls: (msg.tool_calls || []).map((tc: ToolCall) => ({
+                name: tc.name,
+                id: tc.id,
+                args: tc.args
+                  ? JSON.stringify(tc.args).length > 500
+                    ? JSON.stringify(tc.args).substring(0, 500) + "..."
+                    : JSON.stringify(tc.args)
+                  : undefined,
+              })),
+              content:
+                typeof msg.content === "string" ? msg.content : undefined,
+              content_items: Array.isArray(msg.content)
+                ? msg.content.map((item: any) => {
+                    if (item.type === "text")
+                      return { type: "text", text: item.text };
+                    if (item.type === "tool_use")
+                      return {
+                        type: "tool_use",
+                        name: item.name,
+                        id: item.id,
+                        input: item.input,
+                      };
+                    if (item.type === "tool_result") {
+                      const contentStr =
+                        typeof item.content === "string"
+                          ? item.content
+                          : JSON.stringify(item.content);
+                      return {
+                        type: "tool_result",
+                        id: item.tool_use_id,
+                        is_error: item.is_error,
+                        content:
+                          contentStr.length > 300
+                            ? contentStr.substring(0, 300) + "..."
+                            : contentStr,
+                      };
+                    }
+                    return item;
+                  })
                 : undefined,
-            })),
-            content: typeof msg.content === "string" ? msg.content : undefined,
-            content_items: Array.isArray(msg.content)
-              ? msg.content.map((item: any) => {
-                  if (item.type === "text")
-                    return { type: "text", text: item.text };
-                  if (item.type === "tool_use")
-                    return {
-                      type: "tool_use",
-                      name: item.name,
-                      id: item.id,
-                      input: item.input,
-                    };
-                  if (item.type === "tool_result") {
-                    const contentStr =
-                      typeof item.content === "string"
-                        ? item.content
-                        : JSON.stringify(item.content);
-                    return {
-                      type: "tool_result",
-                      id: item.tool_use_id,
-                      is_error: item.is_error,
-                      content:
-                        contentStr.length > 300
-                          ? contentStr.substring(0, 300) + "..."
-                          : contentStr,
-                    };
-                  }
-                  return item;
-                })
-              : undefined,
-          };
-          logger.debug(
-            { msg: msgLog },
-            `[Message ${index + 1}] Role: ${msgLog.role}`,
-          );
-        });
+            };
+            logger.debug(
+              { msg: msgLog },
+              `[Message ${index + 1}] Role: ${msgLog.role}`,
+            );
+          },
+        );
       }
 
       const responseText =

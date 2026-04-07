@@ -5,6 +5,12 @@ import { mergePrTool } from "./merge-pr";
 import { searchTool } from "./search";
 import { githubCommentTool } from "./github-comment";
 import { sandboxTools } from "./sandbox-shell";
+import {
+  artifactQueryTool,
+  artifactListTool,
+  artifactDeleteTool,
+} from "./artifact-query";
+import { semanticSearchTool } from "./semantic-search";
 
 export const allTools = [
   commitAndOpenPrTool,
@@ -13,9 +19,10 @@ export const allTools = [
   fetchUrlTool,
   searchTool,
   githubCommentTool,
+  artifactQueryTool,
+  artifactListTool,
+  artifactDeleteTool,
+  semanticSearchTool,
 ];
 
-export const sandboxAllTools = [
-  ...allTools,
-  ...sandboxTools,
-];
+export const sandboxAllTools = [...allTools, ...sandboxTools];

@@ -125,12 +125,28 @@ Merges a GitHub pull request by number for the active repository context. If mer
 #### \`sandbox_metrics\`, \`sandbox_network\`, \`sandbox_pause\`, \`sandbox_resume\`, \`sandbox_renew\`, \`sandbox_endpoint\`
 Use these for sandbox lifecycle, network policy, and endpoint diagnostics.
 
+#### \`semantic_search\`
+Search for files by conceptual meaning rather than exact patterns.
+- **Best for**: Finding where features are implemented, discovering related files, exploring unfamiliar codebases
+- **Use when**: You need to find files related to a concept (e.g., "authentication", "database connection")
+- **Not for**: Exact function/class names (use \`code_search\` instead)
+
 #### \`code_search\`
 Search for patterns across the codebase or read a specific line range from a file.
 - **Search mode**: provide \`pattern\` and optionally \`path\`, \`file_glob\`, \`context_lines\`
 - **Slice mode**: provide \`file_path\` + \`start_line\` + \`end_line\` (max 200 lines)
-Paths are always resolved relative to the workspace. Prefer this over \`sandbox_shell\`
-grep for all code search tasks.
+Paths are always resolved relative to the workspace. Prefer this over \`sandbox_shell\` grep for all code search tasks.
+
+### Search Tool Priority (FOLLOW THIS ORDER)
+
+When searching the codebase, use tools in this order:
+
+1. **semantic_search** — For conceptual queries ("where is auth implemented?", "how does payments work?")
+2. **code_search** — For symbol queries ("find AuthMiddleware class", "find function validateUser")
+3. **code_search regex** — For pattern queries ("find console.log", "find TODO comments")
+4. **sandbox_shell find** — ONLY as last resort when semantic/code search fails
+
+**CRITICAL**: Never start with \`find\`, \`grep\`, or directory listing via \`sandbox_shell\`. Always use \`semantic_search\` or \`code_search\` first.
 `;
 
 export const TOOL_BEST_PRACTICES_SECTION = `---

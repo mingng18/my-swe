@@ -4,7 +4,11 @@ import { describe, test, expect, mock, beforeEach, afterEach } from "bun:test";
 mock.module("../utils/thread-metadata-store", () => ({
   loadPersistedThreadRepos: mock(async () => {
     const map = new Map();
-    map.set("thread1", { owner: "test", name: "repo", workspaceDir: "/tmp/dir" });
+    map.set("thread1", {
+      owner: "test",
+      name: "repo",
+      workspaceDir: "/tmp/dir",
+    });
     return map;
   }),
   persistThreadRepo: mock(() => Promise.resolve()),
@@ -35,13 +39,18 @@ mock.module("../utils/logger", () => ({
     warn: mock(),
     error: mock(),
     debug: mock(),
-  }
+  },
 }));
 
-import { initDeepAgentsAtStartup, resetDeepAgentsStateForTesting, getThreadRepoMapForTesting, cleanupDeepAgents } from "./deepagents";
-import * as threadMetadataStore from "../utils/thread-metadata-store";
-import * as sandbox from "../sandbox";
-import { logger } from "../utils/logger";
+import {
+  initDeepAgentsAtStartup,
+  resetDeepAgentsStateForTesting,
+  getThreadRepoMapForTesting,
+  cleanupDeepAgents,
+} from "../deepagents";
+import * as threadMetadataStore from "../../utils/thread-metadata-store";
+import * as sandbox from "../../sandbox";
+import { logger } from "../../utils/logger";
 
 describe("initDeepAgentsAtStartup", () => {
   beforeEach(() => {
@@ -57,25 +66,35 @@ describe("initDeepAgentsAtStartup", () => {
     expect(threadMetadataStore.loadPersistedThreadRepos).toHaveBeenCalled();
     const repoMap = getThreadRepoMapForTesting();
     expect(repoMap.size).toBe(1);
-    expect(repoMap.get("thread1")).toEqual({ owner: "test", name: "repo", workspaceDir: "/tmp/dir" });
+    expect(repoMap.get("thread1")).toEqual({
+      owner: "test",
+      name: "repo",
+      workspaceDir: "/tmp/dir",
+    });
 
     expect(sandbox.initializeSnapshotStore).toHaveBeenCalled();
   });
 
   test("should be idempotent and not load persisted repos twice", async () => {
     await initDeepAgentsAtStartup();
-    expect(threadMetadataStore.loadPersistedThreadRepos).toHaveBeenCalledTimes(1);
+    expect(threadMetadataStore.loadPersistedThreadRepos).toHaveBeenCalledTimes(
+      1,
+    );
 
     // Call it again
     await initDeepAgentsAtStartup();
     // It should not be called again
-    expect(threadMetadataStore.loadPersistedThreadRepos).toHaveBeenCalledTimes(1);
+    expect(threadMetadataStore.loadPersistedThreadRepos).toHaveBeenCalledTimes(
+      1,
+    );
   });
 
   test("should catch errors from initializeSnapshotStore and log a warning", async () => {
     // Override the mock to throw an error
     const expectedError = new Error("Snapshot initialization failed");
-    (sandbox.initializeSnapshotStore as any).mockImplementationOnce(() => Promise.reject(expectedError));
+    (sandbox.initializeSnapshotStore as any).mockImplementationOnce(() =>
+      Promise.reject(expectedError),
+    );
 
     // It should not throw an exception to the caller
     await initDeepAgentsAtStartup();

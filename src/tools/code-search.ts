@@ -2,6 +2,7 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import path from "path";
 import { getSandboxBackendSync } from "../utils/sandboxState";
+import { storeArtifactAsPointer } from "../utils/memory-pointer";
 
 const MAX_MATCHES = 50;
 const MAX_SLICE_LINES = 200;
@@ -35,10 +36,21 @@ Returns:
     Slice mode:  Array of { line_number, content }
 **/
 export const codeSearchTool = tool(
-  async ({ pattern, path: searchPath, file_glob, case_insensitive, context_lines, file_path, start_line, end_line }, config) => {
+  async (
+    {
+      pattern,
+      path: searchPath,
+      file_glob,
+      case_insensitive,
+      context_lines,
+      file_path,
+      start_line,
+      end_line,
+    },
+    config,
+  ) => {
     const threadId = config?.configurable?.thread_id;
-    if (!threadId)
-      return JSON.stringify({ error: "Missing thread_id" });
+    if (!threadId) return JSON.stringify({ error: "Missing thread_id" });
 
     const workspaceDir: string = config.configurable?.repo?.workspaceDir ?? "";
 
@@ -50,7 +62,11 @@ export const codeSearchTool = tool(
     }
 
     // ---- Slice mode ----
-    if (file_path !== undefined && start_line !== undefined && end_line !== undefined) {
+    if (
+      file_path !== undefined &&
+      start_line !== undefined &&
+      end_line !== undefined
+    ) {
       const resolvedFile = path.isAbsolute(file_path)
         ? file_path
         : path.join(workspaceDir, file_path);
@@ -64,7 +80,7 @@ export const codeSearchTool = tool(
         );
       } catch (error) {
         return JSON.stringify({
-          error: `Error executing search: ${error instanceof Error ? error.message : String(error)}`
+          error: `Error executing search: ${error instanceof Error ? error.message : String(error)}`,
         });
       }
 
@@ -93,9 +109,12 @@ export const codeSearchTool = tool(
       });
     }
 
-    const resolvedSearchPath = searchPath && path.isAbsolute(searchPath)
-      ? searchPath
-      : path.join(workspaceDir, searchPath ?? ".");
+    const searchStartTime = Date.now();
+
+    const resolvedSearchPath =
+      searchPath && path.isAbsolute(searchPath)
+        ? searchPath
+        : path.join(workspaceDir, searchPath ?? ".");
 
     const flags = [
       "--json",
@@ -114,7 +133,7 @@ export const codeSearchTool = tool(
       result = await sandbox.execute(cmd);
     } catch (error) {
       return JSON.stringify({
-        error: `Error executing search: ${error instanceof Error ? error.message : String(error)}`
+        error: `Error executing search: ${error instanceof Error ? error.message : String(error)}`,
       });
     }
 
@@ -122,7 +141,8 @@ export const codeSearchTool = tool(
     if (
       result.output.includes("command not found") ||
       result.output.includes("rg: not found") ||
-      result.output.includes("No such file or directory") && !result.output.includes("matched")
+      (result.output.includes("No such file or directory") &&
+        !result.output.includes("matched"))
     ) {
       return JSON.stringify({
         error:
@@ -140,7 +160,10 @@ export const codeSearchTool = tool(
     }
 
     const results: SearchResult[] = [];
-    const pendingContext: Map<string, { result: SearchResult; expectAfter: number }> = new Map();
+    const pendingContext: Map<
+      string,
+      { result: SearchResult; expectAfter: number }
+    > = new Map();
     let pendingBefore: string[] = [];
 
     for (const rawLine of result.output.split("\n")) {
@@ -166,28 +189,53 @@ export const codeSearchTool = tool(
         results.push(sr);
         pendingBefore = [];
         const key = `${sr.file}:${sr.line}`;
-        pendingContext.set(key, { result: sr, expectAfter: context_lines ?? 0 });
+        pendingContext.set(key, {
+          result: sr,
+          expectAfter: context_lines ?? 0,
+        });
       } else if (msg.type === "context") {
         const contextLine = msg.data?.line_number ?? 0;
         const contextContent = (msg.data?.lines?.text ?? "").replace(/\n$/, "");
         let addedToExisting = false;
         for (const entry of pendingContext.values()) {
-          if (contextLine > entry.result.line && entry.result.context_after.length < entry.expectAfter) {
+          if (
+            contextLine > entry.result.line &&
+            entry.result.context_after.length < entry.expectAfter
+          ) {
             entry.result.context_after.push(contextContent);
             addedToExisting = true;
           }
         }
 
         if (!addedToExisting) {
-           pendingBefore.push(contextContent);
-           if (context_lines && pendingBefore.length > context_lines) {
-               pendingBefore.shift();
-           }
+          pendingBefore.push(contextContent);
+          if (context_lines && pendingBefore.length > context_lines) {
+            pendingBefore.shift();
+          }
         }
       }
     }
 
-    return JSON.stringify({ matches: results, total: results.length });
+    const response = JSON.stringify({
+      matches: results,
+      total: results.length,
+    });
+
+    // Check if result is large enough to store as memory pointer
+    const pointerReference = await storeArtifactAsPointer(
+      threadId,
+      "code-search-results",
+      response,
+      {
+        pattern,
+        searchPath: resolvedSearchPath,
+        matchCount: results.length,
+        searchDuration: Date.now() - searchStartTime,
+      },
+    );
+
+    // Return pointer reference if stored, otherwise return full response
+    return pointerReference || response;
   },
   {
     name: "code_search",

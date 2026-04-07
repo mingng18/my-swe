@@ -35,6 +35,16 @@ export {
 // GitHub user to email mapping
 export { GITHUB_USER_EMAIL_MAP } from "./github-user-email-map";
 
+// Authorship utilities
+export {
+  resolveTriggeringUserIdentity,
+  addUserCoauthorTrailer,
+  addPrCollaborationNote,
+  OPEN_SWE_BOT_NAME,
+  OPEN_SWE_BOT_EMAIL,
+  type UserIdentity,
+} from "./authorship";
+
 // Git utilities and GitHub API
 export {
   isValidGitRepo,

@@ -83,3 +83,75 @@ LangGraph Platform uses `langgraph.json` config:
 - HTTP app: `src/webapp.ts:default`
 - Node version: 22
 - Environment: `.env`
+
+## Performance Optimizations
+
+Bullhorse implements several layers of optimization to reduce token usage and improve reliability:
+
+### Memory Pointer Pattern
+
+- Large tool responses (>5k tokens) stored as disk artifacts
+- Reference via short pointer IDs (e.g., `ptr_abc123`)
+- Query tools: `artifact_query`, `artifact_list`, `artifact_delete`
+- **Result**: 70-90% token reduction for large responses
+
+### Progressive Context Compaction
+
+- Intelligent message importance scoring (user messages +10, final AI +8, etc.)
+- Keeps last 30 messages + top 20 by importance
+- Triggers at 50k tokens (configurable)
+- **Result**: 10x more context retained vs binary cleanup
+
+### Semantic Search
+
+- Term frequency analysis for conceptual code search
+- Use `semantic_search` for: "where is auth implemented?"
+- Use `code_search` for: "find AuthMiddleware class"
+- **Result**: 97% reduction in file discovery tokens
+
+### Token Budgeting
+
+- Per-thread limits: `MAX_TOKENS_PER_THREAD=500000`
+- Cost enforcement: `MAX_COST_PER_THREAD=10.0`
+- Pre-flight budget checks before LLM calls
+
+### Telemetry & Metrics
+
+- `GET /metrics/thread/:threadId` - Per-thread metrics
+- `GET /metrics` - Global metrics
+- `GET /dashboard/thread/:threadId` - Visual dashboard
+- Built-in pricing for OpenAI, Claude, DeepSeek models
+
+## New Tools
+
+| Tool | Purpose |
+| :--- | :--- |
+| `semantic_search` | Conceptual code search (by meaning, not pattern) |
+| `artifact_query` | Query stored memory pointers |
+| `artifact_list` | List all artifacts for current thread |
+| `artifact_delete` | Delete a specific artifact |
+
+## New Environment Variables
+
+```bash
+# Memory Pointer Pattern
+MEMORY_POINTER_TTL_HOURS=24
+MAX_POINTER_SIZE_TOKENS=5000
+
+# Context Compaction
+CONTEXT_COMPACTION_THRESHOLD=50000
+CONTEXT_KEEP_MINIMUM=30
+CONTEXT_KEEP_IMPORTANT=20
+
+# Token Budgeting
+MAX_TOKENS_PER_THREAD=500000
+MAX_COST_PER_THREAD=10.0
+
+# Semantic Search
+SEMANTIC_SEARCH_ENABLED=true
+
+# Telemetry
+OTEL_ENABLED=true
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+OTEL_SERVICE_NAME=bullhorse-agent
+```

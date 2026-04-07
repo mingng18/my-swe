@@ -1,8 +1,0 @@
-💡 **What:**
-Updated `findExistingPr` to fetch both `state: "open"` and `state: "all"` PRs concurrently using `Promise.all`. We prioritize returning the "open" PR if it exists, matching the exact logic of the previous sequential code.
-
-🎯 **Why:**
-The previous implementation made two sequential API calls to GitHub (first checking "open", then if not found, checking "all"). This doubled the latency when an open PR did not exist. Parallelizing these requests halves the latency of the unhappy path.
-
-📊 **Measured Improvement:**
-Created a local benchmark (`benchmark.ts`) mocking the `fetch` delays with an arbitrary 50ms simulation. The sequential execution took ~150ms. By using `Promise.all`, the parallel execution takes ~110ms (roughly resolving after the max single 50ms delay, plus event-loop/async overhead), demonstrating a clear reduction in overall execution time.

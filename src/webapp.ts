@@ -531,4 +531,118 @@ app.post("/webhook/github", async (c) => {
   }
 });
 
+/**
+ * Metrics endpoint for a specific thread
+ * GET /metrics/thread/:threadId
+ */
+app.get("/metrics/thread/:threadId", async (c) => {
+  const { threadId } = c.req.param();
+  const { getThreadMetrics } = await import("./utils/telemetry");
+  const { getTokenUsage } = await import("./utils/token-tracker");
+
+  try {
+    const telemetryMetrics = getThreadMetrics(threadId);
+    const tokenUsage = getTokenUsage(threadId);
+
+    return c.json({
+      threadId,
+      telemetry: telemetryMetrics,
+      tokenUsage: tokenUsage || {
+        threadId,
+        totalInputTokens: 0,
+        totalOutputTokens: 0,
+        totalTokens: 0,
+        totalCost: 0,
+        callCount: 0,
+        lastUpdated: Date.now(),
+      },
+      timestamp: Date.now(),
+    });
+  } catch (error) {
+    log.error({ error, threadId }, "[webapp] /metrics/thread error");
+    return c.json(
+      { error: error instanceof Error ? error.message : "Unknown error" },
+      500,
+    );
+  }
+});
+
+/**
+ * Global metrics endpoint
+ * GET /metrics
+ */
+app.get("/metrics", async (c) => {
+  const { getTelemetryStatus } = await import("./utils/telemetry");
+  const { getTokenStats, getAllThreadUsage } =
+    await import("./utils/token-tracker");
+
+  try {
+    const telemetryStatus = getTelemetryStatus();
+    const tokenStats = getTokenStats();
+    const allThreads = getAllThreadUsage();
+
+    return c.json({
+      telemetry: telemetryStatus,
+      tokens: tokenStats,
+      threads: {
+        count: allThreads.length,
+        recent: allThreads.slice(0, 10).map((t) => ({
+          threadId: t.threadId,
+          totalTokens: t.totalTokens,
+          totalCost: t.totalCost,
+          callCount: t.callCount,
+        })),
+      },
+      timestamp: Date.now(),
+    });
+  } catch (error) {
+    log.error({ error }, "[webapp] /metrics error");
+    return c.json(
+      { error: error instanceof Error ? error.message : "Unknown error" },
+      500,
+    );
+  }
+});
+
+/**
+ * Trace dashboard for a specific thread (HTML)
+ * GET /dashboard/thread/:threadId
+ */
+app.get("/dashboard/thread/:threadId", async (c) => {
+  const { threadId } = c.req.param();
+  const { generateTraceDashboardHTML } =
+    await import("./utils/trace-dashboard");
+
+  try {
+    const html = generateTraceDashboardHTML(threadId);
+    return c.html(html);
+  } catch (error) {
+    log.error({ error, threadId }, "[webapp] /dashboard/thread error");
+    return c.json(
+      { error: error instanceof Error ? error.message : "Unknown error" },
+      500,
+    );
+  }
+});
+
+/**
+ * Trace summary for a specific thread (JSON)
+ * GET /trace/:threadId
+ */
+app.get("/trace/:threadId", async (c) => {
+  const { threadId } = c.req.param();
+  const { generateTraceSummaryJSON } = await import("./utils/trace-dashboard");
+
+  try {
+    const summary = generateTraceSummaryJSON(threadId);
+    return c.json(JSON.parse(summary));
+  } catch (error) {
+    log.error({ error, threadId }, "[webapp] /trace error");
+    return c.json(
+      { error: error instanceof Error ? error.message : "Unknown error" },
+      500,
+    );
+  }
+});
+
 export default app;
