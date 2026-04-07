@@ -492,15 +492,13 @@ export class SnapshotManager {
     };
   }
 
-  /**
-   * Calculate snapshot size.
-   * TODO: Implement actual size calculation via provider API.
-   */
   private async calculateSnapshotSize(
     sandbox: SandboxService,
     repoDir: string,
     snapshotData: Record<string, unknown>,
   ): Promise<number> {
+    const defaultSize = 1024 * 1024 * 100; // 100 MB default
+
     // If the provider specifically reported its snapshot/workspace size in snapshotData, use it.
     if (snapshotData && typeof snapshotData === "object" && snapshotData.info) {
       const info = snapshotData.info as Record<string, unknown>;
@@ -516,24 +514,33 @@ export class SnapshotManager {
     // Fallback: estimate based on repository size if we don't have provider size
     try {
       const result = await sandbox.execute(`du -sb ${repoDir}`);
-      if (result.exitCode === 0) {
+      if (result.exitCode === 0 && result.output) {
         const match = result.output.match(/^(\d+)/);
-        if (match) {
+        if (match && match[1]) {
           // Multiply by a factor to estimate full environment overhead (e.g., node_modules, system deps)
-          // A 2x or 3x multiplier is a common heuristic for full container vs source code size
           const repoSize = parseInt(match[1], 10);
-          return Math.max(repoSize * 2, 1024 * 1024 * 50); // At least 50MB
+          if (!isNaN(repoSize) && repoSize > 0) {
+            return Math.max(repoSize * 2, 1024 * 1024 * 50); // At least 50MB
+          }
         }
       }
+      logger.warn(
+        {
+          provider: sandbox.getProvider(),
+          repoDir,
+          output: result.output,
+          exitCode: result.exitCode,
+        },
+        `[snapshot-manager] Failed to parse actual snapshot size, using default size`,
+      );
     } catch (error) {
       logger.warn(
-        { error },
-        "[snapshot-manager] Failed to calculate actual snapshot size, falling back to default",
+        { error, provider: sandbox.getProvider(), repoDir },
+        `[snapshot-manager] Error calculating snapshot size via provider, using default size`,
       );
     }
 
-    // Fallback default
-    return 1024 * 1024 * 100; // 100 MB default
+    return defaultSize;
   }
 
   /**
