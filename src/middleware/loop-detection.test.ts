@@ -18,7 +18,7 @@ describe("Loop Detection Middleware", () => {
 
     // Call the middleware
     const request = { messages };
-    const result = await middleware.wrapModelCall(request, mockHandler);
+    const result = await middleware.wrapModelCall!(request as any, mockHandler as any) as any;
 
     // The handler should have been called (no crash occurred during stringify)
     expect(mockHandler).toHaveBeenCalled();
@@ -49,7 +49,7 @@ describe("Loop Detection Middleware", () => {
     });
 
     // Call the middleware, expecting the downstream error to bubble up
-    expect(middleware.wrapModelCall({ messages }, mockHandler)).rejects.toThrow("Redis/Supabase fetch error");
+    expect(middleware.wrapModelCall!({ messages } as any, mockHandler as any)).rejects.toThrow("Redis/Supabase fetch error");
 
     // Middleware should have executed successfully up to the handler
     expect(mockHandler).toHaveBeenCalled();

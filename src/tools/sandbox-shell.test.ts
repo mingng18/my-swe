@@ -68,7 +68,7 @@ describe("sandbox tools", () => {
         stdout: "mock output",
         exitCode: 0,
         truncated: false,
-        command: 'bash -c "echo hello"',
+        command: "echo hello",
       });
     });
   });

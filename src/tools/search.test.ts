@@ -61,7 +61,7 @@ describe("search tool tests", () => {
 
     // Dynamic import to allow mocks to apply first
     const mod = await import("./search");
-    const toolToTest = mod.searchTool || mod.internetSearch;
+    const toolToTest = mod.searchTool;
 
     mockCall.mockResolvedValue("mocked search result");
 
@@ -74,14 +74,14 @@ describe("search tool tests", () => {
       topic: "general",
     });
     expect(mockCall).toHaveBeenCalledWith({ query: "hello world" });
-    expect(result).toBe("mocked search result");
+    expect(result as any).toBe("mocked search result");
   });
 
   test("calls TavilySearch with provided arguments", async () => {
     process.env.TAVILY_API_KEY = "test-api-key-2";
 
     const mod = await import("./search");
-    const toolToTest = mod.searchTool || mod.internetSearch;
+    const toolToTest = mod.searchTool;
 
     mockCall.mockResolvedValue("mocked search result 2");
 
@@ -99,6 +99,6 @@ describe("search tool tests", () => {
       topic: "news",
     });
     expect(mockCall).toHaveBeenCalledWith({ query: "custom query" });
-    expect(result).toBe("mocked search result 2");
+    expect(result as any).toBe("mocked search result 2");
   });
 });

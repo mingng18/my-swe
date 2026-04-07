@@ -1,8 +1,8 @@
 import { describe, expect, test, mock, beforeEach, afterEach } from "bun:test";
 import type { SandboxService } from "../../integrations/sandbox-service";
 
-const pullsCreateMock = mock(() => Promise.resolve({ data: {} }));
-const pullsListMock = mock(() => Promise.resolve({ data: [] }));
+const pullsCreateMock = mock(() => Promise.resolve({ data: {} })) as any;
+const pullsListMock = mock(() => Promise.resolve({ data: [] })) as any;
 const reposGetMock = mock(() =>
   Promise.resolve({ data: { default_branch: "main" } }),
 );
@@ -102,7 +102,6 @@ describe("createGithubPr", () => {
     reposGetMock.mockResolvedValue({
       data: {
         default_branch: "main",
-        parent: undefined,
       },
     });
 
@@ -149,7 +148,6 @@ describe("createGithubPr", () => {
     reposGetMock.mockResolvedValue({
       data: {
         default_branch: "main",
-        parent: undefined,
       },
     });
 
@@ -164,7 +162,7 @@ describe("createGithubPr", () => {
 
     pullsListMock.mockImplementationOnce(() => {
       return Promise.resolve({
-        data: [{ html_url: "https://github.com/owner/repo/pull/2", number: 2 }],
+        data: [{ html_url: "https://github.com/owner/repo/pull/2", number: 2, head: { ref: "feature", repo: { full_name: "headOwner/headRepo" } } }],
       });
     });
 
@@ -187,7 +185,6 @@ describe("createGithubPr", () => {
     reposGetMock.mockResolvedValue({
       data: {
         default_branch: "main",
-        parent: undefined,
       },
     });
 
@@ -211,7 +208,7 @@ describe("createGithubPr", () => {
 
     pullsListMock.mockImplementationOnce(() => {
       return Promise.resolve({
-        data: [{ html_url: "https://github.com/owner/repo/pull/3", number: 3 }],
+        data: [{ html_url: "https://github.com/owner/repo/pull/3", number: 3, head: { ref: "feature", repo: { full_name: "headOwner/headRepo" } } }],
       });
     });
 

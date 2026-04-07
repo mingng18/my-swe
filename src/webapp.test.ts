@@ -30,7 +30,7 @@ let mockVerifyGithubSignature = mock(() => true);
 
 mock.module("./utils/github", () => {
   return {
-    verifyGithubSignature: (...args: any[]) => mockVerifyGithubSignature(...args),
+    verifyGithubSignature: (...args: any[]) => (mockVerifyGithubSignature as any)(...args),
     extractPrContext: mock(() => Promise.resolve([
       {}, 123, "main", "testuser", "https://github.com/pr", "comment-1", "node-1"
     ])),
@@ -66,7 +66,7 @@ describe("webapp", () => {
     globalThis.fetch = mockFetch as unknown as typeof fetch;
     mock.restore(); // reset general call counts
     // Reset our specific mocks
-    runCodeagentTurn.mockClear();
+    (runCodeagentTurn as any).mockClear();
     mockVerifyGithubSignature.mockClear();
     mockVerifyGithubSignature.mockImplementation(() => true);
   });

@@ -17,10 +17,11 @@ import { createLogger } from "../utils/logger";
 import { SnapshotManager } from "./snapshot-manager";
 import type { SandboxProfile } from "../integrations/daytona-pool";
 import { type SandboxService, createSandboxService } from "../integrations/sandbox-service";
-import type {
-  SnapshotMetadata,
-  SnapshotKey,
-  SnapshotStore,
+import {
+  isSnapshotExpired,
+  type SnapshotMetadata,
+  type SnapshotKey,
+  type SnapshotStore,
 } from "./snapshot-metadata";
 
 const logger = createLogger("snapshot-scheduler");
