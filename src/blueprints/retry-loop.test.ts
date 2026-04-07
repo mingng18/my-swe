@@ -3,8 +3,8 @@ import {
   BoundedRetryLoop,
   NodeType,
   type NodeResult,
-  type EscalationHandler,
   createBoundedRetryLoop,
+  defaultEscalationHandler,
 } from "./retry-loop";
 
 describe("BoundedRetryLoop", () => {
@@ -70,7 +70,6 @@ describe("BoundedRetryLoop", () => {
     expect(result.attempts.length).toBe(1);
     expect(result.escalated).toBe(false);
   });
-
 
   test("returns immediately on success", async () => {
     let callCount = 0;
@@ -227,5 +226,22 @@ describe("BoundedRetryLoop", () => {
     expect(summary).toContain("✗ Attempt 0: 100ms (timeout)");
     expect(summary).toContain("✓ Attempt 1: 50ms");
     expect(summary).toContain("Total duration: 150ms");
+  });
+});
+
+describe("createBoundedRetryLoop", () => {
+  test("creates a BoundedRetryLoop with default options", () => {
+    const loop = createBoundedRetryLoop();
+    expect(loop).toBeInstanceOf(BoundedRetryLoop);
+    // Access private property to verify the default handler is set
+    expect((loop as any).escalationHandler).toBe(defaultEscalationHandler);
+  });
+
+  test("creates a BoundedRetryLoop with a custom escalation handler", async () => {
+    const customHandler = async () => {};
+    const loop = createBoundedRetryLoop({ escalationHandler: customHandler });
+    expect(loop).toBeInstanceOf(BoundedRetryLoop);
+    // Access private property to verify the custom handler is set
+    expect((loop as any).escalationHandler).toBe(customHandler);
   });
 });
