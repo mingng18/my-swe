@@ -57,9 +57,16 @@ export const codeSearchTool = tool(
 
       const clampedEnd = Math.min(end_line, start_line + MAX_SLICE_LINES);
 
-      const result = await sandbox.execute(
-        `sed -n '${start_line},${clampedEnd}p' '${resolvedFile.replace(/'/g, `'\\''`)}'`,
-      );
+      let result;
+      try {
+        result = await sandbox.execute(
+          `sed -n '${start_line},${clampedEnd}p' '${resolvedFile.replace(/'/g, `'\\''`)}'`,
+        );
+      } catch (error) {
+        return JSON.stringify({
+          error: `Error executing search: ${error instanceof Error ? error.message : String(error)}`
+        });
+      }
 
       if (result.exitCode !== 0) {
         return JSON.stringify({
@@ -102,7 +109,14 @@ export const codeSearchTool = tool(
 
     const cmd = `rg ${flags} '${pattern.replace(/'/g, `'\\''`)}' '${resolvedSearchPath.replace(/'/g, `'\\''`)}' 2>&1 || true`;
 
-    const result = await sandbox.execute(cmd);
+    let result;
+    try {
+      result = await sandbox.execute(cmd);
+    } catch (error) {
+      return JSON.stringify({
+        error: `Error executing search: ${error instanceof Error ? error.message : String(error)}`
+      });
+    }
 
     // Check if rg is missing
     if (

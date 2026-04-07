@@ -1,19 +1,26 @@
-import { describe, expect, test, mock, beforeEach, afterEach } from "bun:test";
-import { codeSearchTool } from "./code-search";
-import * as sandboxState from "../utils/sandboxState";
+import { expect, test, describe, beforeEach, afterEach, mock } from "bun:test";
 
 describe("codeSearchTool", () => {
-  let executeMock: ReturnType<typeof mock>;
+  let mockExecute: ReturnType<typeof mock>;
+  let codeSearchTool: any;
 
-  beforeEach(() => {
-    executeMock = mock();
+  beforeEach(async () => {
+    mockExecute = mock(async (cmd: string) => {
+      return { exitCode: 0, output: "" };
+    });
+
+    // Reset modules to ensure fresh state
     mock.module("../utils/sandboxState", () => {
       return {
         getSandboxBackendSync: () => ({
-          execute: executeMock,
+          execute: mockExecute,
         }),
       };
     });
+
+    // Import after mocking
+    const toolModule = await import("./code-search");
+    codeSearchTool = toolModule.codeSearchTool;
   });
 
   afterEach(() => {
@@ -33,17 +40,21 @@ describe("codeSearchTool", () => {
   });
 
   test("returns error if sandbox is not initialized", async () => {
+    // Override the mock for this specific test
     mock.module("../utils/sandboxState", () => ({
       getSandboxBackendSync: () => null,
     }));
+    
+    // We need to re-import because of how Bun's module mocking works
+    const { codeSearchTool: tool } = await import("./code-search");
 
-    const result = await codeSearchTool.invoke({ pattern: "foo" }, baseConfig);
+    const result = await tool.invoke({ pattern: "foo" }, baseConfig);
     expect(JSON.parse(result)).toEqual({ error: "Sandbox backend not initialized. Is USE_SANDBOX=true set?" });
   });
 
   describe("slice mode", () => {
     test("successfully reads file slice", async () => {
-      executeMock.mockResolvedValue({
+      mockExecute.mockResolvedValue({
         exitCode: 0,
         output: "line1\nline2\n",
       });
@@ -53,7 +64,7 @@ describe("codeSearchTool", () => {
         baseConfig
       );
 
-      expect(executeMock).toHaveBeenCalledWith("sed -n '1,2p' '/workspace/test.ts'");
+      expect(mockExecute).toHaveBeenCalledWith("sed -n '1,2p' '/workspace/test.ts'");
       expect(JSON.parse(result)).toEqual([
         { line_number: 1, content: "line1" },
         { line_number: 2, content: "line2" },
@@ -61,18 +72,18 @@ describe("codeSearchTool", () => {
     });
 
     test("clamps end_line to MAX_SLICE_LINES (200)", async () => {
-      executeMock.mockResolvedValue({ exitCode: 0, output: "line1\n" });
+      mockExecute.mockResolvedValue({ exitCode: 0, output: "line1\n" });
 
       await codeSearchTool.invoke(
         { file_path: "test.ts", start_line: 1, end_line: 500 },
         baseConfig
       );
 
-      expect(executeMock).toHaveBeenCalledWith("sed -n '1,201p' '/workspace/test.ts'");
+      expect(mockExecute).toHaveBeenCalledWith("sed -n '1,201p' '/workspace/test.ts'");
     });
 
     test("returns error on non-zero exit code", async () => {
-      executeMock.mockResolvedValue({
+      mockExecute.mockResolvedValue({
         exitCode: 1,
         output: "sed: can't read /workspace/test.ts: No such file or directory",
       });
@@ -86,6 +97,13 @@ describe("codeSearchTool", () => {
         error: "Failed to read file slice: sed: can't read /workspace/test.ts: No such file or directory",
       });
     });
+
+    test("handles sandbox execute throwing an error in slice mode", async () => {
+      mockExecute.mockRejectedValueOnce(new Error("Sandbox read failed"));
+
+      const rawResult = await codeSearchTool.invoke({ file_path: "test.ts", start_line: 1, end_line: 2 }, baseConfig);
+      expect(rawResult).toBe(JSON.stringify({ error: "Error executing search: Sandbox read failed" }));
+    });
   });
 
   describe("search mode", () => {
@@ -97,7 +115,7 @@ describe("codeSearchTool", () => {
     });
 
     test("successfully parses ripgrep NDJSON matches", async () => {
-      executeMock.mockResolvedValue({
+      mockExecute.mockResolvedValue({
         exitCode: 0,
         output: `{"type":"match","data":{"path":{"text":"test.ts"},"lines":{"text":"function foo() {\\n"},"line_number":10,"absolute_offset":123}}`,
       });
@@ -107,7 +125,6 @@ describe("codeSearchTool", () => {
         baseConfig
       );
 
-      // the path resolves to /workspace/. or /workspace depending on OS/Node behavior. Let's just expect what we get
       const parsed = JSON.parse(result);
       expect(parsed.total).toBe(1);
       expect(parsed.matches).toEqual([
@@ -122,7 +139,7 @@ describe("codeSearchTool", () => {
     });
 
     test("parses ripgrep context lines", async () => {
-      executeMock.mockResolvedValue({
+      mockExecute.mockResolvedValue({
         exitCode: 0,
         output: [
           `{"type":"context","data":{"path":{"text":"test.ts"},"lines":{"text":"// before match\\n"},"line_number":9}}`,
@@ -149,8 +166,28 @@ describe("codeSearchTool", () => {
       ]);
     });
 
+    test("ignores invalid json output from ripgrep", async () => {
+      mockExecute.mockResolvedValueOnce({
+        exitCode: 0,
+        output: [
+          "not a valid json string",
+          '{"type":"match","data":{"path":{"text":"src/file.ts"},"line_number":10,"lines":{"text":"const x = 1;\\n"}}}',
+          "{ invalid json again",
+          '{"type":"match","data":{"path":{"text":"src/file.ts"},"line_number":15,"lines":{"text":"const y = 2;"}}}',
+        ].join("\n"),
+      });
+
+      const rawResult = await codeSearchTool.invoke({ pattern: "const" }, baseConfig);
+      const result = JSON.parse(rawResult);
+
+      expect(result.matches).toHaveLength(2);
+      expect(result.matches[0].line).toBe(10);
+      expect(result.matches[1].line).toBe(15);
+      expect(result.total).toBe(2);
+    });
+
     test("handles ripgrep missing", async () => {
-      executeMock.mockResolvedValue({
+      mockExecute.mockResolvedValue({
         exitCode: 0,
         output: "bash: rg: command not found",
       });
@@ -163,6 +200,13 @@ describe("codeSearchTool", () => {
       expect(JSON.parse(result)).toEqual({
         error: "ripgrep (rg) is not installed in this sandbox. Install it with: apt-get install -y ripgrep",
       });
+    });
+
+    test("handles sandbox execute throwing an error in search mode", async () => {
+      mockExecute.mockRejectedValueOnce(new Error("Sandbox crashed"));
+
+      const rawResult = await codeSearchTool.invoke({ pattern: "const" }, baseConfig);
+      expect(rawResult).toBe(JSON.stringify({ error: "Error executing search: Sandbox crashed" }));
     });
   });
 });
