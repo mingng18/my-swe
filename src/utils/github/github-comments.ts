@@ -5,7 +5,7 @@
  * reactions, and fetching comments from issues and PRs.
  */
 
-import { createHmac, timingSafeEqual as cryptoTimingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { Octokit } from "octokit";
 
 import { IDENTITY_MAP } from "../identity";
@@ -106,21 +106,14 @@ export function verifyGithubSignature(
   const expected =
     "sha256=" + createHmac("sha256", secret).update(bodyStr).digest("hex");
 
-  return timingSafeEqual(expected, signature);
-}
+  const expectedBuffer = Buffer.from(expected);
+  const signatureBuffer = Buffer.from(signature);
 
-/**
- * Timing-safe string comparison to prevent timing attacks.
- */
-function timingSafeEqual(a: string, b: string): boolean {
-  const bufA = Buffer.from(a, "utf8");
-  const bufB = Buffer.from(b, "utf8");
-
-  if (bufA.length !== bufB.length) {
+  if (expectedBuffer.length !== signatureBuffer.length) {
     return false;
   }
 
-  return cryptoTimingSafeEqual(bufA, bufB);
+  return timingSafeEqual(expectedBuffer, signatureBuffer);
 }
 
 /**
