@@ -240,7 +240,7 @@ export class SnapshotScheduler {
     }
 
     if (metadata.refreshing) {
-      logger.debug({ key }, `[snapshot-scheduler] Snapshot is already refreshing`);
+      logger.debug({ key }, `[snapshot-scheduler] Snapshot already refreshing`);
       return;
     }
 
@@ -249,7 +249,6 @@ export class SnapshotScheduler {
     await this.store.save(metadata);
 
     let sandbox: SandboxService | null = null;
-    let refreshSuccess = false;
 
     try {
       // 1. Acquire a sandbox. We use restoreSnapshot to get a sandbox with the old snapshot state,
@@ -263,22 +262,19 @@ export class SnapshotScheduler {
       }
       sandbox = restoreResult.sandbox;
 
-      // 2-4. Pull latest changes, reinstall dependencies, and update snapshot metadata
-      // createSnapshot does all of these steps efficiently because the sandbox already has the repo
-      // and createSnapshot will run cloneRepo (which pulls if it exists), install dependencies,
-      // and update the metadata.
+      // 2. Refresh the snapshot
       const result = await this.manager.createSnapshot(sandbox, {
         repoOwner: key.repoOwner,
         repoName: key.repoName,
         profile: key.profile,
         branch: key.branch,
+        runPreBuild: true,
       });
 
       if (!result.success) {
         throw new Error(result.error || "Unknown error during snapshot creation");
       }
 
-      refreshSuccess = true;
       logger.debug(
         { key, snapshotId: result.snapshotId },
         `[snapshot-scheduler] Refresh complete`,
@@ -297,8 +293,11 @@ export class SnapshotScheduler {
       }
 
       if (sandbox) {
-        await sandbox.cleanup().catch(e => {
-          logger.warn({ key, error: e }, `[snapshot-scheduler] Failed to cleanup sandbox after refresh`);
+        await sandbox.cleanup().catch((err) => {
+          logger.warn(
+            { key, error: err },
+            `[snapshot-scheduler] Failed to cleanup sandbox after refresh`,
+          );
         });
       }
     }
