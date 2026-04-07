@@ -82,6 +82,7 @@
           choices.forEach(choice => {
             if (!choice.hasAttribute('tabindex')) choice.setAttribute('tabindex', '0');
             if (!choice.hasAttribute('role')) choice.setAttribute('role', 'button');
+            if (!choice.hasAttribute('aria-pressed')) choice.setAttribute('aria-pressed', choice.classList.contains('selected') ? 'true' : 'false');
           });
         }
       });
@@ -94,6 +95,7 @@
   document.querySelectorAll('[data-choice]').forEach(choice => {
     if (!choice.hasAttribute('tabindex')) choice.setAttribute('tabindex', '0');
     if (!choice.hasAttribute('role')) choice.setAttribute('role', 'button');
+    if (!choice.hasAttribute('aria-pressed')) choice.setAttribute('aria-pressed', choice.classList.contains('selected') ? 'true' : 'false');
   });
 
   // Capture clicks on choice elements
@@ -108,12 +110,17 @@
     const container = el.closest('.options') || el.closest('.cards');
     const multi = container && container.dataset.multiselect !== undefined;
     if (container && !multi) {
-      container.querySelectorAll('.option, .card').forEach(o => o.classList.remove('selected'));
+      container.querySelectorAll('.option, .card').forEach(o => {
+        o.classList.remove('selected');
+        o.setAttribute('aria-pressed', 'false');
+      });
     }
     if (multi) {
-      el.classList.toggle('selected');
+      const isSelected = el.classList.toggle('selected');
+      el.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
     } else {
       el.classList.add('selected');
+      el.setAttribute('aria-pressed', 'true');
     }
     window.selectedChoice = el.dataset.choice;
   };
