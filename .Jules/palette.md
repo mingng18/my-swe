@@ -4,3 +4,6 @@
 ## 2026-04-07 - Add ARIA pressed states to brainstorming interactive elements
 **Learning:** Interactive elements designed for screen readers mimicking toggles/options should explicitly convey their selected state using `aria-pressed` or `aria-selected`, especially when focus is dynamically set or selection is complex, to properly inform assistive technologies of state changes.
 **Action:** Ensure custom DOM manipulation scripts (e.g. `window.toggleSelect`) consistently update corresponding ARIA attributes such as `aria-pressed` immediately alongside visual class changes.
+## 2024-04-08 - Add WebSocket connection state feedback
+**Learning:** The brainstorm companion UI had a static "Connected" status that didn't reflect the actual WebSocket connection state, leaving users without feedback during server restarts.
+**Action:** Used the WebSocket `onclose` and `onopen` handlers to update the status text and color dynamically, utilizing CSS `currentColor` for the status dot to keep the UI in sync seamlessly.

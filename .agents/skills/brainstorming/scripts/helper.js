@@ -9,6 +9,11 @@
     ws.onopen = () => {
       eventQueue.forEach(e => ws.send(JSON.stringify(e)));
       eventQueue = [];
+      const statusEl = document.querySelector('.status');
+      if (statusEl) {
+        statusEl.textContent = 'Connected';
+        statusEl.style.color = 'var(--success)';
+      }
     };
 
     ws.onmessage = (msg) => {
@@ -19,6 +24,11 @@
     };
 
     ws.onclose = () => {
+      const statusEl = document.querySelector('.status');
+      if (statusEl) {
+        statusEl.textContent = 'Reconnecting...';
+        statusEl.style.color = 'var(--warning)';
+      }
       setTimeout(connect, 1000);
     };
   }
