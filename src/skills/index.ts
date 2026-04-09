@@ -19,7 +19,7 @@ export type {
 export { discoverSkills } from "./discovery";
 
 // Registry
-export { SkillRegistry } from "./registry";
+export { SkillRegistry, skillRegistry } from "./registry";
 
 // Catalog
 export { buildSkillCatalog } from "./catalog";

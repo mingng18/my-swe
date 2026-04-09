@@ -8,10 +8,7 @@ const logger = createLogger("skills:registry");
  * Tracks skill availability and activation state per conversation thread.
  */
 export class SkillRegistry {
-  private threads: Map<
-    string,
-    Map<string, SkillRegistryEntry>
-  > = new Map();
+  private threads: Map<string, Map<string, SkillRegistryEntry>> = new Map();
 
   /**
    * Store skills for a specific thread.
@@ -86,3 +83,9 @@ export class SkillRegistry {
     logger.debug({ thread: threadId }, "[registry] Thread cleared");
   }
 }
+
+/**
+ * Global singleton instance of the skill registry.
+ * Use this for all skill registry operations.
+ */
+export const skillRegistry = new SkillRegistry();
