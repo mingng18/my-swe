@@ -1,4 +1,5 @@
 import { UNTRUSTED_GITHUB_COMMENT_OPEN_TAG } from "./utils/github/github-comments";
+import { discoverSkills, buildSkillCatalog } from "./skills";
 
 export type SystemPrompt = readonly string[] & {
   readonly __brand: "SystemPrompt";
@@ -350,12 +351,12 @@ Always call \`commit_and_open_pr\` followed by the appropriate reply (tool for G
 
 **CRITICAL: After your final reply (tool call or text output) with the PR summary and link, you MUST STOP. Do not call any additional tools. This is the final step — the task is complete.**`;
 
-export function constructSystemPrompt(
+export async function constructSystemPrompt(
   workingDir: string,
   linearProjectId: string = "",
   linearIssueNumber: string = "",
   agentsMd: string = "",
-): string {
+): Promise<string> {
   let taskOverview = TASK_OVERVIEW_SECTION;
   const projId = linearProjectId || "<PROJECT_ID>";
   const issueNum = linearIssueNumber || "<ISSUE_NUMBER>";
@@ -368,6 +369,18 @@ export function constructSystemPrompt(
       "<agents_md>\\n" +
       `${agentsMd}\\n` +
       "</agents_md>\\n";
+  }
+
+  // Discover skills and build catalog
+  let skillsCatalogSection = "";
+  try {
+    const skills = await discoverSkills(workingDir);
+    if (skills.length > 0) {
+      skillsCatalogSection = buildSkillCatalog(skills);
+    }
+  } catch (error) {
+    // Non-fatal: log and continue without skills
+    console.warn("[prompt] Failed to discover skills:", error);
   }
 
   const sections = asSystemPrompt([
@@ -387,6 +400,7 @@ export function constructSystemPrompt(
     SYSTEM_PROMPT_DYNAMIC_BOUNDARY,
     getWorkingEnvSection(workingDir),
     agentsMdSection,
+    skillsCatalogSection,
   ]);
 
   return sections.filter(Boolean).join("\n\n");

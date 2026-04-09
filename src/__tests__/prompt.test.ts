@@ -34,27 +34,27 @@ describe("prompt utilities", () => {
   });
 
   describe("constructSystemPrompt", () => {
-    it("should construct the system prompt with default variables when only workingDir is provided", () => {
+    it("should construct the system prompt with default variables when only workingDir is provided", async () => {
       const workingDir = "/test/workspace";
-      const result = constructSystemPrompt(workingDir);
+      const result = await constructSystemPrompt(workingDir);
 
       expect(result).toContain(workingDir);
       expect(result).toContain(SYSTEM_PROMPT_DYNAMIC_BOUNDARY);
       expect(result).not.toContain("<agents_md>");
     });
 
-    it("should include linearProjectId and linearIssueNumber but they are currently ignored in output", () => {
+    it("should include linearProjectId and linearIssueNumber but they are currently ignored in output", async () => {
       const workingDir = "/test/workspace";
-      const result = constructSystemPrompt(workingDir, "PRJ-123", "456");
+      const result = await constructSystemPrompt(workingDir, "PRJ-123", "456");
 
       expect(result).toContain(workingDir);
       expect(result).toContain(SYSTEM_PROMPT_DYNAMIC_BOUNDARY);
     });
 
-    it("should include agentsMd when provided", () => {
+    it("should include agentsMd when provided", async () => {
       const workingDir = "/test/workspace";
       const agentsMd = "# Agent Rules\nDo something cool.";
-      const result = constructSystemPrompt(workingDir, "", "", agentsMd);
+      const result = await constructSystemPrompt(workingDir, "", "", agentsMd);
 
       expect(result).toContain("<agents_md>");
       expect(result).toContain(agentsMd);

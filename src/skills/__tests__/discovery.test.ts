@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { discoverSkills } from "../discovery.ts";
+import { discoverSkills } from "../discovery";
 import { mkdir, writeFile, rm } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";

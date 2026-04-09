@@ -3,7 +3,7 @@ import { join } from "path";
 import { existsSync } from "fs";
 import { createLogger } from "../utils/logger";
 import { parseYamlFrontmatter, stripFrontmatter } from "../utils/yaml";
-import type { Skill } from "./types";
+import type { Skill, SkillFrontmatter } from "./types";
 
 const logger = createLogger("skills:discovery");
 
@@ -59,13 +59,30 @@ async function parseSkillFile(
 
   const body = stripFrontmatter(content);
 
-  return {
+  // Ensure frontmatter meets SkillFrontmatter type requirements
+  const skillFrontmatter: SkillFrontmatter = {
     name: frontmatter.name as string,
     description: frontmatter.description as string,
     version: frontmatter.version as string | undefined,
+    context: frontmatter.context as "inline" | "fork" | undefined,
+    disableModelInvocation: frontmatter.disableModelInvocation as
+      | boolean
+      | undefined,
+    model: frontmatter.model as string | undefined,
+    allowedTools: frontmatter.allowedTools as string[] | undefined,
+    effort: frontmatter.effort as number | undefined,
+    source: frontmatter.source as "bundled" | "plugin" | "local" | undefined,
+    kind: frontmatter.kind as string | undefined,
+    compatibility: frontmatter.compatibility as string[] | undefined,
+  };
+
+  return {
+    name: skillFrontmatter.name,
+    description: skillFrontmatter.description,
+    version: skillFrontmatter.version,
     location: filePath,
     baseDir,
-    frontmatter,
+    frontmatter: skillFrontmatter,
     body,
   };
 }

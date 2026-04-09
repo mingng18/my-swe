@@ -93,14 +93,14 @@ export function getPromptTier(contextTokens: number): PromptTier {
  * Standard tier: Core sections, fewer examples
  * Minimal tier: Only essential instructions
  */
-export function buildPromptForTier(
+export async function buildPromptForTier(
   tier: PromptTier,
   workingDir: string,
   agentsMd: string = "",
-): string {
+): Promise<string> {
   // For FULL tier, use the standard prompt
   if (tier === PromptTier.FULL) {
-    return constructSystemPrompt(workingDir, "", "", agentsMd);
+    return await constructSystemPrompt(workingDir, "", "", agentsMd);
   }
 
   // For STANDARD tier, remove verbose sections
@@ -138,7 +138,7 @@ export function buildPromptForTier(
   }
 
   // Fallback
-  return constructSystemPrompt(workingDir, "", "", agentsMd);
+  return await constructSystemPrompt(workingDir, "", "", agentsMd);
 }
 
 /**
@@ -186,11 +186,11 @@ function cachePrompt(cacheKey: string, prompt: string): void {
  * @param agentsMd - Optional AGENTS.md content
  * @returns Optimized system prompt
  */
-export function getOptimizedSystemPrompt(
+export async function getOptimizedSystemPrompt(
   contextMessages: unknown[],
   workingDir: string,
   agentsMd: string = "",
-): string {
+): Promise<string> {
   // Estimate context token count
   let contextTokens = 0;
   for (const msg of contextMessages) {
@@ -227,7 +227,7 @@ export function getOptimizedSystemPrompt(
   }
 
   // Build prompt for this tier
-  const prompt = buildPromptForTier(tier, workingDir, agentsMd);
+  const prompt = await buildPromptForTier(tier, workingDir, agentsMd);
 
   // Cache it
   cachePrompt(cacheKey, prompt);
