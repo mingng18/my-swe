@@ -11,7 +11,7 @@ const {
   getWorkingEnvSection,
   constructSystemPrompt,
   SYSTEM_PROMPT_DYNAMIC_BOUNDARY,
-} = await import("./prompt");
+} = await import("../prompt");
 
 describe("prompt utilities", () => {
   describe("asSystemPrompt", () => {

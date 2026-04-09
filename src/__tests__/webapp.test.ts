@@ -5,7 +5,9 @@ const originalFetch = globalThis.fetch;
 // Mock the required dependencies
 mock.module("./server", () => {
   return {
-    runCodeagentTurn: mock((input: string) => Promise.resolve(`Mocked reply for: ${input}`)),
+    runCodeagentTurn: mock((input: string) =>
+      Promise.resolve(`Mocked reply for: ${input}`),
+    ),
   };
 });
 
@@ -30,15 +32,28 @@ let mockVerifyGithubSignature = mock(() => true);
 
 mock.module("./utils/github", () => {
   return {
-    verifyGithubSignature: (...args: any[]) => (mockVerifyGithubSignature as any)(...args),
-    extractPrContext: mock(() => Promise.resolve([
-      {}, 123, "main", "testuser", "https://github.com/pr", "comment-1", "node-1"
-    ])),
-    fetchPrCommentsSinceLastTag: mock(() => Promise.resolve([{ body: "test comment" }])),
+    verifyGithubSignature: (...args: any[]) =>
+      (mockVerifyGithubSignature as any)(...args),
+    extractPrContext: mock(() =>
+      Promise.resolve([
+        {},
+        123,
+        "main",
+        "testuser",
+        "https://github.com/pr",
+        "comment-1",
+        "node-1",
+      ]),
+    ),
+    fetchPrCommentsSinceLastTag: mock(() =>
+      Promise.resolve([{ body: "test comment" }]),
+    ),
     buildPrPrompt: mock(() => "mock pr prompt"),
     reactToGithubComment: mock(() => Promise.resolve()),
     getThreadIdFromBranch: mock(() => Promise.resolve("mock-thread-id")),
-    getGithubAppInstallationToken: mock(() => Promise.resolve("mock-app-token")),
+    getGithubAppInstallationToken: mock(() =>
+      Promise.resolve("mock-app-token"),
+    ),
     storeGithubTokenInThread: mock(() => Promise.resolve()),
     postGithubComment: mock(() => Promise.resolve()),
     getGithubToken: mock(() => "mock-gh-token"),
@@ -52,16 +67,16 @@ mock.module("./utils/identity", () => {
 });
 
 // Important: Import app AFTER setting up the mocks
-const { default: app } = await import("./webapp");
-const { runCodeagentTurn } = await import("./server");
-const githubUtils = await import("./utils/github");
+const { default: app } = await import("../webapp");
+const { runCodeagentTurn } = await import("../server");
+const githubUtils = await import("../utils/github");
 
 describe("webapp", () => {
   let mockFetch: ReturnType<typeof mock>;
 
   beforeEach(() => {
     mockFetch = mock(() =>
-      Promise.resolve(new Response(JSON.stringify({ ok: true })))
+      Promise.resolve(new Response(JSON.stringify({ ok: true }))),
     );
     globalThis.fetch = mockFetch as unknown as typeof fetch;
     mock.restore(); // reset general call counts
@@ -178,7 +193,10 @@ describe("webapp", () => {
       });
 
       expect(res.status).toBe(200);
-      expect(await res.json()).toEqual({ ok: true, message: "Message processed" });
+      expect(await res.json()).toEqual({
+        ok: true,
+        message: "Message processed",
+      });
       expect(runCodeagentTurn).toHaveBeenCalled();
       expect(mockFetch).toHaveBeenCalled();
     });
@@ -194,7 +212,10 @@ describe("webapp", () => {
       });
 
       expect(res.status).toBe(200);
-      expect(await res.json()).toEqual({ ok: true, message: "Update received" });
+      expect(await res.json()).toEqual({
+        ok: true,
+        message: "Update received",
+      });
       expect(runCodeagentTurn).not.toHaveBeenCalled();
     });
   });
@@ -208,7 +229,9 @@ describe("webapp", () => {
       });
 
       expect(res.status).toBe(401);
-      expect(await res.json()).toEqual({ error: "Missing X-Hub-Signature-256 header" });
+      expect(await res.json()).toEqual({
+        error: "Missing X-Hub-Signature-256 header",
+      });
     });
 
     it("returns 401 if invalid signature", async () => {
@@ -256,10 +279,13 @@ describe("webapp", () => {
       });
 
       expect(res.status).toBe(200);
-      expect(await res.json()).toEqual({ ok: true, message: "Push event received and processing started" });
+      expect(await res.json()).toEqual({
+        ok: true,
+        message: "Push event received and processing started",
+      });
 
       // runCodeagentTurn is called async, wait a tick
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
       expect(runCodeagentTurn).toHaveBeenCalled();
     });
   });

@@ -18,7 +18,7 @@ mock.module("./utils/logger", () => ({
   }),
 }));
 
-import { runCodeagentTurn } from "./server";
+import { runCodeagentTurn } from "../server";
 
 describe("runCodeagentTurn", () => {
   beforeEach(() => {
@@ -41,7 +41,9 @@ describe("runCodeagentTurn", () => {
 
     const result = await runCodeagentTurn("Hi there", "custom-thread-id");
 
-    expect(mockRun).toHaveBeenCalledWith("Hi there", { threadId: "custom-thread-id" });
+    expect(mockRun).toHaveBeenCalledWith("Hi there", {
+      threadId: "custom-thread-id",
+    });
     expect(result).toBe("Hello specific thread!");
   });
 
