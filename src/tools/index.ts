@@ -11,6 +11,7 @@ import {
   artifactDeleteTool,
 } from "./artifact-query";
 import { semanticSearchTool } from "./semantic-search";
+import { activateSkillTool } from "./activate-skill";
 
 // Compression wrapper (optional, controlled by RTK_COMPRESSION_ENABLED)
 import { wrapToolsWithCompression } from "./compression-wrapper";
@@ -27,6 +28,7 @@ export const allToolsUncompressed = [
   artifactListTool,
   artifactDeleteTool,
   semanticSearchTool,
+  activateSkillTool,
 ];
 
 export const sandboxAllToolsUncompressed = [
