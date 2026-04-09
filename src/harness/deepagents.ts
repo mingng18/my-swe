@@ -14,6 +14,7 @@ import { createProgressiveContextEdit } from "../middleware/progressive-context-
 import { createLoopDetectionMiddleware } from "../middleware/loop-detection";
 import { createEnsureNoEmptyMsgMiddleware } from "../middleware/ensure-no-empty-msg";
 import { toolInvocationTracker } from "../middleware/tool-invocation-limits";
+import { createSkillCompactionProtectionMiddleware } from "../middleware/skill-compaction-protection";
 import type {
   AgentHarness,
   AgentInvokeOptions,
@@ -222,6 +223,8 @@ async function createAgentInstance(args: {
       runLimit: AGENT_RECURSION_LIMIT,
       exitBehavior: "end",
     }),
+    // Skills: protect skill content from context compaction
+    createSkillCompactionProtectionMiddleware(),
     // Context management: progressive compaction with message importance scoring
     contextEditingMiddleware({
       edits: [createProgressiveContextEdit()],
