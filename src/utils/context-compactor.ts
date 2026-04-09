@@ -1,6 +1,17 @@
 import { createLogger } from "./logger";
 import type { BaseMessage } from "@langchain/core/messages";
 
+/**
+ * Check if a message is protected from compaction.
+ * Messages with _protected flag should never be removed.
+ */
+function isMessageProtected(message: BaseMessage): boolean {
+  return (
+    (message as any).additional_kwargs?._protected === true ||
+    (message as any).kwargs?._protected === true
+  );
+}
+
 const logger = createLogger("context-compactor");
 
 // Configuration from environment
@@ -68,6 +79,7 @@ function estimateMessageTokens(message: BaseMessage): number {
  * Higher score = more important, should be kept.
  *
  * Scoring rubric:
+ * - Protected messages: +100 (never delete - includes skill content)
  * - User messages: +10 (never delete)
  * - Final AI responses: +8
  * - System messages: +5
@@ -83,64 +95,72 @@ export function calculateImportance(
   let score = 0;
   const reasons: string[] = [];
 
+  // Check for protected messages (highest priority)
+  if (isMessageProtected(message)) {
+    score += 100;
+    reasons.push("protected-message");
+  }
+
   const messageType = message.getType();
   const content = message.content as
     | string
     | Array<{ type: string; text?: string }>;
 
-  // Role-based scoring
-  if (messageType === "human" || messageType === "user") {
-    score += 10;
-    reasons.push("user-message");
-  } else if (messageType === "system") {
-    score += 5;
-    reasons.push("system-message");
-  } else if (messageType === "ai") {
-    // AI messages: check if it's a final response (no tool calls)
-    const hasToolCalls = (message as any).tool_calls?.length > 0;
-    if (!hasToolCalls) {
-      score += 8;
-      reasons.push("final-ai-response");
-    } else {
-      score += 2;
-      reasons.push("ai-with-tool-calls");
-    }
-  } else if (messageType === "tool" || messageType === "tool-result") {
-    // Tool messages: check if successful
-    let isSuccessful = true;
-
-    if (typeof content === "string") {
-      // Check for error patterns
-      const lowerContent = content.toLowerCase();
-      if (
-        lowerContent.includes("error:") ||
-        lowerContent.includes("failed") ||
-        lowerContent.includes("exception") ||
-        lowerContent.includes('"error"')
-      ) {
-        isSuccessful = false;
+  // Role-based scoring (skip if already protected)
+  if (!isMessageProtected(message)) {
+    if (messageType === "human" || messageType === "user") {
+      score += 10;
+      reasons.push("user-message");
+    } else if (messageType === "system") {
+      score += 5;
+      reasons.push("system-message");
+    } else if (messageType === "ai") {
+      // AI messages: check if it's a final response (no tool calls)
+      const hasToolCalls = (message as any).tool_calls?.length > 0;
+      if (!hasToolCalls) {
+        score += 8;
+        reasons.push("final-ai-response");
+      } else {
+        score += 2;
+        reasons.push("ai-with-tool-calls");
       }
-    } else if (Array.isArray(content)) {
-      const textContent = content
-        .filter((p) => p.type === "text")
-        .map((p) => p.text || "")
-        .join(" ")
-        .toLowerCase();
-      if (
-        textContent.includes("error:") ||
-        textContent.includes("failed") ||
-        textContent.includes("exception")
-      ) {
-        isSuccessful = false;
-      }
-    }
+    } else if (messageType === "tool" || messageType === "tool-result") {
+      // Tool messages: check if successful
+      let isSuccessful = true;
 
-    if (isSuccessful) {
-      score += 3;
-      reasons.push("successful-tool-result");
-    } else {
-      score += 1;
-      reasons.push("failed-tool-result");
+      if (typeof content === "string") {
+        // Check for error patterns
+        const lowerContent = content.toLowerCase();
+        if (
+          lowerContent.includes("error:") ||
+          lowerContent.includes("failed") ||
+          lowerContent.includes("exception") ||
+          lowerContent.includes('"error"')
+        ) {
+          isSuccessful = false;
+        }
+      } else if (Array.isArray(content)) {
+        const textContent = content
+          .filter((p) => p.type === "text")
+          .map((p) => p.text || "")
+          .join(" ")
+          .toLowerCase();
+        if (
+          textContent.includes("error:") ||
+          textContent.includes("failed") ||
+          textContent.includes("exception")
+        ) {
+          isSuccessful = false;
+        }
+      }
+
+      if (isSuccessful) {
+        score += 3;
+        reasons.push("successful-tool-result");
+      } else {
+        score += 1;
+        reasons.push("failed-tool-result");
+      }
     }
   }
 
