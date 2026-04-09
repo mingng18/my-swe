@@ -13,6 +13,7 @@ import { IDENTITY_MAP } from "../identity";
 const logger = console;
 
 const OPEN_SWE_TAGS = ["@openswe", "@open-swe", "@openswe-dev"] as const;
+const OPEN_SWE_REGEX = new RegExp(OPEN_SWE_TAGS.join("|"), "i");
 export const UNTRUSTED_GITHUB_COMMENT_OPEN_TAG =
   "<dangerous-external-untrusted-users-comment>";
 const UNTRUSTED_GITHUB_COMMENT_CLOSE_TAG =
@@ -432,9 +433,9 @@ export async function fetchPrCommentsSinceLastTag(
     allComments.sort((a, b) => a.created_at.localeCompare(b.created_at));
 
     // Find all @openswe / @open-swe mention positions
+    // ⚡ Bolt: Using pre-compiled regex instead of lowercase/includes loop for faster tag matching
     const tagIndices = allComments.reduce((acc, comment, i) => {
-      const body = (comment.body ?? "").toLowerCase();
-      if (OPEN_SWE_TAGS.some((tag) => body.includes(tag))) {
+      if (OPEN_SWE_REGEX.test(comment.body ?? "")) {
         acc.push(i);
       }
       return acc;
