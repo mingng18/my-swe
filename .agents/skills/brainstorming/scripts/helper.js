@@ -70,6 +70,17 @@
         }
         handleChoiceInteraction(target);
       }
+    } else if (e.key.length === 1 && /[a-zA-Z0-9]/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+      const target = document.querySelector(`[data-choice="${e.key.toLowerCase()}"]`) ||
+                     document.querySelector(`[data-choice="${e.key.toUpperCase()}"]`);
+      if (target) {
+        e.preventDefault();
+        target.focus();
+        if (window.toggleSelect) {
+            window.toggleSelect(target);
+        }
+        handleChoiceInteraction(target);
+      }
     }
   });
 

@@ -4,3 +4,6 @@
 ## 2026-04-07 - Add ARIA pressed states to brainstorming interactive elements
 **Learning:** Interactive elements designed for screen readers mimicking toggles/options should explicitly convey their selected state using `aria-pressed` or `aria-selected`, especially when focus is dynamically set or selection is complex, to properly inform assistive technologies of state changes.
 **Action:** Ensure custom DOM manipulation scripts (e.g. `window.toggleSelect`) consistently update corresponding ARIA attributes such as `aria-pressed` immediately alongside visual class changes.
+## 2025-02-12 - Brainstorming Companion Keyboard Navigation
+**Learning:** For interfaces displaying a discrete set of enumerated choices (like A/B/C or 1/2/3 options), traditional sequential keyboard navigation (Tab -> Enter) can be cumbersome for power users evaluating many generated variations. Providing direct alphanumeric shortcut keys mapped to the choice indicators creates a significantly faster, more fluid selection experience.
+**Action:** When building or enhancing selection menus with visible letter/number badges, implement global `keydown` listeners to map these characters directly to choice selection, ensuring focus and visual state are updated synchronously to maintain accessibility context.
