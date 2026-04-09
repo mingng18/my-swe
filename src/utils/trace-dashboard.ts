@@ -87,6 +87,26 @@ export function generateTraceDashboardHTML(threadId: string): string {
       </div>
     </div>
 
+    <h2>🗜️ Compression Metrics</h2>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Original Tokens</div>
+        <div class="stat-value">${getCompressionMetric(telemetry.metrics, "compression.original_tokens").toLocaleString()}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Compressed Tokens</div>
+        <div class="stat-value success">${getCompressionMetric(telemetry.metrics, "compression.compressed_tokens").toLocaleString()}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Tokens Saved</div>
+        <div class="stat-value success">${(getCompressionMetric(telemetry.metrics, "compression.original_tokens") - getCompressionMetric(telemetry.metrics, "compression.compressed_tokens")).toLocaleString()}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Avg Savings</div>
+        <div class="stat-value">${getCompressionAvgSavings(telemetry.metrics).toFixed(1)}%</div>
+      </div>
+    </div>
+
     <h2>🔧 Tool Statistics</h2>
     <div class="table-container">
       <table>
@@ -97,22 +117,28 @@ export function generateTraceDashboardHTML(threadId: string): string {
             <th>Success Rate</th>
             <th>Avg Duration</th>
             <th>Avg Output Size</th>
+            <th>Compression</th>
           </tr>
         </thead>
         <tbody>
-          ${Object.entries(metrics.tools).map(([tool, stats]) => `
+          ${Object.entries(metrics.tools)
+            .map(
+              ([tool, stats]) => `
             <tr>
               <td><code>${tool}</code></td>
               <td>${stats.count}</td>
               <td>
-                <span class="badge ${stats.successRate > 0.8 ? 'success' : stats.successRate > 0.5 ? 'warning' : 'error'}">
+                <span class="badge ${stats.successRate > 0.8 ? "success" : stats.successRate > 0.5 ? "warning" : "error"}">
                   ${(stats.successRate * 100).toFixed(0)}%
                 </span>
               </td>
               <td>${stats.avgDuration.toFixed(0)}ms</td>
               <td>${stats.avgOutputSize.toFixed(0)} chars</td>
+              <td>${getToolCompressionSavings(telemetry.metrics, tool)}</td>
             </tr>
-          `).join('')}
+          `,
+            )
+            .join("")}
         </tbody>
       </table>
     </div>
@@ -136,14 +162,20 @@ export function generateTraceDashboardHTML(threadId: string): string {
     <h2>📈 Recent Activity</h2>
     <div class="table-container">
       <div style="padding: 15px;">
-        ${telemetry.spans.slice(-10).reverse().map(span => `
-          <div class="timeline-item ${span.status === 'error' ? 'error' : ''}">
+        ${telemetry.spans
+          .slice(-10)
+          .reverse()
+          .map(
+            (span) => `
+          <div class="timeline-item ${span.status === "error" ? "error" : ""}">
             <div style="font-weight: 600; margin-bottom: 4px;">${span.name}</div>
             <div class="timestamp">${new Date(span.startTime).toISOString()}</div>
-            ${span.endTime ? `<div style="font-size: 0.85rem; color: #94a3b8; margin-top: 4px;">Duration: ${span.endTime - span.startTime}ms</div>` : ''}
+            ${span.endTime ? `<div style="font-size: 0.85rem; color: #94a3b8; margin-top: 4px;">Duration: ${span.endTime - span.startTime}ms</div>` : ""}
           </div>
-        `).join('')}
-        ${telemetry.spans.length === 0 ? '<p style="color: #94a3b8; text-align: center; padding: 20px;">No spans recorded yet</p>' : ''}
+        `,
+          )
+          .join("")}
+        ${telemetry.spans.length === 0 ? '<p style="color: #94a3b8; text-align: center; padding: 20px;">No spans recorded yet</p>' : ""}
       </div>
     </div>
 
@@ -164,20 +196,27 @@ export function generateTraceSummaryJSON(threadId: string): string {
   const tokenUsage = getTokenUsage(threadId);
   const telemetry = getThreadTelemetry(threadId);
 
-  return JSON.stringify({
-    threadId,
-    timestamp: Date.now(),
-    summary: {
-      totalTokens: tokenUsage?.totalTokens || 0,
-      totalCost: tokenUsage?.totalCost || 0,
-      llmCalls: metrics.llmCalls.count,
-      totalDuration: metrics.totalDuration,
-      toolCalls: Object.values(metrics.tools).reduce((sum, t) => sum + t.count, 0),
+  return JSON.stringify(
+    {
+      threadId,
+      timestamp: Date.now(),
+      summary: {
+        totalTokens: tokenUsage?.totalTokens || 0,
+        totalCost: tokenUsage?.totalCost || 0,
+        llmCalls: metrics.llmCalls.count,
+        totalDuration: metrics.totalDuration,
+        toolCalls: Object.values(metrics.tools).reduce(
+          (sum, t) => sum + t.count,
+          0,
+        ),
+      },
+      llmCalls: metrics.llmCalls,
+      tools: metrics.tools,
+      anomalies: detectAnomalies(telemetry, metrics),
     },
-    llmCalls: metrics.llmCalls,
-    tools: metrics.tools,
-    anomalies: detectAnomalies(telemetry, metrics),
-  }, null, 2);
+    null,
+    2,
+  );
 }
 
 /**
@@ -191,16 +230,22 @@ function detectAnomalies(
 
   // Check for high token usage
   if (metrics.llmCalls.totalTokens > 100000) {
-    anomalies.push(`High token usage: ${metrics.llmCalls.totalTokens.toLocaleString()} tokens`);
+    anomalies.push(
+      `High token usage: ${metrics.llmCalls.totalTokens.toLocaleString()} tokens`,
+    );
   }
 
   // Check for slow tool calls
   for (const [tool, stats] of Object.entries(metrics.tools)) {
     if ((stats as any).avgDuration > 10000) {
-      anomalies.push(`Slow tool: ${tool} avg ${(stats as any).avgDuration.toFixed(0)}ms`);
+      anomalies.push(
+        `Slow tool: ${tool} avg ${(stats as any).avgDuration.toFixed(0)}ms`,
+      );
     }
     if ((stats as any).successRate < 0.5 && (stats as any).count > 3) {
-      anomalies.push(`High failure rate: ${tool} only ${((stats as any).successRate * 100).toFixed(0)}% success`);
+      anomalies.push(
+        `High failure rate: ${tool} only ${((stats as any).successRate * 100).toFixed(0)}% success`,
+      );
     }
   }
 
@@ -211,4 +256,45 @@ function detectAnomalies(
   }
 
   return anomalies;
+}
+
+/**
+ * Get the sum of all values for a given metric name.
+ */
+function getCompressionMetric(metrics: any[], name: string): number {
+  return metrics
+    .filter((m) => m.name === name)
+    .reduce((sum, m) => sum + (m.value || 0), 0);
+}
+
+/**
+ * Get the average compression savings ratio as a percentage.
+ */
+function getCompressionAvgSavings(metrics: any[]): number {
+  const savingsMetrics = metrics.filter(
+    (m) => m.name === "compression.savings_ratio",
+  );
+  if (savingsMetrics.length === 0) return 0;
+  const total = savingsMetrics.reduce((sum, m) => sum + (m.value || 0), 0);
+  return total / savingsMetrics.length;
+}
+
+/**
+ * Get compression savings display string for a specific tool.
+ */
+function getToolCompressionSavings(metrics: any[], toolName: string): string {
+  const savingsMetrics = metrics.filter(
+    (m) =>
+      m.name === "compression.savings_ratio" && m.attributes?.tool === toolName,
+  );
+  if (savingsMetrics.length === 0)
+    return '<span style="color: #64748b;">N/A</span>';
+
+  const avgSavings =
+    savingsMetrics.reduce((sum, m) => sum + (m.value || 0), 0) /
+    savingsMetrics.length;
+
+  const savingsClass =
+    avgSavings > 50 ? "success" : avgSavings > 20 ? "warning" : "error";
+  return `<span class="badge ${savingsClass}">${avgSavings.toFixed(0)}%</span>`;
 }

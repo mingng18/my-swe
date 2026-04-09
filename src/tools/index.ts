@@ -12,7 +12,11 @@ import {
 } from "./artifact-query";
 import { semanticSearchTool } from "./semantic-search";
 
-export const allTools = [
+// Compression wrapper (optional, controlled by RTK_COMPRESSION_ENABLED)
+import { wrapToolsWithCompression } from "./compression-wrapper";
+
+// Raw tools (uncompressed, for backward compatibility)
+export const allToolsUncompressed = [
   commitAndOpenPrTool,
   codeSearchTool,
   mergePrTool,
@@ -25,4 +29,18 @@ export const allTools = [
   semanticSearchTool,
 ];
 
-export const sandboxAllTools = [...allTools, ...sandboxTools];
+export const sandboxAllToolsUncompressed = [
+  ...allToolsUncompressed,
+  ...sandboxTools,
+];
+
+// Compressed tools (default, controlled by environment variable)
+const RTK_COMPRESSION_ENABLED = process.env.RTK_COMPRESSION_ENABLED !== "false";
+
+export const allTools = RTK_COMPRESSION_ENABLED
+  ? wrapToolsWithCompression(allToolsUncompressed)
+  : allToolsUncompressed;
+
+export const sandboxAllTools = RTK_COMPRESSION_ENABLED
+  ? [...allTools, ...wrapToolsWithCompression(sandboxTools)]
+  : sandboxAllToolsUncompressed;
