@@ -8,9 +8,10 @@ export async function getVerificationGraph() {
   const modelConfig = loadModelConfig();
   const model = await createChatModel(modelConfig);
 
-  const verificationNode = async (state: typeof VerificationStateAnnotation.State) => {
+  const verificationNode = async (
+    state: typeof VerificationStateAnnotation.State,
+  ) => {
     const lastMessage = state.messages[state.messages.length - 1];
-    const userContent = lastMessage.content;
 
     const prompt = [
       { role: "system", content: verificationSystemPrompt },

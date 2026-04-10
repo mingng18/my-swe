@@ -5,10 +5,6 @@ export const VerificationStateAnnotation = Annotation.Root({
     reducer: (_, y) => y,
     default: () => [],
   }),
-  verdict: Annotation<string>({
-    default: () => "",
-  }),
-  status: Annotation<"running" | "complete" | "error">({
-    default: () => "running",
-  }),
+  verdict: Annotation<string>,
+  status: Annotation<"running" | "complete" | "error">,
 });
