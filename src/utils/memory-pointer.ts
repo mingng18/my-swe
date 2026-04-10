@@ -394,38 +394,42 @@ export async function listArtifacts(
   await ensureDirectory();
 
   const files = await readdir(MEMORY_POINTER_DIR);
-  const artifacts: ArtifactMetadata[] = [];
 
-  for (const file of files) {
-    if (!file.endsWith(".json")) {
-      continue;
-    }
-
-    try {
-      const filePath = path.join(MEMORY_POINTER_DIR, file);
-      const data = await readFile(filePath, "utf-8");
-      const artifact: StoredArtifact = JSON.parse(data);
-
-      // Skip expired artifacts
-      if (isExpired(artifact.metadata.expiresAt)) {
-        await deleteArtifact(artifact.metadata.id);
-        continue;
+  const results = await Promise.all(
+    files.map(async (file) => {
+      if (!file.endsWith(".json")) {
+        return null;
       }
 
-      // Only return artifacts for this thread
-      if (artifact.metadata.threadId === threadId) {
-        // Don't include content in listing
-        artifacts.push(artifact.metadata);
-      }
-    } catch (error) {
-      logger.warn(
-        { file, error },
-        "[memory-pointer] Failed to read artifact during listing",
-      );
-    }
-  }
+      try {
+        const filePath = path.join(MEMORY_POINTER_DIR, file);
+        const data = await readFile(filePath, "utf-8");
+        const artifact: StoredArtifact = JSON.parse(data);
 
-  return artifacts;
+        // Skip expired artifacts
+        if (isExpired(artifact.metadata.expiresAt)) {
+          await deleteArtifact(artifact.metadata.id);
+          return null;
+        }
+
+        // Only return artifacts for this thread
+        if (artifact.metadata.threadId === threadId) {
+          // Don't include content in listing
+          return artifact.metadata;
+        }
+      } catch (error) {
+        logger.warn(
+          { file, error },
+          "[memory-pointer] Failed to read artifact during listing",
+        );
+      }
+      return null;
+    }),
+  );
+
+  return results.filter(
+    (result): result is ArtifactMetadata => result !== null,
+  );
 }
 
 /**
@@ -452,30 +456,34 @@ export async function cleanupArtifacts(threadId: string): Promise<number> {
   await ensureDirectory();
 
   const files = await readdir(MEMORY_POINTER_DIR);
-  let cleanedCount = 0;
 
-  for (const file of files) {
-    if (!file.endsWith(".json")) {
-      continue;
-    }
-
-    try {
-      const filePath = path.join(MEMORY_POINTER_DIR, file);
-      const data = await readFile(filePath, "utf-8");
-      const artifact: StoredArtifact = JSON.parse(data);
-
-      // Delete if expired or belongs to this thread
-      if (
-        isExpired(artifact.metadata.expiresAt) ||
-        artifact.metadata.threadId === threadId
-      ) {
-        await unlink(filePath);
-        cleanedCount++;
+  const results = await Promise.all(
+    files.map(async (file) => {
+      if (!file.endsWith(".json")) {
+        return 0;
       }
-    } catch (error) {
-      logger.warn({ file, error }, "[memory-pointer] Failed during cleanup");
-    }
-  }
+
+      try {
+        const filePath = path.join(MEMORY_POINTER_DIR, file);
+        const data = await readFile(filePath, "utf-8");
+        const artifact: StoredArtifact = JSON.parse(data);
+
+        // Delete if expired or belongs to this thread
+        if (
+          isExpired(artifact.metadata.expiresAt) ||
+          artifact.metadata.threadId === threadId
+        ) {
+          await unlink(filePath);
+          return 1;
+        }
+      } catch (error) {
+        logger.warn({ file, error }, "[memory-pointer] Failed during cleanup");
+      }
+      return 0;
+    }),
+  );
+
+  const cleanedCount = results.reduce((sum, count) => sum + count, 0);
 
   if (cleanedCount > 0) {
     logger.info(
