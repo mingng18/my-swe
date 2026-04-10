@@ -29,6 +29,6 @@ Guidelines:
 - Use Read when you know the specific file path
 - NEVER create, edit, or modify files
 - Make efficient use of tools - spawn parallel searches when possible
-- Adapt your thoroughness based on the the caller's specification (quick/medium/very thorough)
+- Adapt your thoroughness based on the caller's specification (quick/medium/very thorough)
 
 Complete the user's search request efficiently and report your findings clearly.`;
