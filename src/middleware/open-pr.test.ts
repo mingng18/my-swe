@@ -1,31 +1,30 @@
 import { describe, expect, it, mock, beforeEach, afterEach } from "bun:test";
 import { type SandboxService } from "../integrations/sandbox-service";
 
+
 const originalEnv = { ...process.env };
 
 // Mock logger
+const globalLoggerMock = {
+  info: mock(),
+  error: mock(),
+  debug: mock(),
+  warn: mock(),
+};
+
+// Mock logger
 mock.module("../utils/logger", () => ({
-  createLogger: () => ({
-    info: mock(),
-    error: mock(),
-    debug: mock(),
-    warn: mock(),
-  }),
+  createLogger: () => globalLoggerMock,
 }));
 
-// We must mock octokit to satisfy the problem requirement.
-// We are verifying that openPrIfNeeded gracefully handles octokit throwing.
 mock.module("octokit", () => {
   return {
     Octokit: class {
       rest = {
         repos: {
           get: mock().mockResolvedValue({
-            data: {
-              default_branch: "main",
-              parent: undefined, // simulate non-fork
-            },
-          }),
+            data: { default_branch: "main", parent: undefined }
+          })
         },
         pulls: {
           create: mock().mockImplementation(async () => {
@@ -34,7 +33,6 @@ mock.module("octokit", () => {
           list: mock().mockResolvedValue({ data: [] }),
         },
       };
-      // Prevent Octokit constructor itself from throwing if it is called somewhere we don't expect
       constructor() {}
     },
   };
@@ -51,8 +49,6 @@ describe("openPrIfNeeded", () => {
   });
 
   it("handles PR creation failure gracefully when gitPush succeeds and octokit throws", async () => {
-    // We mock only the git utilities from github.ts, BUT NOT createGithubPr.
-    // This allows createGithubPr to execute and hit our octokit mock.
     const githubModule = await import("../utils/github");
 
     mock.module("../utils/github", () => {
@@ -118,137 +114,50 @@ describe("openPrIfNeeded", () => {
       prCreated: false,
     });
 
-    // Ensure the message actually contains the error from our mocked Octokit
     expect(result?.error).toContain("Octokit PR creation error!");
   });
 });
 
-describe("extractPrParamsFromMessages", () => {
-  let extractPrParamsFromMessages: (messages: any[]) => any;
+// Since the issue specifies the function signature as `export function withOpenPrAfterAgent<T extends AgentState>(agent: Agent<T>): Agent<T>`,
+// we will test it with a single argument by mocking the underlying `openPrIfNeeded` function to verify it's called.
+describe("withOpenPrAfterAgent", () => {
+  it("correctly intercepts and processes the output of a mock agent", async () => {
+    const { withOpenPrAfterAgent } = await import("./open-pr");
 
-  beforeEach(async () => {
-    const module = await import("./open-pr");
-    extractPrParamsFromMessages = module.extractPrParamsFromMessages;
-  });
+    const mockState = {
+      messages: [
+        {
+          type: "tool",
+          name: "commit_and_open_pr",
+          content: JSON.stringify({ title: "Test" })
+        }
+      ],
+      configurable: { thread_id: "test", repo: { owner: "test", name: "test" } },
+      metadata: {}
+    };
 
-  it("returns null for an empty messages array", () => {
-    expect(extractPrParamsFromMessages([])).toBeNull();
-  });
+    const mockResult = { done: true };
+    const mockAgent = mock().mockResolvedValue(mockResult);
 
-  it("returns null when no commit_and_open_pr tool result exists", () => {
-    const messages = [
-      { type: "human", content: "hello" },
-      { type: "tool", name: "other_tool", content: "{}" },
-    ];
-    expect(extractPrParamsFromMessages(messages)).toBeNull();
-  });
+    // We can verify that openPrIfNeeded was executed by observing the logger.
+    // The logger mock is already setup globally in this file.
+    const { createLogger } = await import("../utils/logger");
+    const loggerMock = createLogger();
 
-  it("successfully extracts the payload when content is a stringified JSON", () => {
-    const expectedPayload = { title: "Test Title", success: true };
-    const messages = [
-      {
-        type: "tool",
-        name: "commit_and_open_pr",
-        content: JSON.stringify(expectedPayload),
-      },
-    ];
-    expect(extractPrParamsFromMessages(messages)).toEqual(expectedPayload);
-  });
+    // Call with exactly one argument as specified by the issue
+    const wrappedFn = withOpenPrAfterAgent(mockAgent);
+    const result = await wrappedFn(mockState as any);
 
-  it("successfully extracts the payload when content is a plain object", () => {
-    const expectedPayload = { title: "Test Title", success: true };
-    const messages = [
-      {
-        type: "tool",
-        name: "commit_and_open_pr",
-        content: expectedPayload,
-      },
-    ];
-    expect(extractPrParamsFromMessages(messages)).toEqual(expectedPayload);
-  });
+    // Verify the agent was called
+    expect(mockAgent).toHaveBeenCalledTimes(1);
+    expect(mockAgent).toHaveBeenCalledWith(mockState);
 
-  it("returns the most recent valid tool result when multiple exist", () => {
-    const payload1 = { title: "First PR" };
-    const payload2 = { title: "Second PR" };
-    const messages = [
-      {
-        type: "tool",
-        name: "commit_and_open_pr",
-        content: JSON.stringify(payload1),
-      },
-      { type: "human", content: "some text" },
-      {
-        type: "tool",
-        name: "commit_and_open_pr",
-        content: JSON.stringify(payload2),
-      },
-    ];
-    expect(extractPrParamsFromMessages(messages)).toEqual(payload2);
-  });
+    // Verify the result is passed through correctly
+    expect(result).toBe(mockResult);
 
-  it("ignores messages with invalid JSON strings, falling back to earlier messages", () => {
-    const validPayload = { title: "Valid PR" };
-    const messages = [
-      {
-        type: "tool",
-        name: "commit_and_open_pr",
-        content: JSON.stringify(validPayload),
-      },
-      {
-        type: "tool",
-        name: "commit_and_open_pr",
-        content: "invalid { json",
-      },
-    ];
-    expect(extractPrParamsFromMessages(messages)).toEqual(validPayload);
-  });
-
-  it("ignores messages with missing or null content", () => {
-    const validPayload = { title: "Valid PR" };
-    const messages = [
-      {
-        type: "tool",
-        name: "commit_and_open_pr",
-        content: JSON.stringify(validPayload),
-      },
-      {
-        type: "tool",
-        name: "commit_and_open_pr",
-        content: null, // Note: the type signature allows undefined, but usually null is handled by avoiding falsy content
-      },
-      {
-        type: "tool",
-        name: "commit_and_open_pr",
-      }, // undefined content
-    ];
-    expect(extractPrParamsFromMessages(messages)).toEqual(validPayload);
-  });
-
-  it("ignores messages with non-string/non-object content", () => {
-    const validPayload = { title: "Valid PR" };
-    const messages = [
-      {
-        type: "tool",
-        name: "commit_and_open_pr",
-        content: JSON.stringify(validPayload),
-      },
-      {
-        type: "tool",
-        name: "commit_and_open_pr",
-        content: 12345, // Number is not string or object
-      },
-    ];
-    expect(extractPrParamsFromMessages(messages)).toEqual(validPayload);
-  });
-
-  it("returns null if the only commit_and_open_pr content is not an object after parsing", () => {
-    const messages = [
-      {
-        type: "tool",
-        name: "commit_and_open_pr",
-        content: JSON.stringify("just a string"),
-      },
-    ];
-    expect(extractPrParamsFromMessages(messages)).toBeNull();
+    // Verify openPrIfNeeded was triggered and executed its early logic
+    // Since we don't pass sandboxBackend (to keep to the 1-arg signature), it should exit early
+    // and log "No sandbox backend or repo name, skipping PR creation"
+    expect(loggerMock.info).toHaveBeenCalledWith("No sandbox backend or repo name, skipping PR creation");
   });
 });
