@@ -257,11 +257,34 @@ async function createAgentInstance(args: {
     }
   }
 
+  let tools = useSandbox ? sandboxAllTools : allTools;
+
+  // Load MCP tools if enabled and workspace is available
+  if (process.env.MCP_ENABLED !== "false" && args.workspaceRoot) {
+    try {
+      const { loadMcpTools } = await import("../mcp/tool-factory.js");
+      const mcpTools = await loadMcpTools(args.workspaceRoot);
+
+      if (mcpTools.length > 0) {
+        tools = [...tools, ...mcpTools];
+        logger.info(
+          { mcpToolCount: mcpTools.length },
+          "[deepagents] MCP tools loaded",
+        );
+      }
+    } catch (err) {
+      logger.warn(
+        { err },
+        "[deepagents] Failed to load MCP tools, continuing without them",
+      );
+    }
+  }
+
   const config: any = {
     model: chatModel,
     systemPrompt: constructSystemPrompt(args.workspaceRoot || process.cwd()),
     checkpointer: new MemorySaver(),
-    tools: useSandbox ? sandboxAllTools : allTools,
+    tools,
     middleware,
   };
 

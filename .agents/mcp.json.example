@@ -1,0 +1,57 @@
+# MCP Configuration Example for Bullhorse
+#
+# Copy this file to .agents/mcp.json in your repository to enable MCP tools.
+#
+# MCP (Model Context Protocol) servers expose tools and resources that
+# the Bullhorse agent can use when working on your codebase.
+#
+# Environment variables like ${DATABASE_URL} are automatically expanded.
+
+{
+  "servers": {
+    # Example: PostgreSQL database server
+    # "database": {
+    #   "command": "npx",
+    #   "args": ["-y", "@modelcontextprotocol/server-postgres"],
+    #   "env": {
+    #     "POSTGRES_CONNECTION_URI": "${DATABASE_URL}"
+    #   }
+    # },
+
+    # Example: Filesystem access server
+    # "filesystem": {
+    #   "command": "npx",
+    #   "args": ["-y", "@modelcontextprotocol/server-filesystem", "/allowed/path"],
+    #   "env": {
+    #     "PATH": "${PATH}"
+    #   }
+    # },
+
+    # Example: GitHub server (for repository operations)
+    # "github": {
+    #   "command": "npx",
+    #   "args": ["-y", "@modelcontextprotocol/server-github"],
+    #   "env": {
+    #     "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+    #   }
+    # },
+
+    # Example: Puppeteer (browser automation) server
+    # "browser": {
+    #   "command": "npx",
+    #   "args": ["-y", "@modelcontextprotocol/server-puppeteer"],
+    #   "env": {
+    #     "HEADLESS": "true"
+    #   }
+    # },
+
+    # Example: Remote MCP server via SSE
+    # "remote-api": {
+    #   "type": "sse",
+    #   "url": "https://api.example.com/mcp/sse",
+    #   "headers": {
+    #     "Authorization": "Bearer ${API_TOKEN}"
+    #   }
+    # }
+  }
+}

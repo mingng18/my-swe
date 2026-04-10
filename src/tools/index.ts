@@ -13,6 +13,8 @@ import {
 import { semanticSearchTool } from "./semantic-search";
 import { activateSkillTool } from "./activate-skill";
 import { toolSearchTool } from "./tool-search";
+import { listMcpResourcesTool } from "./list-mcp-resources";
+import { readMcpResourceTool } from "./read-mcp-resource";
 
 // Compression wrapper (optional, controlled by RTK_COMPRESSION_ENABLED)
 import { wrapToolsWithCompression } from "./compression-wrapper";
@@ -31,6 +33,8 @@ export const allToolsUncompressed = [
   semanticSearchTool,
   activateSkillTool,
   toolSearchTool,
+  listMcpResourcesTool,
+  readMcpResourceTool,
 ];
 
 export const sandboxAllToolsUncompressed = [
