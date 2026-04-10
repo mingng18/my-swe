@@ -45,6 +45,7 @@ import {
 } from "../utils/thread-metadata-store";
 import { clearSandboxBackend, setSandboxBackend } from "../utils/sandboxState";
 import { installDependencies } from "../nodes/deterministic/DependencyInstallerNode";
+import { builtInSubagents } from "../subagents/registry";
 import { type BaseMessage, type ToolCall } from "@langchain/core/messages";
 
 const logger = createLogger("deepagents");
@@ -255,6 +256,15 @@ async function createAgentInstance(args: {
 
   if (args.backend) {
     config.backend = args.backend;
+  }
+
+  // Add subagents if enabled
+  if (process.env.SUBAGENTS_ENABLED !== "false") {
+    config.subagents = builtInSubagents;
+    logger.info(
+      { count: builtInSubagents.length },
+      "[deepagents] Subagents enabled",
+    );
   }
 
   const agent = createDeepAgent(config);
