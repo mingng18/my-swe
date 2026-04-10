@@ -1,7 +1,7 @@
 /**
  * Memory type categories matching Claude Code's Auto Memory
  */
-export type MemoryType = 'user' | 'feedback' | 'project' | 'reference';
+export type MemoryType = "user" | "feedback" | "project" | "reference";
 
 /**
  * A memory extracted from an agent turn
@@ -78,7 +78,7 @@ export interface TurnResult {
   agentError?: string;
   plan?: string;
   fixAttempt?: string;
-  deterministic: {
+  deterministic?: {
     formatResults?: { success: boolean; output?: string };
     linterResults?: { success: boolean; exitCode?: number; output?: string };
     testResults?: { passed: boolean; summary?: string; output?: string };
