@@ -18,6 +18,23 @@ export interface TestRunnerNodeState {
 }
 
 /**
+ * Progress callback type for test execution updates.
+ */
+export type TestRunnerProgress = {
+  stage: "detecting" | "running" | "complete" | "failed";
+  testCommand?: string;
+  message: string;
+  outputLength?: number;
+};
+
+/**
+ * Options for test execution.
+ */
+export interface TestRunnerOptions {
+  onProgress?: (progress: TestRunnerProgress) => void;
+}
+
+/**
  * Detect test command from repository
  */
 function detectTestCommand(repoDir: string): string | null {
@@ -46,8 +63,23 @@ function detectTestCommand(repoDir: string): string | null {
 export async function runTests(
   sandbox: any,
   repoDir: string,
+  options?: TestRunnerOptions,
 ): Promise<TestRunnerNodeState> {
+  const { onProgress } = options || {};
+
+  const emitProgress = (
+    stage: TestRunnerProgress["stage"],
+    message: string,
+    testCommand?: string,
+    outputLength?: number,
+  ) => {
+    if (onProgress) {
+      onProgress({ stage, testCommand, message, outputLength });
+    }
+  };
+
   logger.info({ repoDir }, "[TestRunnerNode] Running tests");
+  emitProgress("detecting", "Detecting test command...");
 
   const testCommand = detectTestCommand(repoDir);
 
@@ -56,6 +88,7 @@ export async function runTests(
       { repoDir },
       "[TestRunnerNode] No test command detected, skipping",
     );
+    emitProgress("complete", "No tests configured");
     return {
       testPassed: true, // No tests = pass
       testExitCode: 0,
@@ -63,22 +96,31 @@ export async function runTests(
     };
   }
 
+  emitProgress("running", `Running tests: ${testCommand}`, testCommand);
+
   try {
     const result = await sandbox.execute(`cd ${repoDir} && ${testCommand}`, {
       timeout: 300000, // 5 minutes
     });
 
     const passed = result.exitCode === 0;
+    const outputLength = result.output?.length || 0;
 
     logger.info(
       {
         testCommand,
         exitCode: result.exitCode,
         passed,
-        outputLength: result.output?.length || 0,
+        outputLength,
       },
       "[TestRunnerNode] Test execution completed",
     );
+
+    if (passed) {
+      emitProgress("complete", "Tests passed", testCommand, outputLength);
+    } else {
+      emitProgress("failed", "Tests failed", testCommand, outputLength);
+    }
 
     return {
       testPassed: passed,
@@ -88,6 +130,8 @@ export async function runTests(
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     logger.error({ error: errorMsg }, "[TestRunnerNode] Test execution failed");
+
+    emitProgress("failed", `Test execution error: ${errorMsg}`, testCommand);
 
     return {
       testPassed: false,

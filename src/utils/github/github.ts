@@ -8,6 +8,11 @@
 import { Octokit } from "octokit";
 import type { Sandbox } from "@daytonaio/sdk";
 import { SandboxService } from "../../integrations/sandbox-service";
+import {
+  cachedGithubApiCall,
+  invalidatePrCache,
+  invalidateRepoCache,
+} from "./github-cache";
 
 const logger = console;
 
@@ -543,6 +548,8 @@ export async function createGithubPr(
       },
       "[github] PR created successfully",
     );
+    // Invalidate PR cache for this repo
+    invalidatePrCache(baseRepoOwner, baseRepoName);
     return [prUrl, prNumber, false];
   };
 
@@ -712,12 +719,18 @@ export async function findExistingPr(
         "[github] Listing PRs",
       );
 
-      const { data: pulls } = await octokit.rest.pulls.list({
-        owner: baseRepoOwner,
-        repo: baseRepoName,
-        state,
-        per_page: 50,
-      });
+      const { data: pulls } = await cachedGithubApiCall(
+        "GET",
+        "pulls.list",
+        { owner: baseRepoOwner, repo: baseRepoName, state, per_page: 50 },
+        () =>
+          octokit.rest.pulls.list({
+            owner: baseRepoOwner,
+            repo: baseRepoName,
+            state,
+            per_page: 50,
+          }),
+      );
 
       logger.debug(
         { state, pullCount: pulls.length },
@@ -789,10 +802,16 @@ export async function getGithubDefaultBranch(
   try {
     const octokit = new Octokit({ auth: githubToken });
 
-    const { data: repo } = await octokit.rest.repos.get({
-      owner: repoOwner,
-      repo: repoName,
-    });
+    const { data: repo } = await cachedGithubApiCall(
+      "GET",
+      "repos.get",
+      { owner: repoOwner, repo: repoName },
+      () =>
+        octokit.rest.repos.get({
+          owner: repoOwner,
+          repo: repoName,
+        }),
+    );
 
     const defaultBranch = repo.default_branch ?? "main";
     logger.debug(
@@ -824,12 +843,18 @@ export async function listGithubPrs(
 ): Promise<any[]> {
   try {
     const octokit = new Octokit({ auth: githubToken });
-    const { data: pulls } = await octokit.rest.pulls.list({
-      owner: repoOwner,
-      repo: repoName,
-      state,
-      per_page: 50,
-    });
+    const { data: pulls } = await cachedGithubApiCall(
+      "GET",
+      "pulls.list",
+      { owner: repoOwner, repo: repoName, state, per_page: 50 },
+      () =>
+        octokit.rest.pulls.list({
+          owner: repoOwner,
+          repo: repoName,
+          state,
+          per_page: 50,
+        }),
+    );
     return pulls;
   } catch (error) {
     logger.error(`[github] Failed to list PRs:`, error);
@@ -858,6 +883,8 @@ export async function mergeGithubPr(
       repo: repoName,
       pull_number: prNumber,
     });
+    // Invalidate PR cache for this repo after merge
+    invalidatePrCache(repoOwner, repoName);
     return mergeResult;
   } catch (error: any) {
     logger.error(`[github] Failed to merge PR #${prNumber}:`, error);

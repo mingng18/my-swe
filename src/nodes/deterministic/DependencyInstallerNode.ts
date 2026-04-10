@@ -14,6 +14,22 @@ import { shellEscapeSingleQuotes } from "../../utils/shell";
 const logger = createLogger("dependency-installer-node");
 
 /**
+ * Progress callback type for dependency installation updates.
+ */
+export type DependencyInstallProgress = {
+  stage: "detecting" | "checking" | "installing" | "complete" | "failed";
+  packageManager?: string;
+  message: string;
+};
+
+/**
+ * Options for dependency installation.
+ */
+export interface DependencyInstallerOptions {
+  onProgress?: (progress: DependencyInstallProgress) => void;
+}
+
+/**
  * Sandbox backend interface for dependency installation.
  * Defines the minimum contract required for sandbox operations.
  */
@@ -117,8 +133,22 @@ async function hasNodeModules(
 export async function installDependencies(
   sandbox: SandboxBackend,
   repoDir: string,
+  options?: DependencyInstallerOptions,
 ): Promise<DependencyInstallerResult> {
+  const { onProgress } = options || {};
+
+  const emitProgress = (
+    stage: DependencyInstallProgress["stage"],
+    message: string,
+    packageManager?: string,
+  ) => {
+    if (onProgress) {
+      onProgress({ stage, packageManager, message });
+    }
+  };
+
   logger.info({ repoDir }, "[DependencyInstaller] Checking dependencies");
+  emitProgress("checking", "Checking for existing dependencies...");
 
   // Check if node_modules exists and is not empty
   const hasDeps = await hasNodeModules(sandbox, repoDir);
@@ -126,6 +156,7 @@ export async function installDependencies(
     logger.info(
       "[DependencyInstaller] node_modules already exists, skipping installation",
     );
+    emitProgress("complete", "Dependencies already installed");
     return {
       installed: false,
       packageManager: null,
@@ -133,18 +164,27 @@ export async function installDependencies(
     };
   }
 
+  emitProgress("detecting", "Detecting package manager...");
+
   // Detect package manager
   const packageManager = await detectPackageManager(sandbox, repoDir);
   if (!packageManager) {
     logger.warn(
       "[DependencyInstaller] No package manager detected, skipping installation",
     );
+    emitProgress("complete", "No package manager found");
     return {
       installed: false,
       packageManager: null,
       output: "No package manager found",
     };
   }
+
+  emitProgress(
+    "installing",
+    `Installing dependencies with ${packageManager}...`,
+    packageManager,
+  );
 
   // Map package manager to install command
   const installCommands: Record<string, string> = {
@@ -169,6 +209,11 @@ export async function installDependencies(
 
     if (result.exitCode === 0) {
       logger.info("[DependencyInstaller] Dependencies installed successfully");
+      emitProgress(
+        "complete",
+        `Dependencies installed with ${packageManager}`,
+        packageManager,
+      );
       return {
         installed: true,
         packageManager,
@@ -178,6 +223,11 @@ export async function installDependencies(
       logger.warn(
         { exitCode: result.exitCode, output: result.output },
         "[DependencyInstaller] Dependency installation failed",
+      );
+      emitProgress(
+        "failed",
+        `Installation failed with ${packageManager}`,
+        packageManager,
       );
       return {
         installed: false,
@@ -191,6 +241,7 @@ export async function installDependencies(
       { error: errorMsg },
       "[DependencyInstaller] Dependency installation error",
     );
+    emitProgress("failed", `Installation error: ${errorMsg}`, packageManager);
     return {
       installed: false,
       packageManager,

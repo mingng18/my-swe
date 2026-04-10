@@ -822,6 +822,10 @@ export class DeepAgentWrapper implements AgentHarness {
       };
     }
 
+    // Pass tools to configurable so tool_search can access them
+    const currentTools = useSandbox ? sandboxAllTools : allTools;
+    configurable.tools = currentTools;
+
     // Get or create a DeepAgent instance for this thread.
     let agent = threadAgentMap.get(threadId);
     if (!agent) {

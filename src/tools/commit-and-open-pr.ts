@@ -34,6 +34,10 @@ Commit all current changes and open a GitHub Pull Request.
 You MUST call this tool when you have completed your work and want to
 submit your changes for review. This is the final step in your workflow.
 
+IMPORTANT CITATION REQUIREMENT: After the PR is created, you MUST include
+the PR URL as a clickable markdown link in your response to the user.
+Format: [PR Title](https://github.com/owner/repo/pull/123)
+
 Before calling this tool, ensure you have:
 1. Reviewed your changes for correctness
 2. Run `make format` and `make lint` if a Makefile exists in the repo root
@@ -272,12 +276,18 @@ export const commitAndOpenPrTool = tool(
         });
       }
 
-      return JSON.stringify({
+      const response = {
         success: true,
         error: null,
         pr_url: prUrl,
         pr_existing: prExisting,
-      });
+      };
+
+      // Format response with citation reminder
+      const jsonString = JSON.stringify(response);
+      const citationReminder = `\n\nIMPORTANT: When responding to the user, you MUST include the PR URL as a clickable link: [${prUrl}](${prUrl})`;
+
+      return jsonString + citationReminder;
     } catch (error: any) {
       logger.error("[commit_and_open_pr] Error:", error);
       return JSON.stringify({
