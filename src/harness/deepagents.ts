@@ -45,6 +45,9 @@ import {
 } from "../utils/thread-metadata-store";
 import { clearSandboxBackend, setSandboxBackend } from "../utils/sandboxState";
 import { installDependencies } from "../nodes/deterministic/DependencyInstallerNode";
+import { builtInSubagents } from "../subagents/registry";
+import { loadRepoAgents, mergeSubagents } from "../subagents/agentsLoader";
+import { asyncSubagents } from "../subagents/async";
 import { type BaseMessage, type ToolCall } from "@langchain/core/messages";
 
 const logger = createLogger("deepagents");
@@ -255,6 +258,35 @@ async function createAgentInstance(args: {
 
   if (args.backend) {
     config.backend = args.backend;
+  }
+
+  // Add subagents if enabled
+  if (process.env.SUBAGENTS_ENABLED !== "false") {
+    // Load repo-specific agents
+    const repoAgentsDir = process.env.REPO_AGENTS_DIR || ".agents/agents";
+    const repoAgents = await loadRepoAgents(repoAgentsDir);
+
+    // Merge built-in and repo agents
+    const allSubagents = mergeSubagents(builtInSubagents, repoAgents);
+
+    config.subagents = allSubagents;
+    logger.info(
+      {
+        total: allSubagents.length,
+        builtIn: builtInSubagents.length,
+        repo: repoAgents.length,
+      },
+      "[deepagents] Subagents enabled",
+    );
+  }
+
+  // Add async subagents if enabled
+  if (process.env.ASYNC_SUBAGENTS_ENABLED === "true") {
+    config.asyncSubagents = asyncSubagents;
+    logger.info(
+      { count: asyncSubagents.length },
+      "[deepagents] Async subagents enabled",
+    );
   }
 
   const agent = createDeepAgent(config);

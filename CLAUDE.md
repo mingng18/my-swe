@@ -68,6 +68,40 @@ The model string is prefixed with `openai:` in `src/harness/deepagents.ts` to fo
 
 Create tool functions in `src/tools/` and export them. Tools are LangChain-compatible functions passed to DeepAgents via the `tools` array in `createDeepAgent()`.
 
+## Subagents
+
+Bullhorse supports subagents for specialized tasks:
+
+### Built-in Subagents
+
+- **explore-agent**: Fast, read-only codebase exploration. Use for finding files and searching code.
+- **plan-agent**: Software architect for implementation planning. Creates step-by-step plans with critical files.
+- **general-purpose**: Versatile research and multi-step tasks. Has access to all tools.
+- **verification-agent**: Async verification that runs tests, linters, and adversarial probes.
+
+### Usage
+
+The main agent automatically delegates to appropriate subagents. Enable with:
+
+```bash
+SUBAGENTS_ENABLED=true
+ASYNC_SUBAGENTS_ENABLED=true
+```
+
+### Custom Agents
+
+Define repo-specific agents in `.agents/agents/*.md`:
+
+```markdown
+---
+name: my-custom-agent
+description: Specialized agent for X
+tools: [code_search, semantic_search]
+---
+
+System prompt here...
+```
+
 ## Environment Setup
 
 Copy `.env.example` to `.env` and configure:
