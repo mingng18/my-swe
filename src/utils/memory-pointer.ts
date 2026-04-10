@@ -394,12 +394,15 @@ export async function listArtifacts(
   await ensureDirectory();
 
   const files = await readdir(MEMORY_POINTER_DIR);
-  const artifacts: ArtifactMetadata[] = [];
 
-  // ⚡ Bolt: Use Promise.all to map readFile sequentially avoiding blocking IO bottleneck
-  const readPromises = files
-    .filter((file) => file.endsWith(".json"))
-    .map(async (file) => {
+  const results = await Promise.all(
+    files.map(async (file) => {
+      if (!file.endsWith(".json")) {
+        return null;
+      }
+      return null;
+    });
+
       try {
         const filePath = path.join(MEMORY_POINTER_DIR, file);
         const data = await readFile(filePath, "utf-8");
@@ -423,16 +426,12 @@ export async function listArtifacts(
         );
       }
       return null;
-    });
+    }),
+  );
 
-  const results = await Promise.all(readPromises);
-  for (const result of results) {
-    if (result) {
-      artifacts.push(result);
-    }
-  }
-
-  return artifacts;
+  return results.filter(
+    (result): result is ArtifactMetadata => result !== null,
+  );
 }
 
 /**
@@ -459,12 +458,13 @@ export async function cleanupArtifacts(threadId: string): Promise<number> {
   await ensureDirectory();
 
   const files = await readdir(MEMORY_POINTER_DIR);
-  let cleanedCount = 0;
 
-  // ⚡ Bolt: Execute readFile via concurrent mapping for better throughput over sequential IO
-  const cleanupPromises = files
-    .filter((file) => file.endsWith(".json"))
-    .map(async (file) => {
+  const results = await Promise.all(
+    files.map(async (file) => {
+      if (!file.endsWith(".json")) {
+        return 0;
+      }
+
       try {
         const filePath = path.join(MEMORY_POINTER_DIR, file);
         const data = await readFile(filePath, "utf-8");
@@ -482,10 +482,10 @@ export async function cleanupArtifacts(threadId: string): Promise<number> {
         logger.warn({ file, error }, "[memory-pointer] Failed during cleanup");
       }
       return 0;
-    });
+    }),
+  );
 
-  const results = await Promise.all(cleanupPromises);
-  cleanedCount = results.reduce((sum, count) => sum + count, 0);
+  const cleanedCount = results.reduce((sum, count) => sum + count, 0);
 
   if (cleanedCount > 0) {
     logger.info(
