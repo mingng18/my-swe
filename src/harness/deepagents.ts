@@ -2,6 +2,12 @@ import { createLogger } from "../utils/logger";
 import { loadLlmConfig, loadModelConfig } from "../utils/config";
 import { createChatModel } from "../utils/model-factory";
 import { createDeepAgent, FilesystemBackend, type DeepAgent } from "deepagents";
+import {
+  isLangfuseEnabled,
+  flushLangfuse,
+  shutdownLangfuse,
+  createTrace,
+} from "../utils/langfuse";
 import { MemorySaver } from "@langchain/langgraph";
 import {
   modelRetryMiddleware,
@@ -972,6 +978,14 @@ If you need to make additional changes, continue working and they'll be added to
         `[deepagents] Calling DeepAgent invoke (input length: ${input.length} chars)`,
       );
 
+      // Log Langfuse tracing status
+      if (isLangfuseEnabled()) {
+        logger.info(
+          { threadId },
+          "[deepagents] Langfuse tracing enabled for this session",
+        );
+      }
+
       // Log the input being sent to the agent
       if (process.env.DEBUG_DEEPAGENTS === "true") {
         logger.debug({ input: modifiedInput }, "=== Agent Input ===");
@@ -981,6 +995,11 @@ If you need to make additional changes, continue working and they'll be added to
       let result: any;
 
       const traceTerminal = shouldTraceAgentToTerminal();
+
+      // Create Langfuse trace for this agent turn (manual instrumentation)
+      const langfuseTrace = isLangfuseEnabled()
+        ? createTrace("agent-turn", threadId)
+        : null;
 
       let invokeProgressTicker: ReturnType<typeof setInterval> | undefined;
       try {
@@ -999,6 +1018,12 @@ If you need to make additional changes, continue working and they'll be added to
         }
 
         // Retry/fallback is handled by middleware (modelRetryMiddleware, modelFallbackMiddleware)
+
+        // Update trace with input
+        if (langfuseTrace) {
+          langfuseTrace.update({ input: modifiedInput });
+        }
+
         result = traceTerminal
           ? await runDeepAgentWithStreamTrace(
               agent,
@@ -1007,7 +1032,10 @@ If you need to make additional changes, continue working and they'll be added to
             )
           : await agent.invoke(
               { messages: [{ role: "user", content: modifiedInput }] },
-              { configurable, recursionLimit: AGENT_RECURSION_LIMIT },
+              {
+                configurable,
+                recursionLimit: AGENT_RECURSION_LIMIT,
+              },
             );
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
@@ -1114,6 +1142,17 @@ If you need to make additional changes, continue working and they'll be added to
         logger.debug({ responseText }, "=== Final Agent Response ===");
       }
 
+      // Update Langfuse trace with output
+      if (langfuseTrace) {
+        langfuseTrace.update({
+          output: responseText,
+          metadata: {
+            totalMessages: messages.length,
+            responseLength: responseText.length,
+          },
+        });
+      }
+
       logger.info(
         `[deepagents] Total invoke time: ${Date.now() - startTime}ms`,
       );
@@ -1199,6 +1238,12 @@ If you need to make additional changes, continue working and they'll be added to
         }
       }
 
+      // Flush Langfuse traces (non-blocking)
+      // This ensures traces are sent without delaying the response
+      if (isLangfuseEnabled()) {
+        void flushLangfuse();
+      }
+
       return {
         reply: responseText,
         messages,
@@ -1210,6 +1255,12 @@ If you need to make additional changes, continue working and they'll be added to
         { err: e, message: errorMsg, stack: errorStack },
         `[deepagents] Invoke error after ${Date.now() - startTime}ms`,
       );
+
+      // Flush Langfuse traces even on error (non-blocking)
+      if (isLangfuseEnabled()) {
+        void flushLangfuse();
+      }
+
       return { reply: "", error: errorMsg };
     }
   }
@@ -1322,6 +1373,13 @@ export async function cleanupDeepAgents(): Promise<void> {
   threadSandboxMap.clear();
   threadAgentMap.clear();
   threadRepoMap.clear();
+
+  // Shutdown Langfuse to flush any pending traces
+  if (isLangfuseEnabled()) {
+    logger.info("[deepagents] Flushing Langfuse traces...");
+    await shutdownLangfuse();
+  }
+
   logger.info("[deepagents] Cleanup complete");
 }
 
