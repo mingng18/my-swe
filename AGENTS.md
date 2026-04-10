@@ -41,11 +41,17 @@ This repo uses a hierarchical AGENTS.md setup: open the closest file to your edi
 ### Package Structure
 
 - Source root: `src/` → [see `src/AGENTS.md`](src/AGENTS.md)
+- Agent harness: `src/harness/` → [see `src/harness/AGENTS.md`](src/harness/AGENTS.md)
 - Graph nodes: `src/nodes/` → [see `src/nodes/AGENTS.md`](src/nodes/AGENTS.md)
 - Model tools: `src/tools/` → [see `src/tools/AGENTS.md`](src/tools/AGENTS.md)
 - Integrations/sandbox: `src/integrations/` → [see `src/integrations/AGENTS.md`](src/integrations/AGENTS.md)
 - Shared utilities: `src/utils/` → [see `src/utils/AGENTS.md`](src/utils/AGENTS.md)
 - GitHub utilities: `src/utils/github/` → [see `src/utils/github/AGENTS.md`](src/utils/github/AGENTS.md)
+- Subagents: `src/subagents/` → [see `src/subagents/AGENTS.md`](src/subagents/AGENTS.md)
+- Middleware: `src/middleware/` → [see `src/middleware/AGENTS.md`](src/middleware/AGENTS.md)
+- Snapshot mgmt: `src/sandbox/` → [see `src/sandbox/AGENTS.md`](src/sandbox/AGENTS.md)
+- Agent skills: `src/skills/` → [see `src/skills/AGENTS.md`](src/skills/AGENTS.md)
+- Memory persistence: `src/memory/` → [see `src/memory/AGENTS.md`](src/memory/AGENTS.md)
 - Architecture reference: `docs/architecture-summary.md`
 
 ### Quick Find Commands
@@ -56,6 +62,10 @@ This repo uses a hierarchical AGENTS.md setup: open the closest file to your edi
 - Find env usage: `rg -n "process\\.env\\." src`
 - Find repo/sandbox wiring: `rg -n "threadId|workspaceDir|--repo|Sandbox" src/harness src/integrations`
 - Find GitHub API usage: `rg -n "octokit|pulls\\.|repos\\." src/utils/github`
+- Find middleware definitions: `rg -n "createMiddleware|wrapModelCall" src/middleware`
+- Find subagent definitions: `rg -n "name:.*description:.*systemPrompt" src/subagents`
+- Find skill definitions: `rg -n "^---$|name:|description:" .agents/skills`
+- Find harness implementations: `rg -n "class.*implements AgentHarness|export class.*Wrapper" src/harness`
 
 ## Definition of Done
 
