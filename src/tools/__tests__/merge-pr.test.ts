@@ -1,5 +1,5 @@
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
-import { mergePrTool } from "./merge-pr";
+import { mergePrTool } from "../merge-pr";
 
 describe("merge_pr tool", () => {
   let originalEnv: NodeJS.ProcessEnv;
@@ -73,7 +73,7 @@ describe("merge_pr tool", () => {
     }));
 
     // Import the tool after mocking
-    const { mergePrTool: mockMergePrTool } = await import("./merge-pr");
+    const { mergePrTool: mockMergePrTool } = await import("../merge-pr");
 
     const resultStr = await mockMergePrTool.invoke({ pr_number: 123 }, config);
     const result = JSON.parse(resultStr);
@@ -111,7 +111,7 @@ describe("merge_pr tool", () => {
     }));
 
     // Import the tool after mocking
-    const { mergePrTool: mockMergePrTool } = await import("./merge-pr");
+    const { mergePrTool: mockMergePrTool } = await import("../merge-pr");
 
     const resultStr = await mockMergePrTool.invoke({ pr_number: 123 }, config);
     const result = JSON.parse(resultStr);

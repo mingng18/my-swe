@@ -156,10 +156,54 @@ Bullhorse implements several layers of optimization to reduce token usage and im
 - `GET /dashboard/thread/:threadId` - Visual dashboard
 - Built-in pricing for OpenAI, Claude, DeepSeek models
 
+## Agent Skills
+
+Bullhorse supports a skills system that provides reusable, detailed instructions for common tasks. Skills are discovered from `.agents/skills/*.md` files and can be activated on-demand.
+
+### How Skills Work
+
+1. **Discovery**: Skills are automatically discovered from `.agents/skills/` directories at startup
+2. **Catalog**: A lightweight catalog of available skills is included in the system prompt
+3. **Activation**: When a task matches a skill's description, the agent uses `activate_skill` to load full instructions
+4. **Protection**: Skill content is protected from context compaction to ensure it remains available
+
+### Creating Skills
+
+Skills are Markdown files with YAML frontmatter:
+
+```markdown
+---
+name: my-skill
+description: A brief description of what this skill does
+version: 1.0.0
+tags: [tag1, tag2]
+---
+
+# Detailed Skill Instructions
+
+This is where you put the detailed instructions that the agent should follow when this skill is activated.
+```
+
+Place skill files in `.agents/skills/<skill-name>/SKILL.md` or `.agents/skills/<skill-name>.md`.
+
+### Example Skills
+
+The repository includes example skills in `.agents/skills/`:
+- `test-driven-development/` - TDD best practices
+- `systematic-debugging/` - Debugging workflows
+- `writing-plans/` - Planning techniques
+- `subagent-driven-development/` - Multi-agent patterns
+- And many more...
+
+### Skill Activation
+
+Skills are activated automatically by the agent when it recognizes a task that matches a skill's description. The agent uses the `activate_skill` tool to load the full skill content.
+
 ## New Tools
 
 | Tool | Purpose |
 | :--- | :--- |
+| `activate_skill` | Load and activate a skill by name |
 | `semantic_search` | Conceptual code search (by meaning, not pattern) |
 | `artifact_query` | Query stored memory pointers |
 | `artifact_list` | List all artifacts for current thread |
@@ -183,6 +227,10 @@ MAX_COST_PER_THREAD=10.0
 
 # Semantic Search
 SEMANTIC_SEARCH_ENABLED=true
+
+# Skills
+SKILLS_ENABLED=true
+SKILLS_PATH=.agents/skills
 
 # Telemetry
 OTEL_ENABLED=true

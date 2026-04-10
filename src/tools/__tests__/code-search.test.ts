@@ -19,7 +19,7 @@ describe("codeSearchTool", () => {
     });
 
     // Import after mocking
-    const toolModule = await import("./code-search");
+    const toolModule = await import("../code-search");
     codeSearchTool = toolModule.codeSearchTool;
   });
 
@@ -35,7 +35,10 @@ describe("codeSearchTool", () => {
   };
 
   test("returns error if thread_id is missing", async () => {
-    const result = await codeSearchTool.invoke({ pattern: "foo" }, { configurable: {} });
+    const result = await codeSearchTool.invoke(
+      { pattern: "foo" },
+      { configurable: {} },
+    );
     expect(JSON.parse(result)).toEqual({ error: "Missing thread_id" });
   });
 
@@ -44,12 +47,14 @@ describe("codeSearchTool", () => {
     mock.module("../utils/sandboxState", () => ({
       getSandboxBackendSync: () => null,
     }));
-    
+
     // We need to re-import because of how Bun's module mocking works
-    const { codeSearchTool: tool } = await import("./code-search");
+    const { codeSearchTool: tool } = await import("../code-search");
 
     const result = await tool.invoke({ pattern: "foo" }, baseConfig);
-    expect(JSON.parse(result)).toEqual({ error: "Sandbox backend not initialized. Is USE_SANDBOX=true set?" });
+    expect(JSON.parse(result)).toEqual({
+      error: "Sandbox backend not initialized. Is USE_SANDBOX=true set?",
+    });
   });
 
   describe("slice mode", () => {
@@ -61,10 +66,12 @@ describe("codeSearchTool", () => {
 
       const result = await codeSearchTool.invoke(
         { file_path: "test.ts", start_line: 1, end_line: 2 },
-        baseConfig
+        baseConfig,
       );
 
-      expect(mockExecute).toHaveBeenCalledWith("sed -n '1,2p' '/workspace/test.ts'");
+      expect(mockExecute).toHaveBeenCalledWith(
+        "sed -n '1,2p' '/workspace/test.ts'",
+      );
       expect(JSON.parse(result)).toEqual([
         { line_number: 1, content: "line1" },
         { line_number: 2, content: "line2" },
@@ -76,10 +83,12 @@ describe("codeSearchTool", () => {
 
       await codeSearchTool.invoke(
         { file_path: "test.ts", start_line: 1, end_line: 500 },
-        baseConfig
+        baseConfig,
       );
 
-      expect(mockExecute).toHaveBeenCalledWith("sed -n '1,201p' '/workspace/test.ts'");
+      expect(mockExecute).toHaveBeenCalledWith(
+        "sed -n '1,201p' '/workspace/test.ts'",
+      );
     });
 
     test("returns error on non-zero exit code", async () => {
@@ -90,19 +99,27 @@ describe("codeSearchTool", () => {
 
       const result = await codeSearchTool.invoke(
         { file_path: "test.ts", start_line: 1, end_line: 2 },
-        baseConfig
+        baseConfig,
       );
 
       expect(JSON.parse(result)).toEqual({
-        error: "Failed to read file slice: sed: can't read /workspace/test.ts: No such file or directory",
+        error:
+          "Failed to read file slice: sed: can't read /workspace/test.ts: No such file or directory",
       });
     });
 
     test("handles sandbox execute throwing an error in slice mode", async () => {
       mockExecute.mockRejectedValueOnce(new Error("Sandbox read failed"));
 
-      const rawResult = await codeSearchTool.invoke({ file_path: "test.ts", start_line: 1, end_line: 2 }, baseConfig);
-      expect(rawResult).toBe(JSON.stringify({ error: "Error executing search: Sandbox read failed" }));
+      const rawResult = await codeSearchTool.invoke(
+        { file_path: "test.ts", start_line: 1, end_line: 2 },
+        baseConfig,
+      );
+      expect(rawResult).toBe(
+        JSON.stringify({
+          error: "Error executing search: Sandbox read failed",
+        }),
+      );
     });
   });
 
@@ -110,7 +127,8 @@ describe("codeSearchTool", () => {
     test("returns error if missing required arguments", async () => {
       const result = await codeSearchTool.invoke({}, baseConfig);
       expect(JSON.parse(result)).toEqual({
-        error: "Must provide either `pattern` (search mode) or `file_path` + `start_line` + `end_line` (slice mode).",
+        error:
+          "Must provide either `pattern` (search mode) or `file_path` + `start_line` + `end_line` (slice mode).",
       });
     });
 
@@ -122,7 +140,7 @@ describe("codeSearchTool", () => {
 
       const result = await codeSearchTool.invoke(
         { pattern: "foo" },
-        baseConfig
+        baseConfig,
       );
 
       const parsed = JSON.parse(result);
@@ -150,7 +168,7 @@ describe("codeSearchTool", () => {
 
       const result = await codeSearchTool.invoke(
         { pattern: "foo", context_lines: 1 },
-        baseConfig
+        baseConfig,
       );
 
       const parsed = JSON.parse(result);
@@ -177,7 +195,10 @@ describe("codeSearchTool", () => {
         ].join("\n"),
       });
 
-      const rawResult = await codeSearchTool.invoke({ pattern: "const" }, baseConfig);
+      const rawResult = await codeSearchTool.invoke(
+        { pattern: "const" },
+        baseConfig,
+      );
       const result = JSON.parse(rawResult);
 
       expect(result.matches).toHaveLength(2);
@@ -194,19 +215,25 @@ describe("codeSearchTool", () => {
 
       const result = await codeSearchTool.invoke(
         { pattern: "foo" },
-        baseConfig
+        baseConfig,
       );
 
       expect(JSON.parse(result)).toEqual({
-        error: "ripgrep (rg) is not installed in this sandbox. Install it with: apt-get install -y ripgrep",
+        error:
+          "ripgrep (rg) is not installed in this sandbox. Install it with: apt-get install -y ripgrep",
       });
     });
 
     test("handles sandbox execute throwing an error in search mode", async () => {
       mockExecute.mockRejectedValueOnce(new Error("Sandbox crashed"));
 
-      const rawResult = await codeSearchTool.invoke({ pattern: "const" }, baseConfig);
-      expect(rawResult).toBe(JSON.stringify({ error: "Error executing search: Sandbox crashed" }));
+      const rawResult = await codeSearchTool.invoke(
+        { pattern: "const" },
+        baseConfig,
+      );
+      expect(rawResult).toBe(
+        JSON.stringify({ error: "Error executing search: Sandbox crashed" }),
+      );
     });
   });
 });
