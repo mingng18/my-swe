@@ -49,7 +49,10 @@ export interface AgentState {
 export interface DeterministicState {
   type: "deterministic";
   action: string;
+  /** Conditional transitions (takes precedence over next if both exist) */
   on?: ConditionalTransition;
+  /** Simple transition (used if on is not specified) */
+  next?: StateTransition;
 }
 
 /**

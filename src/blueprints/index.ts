@@ -40,6 +40,8 @@ export { selectBlueprint, getBlueprintById, listBlueprints } from "./selection";
 
 export { BlueprintCompiler, BlueprintCompilerError } from "./compiler";
 
+export { BlueprintStateAnnotation } from "./state";
+
 export {
   ActionRegistry,
   actionRegistry,

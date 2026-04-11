@@ -8,6 +8,7 @@ import type {
   DeterministicState,
 } from "./types";
 import { ActionRegistry } from "./actions";
+import { BlueprintStateAnnotation } from "./state";
 
 // Re-export for convenience
 export type { ActionRegistry } from "./actions";
@@ -25,21 +26,13 @@ export class BlueprintCompilerError extends Error {
 export class BlueprintCompiler {
   constructor(private actionRegistry: ActionRegistry) {}
 
-  compile(blueprint: Blueprint): StateGraph<BlueprintState> {
-    const channels = {
-      input: { value: (x?: string) => x ?? "", default: () => "" },
-      currentState: {
-        value: (x?: string) => x ?? "",
-        default: () => blueprint.initialState,
-      },
-      lastResult: { value: (x?: any) => x, default: () => undefined },
-      error: { value: (x?: string) => x ?? "", default: () => "" },
-    };
-    const graph = new StateGraph({ channels });
+  compile(blueprint: Blueprint) {
+    // Use Annotation.Root() for modern LangGraph StateGraph API
+    const graph = new StateGraph(BlueprintStateAnnotation);
 
-    // First pass: add all nodes with their potential destinations
+    // Add all nodes with their possible destinations
     for (const [stateId, state] of Object.entries(blueprint.states)) {
-      const ends = this.getNodeEnds(state, blueprint);
+      const ends = this.getNodeEnds(state);
       if (ends.length > 0) {
         graph.addNode(stateId, this.createNode(state, blueprint), { ends });
       } else {
@@ -48,11 +41,12 @@ export class BlueprintCompiler {
     }
 
     this.addEdges(graph, blueprint);
-    graph.setEntryPoint(blueprint.initialState);
+    graph.setEntryPoint(blueprint.initialState as any);
+
     return graph.compile();
   }
 
-  private getNodeEnds(state: State, blueprint: Blueprint): string[] {
+  private getNodeEnds(state: State): string[] {
     if (state.type === "agent") {
       return state.next;
     } else if (state.type === "deterministic" && state.on) {
@@ -62,7 +56,7 @@ export class BlueprintCompiler {
   }
 
   private createNode(state: State, blueprint: Blueprint) {
-    return async (graphState: BlueprintState) => {
+    return async (graphState: typeof BlueprintStateAnnotation.State) => {
       switch (state.type) {
         case "agent":
           return this.executeAgentNode(state, graphState);
@@ -81,8 +75,8 @@ export class BlueprintCompiler {
 
   private async executeAgentNode(
     state: AgentState,
-    graphState: BlueprintState,
-  ): Promise<BlueprintState> {
+    graphState: typeof BlueprintStateAnnotation.State,
+  ): Promise<typeof BlueprintStateAnnotation.State> {
     return {
       ...graphState,
       currentState: state.next[0] || "__end__",
@@ -95,8 +89,8 @@ export class BlueprintCompiler {
 
   private async executeDeterministicNode(
     state: DeterministicState,
-    graphState: BlueprintState,
-  ): Promise<BlueprintState> {
+    graphState: typeof BlueprintStateAnnotation.State,
+  ): Promise<typeof BlueprintStateAnnotation.State> {
     const action = this.actionRegistry.get(state.action);
     if (!action)
       throw new BlueprintCompilerError(
@@ -107,27 +101,33 @@ export class BlueprintCompiler {
     return { ...graphState, lastResult: result };
   }
 
-  private addEdges(
-    graph: StateGraph<BlueprintState>,
-    blueprint: Blueprint,
-  ): void {
+  private addEdges(graph: any, blueprint: Blueprint): void {
     for (const [stateId, state] of Object.entries(blueprint.states)) {
       if (state.type === "terminal") continue;
+
       if (state.type === "agent") {
-        for (const next of state.next) graph.addEdge(stateId, next);
+        for (const next of state.next) {
+          graph.addEdge(stateId, next);
+        }
       } else if (state.type === "deterministic") {
         if (state.on) {
+          // Use conditional edges if 'on' is specified
           graph.addConditionalEdges(
             stateId,
-            (s: BlueprintState) => (s.lastResult?.success ? "pass" : "fail"),
+            (s: typeof BlueprintStateAnnotation.State) =>
+              s.lastResult?.success ? "pass" : "fail",
             {
               pass: state.on.pass || ["__end__"],
               fail: state.on.fail || ["__end__"],
             },
           );
-        } else {
-          for (const next of state.next) graph.addEdge(stateId, next);
+        } else if (state.next) {
+          // Use simple edges if 'next' is specified
+          for (const next of state.next) {
+            graph.addEdge(stateId, next);
+          }
         }
+        // If neither 'on' nor 'next' is specified, the state transitions to __end__
       }
     }
   }
