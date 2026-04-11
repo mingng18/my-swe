@@ -109,6 +109,31 @@ tools: [code_search, semantic_search]
 System prompt here...
 ```
 
+## Blueprint System
+
+Bullhorse uses a blueprint system inspired by [Stripe Minions](https://stripe.com/blog/minions). Blueprints define state machine workflows that intermix agent nodes and deterministic nodes.
+
+### Usage
+
+```typescript
+import { loadBlueprints, selectBlueprint, compileBlueprint } from './blueprints';
+
+const blueprints = await loadBlueprints();
+const selection = selectBlueprint(task, blueprints);
+const graph = compileBlueprint(selection.blueprint, actionRegistry);
+await graph.invoke({ input: task, currentState: selection.blueprint.initialState });
+```
+
+### Default Blueprints
+
+- `bug-fix` - Fix bugs with verification loop
+- `feature` - Implement new features
+- `refactor` - Code restructuring
+- `test` - Add tests
+- `docs` - Documentation changes
+- `chore` - Maintenance tasks
+- `default` - Fallback for general tasks
+
 ## Environment Setup
 
 Copy `.env.example` to `.env` and configure:
