@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Blueprint",
+  "type": "object",
+  "required": ["id", "name", "description", "triggerKeywords", "priority", "states", "initialState"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "name": { "type": "string" },
+    "description": { "type": "string" },
+    "triggerKeywords": { "type": "array", "items": { "type": "string" } },
+    "priority": { "type": "number", "minimum": 0 },
+    "initialState": { "type": "string" },
+    "states": {
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": ["type", "config", "next"],
+            "properties": {
+              "type": { "const": "agent" },
+              "config": {
+                "type": "object",
+                "required": ["models", "tools"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "models": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+                  "tools": { "type": "array", "items": { "type": "string" } },
+                  "systemPrompt": { "type": "string" }
+                }
+              },
+              "next": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["type", "action"],
+            "properties": {
+              "type": { "const": "deterministic" },
+              "action": { "type": "string" },
+              "on": {
+                "type": "object",
+                "properties": {
+                  "pass": { "type": "array", "items": { "type": "string" } },
+                  "fail": { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["type"],
+            "properties": {
+              "type": { "const": "terminal" }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
