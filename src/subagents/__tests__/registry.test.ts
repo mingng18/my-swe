@@ -2,8 +2,8 @@ import { describe, it, expect } from "bun:test";
 import { builtInSubagents } from "../registry";
 
 describe("subagent registry", () => {
-  it("should have 3 built-in subagents", () => {
-    expect(builtInSubagents.length).toBe(3);
+  it("should have 8 built-in subagents", () => {
+    expect(builtInSubagents.length).toBe(8);
   });
 
   it("should have explore-agent with correct config", () => {
