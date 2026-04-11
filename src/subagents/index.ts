@@ -9,4 +9,19 @@ export {
   exploreTools,
   planTools,
   generalPurposeTools,
+  reviewerTools,
 } from "./toolFilter";
+
+export {
+  getReviewersForFile,
+  getReviewersForFiles,
+  shouldReviewerReviewFile,
+} from "./reviewerMapping";
+
+export {
+  parseReviewerOutput,
+  filterIssuesBySeverity,
+  hasCriticalIssues,
+  formatIssues,
+  type ReviewIssue,
+} from "./reviewerParser";
