@@ -10,20 +10,20 @@ export interface ReviewerMapping {
 export const REVIEWER_MAPPINGS: ReviewerMapping[] = [
   {
     patterns: ["\\.go$"],
-    reviewers: ["code-reviewer", "go-reviewer"]
+    reviewers: ["code-reviewer", "go-reviewer"],
   },
   {
     patterns: ["\\.py$"],
-    reviewers: ["code-reviewer", "python-reviewer"]
+    reviewers: ["code-reviewer", "python-reviewer"],
   },
   {
     patterns: ["\\.sql$", "migration", "schema"],
-    reviewers: ["code-reviewer", "database-reviewer"]
+    reviewers: ["code-reviewer", "database-reviewer"],
   },
   {
     patterns: ["auth", "login", "password", "routes", "api"],
-    reviewers: ["code-reviewer", "security-reviewer"]
-  }
+    reviewers: ["code-reviewer", "security-reviewer"],
+  },
 ];
 
 /**
@@ -31,17 +31,21 @@ export const REVIEWER_MAPPINGS: ReviewerMapping[] = [
  */
 export function getReviewersForFile(filePath: string): string[] {
   const defaultReviewers = ["code-reviewer"];
+  const allReviewers = new Set<string>(defaultReviewers);
 
   for (const mapping of REVIEWER_MAPPINGS) {
-    if (mapping.patterns.some(pattern =>
-      filePath.includes(pattern) ||
-      (pattern.startsWith("\\.") && new RegExp(pattern).test(filePath))
-    )) {
-      return [...new Set([...mapping.reviewers, ...defaultReviewers])];
+    if (
+      mapping.patterns.some(
+        (pattern) =>
+          filePath.includes(pattern) ||
+          (pattern.startsWith("\\.") && new RegExp(pattern).test(filePath)),
+      )
+    ) {
+      mapping.reviewers.forEach((reviewer) => allReviewers.add(reviewer));
     }
   }
 
-  return defaultReviewers;
+  return Array.from(allReviewers);
 }
 
 /**
@@ -50,9 +54,9 @@ export function getReviewersForFile(filePath: string): string[] {
 export function getReviewersForFiles(filePaths: string[]): string[] {
   const allReviewers = new Set<string>();
 
-  filePaths.forEach(filePath => {
+  filePaths.forEach((filePath) => {
     const reviewers = getReviewersForFile(filePath);
-    reviewers.forEach(reviewer => allReviewers.add(reviewer));
+    reviewers.forEach((reviewer) => allReviewers.add(reviewer));
   });
 
   return Array.from(allReviewers);
@@ -61,7 +65,10 @@ export function getReviewersForFiles(filePaths: string[]): string[] {
 /**
  * Check if a specific reviewer should review a file based on file path
  */
-export function shouldReviewerReviewFile(filePath: string, reviewerName: string): boolean {
+export function shouldReviewerReviewFile(
+  filePath: string,
+  reviewerName: string,
+): boolean {
   const reviewersForFile = getReviewersForFile(filePath);
   return reviewersForFile.includes(reviewerName);
 }
