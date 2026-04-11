@@ -7,7 +7,14 @@ import type {
   AgentState,
   DeterministicState,
 } from "./types";
-import { ActionRegistry } from "./actions";
+import {
+  ActionRegistry,
+  type ActionRegistry as ActionRegistryType,
+} from "./actions";
+
+// Re-export for convenience
+export type { ActionRegistryType as ActionRegistry };
+export { ActionRegistry } from "./actions";
 
 export class BlueprintCompilerError extends Error {
   constructor(
