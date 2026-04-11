@@ -6,7 +6,7 @@
  */
 
 import { allTools, sandboxAllTools } from "../tools/index";
-import type { StructuredTool } from "@langchain/core/tools";
+import type { StructuredTool } from "deepagents";
 
 /**
  * Filter tools by name using allowlist and blocklist patterns.

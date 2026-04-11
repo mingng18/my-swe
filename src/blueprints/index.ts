@@ -36,16 +36,9 @@ export {
   type LoaderOptions,
 } from "./loader";
 
-export {
-  selectBlueprint,
-  getBlueprintById,
-  listBlueprints,
-} from "./selection";
+export { selectBlueprint, getBlueprintById, listBlueprints } from "./selection";
 
-export {
-  BlueprintCompiler,
-  BlueprintCompilerError,
-} from "./compiler";
+export { BlueprintCompiler, BlueprintCompilerError } from "./compiler";
 
 export {
   ActionRegistry,
@@ -53,10 +46,7 @@ export {
   registerBuiltinActions,
 } from "./actions";
 
-export {
-  loadAndSelectBlueprints,
-  executeWithBlueprint,
-} from "./utils";
+export { loadAndSelectBlueprints, executeWithBlueprint } from "./utils";
 
 // Re-import types for utility functions
 import type { Blueprint } from "./types";
@@ -70,7 +60,10 @@ export async function loadBlueprints(options?: LoaderOptions) {
   return await loader.loadAll();
 }
 
-export function compileBlueprint(blueprint: Blueprint, actionRegistry: ActionRegistry) {
+export function compileBlueprint(
+  blueprint: Blueprint,
+  actionRegistry: ActionRegistry,
+) {
   const compiler = new BlueprintCompiler(actionRegistry);
   return compiler.compile(blueprint);
 }
@@ -78,13 +71,13 @@ export function compileBlueprint(blueprint: Blueprint, actionRegistry: ActionReg
 // Legacy exports (for backward compatibility)
 export {
   // Types
-  type BlueprintRegistry,
+  type OldBlueprintRegistry as BlueprintRegistry,
   type VerificationRequirements,
   type PRRequirements,
   type PromptCustomization,
 
   // Main exports
-  blueprintRegistry,
+  oldBlueprintRegistry as blueprintRegistry,
   buildInputWithBlueprint,
   blueprintToInvokeConfig,
   DEFAULT_BLUEPRINTS,
