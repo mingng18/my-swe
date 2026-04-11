@@ -21,13 +21,12 @@ import {
 } from "../utils/github/index";
 import { getSandboxBackendSync } from "../utils/sandboxState";
 import { createLogger } from "../utils/logger";
+import { getReviewersForFiles } from "../subagents/reviewerMapping";
 import {
-  getReviewersForFiles,
   parseReviewerOutput,
   hasCriticalIssues,
   formatIssues,
-} from "../subagents/reviewerMapping";
-import { builtInSubagents } from "../subagents/registry";
+} from "../subagents/reviewerParser";
 import { createDeepAgent } from "deepagents";
 
 const logger = createLogger("commit-and-open-pr-tool");
@@ -63,6 +62,9 @@ async function runPreCommitReview(
   // Run reviewers
   const reviewersToRun = getReviewersForFiles(changedFiles);
   logger.info(`[pre-commit] Running reviewers: ${reviewersToRun.join(", ")}`);
+
+  // Lazy import to avoid circular dependency
+  const { builtInSubagents } = await import("../subagents/registry");
 
   const allIssues: any[] = [];
   for (const reviewerName of reviewersToRun) {

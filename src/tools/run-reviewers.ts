@@ -3,8 +3,10 @@ import { z } from "zod";
 import { getSandboxBackendSync } from "../utils/sandboxState";
 import { runGit } from "../utils/github/github";
 import { getReviewersForFiles } from "../subagents/reviewerMapping";
-import { parseReviewerOutput, hasCriticalIssues } from "../subagents/reviewerParser";
-import { builtInSubagents } from "../subagents/registry";
+import {
+  parseReviewerOutput,
+  hasCriticalIssues,
+} from "../subagents/reviewerParser";
 import type { ReviewIssue } from "../subagents/reviewerParser";
 
 const scopeSchema = z.enum(["staged", "unstaged", "all"]).default("staged");
@@ -79,9 +81,9 @@ export const runReviewersTool = tool(
       }
 
       const files = result.output
-        .split('\n')
+        .split("\n")
         .filter(Boolean)
-        .map(file => file.trim());
+        .map((file) => file.trim());
 
       if (files.length === 0) {
         return JSON.stringify({
@@ -97,13 +99,18 @@ export const runReviewersTool = tool(
       // Get reviewers for these files
       const reviewerNames = getReviewersForFiles(files);
 
+      // Lazy import to avoid circular dependency
+      const { builtInSubagents } = await import("../subagents/registry");
+
       // Create and run reviewers
       const reviewerResults = [];
       let allIssues: ReviewIssue[] = [];
       let criticalFound = false;
 
       for (const reviewerName of reviewerNames) {
-        const reviewerConfig = builtInSubagents.find(agent => agent.name === reviewerName);
+        const reviewerConfig = builtInSubagents.find(
+          (agent) => agent.name === reviewerName,
+        );
 
         if (!reviewerConfig) {
           reviewerResults.push({
@@ -126,7 +133,7 @@ export const runReviewersTool = tool(
 
           // Run the review
           const result = await agent.invoke({
-            input: `Review these files for quality, security, and maintainability:\n\n${files.join('\n')}`,
+            input: `Review these files for quality, security, and maintainability:\n\n${files.join("\n")}`,
             configurable: { thread_id: threadId },
           });
 
@@ -143,9 +150,11 @@ export const runReviewersTool = tool(
             status: "success",
             issues_count: issues.length,
             critical_issues: hasCriticalIssues(issues),
-            summary: issues.length === 0 ? "No issues found" : `${issues.length} issues detected`,
+            summary:
+              issues.length === 0
+                ? "No issues found"
+                : `${issues.length} issues detected`,
           });
-
         } catch (error) {
           reviewerResults.push({
             name: reviewerName,
@@ -156,9 +165,9 @@ export const runReviewersTool = tool(
       }
 
       // Generate summary
-      const summary = reviewerResults.map(r =>
-        `${r.name}: ${r.summary}`
-      ).join('\n');
+      const summary = reviewerResults
+        .map((r) => `${r.name}: ${r.summary}`)
+        .join("\n");
 
       return JSON.stringify({
         success: true,
@@ -167,16 +176,17 @@ export const runReviewersTool = tool(
         summary,
         reviewer_results: reviewerResults,
       });
-
     } catch (error) {
       return JSON.stringify({
-        error: error instanceof Error ? error.message : "Unknown error occurred",
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
       });
     }
   },
   {
     name: "run_reviewers",
-    description: "Run multiple reviewer agents on code changes based on file patterns",
+    description:
+      "Run multiple reviewer agents on code changes based on file patterns",
     schema: runReviewersSchema,
-  }
+  },
 );
