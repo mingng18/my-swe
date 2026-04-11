@@ -1,0 +1,34 @@
+# .blueprints/test.yaml
+id: "test"
+name: "Test Addition"
+description: "For adding tests"
+triggerKeywords: ["test", "spec", "coverage"]
+priority: 70
+initialState: "implement"
+states:
+  implement:
+    type: "agent"
+    config:
+      models: ["sonnet"]
+      tools: ["write", "read", "code_search"]
+      systemPrompt: "Write comprehensive tests."
+    next: ["run_test"]
+  run_test:
+    type: "deterministic"
+    action: "run_tests"
+    on:
+      pass: ["create_pr"]
+      fail: ["fix_test"]
+  fix_test:
+    type: "agent"
+    config:
+      models: ["sonnet"]
+      tools: ["edit", "write", "read"]
+      systemPrompt: "Fix failing tests."
+    next: ["run_test"]
+  create_pr:
+    type: "deterministic"
+    action: "create_pr"
+    next: ["done"]
+  done:
+    type: "terminal"

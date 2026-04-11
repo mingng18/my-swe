@@ -1,0 +1,61 @@
+# .blueprints/refactor.yaml
+id: "refactor"
+name: "Refactoring"
+description: "For code refactoring and cleanup"
+triggerKeywords: ["refactor", "cleanup", "reorganize", "restructure"]
+priority: 80
+initialState: "analyze"
+states:
+  analyze:
+    type: "agent"
+    config:
+      models: ["claude-sonnet-4-6"]
+      tools: ["read", "code_search", "grep"]
+      systemPrompt: "Analyze the code to refactor."
+    next: ["plan"]
+  plan:
+    type: "agent"
+    config:
+      models: ["claude-sonnet-4-6"]
+      tools: ["read"]
+      systemPrompt: "Plan the refactoring."
+    next: ["implement"]
+  implement:
+    type: "agent"
+    config:
+      models: ["claude-sonnet-4-6", "sonnet"]
+      tools: ["edit", "write", "read"]
+      systemPrompt: "Implement the refactoring."
+    next: ["lint"]
+  lint:
+    type: "deterministic"
+    action: "run_linters"
+    on:
+      pass: ["test"]
+      fail: ["fix_lint"]
+  fix_lint:
+    type: "agent"
+    config:
+      models: ["sonnet"]
+      tools: ["edit", "write", "read"]
+      systemPrompt: "Fix lint errors."
+    next: ["lint"]
+  test:
+    type: "deterministic"
+    action: "run_tests"
+    on:
+      pass: ["create_pr"]
+      fail: ["fix_test"]
+  fix_test:
+    type: "agent"
+    config:
+      models: ["sonnet"]
+      tools: ["edit", "write", "read"]
+      systemPrompt: "Fix failing tests."
+    next: ["test"]
+  create_pr:
+    type: "deterministic"
+    action: "create_pr"
+    next: ["done"]
+  done:
+    type: "terminal"

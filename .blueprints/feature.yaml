@@ -1,0 +1,54 @@
+# .blueprints/feature.yaml
+id: "feature"
+name: "Feature Implementation"
+description: "For implementing new features"
+triggerKeywords: ["implement", "add", "feature", "create", "new"]
+priority: 90
+initialState: "plan"
+states:
+  plan:
+    type: "agent"
+    config:
+      models: ["claude-sonnet-4-6"]
+      tools: ["read", "grep", "code_search"]
+      systemPrompt: "Plan the feature implementation."
+    next: ["implement"]
+  implement:
+    type: "agent"
+    config:
+      models: ["claude-sonnet-4-6", "sonnet"]
+      tools: ["edit", "write", "read", "code_search"]
+      systemPrompt: "Implement the feature."
+    next: ["lint"]
+  lint:
+    type: "deterministic"
+    action: "run_linters"
+    on:
+      pass: ["test"]
+      fail: ["fix_lint"]
+  fix_lint:
+    type: "agent"
+    config:
+      models: ["sonnet"]
+      tools: ["edit", "write", "read"]
+      systemPrompt: "Fix lint errors."
+    next: ["lint"]
+  test:
+    type: "deterministic"
+    action: "run_tests"
+    on:
+      pass: ["create_pr"]
+      fail: ["fix_test"]
+  fix_test:
+    type: "agent"
+    config:
+      models: ["sonnet"]
+      tools: ["edit", "write", "read"]
+      systemPrompt: "Fix failing tests."
+    next: ["test"]
+  create_pr:
+    type: "deterministic"
+    action: "create_pr"
+    next: ["done"]
+  done:
+    type: "terminal"

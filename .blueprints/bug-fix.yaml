@@ -1,0 +1,61 @@
+# .blueprints/bug-fix.yaml
+id: "bug-fix"
+name: "Bug Fix"
+description: "For fixing bugs and errors"
+triggerKeywords: ["fix", "bug", "error", "broken", "not working", "issue"]
+priority: 100
+initialState: "explore"
+states:
+  explore:
+    type: "agent"
+    config:
+      models: ["haiku"]
+      tools: ["code_search", "semantic_search", "read"]
+      systemPrompt: "Find the root cause of the bug."
+    next: ["plan"]
+  plan:
+    type: "agent"
+    config:
+      models: ["claude-sonnet-4-6", "haiku"]
+      tools: ["read", "grep"]
+      systemPrompt: "Plan the bug fix."
+    next: ["implement"]
+  implement:
+    type: "agent"
+    config:
+      models: ["claude-sonnet-4-6", "sonnet"]
+      tools: ["edit", "write", "read", "code_search"]
+      systemPrompt: "Implement the bug fix."
+    next: ["lint"]
+  lint:
+    type: "deterministic"
+    action: "run_linters"
+    on:
+      pass: ["test"]
+      fail: ["fix_lint"]
+  fix_lint:
+    type: "agent"
+    config:
+      models: ["sonnet"]
+      tools: ["edit", "write", "read"]
+      systemPrompt: "Fix the lint errors."
+    next: ["lint"]
+  test:
+    type: "deterministic"
+    action: "run_tests"
+    on:
+      pass: ["create_pr"]
+      fail: ["fix_test"]
+  fix_test:
+    type: "agent"
+    config:
+      models: ["sonnet"]
+      tools: ["edit", "write", "read"]
+      systemPrompt: "Fix the failing tests."
+    next: ["test"]
+  create_pr:
+    type: "deterministic"
+    action: "create_pr"
+    next: ["done"]
+  done:
+    type: "terminal"

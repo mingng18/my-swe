@@ -1,0 +1,17 @@
+# .blueprints/default.yaml
+id: "default"
+name: "Default"
+description: "Default blueprint for general tasks"
+triggerKeywords: []
+priority: 0
+initialState: "implement"
+states:
+  implement:
+    type: "agent"
+    config:
+      models: ["claude-sonnet-4-6"]
+      tools: ["read", "write", "edit", "code_search", "grep"]
+      systemPrompt: "Complete the task."
+    next: ["done"]
+  done:
+    type: "terminal"

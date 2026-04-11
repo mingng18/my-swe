@@ -1,0 +1,43 @@
+# .blueprints/chore.yaml
+id: "chore"
+name: "Chore"
+description: "For maintenance tasks"
+triggerKeywords: ["chore", "update", "upgrade", "dependency", "config"]
+priority: 50
+initialState: "implement"
+states:
+  implement:
+    type: "agent"
+    config:
+      models: ["sonnet"]
+      tools: ["edit", "write", "read", "code_search"]
+      systemPrompt: "Complete the maintenance task."
+    next: ["lint"]
+  lint:
+    type: "deterministic"
+    action: "run_linters"
+    on:
+      pass: ["test"]
+      fail: ["fix_lint"]
+  fix_lint:
+    type: "agent"
+    config:
+      models: ["sonnet"]
+      tools: ["edit", "write", "read"]
+      systemPrompt: "Fix lint errors."
+    next: ["lint"]
+  test:
+    type: "deterministic"
+    action: "run_tests"
+    on:
+      pass: ["done"]
+      fail: ["fix_test"]
+  fix_test:
+    type: "agent"
+    config:
+      models: ["sonnet"]
+      tools: ["edit", "write", "read"]
+      systemPrompt: "Fix broken tests."
+    next: ["test"]
+  done:
+    type: "terminal"

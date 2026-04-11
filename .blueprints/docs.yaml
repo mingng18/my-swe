@@ -1,0 +1,17 @@
+# .blueprints/docs.yaml
+id: "docs"
+name: "Documentation"
+description: "For documentation changes"
+triggerKeywords: ["document", "doc", "readme", "comment"]
+priority: 60
+initialState: "implement"
+states:
+  implement:
+    type: "agent"
+    config:
+      models: ["haiku"]
+      tools: ["write", "edit", "read"]
+      systemPrompt: "Update documentation."
+    next: ["done"]
+  done:
+    type: "terminal"
