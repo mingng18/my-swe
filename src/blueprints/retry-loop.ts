@@ -420,7 +420,12 @@ export function initializeMemoryServices(): void {
   try {
     memoryRepository = new MemoryRepository();
     embeddingService = new EmbeddingService();
-    searchService = new SearchService(memoryRepository, embeddingService);
+    searchService = new SearchService(memoryRepository, {
+      generateEmbedding: (text: string) =>
+        embeddingService!.generateEmbedding(text),
+      cosineSimilarity: (a: number[], b: number[]) =>
+        EmbeddingService.cosineSimilarity(a, b),
+    });
 
     console.log("[Memory] Services initialized successfully");
   } catch (error) {

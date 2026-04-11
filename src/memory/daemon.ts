@@ -53,16 +53,28 @@ export class MemoryDaemon {
     repository?: MemoryRepository,
     consolidationService?: ConsolidationService,
     embeddingService?: EmbeddingService,
-    consolidationInterval?: number
+    consolidationInterval?: number,
   ) {
-    this.repository =
-      repository ||
-      new MemoryRepository();
-    this.embeddingService =
-      embeddingService || new EmbeddingService();
-    this.consolidationService =
-      consolidationService ||
-      new ConsolidationService(this.repository, this.embeddingService);
+    this.repository = repository || new MemoryRepository();
+    this.embeddingService = embeddingService || new EmbeddingService();
+
+    // Create consolidation service with proper embedding interface
+    if (consolidationService) {
+      this.consolidationService = consolidationService;
+    } else {
+      // Create embedding service interface
+      const embeddingInterface = {
+        generateEmbedding: (text: string) =>
+          this.embeddingService.generateEmbedding(text),
+        cosineSimilarity: (a: number[], b: number[]) =>
+          EmbeddingService.cosineSimilarity(a, b),
+      };
+      this.consolidationService = new ConsolidationService(
+        this.repository,
+        embeddingInterface,
+      );
+    }
+
     this.consolidationInterval =
       consolidationInterval || DEFAULT_CONSOLIDATION_INTERVAL_MS;
   }
@@ -74,14 +86,14 @@ export class MemoryDaemon {
     repository?: MemoryRepository,
     consolidationService?: ConsolidationService,
     embeddingService?: EmbeddingService,
-    consolidationInterval?: number
+    consolidationInterval?: number,
   ): MemoryDaemon {
     if (!MemoryDaemon.instance) {
       MemoryDaemon.instance = new MemoryDaemon(
         repository,
         consolidationService,
         embeddingService,
-        consolidationInterval
+        consolidationInterval,
       );
     }
     return MemoryDaemon.instance;
@@ -104,7 +116,7 @@ export class MemoryDaemon {
         interval: this.consolidationInterval,
         nextRun: this.getNextConsolidationTime(),
       },
-      "Memory daemon started"
+      "Memory daemon started",
     );
   }
 
@@ -168,7 +180,7 @@ export class MemoryDaemon {
 
     logger.info(
       { sessionsCount: this.sessions.size },
-      "Starting consolidation cycle"
+      "Starting consolidation cycle",
     );
 
     const results = {
@@ -195,16 +207,13 @@ export class MemoryDaemon {
         if (result.errors.length > 0) {
           logger.warn(
             { threadId, errors: result.errors },
-            "Consolidation completed with errors"
+            "Consolidation completed with errors",
           );
         }
       } catch (error) {
         results.errors++;
         this.totalErrors++;
-        logger.error(
-          { error, threadId },
-          "Consolidation failed for thread"
-        );
+        logger.error({ error, threadId }, "Consolidation failed for thread");
       }
     }
 
@@ -219,7 +228,7 @@ export class MemoryDaemon {
         errors: results.errors,
         totalConsolidations: this.totalConsolidations,
       },
-      "Consolidation cycle completed"
+      "Consolidation cycle completed",
     );
 
     // Schedule next consolidation
@@ -336,12 +345,12 @@ export function getMemoryDaemon(
   repository?: MemoryRepository,
   consolidationService?: ConsolidationService,
   embeddingService?: EmbeddingService,
-  consolidationInterval?: number
+  consolidationInterval?: number,
 ): MemoryDaemon {
   return MemoryDaemon.getInstance(
     repository,
     consolidationService,
     embeddingService,
-    consolidationInterval
+    consolidationInterval,
   );
 }

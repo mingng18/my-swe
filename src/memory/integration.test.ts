@@ -132,8 +132,18 @@ describe("Memory System Integration", () => {
     repository = new MemoryRepository(mockClient as any);
     extractor = new MemoryExtractor();
     embeddingService = new EmbeddingService();
-    searchService = new SearchService(repository, embeddingService);
-    consolidationService = new ConsolidationService(repository, embeddingService);
+    searchService = new SearchService(repository, {
+      generateEmbedding: (text: string) =>
+        embeddingService.generateEmbedding(text),
+      cosineSimilarity: (a: number[], b: number[]) =>
+        EmbeddingService.cosineSimilarity(a, b),
+    });
+    consolidationService = new ConsolidationService(repository, {
+      generateEmbedding: (text: string) =>
+        embeddingService.generateEmbedding(text),
+      cosineSimilarity: (a: number[], b: number[]) =>
+        EmbeddingService.cosineSimilarity(a, b),
+    });
   });
 
   afterEach(() => {
@@ -152,7 +162,8 @@ describe("Memory System Integration", () => {
         threadId,
         userText: "I prefer using TypeScript strict mode",
         input: "I prefer using TypeScript strict mode",
-        agentReply: "I'll implement this using TypeScript with strict mode enabled",
+        agentReply:
+          "I'll implement this using TypeScript with strict mode enabled",
       };
 
       const extractedMemories = extractor.extractFromTurn(turn);

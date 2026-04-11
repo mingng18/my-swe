@@ -141,6 +141,10 @@ export function initializeMemoryServices(): void {
   } catch (error) {
     logger.error({ error }, "[Memory] Failed to initialize services");
     // Don't throw - allow the server to start without memory
+    // Initialize services as null to prevent runtime errors
+    memoryRepository = null;
+    embeddingService = null;
+    memoryExtractor = null;
   }
 }
 
@@ -186,7 +190,7 @@ export async function extractAndSaveMemories(
     const memories = await Promise.all(
       extractedMemories.map(async (extracted) => {
         const text = `${extracted.title}. ${extracted.content}`;
-        const embedding = await embeddingService.generateEmbedding(text);
+        const embedding = await embeddingService!.generateEmbedding(text);
 
         return {
           threadId,
