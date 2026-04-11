@@ -14,10 +14,70 @@
  * ```
  */
 
+// New state machine exports
+export type {
+  Blueprint,
+  State,
+  AgentState,
+  DeterministicState,
+  TerminalState,
+  AgentConfig,
+  StateTransition,
+  ConditionalTransition,
+  BlueprintSelection,
+  BlueprintState,
+  ActionResult,
+  DeterministicAction,
+} from "./types";
+
+export {
+  BlueprintLoader,
+  BlueprintValidationError,
+  type LoaderOptions,
+} from "./loader";
+
+export {
+  selectBlueprint,
+  getBlueprintById,
+  listBlueprints,
+} from "./selection";
+
+export {
+  BlueprintCompiler,
+  BlueprintCompilerError,
+} from "./compiler";
+
+export {
+  ActionRegistry,
+  actionRegistry,
+  registerBuiltinActions,
+} from "./actions";
+
+export {
+  loadAndSelectBlueprints,
+  executeWithBlueprint,
+} from "./utils";
+
+// Re-import types for utility functions
+import type { Blueprint } from "./types";
+import type { LoaderOptions } from "./loader";
+import type { ActionRegistry } from "./compiler";
+import { BlueprintLoader } from "./loader";
+import { BlueprintCompiler } from "./compiler";
+
+export async function loadBlueprints(options?: LoaderOptions) {
+  const loader = new BlueprintLoader(options);
+  return await loader.loadAll();
+}
+
+export function compileBlueprint(blueprint: Blueprint, actionRegistry: ActionRegistry) {
+  const compiler = new BlueprintCompiler(actionRegistry);
+  return compiler.compile(blueprint);
+}
+
+// Legacy exports (for backward compatibility)
 export {
   // Types
-  type Blueprint,
-  type BlueprintSelection,
   type BlueprintRegistry,
   type VerificationRequirements,
   type PRRequirements,
@@ -25,7 +85,6 @@ export {
 
   // Main exports
   blueprintRegistry,
-  selectBlueprint,
   buildInputWithBlueprint,
   blueprintToInvokeConfig,
   DEFAULT_BLUEPRINTS,
