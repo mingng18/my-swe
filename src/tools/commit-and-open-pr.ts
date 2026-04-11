@@ -21,8 +21,76 @@ import {
 } from "../utils/github/index";
 import { getSandboxBackendSync } from "../utils/sandboxState";
 import { createLogger } from "../utils/logger";
+import {
+  getReviewersForFiles,
+  parseReviewerOutput,
+  hasCriticalIssues,
+  formatIssues,
+} from "../subagents/reviewerMapping";
+import { builtInSubagents } from "../subagents/registry";
+import { createDeepAgent } from "deepagents";
 
 const logger = createLogger("commit-and-open-pr-tool");
+
+async function runPreCommitReview(
+  sandbox: any,
+  workspaceDir: string,
+): Promise<{ shouldBlock: boolean; issues: any[]; summary: string }> {
+  // Check if enabled
+  if (process.env.REVIEWERS_PRE_COMMIT_ENABLED === "false") {
+    return {
+      shouldBlock: false,
+      issues: [],
+      summary: "Pre-commit reviews disabled",
+    };
+  }
+  // Get staged files
+  const diffResult = await runGit(
+    sandbox,
+    workspaceDir,
+    "git diff --staged --name-only",
+  );
+  if (!diffResult)
+    return { shouldBlock: false, issues: [], summary: "No staged files" };
+
+  const changedFiles = diffResult
+    .trim()
+    .split("\\n")
+    .filter((f) => f.length > 0);
+  if (changedFiles.length === 0)
+    return { shouldBlock: false, issues: [], summary: "No staged files" };
+
+  // Run reviewers
+  const reviewersToRun = getReviewersForFiles(changedFiles);
+  logger.info(`[pre-commit] Running reviewers: ${reviewersToRun.join(", ")}`);
+
+  const allIssues: any[] = [];
+  for (const reviewerName of reviewersToRun) {
+    try {
+      const reviewer = builtInSubagents.find((a) => a.name === reviewerName);
+      if (!reviewer) continue;
+
+      const agent = createDeepAgent({ subagents: [reviewer] });
+      const prompt = `Review staged files for issues.\\n\\nFiles: ${changedFiles.join("\\n")}\\n\\nRun git diff --staged to see changes.`;
+
+      const result = await agent.invoke(
+        { messages: [{ role: "user", content: prompt }] },
+        { configurable: { thread_id: `pre-commit-${Date.now()}` } },
+      );
+
+      const output = result.messages[result.messages.length - 1]?.content || "";
+      const issues = parseReviewerOutput(String(output));
+      allIssues.push(...issues);
+    } catch (err) {
+      logger.warn(`[pre-commit] Reviewer ${reviewerName} failed:`, err);
+    }
+  }
+
+  const criticalFound = hasCriticalIssues(allIssues);
+  const summary = `Pre-commit: ${allIssues.length} issue(s) (${allIssues.filter((i) => i.severity === "CRITICAL").length} CRITICAL)`;
+
+  return { shouldBlock: criticalFound, issues: allIssues, summary };
+}
 
 function shellEscapeSingleQuotes(input: string): string {
   return `'${input.replace(/'/g, `'"'"'`)}'`;
@@ -113,7 +181,7 @@ Returns:
     - pr_existing: Whether a PR already existed for this branch
  **/
 export const commitAndOpenPrTool = tool(
-  async ({ title, body, commit_message }, config) => {
+  async ({ title, body, commit_message, force }, config) => {
     const threadId = config?.configurable?.thread_id as string | undefined;
     if (!threadId)
       return JSON.stringify({
@@ -245,6 +313,29 @@ export const commitAndOpenPrTool = tool(
       // Stage all changes
       await gitAddAll(sandbox, workspaceDir);
 
+      // Run pre-commit reviewers
+      const reviewResult = await runPreCommitReview(sandbox, workspaceDir);
+
+      if (reviewResult.shouldBlock) {
+        if (force) {
+          logger.warn(
+            "[commit_and_open_pr] Force override: proceeding despite CRITICAL issues",
+          );
+        } else {
+          return JSON.stringify({
+            success: false,
+            error:
+              "Commit blocked by reviewers. CRITICAL issues must be fixed first.",
+            blocked: true,
+            issues: reviewResult.issues,
+            summary: reviewResult.summary,
+            pr_url: null,
+          });
+        }
+      }
+
+      logger.info(`[commit_and_open_pr] ${reviewResult.summary}`);
+
       // Create commit with co-author trailer (following Python implementation)
       const commitMsg = addUserCoauthorTrailer(
         commit_message || title,
@@ -307,6 +398,11 @@ export const commitAndOpenPrTool = tool(
         .string()
         .optional()
         .describe("Optional git commit message"),
+      force: z
+        .boolean()
+        .optional()
+        .default(false)
+        .describe("Bypass reviewer blocks (logged with warning)"),
     }),
   },
 );
