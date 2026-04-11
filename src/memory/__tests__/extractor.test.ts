@@ -303,6 +303,7 @@ describe("MemoryExtractor", () => {
       expect(memories[0].title).toBeDefined();
       expect(memories[0].title.length).toBeGreaterThan(0);
       expect(memories[0].title.length).toBeLessThan(100);
+      expect(memories[0].title).toContain("[preference]");
     });
 
     it("should deduplicate identical memories", () => {
@@ -330,6 +331,91 @@ describe("MemoryExtractor", () => {
       const memories = extractor.extractFromTurn(turn);
 
       expect(memories).toEqual([]);
+    });
+
+    it("should extract only the captured group content, not full text", () => {
+      const turn: TurnResult = {
+        threadId: "test-thread",
+        userText: "I prefer using TypeScript over JavaScript",
+        input: "I prefer using TypeScript over JavaScript",
+      };
+
+      const memories = extractor.extractFromTurn(turn);
+
+      expect(memories).toHaveLength(1);
+      expect(memories[0].content).toBe("using TypeScript over JavaScript");
+      expect(memories[0].content).not.toContain("I prefer");
+    });
+
+    it("should handle empty or whitespace content gracefully", () => {
+      const turn: TurnResult = {
+        threadId: "test-thread",
+        userText: "   ",
+        input: "   ",
+        agentReply: "",
+      };
+
+      const memories = extractor.extractFromTurn(turn);
+
+      expect(memories).toEqual([]);
+    });
+
+    it("should extract agent errors", () => {
+      const turn: TurnResult = {
+        threadId: "test-thread",
+        userText: "Run the command",
+        input: "Run the command",
+        agentError: "Error: Command failed with exit code 1",
+      };
+
+      const memories = extractor.extractFromTurn(turn);
+
+      const errorMemories = memories.filter(
+        (m) => m.metadata.category === "agent_error",
+      );
+      expect(errorMemories.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe("Pattern Extraction Quality", () => {
+    it("should extract preference with sentence boundary", () => {
+      const turn: TurnResult = {
+        threadId: "test-thread",
+        userText: "I prefer using TypeScript. It's more type-safe.",
+        input: "I prefer using TypeScript. It's more type-safe.",
+      };
+
+      const memories = extractor.extractFromTurn(turn);
+
+      expect(memories).toHaveLength(1);
+      expect(memories[0].content).toBe("using TypeScript");
+    });
+
+    it("should extract expertise with sentence boundary", () => {
+      const turn: TurnResult = {
+        threadId: "test-thread",
+        userText: "I'm a senior developer with 5 years of experience",
+        input: "I'm a senior developer with 5 years of experience",
+      };
+
+      const memories = extractor.extractFromTurn(turn);
+
+      expect(memories).toHaveLength(1);
+      expect(memories[0].content).toBe(
+        "senior developer with 5 years of experience",
+      );
+    });
+
+    it("should include category in title", () => {
+      const turn: TurnResult = {
+        threadId: "test-thread",
+        userText: "I prefer using TypeScript",
+        input: "I prefer using TypeScript",
+      };
+
+      const memories = extractor.extractFromTurn(turn);
+
+      expect(memories[0].title).toMatch(/^\[preference\]/i);
     });
   });
 });

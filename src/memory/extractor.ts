@@ -1,6 +1,15 @@
 import type { ExtractedMemory, TurnResult } from "./types";
 
 /**
+ * Constants for memory extraction
+ */
+const EXTRACTION_CONSTANTS = {
+  MAX_TITLE_LENGTH: 50,
+  PATTERN_MATCH_GROUP: 1,
+  MIN_CONTENT_LENGTH: 1,
+} as const;
+
+/**
  * Extracts memories from agent turns using pattern matching
  */
 export class MemoryExtractor {
@@ -11,13 +20,18 @@ export class MemoryExtractor {
     const memories: ExtractedMemory[] = [];
 
     // Extract from user text
-    if (turn.userText) {
+    if (turn.userText && this.isValidContent(turn.userText)) {
       memories.push(...this.extractFromUserText(turn.userText));
     }
 
     // Extract from agent reply
-    if (turn.agentReply) {
+    if (turn.agentReply && this.isValidContent(turn.agentReply)) {
       memories.push(...this.extractFromAgentReply(turn.agentReply));
+    }
+
+    // Extract from agent error
+    if (turn.agentError && this.isValidContent(turn.agentError)) {
+      memories.push(...this.extractFromAgentError(turn.agentError));
     }
 
     // Extract from deterministic results
@@ -30,6 +44,13 @@ export class MemoryExtractor {
   }
 
   /**
+   * Validate content is not empty or whitespace only
+   */
+  private isValidContent(content: string): boolean {
+    return content.trim().length >= EXTRACTION_CONSTANTS.MIN_CONTENT_LENGTH;
+  }
+
+  /**
    * Extract memories from user text
    */
   private extractFromUserText(text: string): ExtractedMemory[] {
@@ -37,20 +58,22 @@ export class MemoryExtractor {
 
     // User preferences
     const preferencePatterns = [
-      /I prefer (.+)/i,
-      /I like (.+)/i,
-      /I'd rather (.+)/i,
-      /I usually (.+)/i,
-      /I typically (.+)/i,
+      /I prefer (.+?)(?:\.|$)/i,
+      /I like (.+?)(?:\.|$)/i,
+      /I'd rather (.+?)(?:\.|$)/i,
+      /I usually (.+?)(?:\.|$)/i,
+      /I typically (.+?)(?:\.|$)/i,
     ];
 
     for (const pattern of preferencePatterns) {
       const match = text.match(pattern);
-      if (match) {
+      if (match && match[EXTRACTION_CONSTANTS.PATTERN_MATCH_GROUP]) {
+        const extractedContent =
+          match[EXTRACTION_CONSTANTS.PATTERN_MATCH_GROUP].trim();
         memories.push({
           type: "user",
-          title: this.generateTitle(text, "preference"),
-          content: text.trim(),
+          title: this.generateTitle(extractedContent, "preference"),
+          content: extractedContent,
           metadata: { pattern: "preference" },
         });
         break;
@@ -59,29 +82,31 @@ export class MemoryExtractor {
 
     // User expertise/role
     const expertisePatterns = [
-      /I am a (.+)/i,
-      /I'm a (.+)/i,
-      /I am an? (.+)/i,
-      /I'm an? (.+)/i,
-      /I work as a (.+)/i,
+      /I am a (.+?)(?:\.|$)/i,
+      /I'm a (.+?)(?:\.|$)/i,
+      /I am an? (.+?)(?:\.|$)/i,
+      /I'm an? (.+?)(?:\.|$)/i,
+      /I work as a (.+?)(?:\.|$)/i,
     ];
 
     for (const pattern of expertisePatterns) {
       const match = text.match(pattern);
-      if (match) {
+      if (match && match[EXTRACTION_CONSTANTS.PATTERN_MATCH_GROUP]) {
+        const extractedContent =
+          match[EXTRACTION_CONSTANTS.PATTERN_MATCH_GROUP].trim();
         memories.push({
           type: "user",
-          title: this.generateTitle(text, "expertise"),
-          content: text.trim(),
+          title: this.generateTitle(extractedContent, "expertise"),
+          content: extractedContent,
           metadata: { pattern: "expertise" },
         });
         break;
       }
     }
 
-    // Negative feedback
+    // Negative feedback - use word boundaries and sentence context
     const negativePatterns = [
-      /\bno\b/i,
+      /\bno\b(?!\s+matter|s+)\b/i,
       /\bdon't\b/i,
       /\bdoesn't\b/i,
       /\bwrong\b/i,
@@ -102,9 +127,9 @@ export class MemoryExtractor {
       }
     }
 
-    // Positive feedback
+    // Positive feedback - use word boundaries and sentence context
     const positivePatterns = [
-      /\byes\b/i,
+      /\byes\b(?!\s+please|s+)\b/i,
       /\bcorrect\b/i,
       /\bperfect\b/i,
       /\bgreat\b/i,
@@ -156,9 +181,10 @@ export class MemoryExtractor {
           found = true;
           break;
         }
-        if (found) break;
       }
-      if (found) break;
+      if (found) {
+        break;
+      }
     }
 
     // If no specific system found, try generic patterns
@@ -173,6 +199,37 @@ export class MemoryExtractor {
           });
           break;
         }
+      }
+    }
+
+    return memories;
+  }
+
+  /**
+   * Extract memories from agent error
+   */
+  private extractFromAgentError(error: string): ExtractedMemory[] {
+    const memories: ExtractedMemory[] = [];
+
+    // Extract error patterns
+    const errorPatterns = [
+      /\berror\b/i,
+      /\bfailed\b/i,
+      /\btimeout\b/i,
+      /\bexception\b/i,
+      /\bcannot\b/i,
+      /\bunable\b/i,
+    ];
+
+    for (const pattern of errorPatterns) {
+      if (pattern.test(error)) {
+        memories.push({
+          type: "project",
+          title: this.generateTitle(error, "agent_error"),
+          content: error.trim(),
+          metadata: { category: "agent_error" },
+        });
+        break;
       }
     }
 
@@ -292,12 +349,15 @@ export class MemoryExtractor {
    * Generate a meaningful title from content
    */
   private generateTitle(content: string, category: string): string {
-    // Take first 50 chars and add category
-    const preview = content.substring(0, 50).trim();
+    // Take first N chars and add category
+    const preview = content
+      .substring(0, EXTRACTION_CONSTANTS.MAX_TITLE_LENGTH)
+      .trim();
     const title = preview.length < content.length ? `${preview}...` : preview;
 
-    // Capitalize first letter
-    return title.charAt(0).toUpperCase() + title.slice(1);
+    // Capitalize first letter and add category prefix
+    const capitalized = title.charAt(0).toUpperCase() + title.slice(1);
+    return `[${category}] ${capitalized}`;
   }
 
   /**
