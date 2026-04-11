@@ -9,6 +9,9 @@ import { runCodeagentTurn } from "./server";
 import { getEmailForIdentity } from "./utils/identity";
 import { isDuplicateMessage } from "./utils/telegram";
 
+// Memory system integration
+import { getMemoryDaemon } from "./memory/daemon";
+
 // Message queue for concurrent requests
 const messageQueue = new Map<string, string[]>();
 const activeThreads = new Set<string>();
@@ -206,6 +209,45 @@ try {
     "[codeagent] Agent provider init failed — check OPENAI_BASE_URL, OPENAI_API_KEY, MODEL in .env",
   );
   process.exit(1);
+}
+
+// Initialize Memory Daemon if enabled
+const memoryConsolidationEnabled =
+  process.env.MEMORY_CONSOLIDATION_ENABLED === "true";
+
+if (memoryConsolidationEnabled) {
+  try {
+    const consolidationIntervalHours = parseInt(
+      process.env.MEMORY_CONSOLIDATION_INTERVAL_HOURS || "6",
+      10,
+    );
+    const consolidationIntervalMs = consolidationIntervalHours * 60 * 60 * 1000;
+
+    const memoryDaemon = getMemoryDaemon(
+      undefined,
+      undefined,
+      undefined,
+      consolidationIntervalMs,
+    );
+
+    memoryDaemon.start();
+
+    logger.info(
+      {
+        interval: consolidationIntervalHours,
+        intervalMs: consolidationIntervalMs,
+      },
+      "[codeagent] Memory consolidation daemon started",
+    );
+  } catch (err) {
+    logger.error(
+      { err },
+      "[codeagent] Memory daemon initialization failed — continuing without memory consolidation",
+    );
+    // Don't exit - memory daemon is optional
+  }
+} else {
+  logger.info("[codeagent] Memory consolidation daemon disabled");
 }
 
 logger.info("[codeagent] starting web server with polling mode…");

@@ -19,6 +19,13 @@ import { memorySearchTool } from "./memory-search";
 import { memoryGetTool } from "./memory-get";
 import { memoryForgetTool } from "./memory-forget";
 
+// Memory tools export for easy access
+export const MEMORY_TOOLS = [
+  memorySearchTool,
+  memoryGetTool,
+  memoryForgetTool,
+] as const;
+
 // Compression wrapper (optional, controlled by RTK_COMPRESSION_ENABLED)
 import { wrapToolsWithCompression } from "./compression-wrapper";
 

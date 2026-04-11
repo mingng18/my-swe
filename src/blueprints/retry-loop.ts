@@ -25,6 +25,12 @@ import { loadTelegramConfig } from "../utils/config";
  */
 import { storeEscalation } from "../utils/escalation-store";
 
+// Memory integration
+import { MemoryRepository } from "../memory/repository";
+import { SearchService } from "../memory/search";
+import { EmbeddingService } from "../memory/embeddings";
+import type { MemorySearchResult } from "../memory/types";
+
 export enum NodeType {
   DETERMINISTIC = "deterministic",
   AGENTIC = "agentic",
@@ -338,7 +344,9 @@ export async function defaultEscalationHandler(
   try {
     await storeEscalation(nodeId, attempts, lastError);
   } catch (error) {
-    console.error(`[Blueprint Escalation] Failed to store escalation record: ${error}`);
+    console.error(
+      `[Blueprint Escalation] Failed to store escalation record: ${error}`,
+    );
   }
 
   // Notify admin via Telegram if configured
@@ -386,3 +394,149 @@ export function createBoundedRetryLoop(options?: {
  * This can be used across the application for consistent retry behavior.
  */
 export const globalRetryLoop = createBoundedRetryLoop();
+
+/**
+ * Memory System Integration
+ *
+ * Injects relevant memory context into agent turns based on semantic search.
+ * This helps the agent remember user preferences, project context, and feedback.
+ */
+
+// Memory services singleton
+let memoryRepository: MemoryRepository | null = null;
+let searchService: SearchService | null = null;
+let embeddingService: EmbeddingService | null = null;
+
+/**
+ * Initialize memory services (called on server startup if enabled)
+ */
+export function initializeMemoryServices(): void {
+  const memoryEnabled = process.env.MEMORY_ENABLED === "true";
+
+  if (!memoryEnabled) {
+    return;
+  }
+
+  try {
+    memoryRepository = new MemoryRepository();
+    embeddingService = new EmbeddingService();
+    searchService = new SearchService(memoryRepository, embeddingService);
+
+    console.log("[Memory] Services initialized successfully");
+  } catch (error) {
+    console.error("[Memory] Failed to initialize services:", error);
+    // Don't throw - allow the server to start without memory
+  }
+}
+
+/**
+ * Inject memory context into user input before agent processing
+ *
+ * This function searches for relevant memories and prepends them to the input,
+ * giving the agent context about user preferences, project history, and feedback.
+ *
+ * @param userText - The user's input message
+ * @param threadId - The thread ID for memory isolation
+ * @returns Enhanced input with memory context prepended
+ */
+export async function injectMemoryContext(
+  userText: string,
+  threadId: string,
+): Promise<string> {
+  // Check if memory is enabled
+  const memoryEnabled = process.env.MEMORY_ENABLED === "true";
+  if (!memoryEnabled || !searchService) {
+    return userText;
+  }
+
+  try {
+    // Search for relevant memories
+    const limit = parseInt(process.env.MEMORY_MAX_RESULTS || "5", 10);
+    const threshold = parseFloat(
+      process.env.MEMORY_SIMILARITY_THRESHOLD || "0.75",
+    );
+
+    const results: MemorySearchResult[] = await searchService.search({
+      query: userText,
+      threadIds: [threadId],
+      limit,
+      similarityThreshold: threshold,
+    });
+
+    if (results.length === 0) {
+      return userText;
+    }
+
+    // Format memories as context
+    const memoryContext = formatMemoryContext(results);
+
+    // Prepend memory context to user input
+    return `${memoryContext}\n\n[Current User Input]\n${userText}`;
+  } catch (error) {
+    console.error("[Memory] Failed to inject context:", error);
+    // Return original input on error
+    return userText;
+  }
+}
+
+/**
+ * Format memory search results as context for the agent
+ */
+function formatMemoryContext(results: MemorySearchResult[]): string {
+  const sections: Record<string, MemorySearchResult[]> = {
+    user: [],
+    feedback: [],
+    project: [],
+    reference: [],
+  };
+
+  // Group results by type
+  for (const result of results) {
+    if (sections[result.type]) {
+      sections[result.type].push(result);
+    }
+  }
+
+  const lines: string[] = ["[Relevant Context from Memory]"];
+
+  // Add user preferences and expertise
+  if (sections.user.length > 0) {
+    lines.push("\n👤 User Preferences & Expertise:");
+    for (const mem of sections.user) {
+      lines.push(`  • ${mem.title}: ${mem.preview}`);
+    }
+  }
+
+  // Add feedback
+  if (sections.feedback.length > 0) {
+    lines.push("\n💬 Previous Feedback:");
+    for (const mem of sections.feedback) {
+      lines.push(`  • ${mem.title}: ${mem.preview}`);
+    }
+  }
+
+  // Add project context
+  if (sections.project.length > 0) {
+    lines.push("\n📁 Project Context:");
+    for (const mem of sections.project) {
+      lines.push(`  • ${mem.title}: ${mem.preview}`);
+    }
+  }
+
+  // Add external system references
+  if (sections.reference.length > 0) {
+    lines.push("\n🔗 External References:");
+    for (const mem of sections.reference) {
+      lines.push(`  • ${mem.title}: ${mem.preview}`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Check if memory services are available
+ */
+export function isMemoryEnabled(): boolean {
+  return process.env.MEMORY_ENABLED === "true" && searchService !== null;
+}
