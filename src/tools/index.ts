@@ -15,6 +15,9 @@ import { activateSkillTool } from "./activate-skill";
 import { toolSearchTool } from "./tool-search";
 import { listMcpResourcesTool } from "./list-mcp-resources";
 import { readMcpResourceTool } from "./read-mcp-resource";
+import { memorySearchTool } from "./memory-search";
+import { memoryGetTool } from "./memory-get";
+import { memoryForgetTool } from "./memory-forget";
 
 // Compression wrapper (optional, controlled by RTK_COMPRESSION_ENABLED)
 import { wrapToolsWithCompression } from "./compression-wrapper";
@@ -35,6 +38,9 @@ export const allToolsUncompressed = [
   toolSearchTool,
   listMcpResourcesTool,
   readMcpResourceTool,
+  memorySearchTool,
+  memoryGetTool,
+  memoryForgetTool,
 ];
 
 export const sandboxAllToolsUncompressed = [
