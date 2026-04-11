@@ -645,4 +645,145 @@ app.get("/trace/:threadId", async (c) => {
   }
 });
 
+/**
+ * Memory consolidation endpoints
+ */
+
+/**
+ * Trigger immediate consolidation for a thread
+ * POST /api/memory/consolidate
+ */
+app.post("/api/memory/consolidate", async (c) => {
+  try {
+    const { threadId } = await c.req.json();
+
+    if (!threadId || typeof threadId !== "string") {
+      return c.json(
+        { error: "threadId is required and must be a string" },
+        400,
+      );
+    }
+
+    const { getMemoryDaemon } = await import("./memory/daemon");
+    const daemon = getMemoryDaemon();
+
+    const result = await daemon.triggerConsolidation(threadId);
+
+    if (!result.success) {
+      return c.json({ error: result.error }, 500);
+    }
+
+    return c.json({
+      success: true,
+      threadId,
+      result: result.result,
+    });
+  } catch (error) {
+    log.error({ error }, "[webapp] /api/memory/consolidate error");
+    return c.json(
+      { error: error instanceof Error ? error.message : "Unknown error" },
+      500,
+    );
+  }
+});
+
+/**
+ * Get consolidation daemon status
+ * GET /api/memory/consolidation/status
+ */
+app.get("/api/memory/consolidation/status", async (c) => {
+  try {
+    const { getMemoryDaemon } = await import("./memory/daemon");
+    const daemon = getMemoryDaemon();
+
+    const status = daemon.getStatus();
+
+    return c.json(status);
+  } catch (error) {
+    log.error({ error }, "[webapp] /api/memory/consolidation/status error");
+    return c.json(
+      { error: error instanceof Error ? error.message : "Unknown error" },
+      500,
+    );
+  }
+});
+
+/**
+ * Get registered consolidation sessions
+ * GET /api/memory/consolidation/sessions
+ */
+app.get("/api/memory/consolidation/sessions", async (c) => {
+  try {
+    const { getMemoryDaemon } = await import("./memory/daemon");
+    const daemon = getMemoryDaemon();
+
+    const sessions = daemon.getRegisteredSessions();
+
+    return c.json({
+      sessions,
+      count: sessions.length,
+    });
+  } catch (error) {
+    log.error({ error }, "[webapp] /api/memory/consolidation/sessions error");
+    return c.json(
+      { error: error instanceof Error ? error.message : "Unknown error" },
+      500,
+    );
+  }
+});
+
+/**
+ * Start the consolidation daemon
+ * POST /api/memory/consolidation/start
+ */
+app.post("/api/memory/consolidation/start", async (c) => {
+  try {
+    const { getMemoryDaemon } = await import("./memory/daemon");
+    const daemon = getMemoryDaemon();
+
+    daemon.start();
+
+    const status = daemon.getStatus();
+
+    return c.json({
+      success: true,
+      message: "Consolidation daemon started",
+      status,
+    });
+  } catch (error) {
+    log.error({ error }, "[webapp] /api/memory/consolidation/start error");
+    return c.json(
+      { error: error instanceof Error ? error.message : "Unknown error" },
+      500,
+    );
+  }
+});
+
+/**
+ * Stop the consolidation daemon
+ * POST /api/memory/consolidation/stop
+ */
+app.post("/api/memory/consolidation/stop", async (c) => {
+  try {
+    const { getMemoryDaemon } = await import("./memory/daemon");
+    const daemon = getMemoryDaemon();
+
+    daemon.stop();
+
+    const status = daemon.getStatus();
+
+    return c.json({
+      success: true,
+      message: "Consolidation daemon stopped",
+      status,
+    });
+  } catch (error) {
+    log.error({ error }, "[webapp] /api/memory/consolidation/stop error");
+    return c.json(
+      { error: error instanceof Error ? error.message : "Unknown error" },
+      500,
+    );
+  }
+});
+
 export default app;
