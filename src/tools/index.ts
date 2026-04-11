@@ -18,6 +18,7 @@ import { readMcpResourceTool } from "./read-mcp-resource";
 import { memorySearchTool } from "./memory-search";
 import { memoryGetTool } from "./memory-get";
 import { memoryForgetTool } from "./memory-forget";
+import { runReviewersTool } from "./run-reviewers";
 
 // Memory tools export for easy access
 export const MEMORY_TOOLS = [
@@ -48,6 +49,7 @@ export const allToolsUncompressed = [
   memorySearchTool,
   memoryGetTool,
   memoryForgetTool,
+  runReviewersTool,
 ];
 
 export const sandboxAllToolsUncompressed = [
