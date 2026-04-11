@@ -74,10 +74,17 @@ Bullhorse supports subagents for specialized tasks:
 
 ### Built-in Subagents
 
-- **explore-agent**: Fast, read-only codebase exploration. Use for finding files and searching code.
-- **plan-agent**: Software architect for implementation planning. Creates step-by-step plans with critical files.
-- **general-purpose**: Versatile research and multi-step tasks. Has access to all tools.
-- **verification-agent**: Async verification that runs tests, linters, and adversarial probes.
+| Agent | Description |
+|-------|-------------|
+| explore-agent | Fast, read-only codebase exploration. Use for finding files and searching code. |
+| plan-agent | Software architect for implementation planning. Creates step-by-step plans with critical files. |
+| general-purpose | Versatile research and multi-step tasks. Has access to all tools. |
+| verification-agent | Async verification that runs tests, linters, and adversarial probes. |
+| code-reviewer | General code quality, security, and maintainability |
+| database-reviewer | PostgreSQL optimization and schema design |
+| security-reviewer | OWASP Top 10 and vulnerability detection |
+| go-reviewer | Idiomatic Go, concurrency, and error handling |
+| python-reviewer | PEP 8 compliance and Pythonic patterns |
 
 ### Usage
 

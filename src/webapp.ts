@@ -151,6 +151,10 @@ app.post("/run", async (c) => {
  * Chat completion style endpoint (compatible with OpenAI format)
  *
  * POST /v1/chat/completions
+ * Body: {
+ *   "messages": [{"role": "user", "content": "..."}],
+ *   "thread_id": "optional-conversation-id"  // maintains conversation history
+ * }
  */
 app.post("/v1/chat/completions", async (c) => {
   try {
@@ -166,13 +170,17 @@ app.post("/v1/chat/completions", async (c) => {
         ? userMessage.content
         : JSON.stringify(userMessage.content);
 
-    const out = await runCodeagentTurn(input);
+    // Optional thread_id for conversation history (defaults to "default")
+    const threadId = body.thread_id || "default";
+
+    const out = await runCodeagentTurn(input, threadId);
 
     return c.json({
       id: `chatcmpl-${Date.now()}`,
       object: "chat.completion",
       created: Math.floor(Date.now() / 1000),
       model: body.model || "codeagent",
+      thread_id: threadId,
       choices: [
         {
           index: 0,

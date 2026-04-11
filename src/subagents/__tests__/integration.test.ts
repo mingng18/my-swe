@@ -19,6 +19,21 @@ describe("subagents integration", () => {
     expect(agent).toBeDefined();
   });
 
+  it("should have exactly 8 built-in subagents", () => {
+    expect(builtInSubagents.length).toBe(8);
+    const subagentNames = builtInSubagents.map((agent) => agent.name);
+    expect(subagentNames).toEqual([
+      "explore-agent",
+      "plan-agent",
+      "general-purpose",
+      "code-reviewer",
+      "database-reviewer",
+      "security-reviewer",
+      "go-reviewer",
+      "python-reviewer",
+    ]);
+  });
+
   it("should create agent with async subagents", async () => {
     const modelConfig = loadModelConfig();
     const model = await createChatModel(modelConfig);

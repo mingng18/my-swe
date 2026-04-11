@@ -3,7 +3,7 @@
 ## Package Identity
 
 Request processing middleware for the agent pipeline.
-Provides message queue management, loop detection, tool invocation limits, context compaction, and skill protection.
+Provides message queue management, loop detection, tool invocation limits, context compaction (4-level cascade), and skill protection.
 Middleware wraps model calls via `createMiddleware()` from `langchain`.
 
 ## Setup & Run
@@ -28,6 +28,7 @@ Middleware wraps model calls via `createMiddleware()` from `langchain`.
 
 - Loop detection: `src/middleware/loop-detection.ts`
 - Tool invocation limits: `src/middleware/tool-invocation-limits.ts`
+- **Compact middleware**: `src/middleware/compact-middleware/` (4-level compaction cascade)
 - Progressive context editing: `src/middleware/progressive-context-edit.ts`
 - Skill compaction protection: `src/middleware/skill-compaction-protection.ts`
 - Open PR safety net: `src/middleware/open-pr.ts`
@@ -42,7 +43,9 @@ Middleware wraps model calls via `createMiddleware()` from `langchain`.
 
 ## Common Gotchas
 
-- Middleware execution order matters: resilience (retry/fallback) → limits (loop detection, tool limits) → custom (skills, context).
+- Middleware execution order matters: resilience (retry/fallback) → compaction (compact-middleware) → limits (loop detection, tool limits) → custom (skills, context).
+- **Compact middleware** runs a 4-level cascade every turn: COLLAPSE → TRUNCATE → MICROCOMPACT → (threshold exceeded?) → SUMMARIZE
+- **Compact middleware** uses a circuit breaker to prevent failed compactions; resets on success.
 - Loop detection counts consecutive identical tool calls; not all repeated calls are loops (agent may retry legitimately).
 - Tool invocation limits are per-thread; clear thread tracking on cleanup.
 - Progressive context editing compacts based on message importance; skills are protected from compaction.

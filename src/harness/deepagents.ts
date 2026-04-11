@@ -21,6 +21,7 @@ import { createLoopDetectionMiddleware } from "../middleware/loop-detection";
 import { createEnsureNoEmptyMsgMiddleware } from "../middleware/ensure-no-empty-msg";
 import { toolInvocationTracker } from "../middleware/tool-invocation-limits";
 import { createSkillCompactionProtectionMiddleware } from "../middleware/skill-compaction-protection";
+import { createCompactionMiddleware } from "../middleware/compact-middleware";
 import type {
   AgentHarness,
   AgentInvokeOptions,
@@ -231,7 +232,45 @@ async function createAgentInstance(args: {
     }),
     // Skills: protect skill content from context compaction
     createSkillCompactionProtectionMiddleware(),
-    // Context management: progressive compaction with message importance scoring
+    // Context management: 4-level compaction cascade (COLLAPSE, TRUNCATE, MICROCOMPACT, SUMMARIZE)
+    createCompactionMiddleware({
+      model: chatModel,
+      modelName: modelConfig.model || "gpt-4o",
+      config: {
+        // Use environment variables or defaults
+        trigger: process.env.COMPACTION_TRIGGER_FRACTION
+          ? {
+              type: "fraction",
+              value: Number.parseFloat(process.env.COMPACTION_TRIGGER_FRACTION),
+            }
+          : { type: "fraction", value: 0.85 },
+        keep: process.env.COMPACTION_KEEP_MESSAGES
+          ? {
+              type: "messages",
+              value: Number.parseInt(process.env.COMPACTION_KEEP_MESSAGES, 10),
+            }
+          : { type: "messages", value: 10 },
+        maxConsecutiveFailures: Number.parseInt(
+          process.env.COMPACTION_MAX_FAILURES || "3",
+          10,
+        ),
+        microcompact: {
+          enabled: process.env.COMPACTION_MICROCOMPACT !== "false",
+          gapThresholdMinutes: Number.parseInt(
+            process.env.COMPACTION_MICROCOMPACT_GAP_MINUTES || "60",
+            10,
+          ),
+        },
+        restoration: {
+          enabled: process.env.COMPACTION_RESTORATION !== "false",
+          maxFiles: Number.parseInt(
+            process.env.COMPACTION_RESTORATION_MAX_FILES || "5",
+            10,
+          ),
+        },
+      },
+    }),
+    // Legacy: progressive compaction with message importance scoring (kept as fallback)
     contextEditingMiddleware({
       edits: [createProgressiveContextEdit()],
     }),
