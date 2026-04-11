@@ -1,10 +1,10 @@
 import { describe, expect, test, beforeEach } from "bun:test";
 import {
-  BlueprintRegistry,
-  selectBlueprint,
+  OldBlueprintRegistry as BlueprintRegistry,
+  selectOldBlueprint as selectBlueprint,
   buildInputWithBlueprint,
   DEFAULT_BLUEPRINTS,
-  type Blueprint,
+  type OldBlueprint as Blueprint,
 } from "./blueprint";
 
 describe("Blueprint Pattern", () => {
@@ -17,7 +17,6 @@ describe("Blueprint Pattern", () => {
       registry.register(blueprint);
     }
   });
-
 
   describe("BlueprintRegistry.getById", () => {
     test("returns undefined for a non-existent blueprint ID", () => {

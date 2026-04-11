@@ -71,13 +71,14 @@ export function compileBlueprint(
 // Legacy exports (for backward compatibility)
 export {
   // Types
-  type OldBlueprintRegistry as BlueprintRegistry,
   type VerificationRequirements,
   type PRRequirements,
   type PromptCustomization,
 
-  // Main exports
+  // Classes and values
+  OldBlueprintRegistry as BlueprintRegistry,
   oldBlueprintRegistry as blueprintRegistry,
+  selectOldBlueprint,
   buildInputWithBlueprint,
   blueprintToInvokeConfig,
   DEFAULT_BLUEPRINTS,

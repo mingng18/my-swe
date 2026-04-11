@@ -939,9 +939,9 @@ export class DeepAgentWrapper implements AgentHarness {
       // Blueprint selection: Choose workflow template based on task keywords
       // This is a lightweight operation that just returns metadata
       // The actual execution is still handled by DeepAgents + middleware
-      const { selectBlueprint, buildInputWithBlueprint } =
+      const { selectOldBlueprint, buildInputWithBlueprint } =
         await import("../blueprints");
-      const blueprintSelection = selectBlueprint(input);
+      const blueprintSelection = selectOldBlueprint(input);
       logger.info(
         {
           blueprintId: blueprintSelection.blueprint.id,
