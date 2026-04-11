@@ -97,3 +97,23 @@ export const planTools = exploreTools;
  * including write operations and git commands.
  */
 export const generalPurposeTools = filterToolsByName();
+
+/**
+ * Read-only tools for reviewer agents.
+ *
+ * These tools allow code review and analysis but prevent
+ * modifications to the codebase or git operations.
+ *
+ * Reviewer tools included:
+ * - code_search: Search for patterns across the codebase
+ * - semantic_search: Conceptual code search
+ *
+ * Excluded tools:
+ * - sandbox_shell: Shell command execution
+ * - commit_and_open_pr: Git commit and PR creation
+ * - merge_pr: PR merging
+ */
+export const reviewerTools = filterToolsByName(
+  ["code_search", "semantic_search"],
+  ["sandbox_shell", "commit_and_open_pr", "merge_pr"],
+);
