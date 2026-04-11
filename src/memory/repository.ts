@@ -21,6 +21,7 @@ interface SupabaseMemoryRow {
   is_active: boolean;
   access_count: number;
   last_accessed_at?: string;
+  embedding?: number[];
 }
 
 /**
@@ -158,6 +159,8 @@ export class MemoryRepository {
     if (updates.sourceRunId !== undefined)
       updateData.source_run_id = updates.sourceRunId;
     if (updates.isActive !== undefined) updateData.is_active = updates.isActive;
+    if (updates.embedding !== undefined)
+      updateData.embedding = updates.embedding;
 
     await this.supabaseUpdate(id, updateData);
 
@@ -193,6 +196,7 @@ export class MemoryRepository {
       is_active: memory.isActive !== undefined ? memory.isActive : true,
       access_count: memory.accessCount || 0,
       last_accessed_at: memory.lastAccessedAt?.toISOString(),
+      embedding: memory.embedding,
     };
   }
 
@@ -215,6 +219,7 @@ export class MemoryRepository {
       lastAccessedAt: row.last_accessed_at
         ? new Date(row.last_accessed_at)
         : undefined,
+      embedding: row.embedding,
     };
   }
 
