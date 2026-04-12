@@ -4,12 +4,17 @@ import { type SandboxService } from "../integrations/sandbox-service";
 const originalEnv = { ...process.env };
 
 // Mock logger
+const mockInfo = mock();
+const mockError = mock();
+const mockDebug = mock();
+const mockWarn = mock();
+
 mock.module("../utils/logger", () => ({
   createLogger: () => ({
-    info: mock(),
-    error: mock(),
-    debug: mock(),
-    warn: mock(),
+    info: mockInfo,
+    error: mockError,
+    debug: mockDebug,
+    warn: mockWarn,
   }),
 }));
 
@@ -120,5 +125,46 @@ describe("openPrIfNeeded", () => {
 
     // Ensure the message actually contains the error from our mocked Octokit
     expect(result?.error).toContain("Octokit PR creation error!");
+  });
+});
+
+
+describe("withOpenPrAfterAgent", () => {
+  it("calls underlying agent and passes the state", async () => {
+    // Dynamically import to ensure mock.module calls have taken effect
+    const { withOpenPrAfterAgent } = await import("./open-pr");
+    const { createLogger } = await import("../utils/logger");
+
+    // Grab the mocked logger instance
+    mockInfo.mockClear();
+
+    const mockAgent = mock().mockResolvedValue({ stateUpdated: true });
+
+    const mockConfig = {
+      sandboxBackend: {} as SandboxService,
+      repoDir: "test-repo"
+    };
+
+    const wrappedAgent = withOpenPrAfterAgent(mockAgent, mockConfig);
+
+    const mockState = {
+      messages: [],
+      configurable: {
+        thread_id: "test-thread",
+        repo: { owner: "test-owner", name: "test-repo" }
+      },
+      metadata: { branch_name: "test-branch" }
+    };
+
+    const result = await wrappedAgent(mockState as any);
+
+    // Verify the agent result is returned
+    expect(result).toEqual({ stateUpdated: true });
+
+    // Verify the underlying agent was called with the correct state
+    expect(mockAgent).toHaveBeenCalledWith(mockState);
+
+    // Verify openPrIfNeeded logic was triggered by checking logger output
+    expect(mockInfo).toHaveBeenCalledWith("After-agent middleware started");
   });
 });
