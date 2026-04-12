@@ -235,22 +235,30 @@ export class FilesystemSnapshotStore implements SnapshotStore {
 
       const files = await findFiles(this.storageDir);
 
-      for (const filePath of files) {
-        if (!filePath.endsWith(METADATA_EXT)) {
-          continue;
-        }
+      const filteredFiles = files.filter((filePath) =>
+        filePath.endsWith(METADATA_EXT),
+      );
 
+      const readPromises = filteredFiles.map(async (filePath) => {
         try {
           const data = await readFile(filePath, "utf-8");
           const metadata = JSON.parse(data) as SnapshotMetadata;
           metadata.createdAt = new Date(metadata.createdAt);
           metadata.refreshedAt = new Date(metadata.refreshedAt);
-          snapshots.push(metadata);
+          return metadata;
         } catch (error) {
           logger.warn(
             { error, file: filePath },
             `[snapshot-store] Failed to read snapshot file`,
           );
+          return null;
+        }
+      });
+
+      const results = await Promise.all(readPromises);
+      for (const metadata of results) {
+        if (metadata) {
+          snapshots.push(metadata);
         }
       }
     } catch (error) {

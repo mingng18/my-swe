@@ -396,11 +396,9 @@ export async function listArtifacts(
   const files = await readdir(MEMORY_POINTER_DIR);
   const artifacts: ArtifactMetadata[] = [];
 
-  for (const file of files) {
-    if (!file.endsWith(".json")) {
-      continue;
-    }
+  const filteredFiles = files.filter((f) => f.endsWith(".json"));
 
+  const readPromises = filteredFiles.map(async (file) => {
     try {
       const filePath = path.join(MEMORY_POINTER_DIR, file);
       const data = await readFile(filePath, "utf-8");
@@ -409,19 +407,29 @@ export async function listArtifacts(
       // Skip expired artifacts
       if (isExpired(artifact.metadata.expiresAt)) {
         await deleteArtifact(artifact.metadata.id);
-        continue;
+        return null;
       }
 
       // Only return artifacts for this thread
       if (artifact.metadata.threadId === threadId) {
         // Don't include content in listing
-        artifacts.push(artifact.metadata);
+        return artifact.metadata;
       }
+
+      return null;
     } catch (error) {
       logger.warn(
         { file, error },
         "[memory-pointer] Failed to read artifact during listing",
       );
+      return null;
+    }
+  });
+
+  const results = await Promise.all(readPromises);
+  for (const meta of results) {
+    if (meta) {
+      artifacts.push(meta);
     }
   }
 
@@ -454,11 +462,9 @@ export async function cleanupArtifacts(threadId: string): Promise<number> {
   const files = await readdir(MEMORY_POINTER_DIR);
   let cleanedCount = 0;
 
-  for (const file of files) {
-    if (!file.endsWith(".json")) {
-      continue;
-    }
+  const filteredFiles = files.filter((f) => f.endsWith(".json"));
 
+  const cleanupPromises = filteredFiles.map(async (file) => {
     try {
       const filePath = path.join(MEMORY_POINTER_DIR, file);
       const data = await readFile(filePath, "utf-8");
@@ -470,12 +476,17 @@ export async function cleanupArtifacts(threadId: string): Promise<number> {
         artifact.metadata.threadId === threadId
       ) {
         await unlink(filePath);
-        cleanedCount++;
+        return 1;
       }
+      return 0;
     } catch (error) {
       logger.warn({ file, error }, "[memory-pointer] Failed during cleanup");
+      return 0;
     }
-  }
+  });
+
+  const results = await Promise.all(cleanupPromises);
+  cleanedCount = results.reduce((sum, count) => sum + count, 0);
 
   if (cleanedCount > 0) {
     logger.info(
