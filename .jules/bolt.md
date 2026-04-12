@@ -8,3 +8,6 @@
 ## 2024-12-04 - [Optimize Tag Matching with RegExp]
 **Learning:** In hot loops where strings are evaluated against a list of keywords (e.g., checking PR comments for tags), calling `.toLowerCase()` to do case-insensitive string matching creates unnecessary temporary string allocations. Using `Array.prototype.some` alongside `.includes` adds additional iteration overhead.
 **Action:** Replace `array.some(keyword => string.toLowerCase().includes(keyword))` with a single pre-compiled case-insensitive Regular Expression like `new RegExp(array.join("|"), "i").test(string)`. Benchmarks show this approach reduces execution time by over 60-80% compared to the chained approach.
+## 2026-04-10 - [DependencyInstaller Optimization]
+**Learning:** Checking for file existence in the sandbox via sequential await sandbox.execute calls incurs high latency due to multiple network/execution hops.
+**Action:** Combined multiple sequentially-checked lock files into a single bash script via a single `sandbox.execute` call.

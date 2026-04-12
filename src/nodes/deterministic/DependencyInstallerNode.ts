@@ -57,38 +57,38 @@ async function detectPackageManager(
   sandbox: SandboxBackend,
   repoDir: string,
 ): Promise<string | null> {
-  const lockFiles = [
-    { file: "bun.lockb", manager: "bun" },
-    { file: "package-lock.json", manager: "npm" },
-    { file: "yarn.lock", manager: "yarn" },
-    { file: "pnpm-lock.yaml", manager: "pnpm" },
-  ];
+  const escapedDir = shellEscapeSingleQuotes(repoDir);
+  const checkScript = `if [ -f ${escapedDir}/bun.lockb ]; then echo 'bun'; elif [ -f ${escapedDir}/package-lock.json ]; then echo 'npm'; elif [ -f ${escapedDir}/yarn.lock ]; then echo 'yarn'; elif [ -f ${escapedDir}/pnpm-lock.yaml ]; then echo 'pnpm'; elif [ -f ${escapedDir}/package.json ]; then echo 'fallback'; else echo 'not_found'; fi`;
 
-  for (const { file, manager } of lockFiles) {
-    try {
-      const escapedDir = shellEscapeSingleQuotes(repoDir);
-      const result = await sandbox.execute(
-        `test -f ${escapedDir}/${file} && echo "exists" || echo "not_found"`,
-      );
-      if (result.output.trim() === "exists") {
-        logger.info(
-          { lockFile: file, manager },
-          "[DependencyInstaller] Detected package manager",
-        );
-        return manager;
-      }
-    } catch {
-      // Continue to next lock file
-    }
-  }
-
-  // Check for package.json as fallback (default to bun for this project)
   try {
-    const escapedDir = shellEscapeSingleQuotes(repoDir);
-    const result = await sandbox.execute(
-      `test -f ${escapedDir}/package.json && echo "exists" || echo "not_found"`,
-    );
-    if (result.output.trim() === "exists") {
+    const result = await sandbox.execute(checkScript);
+    const output = result.output.trim();
+
+    if (output === "bun") {
+      logger.info(
+        { lockFile: "bun.lockb", manager: "bun" },
+        "[DependencyInstaller] Detected package manager",
+      );
+      return "bun";
+    } else if (output === "npm") {
+      logger.info(
+        { lockFile: "package-lock.json", manager: "npm" },
+        "[DependencyInstaller] Detected package manager",
+      );
+      return "npm";
+    } else if (output === "yarn") {
+      logger.info(
+        { lockFile: "yarn.lock", manager: "yarn" },
+        "[DependencyInstaller] Detected package manager",
+      );
+      return "yarn";
+    } else if (output === "pnpm") {
+      logger.info(
+        { lockFile: "pnpm-lock.yaml", manager: "pnpm" },
+        "[DependencyInstaller] Detected package manager",
+      );
+      return "pnpm";
+    } else if (output === "fallback") {
       logger.info(
         "[DependencyInstaller] Found package.json, defaulting to bun",
       );
