@@ -396,32 +396,39 @@ export async function listArtifacts(
   const files = await readdir(MEMORY_POINTER_DIR);
   const artifacts: ArtifactMetadata[] = [];
 
-  for (const file of files) {
-    if (!file.endsWith(".json")) {
-      continue;
-    }
+  // ⚡ Bolt: Use Promise.all to map readFile sequentially avoiding blocking IO bottleneck
+  const readPromises = files
+    .filter((file) => file.endsWith(".json"))
+    .map(async (file) => {
+      try {
+        const filePath = path.join(MEMORY_POINTER_DIR, file);
+        const data = await readFile(filePath, "utf-8");
+        const artifact: StoredArtifact = JSON.parse(data);
 
-    try {
-      const filePath = path.join(MEMORY_POINTER_DIR, file);
-      const data = await readFile(filePath, "utf-8");
-      const artifact: StoredArtifact = JSON.parse(data);
+        // Skip expired artifacts
+        if (isExpired(artifact.metadata.expiresAt)) {
+          await deleteArtifact(artifact.metadata.id);
+          return null;
+        }
 
-      // Skip expired artifacts
-      if (isExpired(artifact.metadata.expiresAt)) {
-        await deleteArtifact(artifact.metadata.id);
-        continue;
+        // Only return artifacts for this thread
+        if (artifact.metadata.threadId === threadId) {
+          // Don't include content in listing
+          return artifact.metadata;
+        }
+      } catch (error) {
+        logger.warn(
+          { file, error },
+          "[memory-pointer] Failed to read artifact during listing",
+        );
       }
+      return null;
+    });
 
-      // Only return artifacts for this thread
-      if (artifact.metadata.threadId === threadId) {
-        // Don't include content in listing
-        artifacts.push(artifact.metadata);
-      }
-    } catch (error) {
-      logger.warn(
-        { file, error },
-        "[memory-pointer] Failed to read artifact during listing",
-      );
+  const results = await Promise.all(readPromises);
+  for (const result of results) {
+    if (result) {
+      artifacts.push(result);
     }
   }
 
@@ -454,28 +461,31 @@ export async function cleanupArtifacts(threadId: string): Promise<number> {
   const files = await readdir(MEMORY_POINTER_DIR);
   let cleanedCount = 0;
 
-  for (const file of files) {
-    if (!file.endsWith(".json")) {
-      continue;
-    }
+  // ⚡ Bolt: Execute readFile via concurrent mapping for better throughput over sequential IO
+  const cleanupPromises = files
+    .filter((file) => file.endsWith(".json"))
+    .map(async (file) => {
+      try {
+        const filePath = path.join(MEMORY_POINTER_DIR, file);
+        const data = await readFile(filePath, "utf-8");
+        const artifact: StoredArtifact = JSON.parse(data);
 
-    try {
-      const filePath = path.join(MEMORY_POINTER_DIR, file);
-      const data = await readFile(filePath, "utf-8");
-      const artifact: StoredArtifact = JSON.parse(data);
-
-      // Delete if expired or belongs to this thread
-      if (
-        isExpired(artifact.metadata.expiresAt) ||
-        artifact.metadata.threadId === threadId
-      ) {
-        await unlink(filePath);
-        cleanedCount++;
+        // Delete if expired or belongs to this thread
+        if (
+          isExpired(artifact.metadata.expiresAt) ||
+          artifact.metadata.threadId === threadId
+        ) {
+          await unlink(filePath);
+          return 1;
+        }
+      } catch (error) {
+        logger.warn({ file, error }, "[memory-pointer] Failed during cleanup");
       }
-    } catch (error) {
-      logger.warn({ file, error }, "[memory-pointer] Failed during cleanup");
-    }
-  }
+      return 0;
+    });
+
+  const results = await Promise.all(cleanupPromises);
+  cleanedCount = results.reduce((sum, count) => sum + count, 0);
 
   if (cleanedCount > 0) {
     logger.info(
