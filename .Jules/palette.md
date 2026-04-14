@@ -7,6 +7,6 @@
 ## 2024-04-10 - Add keyboard shortcut hints and tactile feedback
 **Learning:** Using inclusive language like "Select" instead of "Click" accommodates users employing various interaction methods (keyboard, screen reader, switch device). Furthermore, dynamically showing keyboard shortcuts (like <kbd>Tab</kbd>) in custom elements aids discoverability, and custom interactive elements should provide immediate tactile feedback via CSS `:active` (e.g., `transform: scale(0.99)`) to mimic native button responses.
 **Action:** Default to inclusive verbs ("Select", "Choose") instead of device-specific ones ("Click", "Tap"). Make keyboard navigation explicit by adding small `<kbd>` hints in indicator bars or tooltips. Add `:active` transforms to custom interactive cards or options for better tactile feedback.
-## 2024-04-12 - Semantic HTML for Accessibility Landmarks
-**Learning:** Generic layout divs (like `<div class="main">`, `<div class="header">`) lack implicit roles, preventing screen readers from identifying landmark areas correctly.
-**Action:** Always prefer native semantic tags (`<main>`, `<header>`, `<footer>`, `<aside>`, `<nav>`) over divs to immediately improve keyboard and screen-reader accessibility without needing explicit ARIA attributes.
+## 2026-04-14 - Semantic HTML Replacements
+**Learning:** Replaced generic div wrappers with semantic HTML tags (header, main, footer) to provide implicit ARIA landmark roles for accessibility in the brainstorming frame UI.
+**Action:** Always use native semantic HTML tags instead of generic div wrappers when building or refactoring web interfaces in this repository.
