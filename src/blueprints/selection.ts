@@ -2,8 +2,14 @@
 import type { Blueprint, BlueprintSelection } from "./types";
 
 export function selectBlueprint(task: string, blueprints: Blueprint[]): BlueprintSelection {
-  const lowerTask = task.toLowerCase();
   for (const blueprint of blueprints) {
+    if (!blueprint.triggerKeywords || blueprint.triggerKeywords.length === 0) continue;
+
+    // Fast-path using regex to skip non-matching blueprints quickly
+    const pattern = new RegExp(`(${blueprint.triggerKeywords.join('|')})`, 'i');
+    if (!pattern.test(task)) continue;
+
+    const lowerTask = task.toLowerCase();
     const matchedKeywords: string[] = [];
     for (const keyword of blueprint.triggerKeywords) {
       if (lowerTask.includes(keyword.toLowerCase())) {

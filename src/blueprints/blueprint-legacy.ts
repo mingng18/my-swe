@@ -112,6 +112,7 @@ export interface BlueprintSelection {
 interface OptimizedBlueprint {
   blueprint: Blueprint;
   lowerKeywords: string[];
+  regex: RegExp | null;
 }
 
 /**
@@ -148,7 +149,8 @@ export class BlueprintRegistry {
     // Rebuild optimized representations to keep them sorted
     this.optimizedBlueprints = this.blueprints.map((b) => ({
       blueprint: b,
-      lowerKeywords: b.triggerKeywords ? b.triggerKeywords.map(k => k.toLowerCase()) : []
+      lowerKeywords: b.triggerKeywords ? b.triggerKeywords.map(k => k.toLowerCase()) : [],
+      regex: b.triggerKeywords && b.triggerKeywords.length > 0 ? new RegExp(`(${b.triggerKeywords.join('|')})`, 'i') : null
     }));
   }
 
@@ -159,10 +161,14 @@ export class BlueprintRegistry {
    * If no blueprint matches, returns the default blueprint.
    */
   select(task: string): BlueprintSelection {
-    const lowerTask = task.toLowerCase();
-
     // Try to find a matching blueprint (checked in priority order)
     for (const opt of this.optimizedBlueprints) {
+      if (opt.regex && !opt.regex.test(task)) {
+        continue;
+      }
+
+      // If there's no regex (e.g. empty keywords) or it matched, fall back to exact matching
+      const lowerTask = task.toLowerCase();
       const matchedKeywords: string[] = [];
       const lowerKeywords = opt.lowerKeywords;
 
