@@ -1,5 +1,5 @@
 import { test, expect, describe, mock, beforeEach, afterEach } from "bun:test";
-import { buildBlocksFromPayload, fetchImageBlock } from "./multimodal";
+import { buildBlocksFromPayload, fetchImageBlock } from "../multimodal";
 
 describe("multimodal benchmark", () => {
   const originalFetch = globalThis.fetch;

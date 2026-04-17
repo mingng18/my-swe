@@ -3,6 +3,10 @@
  */
 
 import { createLogger } from "./logger";
+import * as dns from "node:dns";
+import { promisify } from "node:util";
+
+const lookupAsync = promisify(dns.lookup);
 
 const logger = createLogger("multimodal");
 
@@ -31,6 +35,41 @@ export async function fetchImageBlock(
         type: "image",
         image_url: { url: imageUrl },
       };
+    }
+
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(imageUrl);
+      if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+        logger.warn({ imageUrl }, "Invalid protocol");
+        return null;
+      }
+
+      const { address } = await lookupAsync(parsedUrl.hostname);
+      if (
+        address.startsWith("127.") ||
+        address.startsWith("169.254.") ||
+        address.startsWith("10.") ||
+        address.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./) ||
+        address.startsWith("192.168.") ||
+        address === "0.0.0.0" ||
+        address === "::1" ||
+        address.toLowerCase().startsWith("fc00:") ||
+        address.toLowerCase().startsWith("fd") ||
+        address.toLowerCase().startsWith("fe80:")
+      ) {
+        logger.warn(
+          { imageUrl, address },
+          "Local and private addresses are not allowed",
+        );
+        return null;
+      }
+    } catch (e) {
+      logger.warn(
+        { imageUrl, error: e },
+        "Invalid URL or DNS resolution failed",
+      );
+      return null;
     }
 
     // Fetch external image and convert to base64
