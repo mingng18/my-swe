@@ -3,7 +3,12 @@ import { createLogger } from "../utils/logger";
 
 const logger = createLogger("repo-memory");
 
-type SandboxProfile = "typescript" | "javascript" | "python" | "java" | "polyglot";
+type SandboxProfile =
+  | "typescript"
+  | "javascript"
+  | "python"
+  | "java"
+  | "polyglot";
 
 export interface RepoMemoryTurnResult {
   threadId: string;
@@ -16,17 +21,31 @@ export interface RepoMemoryTurnResult {
   fixAttempt?: string;
   iterations?: number;
   deterministic: {
-    formatResults?: { success: boolean; filesChanged?: number; output?: string };
+    formatResults?: {
+      success: boolean;
+      filesChanged?: number;
+      output?: string;
+    };
     linterResults?: { success: boolean; exitCode?: number; output?: string };
     linterError?: string | undefined;
-    validationResults?: { passed: boolean; checks?: Record<string, boolean | undefined>; output?: string };
+    validationResults?: {
+      passed: boolean;
+      checks?: Record<string, boolean | undefined>;
+      output?: string;
+    };
     testResults?: { passed: boolean; summary?: string; output?: string };
   };
 }
 
 function getSandboxProfileFromEnv(): SandboxProfile {
   const p = (process.env.SANDBOX_PROFILE || "typescript").trim().toLowerCase();
-  if (p === "typescript" || p === "javascript" || p === "python" || p === "java" || p === "polyglot") {
+  if (
+    p === "typescript" ||
+    p === "javascript" ||
+    p === "python" ||
+    p === "java" ||
+    p === "polyglot"
+  ) {
     return p;
   }
   return "typescript";
@@ -69,7 +88,8 @@ function supabaseEnabled(): boolean {
   const url = getSupabaseUrlBase();
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   // Default off to avoid breaking dev/test runs without schema.
-  const enabled = process.env.SUPABASE_REPO_MEMORY_ENABLED?.trim().toLowerCase();
+  const enabled =
+    process.env.SUPABASE_REPO_MEMORY_ENABLED?.trim().toLowerCase();
   const explicitlyEnabled = enabled === "true";
   return Boolean(url && key && explicitlyEnabled);
 }
@@ -99,13 +119,20 @@ function getSupabaseUrlBase(): string | null {
   }
 }
 
-async function supabaseSelectSingle(table: string, eq: Record<string, string>, select = "*"): Promise<SupabaseRow | null> {
+async function supabaseSelectSingle(
+  table: string,
+  eq: Record<string, string>,
+  select = "*",
+): Promise<SupabaseRow | null> {
   const urlBase = getSupabaseUrlBase();
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!urlBase || !key) return null;
 
   const conditions = Object.entries(eq)
-    .map(([col, value]) => `${encodeURIComponent(col)}=eq.${encodeURIComponent(value)}`)
+    .map(
+      ([col, value]) =>
+        `${encodeURIComponent(col)}=eq.${encodeURIComponent(value)}`,
+    )
     .join("&");
 
   const url = `${urlBase}/rest/v1/${table}?${conditions}&select=${encodeURIComponent(select)}&limit=1`;
@@ -120,7 +147,10 @@ async function supabaseSelectSingle(table: string, eq: Record<string, string>, s
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    logger.warn({ table, status: res.status, body }, "[repo-memory] supabase select failed");
+    logger.warn(
+      { table, status: res.status, body },
+      "[repo-memory] supabase select failed",
+    );
     return null;
   }
 
@@ -128,12 +158,18 @@ async function supabaseSelectSingle(table: string, eq: Record<string, string>, s
   return json?.[0] ?? null;
 }
 
-async function supabaseUpsertSingle(table: string, row: SupabaseRow): Promise<SupabaseRow | null> {
+async function supabaseUpsertSingle(
+  table: string,
+  row: SupabaseRow,
+  onConflict?: string,
+): Promise<SupabaseRow | null> {
   const urlBase = getSupabaseUrlBase();
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!urlBase || !key) return null;
 
-  const url = `${urlBase}/rest/v1/${table}`;
+  const url = onConflict
+    ? `${urlBase}/rest/v1/${table}?on_conflict=${onConflict}`
+    : `${urlBase}/rest/v1/${table}`;
   const res = await fetch(url, {
     method: "POST",
     headers: {
@@ -147,7 +183,10 @@ async function supabaseUpsertSingle(table: string, row: SupabaseRow): Promise<Su
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    logger.warn({ table, status: res.status, body }, "[repo-memory] supabase upsert failed");
+    logger.warn(
+      { table, status: res.status, body },
+      "[repo-memory] supabase upsert failed",
+    );
     return null;
   }
 
@@ -155,8 +194,10 @@ async function supabaseUpsertSingle(table: string, row: SupabaseRow): Promise<Su
   return json?.[0] ?? null;
 }
 
-
-async function supabaseRpc(rpcName: string, payload: Record<string, unknown>): Promise<boolean> {
+async function supabaseRpc(
+  rpcName: string,
+  payload: Record<string, unknown>,
+): Promise<boolean> {
   const urlBase = getSupabaseUrlBase();
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!urlBase || !key) return false;
@@ -175,7 +216,10 @@ async function supabaseRpc(rpcName: string, payload: Record<string, unknown>): P
   if (!res.ok) {
     if (res.status !== 404) {
       const body = await res.text().catch(() => "");
-      logger.warn({ rpcName, status: res.status, body }, "[repo-memory] supabase rpc failed");
+      logger.warn(
+        { rpcName, status: res.status, body },
+        "[repo-memory] supabase rpc failed",
+      );
     }
     return false;
   }
@@ -183,7 +227,10 @@ async function supabaseRpc(rpcName: string, payload: Record<string, unknown>): P
   return true;
 }
 
-async function supabaseInsertMany(table: string, rows: SupabaseRow[]): Promise<void> {
+async function supabaseInsertMany(
+  table: string,
+  rows: SupabaseRow[],
+): Promise<void> {
   const urlBase = getSupabaseUrlBase();
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!urlBase || !key) return;
@@ -203,7 +250,10 @@ async function supabaseInsertMany(table: string, rows: SupabaseRow[]): Promise<v
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    logger.warn({ table, status: res.status, body }, "[repo-memory] supabase insert failed");
+    logger.warn(
+      { table, status: res.status, body },
+      "[repo-memory] supabase insert failed",
+    );
   }
 }
 
@@ -214,7 +264,9 @@ async function supabaseInsertMany(table: string, rows: SupabaseRow[]): Promise<v
  * - This is intentionally non-fatal: failures should not break the agent pipeline.
  * - It assumes tables/columns roughly match the proposed plan in `.cursor/plans/...`.
  */
-export async function writeRepoMemoryAfterAgentTurn(turn: RepoMemoryTurnResult): Promise<void> {
+export async function writeRepoMemoryAfterAgentTurn(
+  turn: RepoMemoryTurnResult,
+): Promise<void> {
   if (!supabaseEnabled()) return;
 
   const urlBase = getSupabaseUrlBase();
@@ -223,7 +275,9 @@ export async function writeRepoMemoryAfterAgentTurn(turn: RepoMemoryTurnResult):
   const parsedRepo = extractRepoFromInput(turn.input);
   const profile = getSandboxProfileFromEnv();
   if (!parsedRepo) {
-    logger.debug("[repo-memory] No --repo found in input; skipping repo memory");
+    logger.debug(
+      "[repo-memory] No --repo found in input; skipping repo memory",
+    );
     return;
   }
 
@@ -258,8 +312,14 @@ export async function writeRepoMemoryAfterAgentTurn(turn: RepoMemoryTurnResult):
         value_json: {
           success: turn.deterministic.linterResults?.success ?? false,
           exitCode: turn.deterministic.linterResults?.exitCode ?? null,
-          error: truncateForJson(turn.deterministic.linterError || "", 10_000) || null,
-          output: truncateForJson(turn.deterministic.linterResults?.output || "", 20_000) || null,
+          error:
+            truncateForJson(turn.deterministic.linterError || "", 10_000) ||
+            null,
+          output:
+            truncateForJson(
+              turn.deterministic.linterResults?.output || "",
+              20_000,
+            ) || null,
         },
         created_at: startedAtIso,
       },
@@ -270,7 +330,11 @@ export async function writeRepoMemoryAfterAgentTurn(turn: RepoMemoryTurnResult):
         value_json: {
           success: turn.deterministic.formatResults?.success ?? true,
           filesChanged: turn.deterministic.formatResults?.filesChanged ?? null,
-          output: truncateForJson(turn.deterministic.formatResults?.output || "", 20_000) || null,
+          output:
+            truncateForJson(
+              turn.deterministic.formatResults?.output || "",
+              20_000,
+            ) || null,
         },
         created_at: startedAtIso,
       },
@@ -281,7 +345,11 @@ export async function writeRepoMemoryAfterAgentTurn(turn: RepoMemoryTurnResult):
         value_json: {
           passed: turn.deterministic.validationResults?.passed ?? false,
           checks: turn.deterministic.validationResults?.checks ?? {},
-          output: truncateForJson(turn.deterministic.validationResults?.output || "", 20_000) || null,
+          output:
+            truncateForJson(
+              turn.deterministic.validationResults?.output || "",
+              20_000,
+            ) || null,
         },
         created_at: startedAtIso,
       },
@@ -292,16 +360,24 @@ export async function writeRepoMemoryAfterAgentTurn(turn: RepoMemoryTurnResult):
         value_json: {
           passed: turn.deterministic.testResults?.passed ?? false,
           summary: turn.deterministic.testResults?.summary ?? null,
-          output: truncateForJson(turn.deterministic.testResults?.output || "", 20_000) || null,
+          output:
+            truncateForJson(
+              turn.deterministic.testResults?.output || "",
+              20_000,
+            ) || null,
         },
         created_at: startedAtIso,
       },
     ];
 
     let chunkRows: Record<string, any>[] | null = null;
-    const vectorEnabled = process.env.SUPABASE_REPO_MEMORY_VECTOR_CHUNKS?.trim().toLowerCase() === "true";
+    const vectorEnabled =
+      process.env.SUPABASE_REPO_MEMORY_VECTOR_CHUNKS?.trim().toLowerCase() ===
+      "true";
     if (vectorEnabled) {
-      const chunkText = turn.agentReply ? truncateForJson(turn.agentReply, 16_000) : "";
+      const chunkText = turn.agentReply
+        ? truncateForJson(turn.agentReply, 16_000)
+        : "";
       chunkRows = [
         {
           id: randomUUID(),
@@ -334,27 +410,41 @@ export async function writeRepoMemoryAfterAgentTurn(turn: RepoMemoryTurnResult):
 
     if (rpcSuccess) {
       logger.info(
-        { threadId: turn.threadId, repo: `${parsedRepo.owner}/${parsedRepo.name}` },
+        {
+          threadId: turn.threadId,
+          repo: `${parsedRepo.owner}/${parsedRepo.name}`,
+        },
         "[repo-memory] Persisted repo memory after turn via RPC",
       );
       return;
     }
 
     // Fallback to sequential network requests if RPC fails (e.g. migration not applied yet)
-    logger.debug("[repo-memory] RPC failed (404?), falling back to sequential inserts");
+    logger.debug(
+      "[repo-memory] RPC failed (404?), falling back to sequential inserts",
+    );
 
     // 1) Repo upsert → repo_id
-    const existingRepo = await supabaseSelectSingle("repo", { owner: parsedRepo.owner, name: parsedRepo.name }, "id");
-    const repoRow = existingRepo ?? (await supabaseUpsertSingle("repo", {
-      id: randomUUID(),
-      owner: parsedRepo.owner,
-      name: parsedRepo.name,
-      created_at: startedAtIso,
-    }));
+    const existingRepo = await supabaseSelectSingle(
+      "repo",
+      { owner: parsedRepo.owner, name: parsedRepo.name },
+      "id",
+    );
+    const repoRow =
+      existingRepo ??
+      (await supabaseUpsertSingle("repo", {
+        id: randomUUID(),
+        owner: parsedRepo.owner,
+        name: parsedRepo.name,
+        created_at: startedAtIso,
+      }));
 
     const resolvedRepoId = repoRow?.id;
     if (!resolvedRepoId || typeof resolvedRepoId !== "string") {
-      logger.warn({ repoRow }, "[repo-memory] Could not determine repo_id; aborting memory write");
+      logger.warn(
+        { repoRow },
+        "[repo-memory] Could not determine repo_id; aborting memory write",
+      );
       return;
     }
 
@@ -367,36 +457,10 @@ export async function writeRepoMemoryAfterAgentTurn(turn: RepoMemoryTurnResult):
       updated_at: startedAtIso,
     });
 
-    // 3) Agent run select/insert by (thread_id, input_hash) unique key
-    const existingRun = await supabaseSelectSingle(
+    // 3) Agent run upsert by (thread_id, input_hash) unique key
+    const upsertedRun = await supabaseUpsertSingle(
       "agent_run",
-      { thread_id: turn.threadId, input_hash: inputHash },
-      "id,status"
-    );
-
-    let resolvedAgentRunId: string;
-    if (existingRun?.id && typeof existingRun.id === "string") {
-      resolvedAgentRunId = existingRun.id;
-      // Update status/finished timestamps. If columns don't exist, this will be ignored.
-      await fetch(`${urlBase}/rest/v1/agent_run?id=eq.${encodeURIComponent(resolvedAgentRunId)}`, {
-        method: "PATCH",
-        headers: {
-          apikey: process.env.SUPABASE_SERVICE_ROLE_KEY!.trim(),
-          Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY!.trim()}`,
-          "Content-Type": "application/json",
-          Prefer: "return=minimal",
-        },
-        body: JSON.stringify({
-          status: turn.agentError ? "error" : "success",
-          error: turn.agentError || null,
-          reply_hash: replyHash,
-          finished_at: startedAtIso,
-        }),
-      }).catch((e) => logger.warn({ e }, "[repo-memory] supabase agent_run patch failed"));
-    } else {
-      resolvedAgentRunId = randomUUID();
-      const inserted = await supabaseUpsertSingle("agent_run", {
-        id: resolvedAgentRunId,
+      {
         thread_id: turn.threadId,
         repo_id: resolvedRepoId,
         agent_version: "dev",
@@ -406,17 +470,48 @@ export async function writeRepoMemoryAfterAgentTurn(turn: RepoMemoryTurnResult):
         error: turn.agentError || null,
         started_at: startedAtIso,
         finished_at: startedAtIso,
-      });
+      },
+      "thread_id,input_hash",
+    );
 
-      if (!inserted?.id || typeof inserted.id !== "string") {
-        // Even if the insert failed, facts insert will also fail; so bail cleanly.
-        logger.warn({ inserted }, "[repo-memory] agent_run insert did not return id; aborting facts");
+    let resolvedAgentRunId: string;
+    if (upsertedRun?.id && typeof upsertedRun.id === "string") {
+      resolvedAgentRunId = upsertedRun.id;
+    } else {
+      // Fallback: If upsert failed, try creating with a new random UUID just in case the upsert
+      // was missing the 'id' field due to how PostgreSQL processes defaults in upserts via PostgREST.
+      // But typically PostgREST generates UUIDs automatically if the schema defaults it.
+      // If we really need an id generated explicitly:
+      const fallbackRun = await supabaseUpsertSingle(
+        "agent_run",
+        {
+          id: randomUUID(),
+          thread_id: turn.threadId,
+          repo_id: resolvedRepoId,
+          agent_version: "dev",
+          input_hash: inputHash,
+          reply_hash: replyHash,
+          status: turn.agentError ? "error" : "success",
+          error: turn.agentError || null,
+          started_at: startedAtIso,
+          finished_at: startedAtIso,
+        },
+        "thread_id,input_hash",
+      );
+
+      if (fallbackRun?.id && typeof fallbackRun.id === "string") {
+        resolvedAgentRunId = fallbackRun.id;
+      } else {
+        logger.warn(
+          { upsertedRun: upsertedRun, fallbackRun },
+          "[repo-memory] agent_run upsert did not return id; aborting facts",
+        );
         return;
       }
     }
 
     // 4) Atomic facts (insert-only; avoid needing merge semantics for MVP)
-    const fallbackFactRows = factRows.map(f => ({
+    const fallbackFactRows = factRows.map((f) => ({
       ...f,
       repo_id: resolvedRepoId,
       source_run_id: resolvedAgentRunId,
@@ -426,7 +521,7 @@ export async function writeRepoMemoryAfterAgentTurn(turn: RepoMemoryTurnResult):
 
     // Optional semantic chunk insertion
     if (vectorEnabled && chunkRows) {
-      const fallbackChunkRows = chunkRows.map(c => ({
+      const fallbackChunkRows = chunkRows.map((c) => ({
         ...c,
         repo_id: resolvedRepoId,
         source_run_id: resolvedAgentRunId,
@@ -435,10 +530,17 @@ export async function writeRepoMemoryAfterAgentTurn(turn: RepoMemoryTurnResult):
     }
 
     logger.info(
-      { threadId: turn.threadId, repo: `${parsedRepo.owner}/${parsedRepo.name}`, agentRunId: resolvedAgentRunId },
+      {
+        threadId: turn.threadId,
+        repo: `${parsedRepo.owner}/${parsedRepo.name}`,
+        agentRunId: resolvedAgentRunId,
+      },
       "[repo-memory] Persisted repo memory after turn",
     );
   } catch (e) {
-    logger.warn({ err: e }, "[repo-memory] writeRepoMemoryAfterAgentTurn failed (non-fatal)");
+    logger.warn(
+      { err: e },
+      "[repo-memory] writeRepoMemoryAfterAgentTurn failed (non-fatal)",
+    );
   }
 }

@@ -4,3 +4,6 @@
 ## 2026-04-16 - Memory Pointer Iteration Concurrency Optimization
 **Learning:** Sequential await readFile inside loops in memory-pointer.ts and escalation-store.ts caused poor performance when there are multiple artifacts or escalations.
 **Action:** Use Promise.all with array mapping to allow concurrent file reads for significantly better latency.
+## 2026-04-18 - Optimize agent_run insertion by combining select and patch into single upsert
+**Learning:** By utilizing PostgREST `on_conflict` functionality in Supabase UPSERTs, we can combine a SELECT and conditional PATCH/POST into a single atomic network request, reducing network roundtrips.
+**Action:** Changed the `agent_run` memory insertion to skip the preceding SELECT and instead execute a single UPSERT against the `thread_id,input_hash` unique constraint.
