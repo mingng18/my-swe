@@ -1,6 +1,7 @@
 // src/blueprints/selection.ts
 import type { Blueprint, BlueprintSelection } from "./types";
 
+<<<<<<< HEAD
 interface CompiledBlueprint {
   fastPathRegex: RegExp;
   keywordRegexes: { keyword: string; regex: RegExp }[];
@@ -45,6 +46,21 @@ export function selectBlueprint(
         if (regex.test(task)) {
           matchedKeywords.push(keyword);
         }
+=======
+export function selectBlueprint(task: string, blueprints: Blueprint[]): BlueprintSelection {
+  for (const blueprint of blueprints) {
+    if (!blueprint.triggerKeywords || blueprint.triggerKeywords.length === 0) continue;
+
+    // Fast-path using regex to skip non-matching blueprints quickly
+    const pattern = new RegExp(`(${blueprint.triggerKeywords.join('|')})`, 'i');
+    if (!pattern.test(task)) continue;
+
+    const lowerTask = task.toLowerCase();
+    const matchedKeywords: string[] = [];
+    for (const keyword of blueprint.triggerKeywords) {
+      if (lowerTask.includes(keyword.toLowerCase())) {
+        matchedKeywords.push(keyword);
+>>>>>>> origin/bolt/optimize-blueprint-selection-2022179020965954946
       }
       return {
         blueprint,
