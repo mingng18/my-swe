@@ -2,7 +2,7 @@
  * Tests for RTK-style output compression.
  */
 
-import { describe, test, expect, beforeEach } from "bun:test";
+import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import {
   stripAnsiCodes,
   applyFailureFocus,
@@ -391,6 +391,55 @@ Third unique line
       // Shorter text should have lower token estimate
       // (This is rough, so we just check it's non-zero)
       expect(longText.length / 4).toBeGreaterThan(0);
+    });
+  });
+
+  describe("shouldCompressTool", () => {
+    let originalEnabled: string | undefined;
+
+    beforeEach(() => {
+      originalEnabled = process.env.RTK_COMPRESSION_ENABLED;
+    });
+
+    afterEach(() => {
+      if (originalEnabled !== undefined) {
+        process.env.RTK_COMPRESSION_ENABLED = originalEnabled;
+      } else {
+        delete process.env.RTK_COMPRESSION_ENABLED;
+      }
+    });
+
+    test("returns false when compression is disabled globally", async () => {
+      process.env.RTK_COMPRESSION_ENABLED = "false";
+      // Use dynamic import with cache busting to re-evaluate module constants
+      const { shouldCompressTool: dynamicShouldCompress } = await import(
+        `../output-compressor.ts?t=${Date.now()}1`
+      );
+      expect(dynamicShouldCompress("sandbox_shell")).toBe(false);
+    });
+
+    test("returns false for skipped tools even when enabled", async () => {
+      process.env.RTK_COMPRESSION_ENABLED = "true";
+      const { shouldCompressTool: dynamicShouldCompress } = await import(
+        `../output-compressor.ts?t=${Date.now()}2`
+      );
+      expect(dynamicShouldCompress("github_comment")).toBe(false);
+    });
+
+    test("returns true for compressed tools when enabled", async () => {
+      process.env.RTK_COMPRESSION_ENABLED = "true";
+      const { shouldCompressTool: dynamicShouldCompress } = await import(
+        `../output-compressor.ts?t=${Date.now()}3`
+      );
+      expect(dynamicShouldCompress("sandbox_shell")).toBe(true);
+    });
+
+    test("returns false for unknown tools when enabled", async () => {
+      process.env.RTK_COMPRESSION_ENABLED = "true";
+      const { shouldCompressTool: dynamicShouldCompress } = await import(
+        `../output-compressor.ts?t=${Date.now()}4`
+      );
+      expect(dynamicShouldCompress("unknown_tool")).toBe(false);
     });
   });
 });
