@@ -523,7 +523,7 @@ export async function releaseRepoSandbox(args: {
  * @param snapshotName - Optional explicit snapshot name (auto-generated if omitted)
  * @returns Promise that resolves immediately; snapshot creation continues in background
  */
-export async function triggerSnapshotCreation(params: {
+export interface TriggerSnapshotCreationParams {
   apiKey: string;
   apiUrl?: string;
   target?: string;
@@ -534,114 +534,134 @@ export async function triggerSnapshotCreation(params: {
   repoDir: string; // Local path to repository (for dependency detection)
   snapshotName?: string;
   branch?: string;
-}): Promise<void> {
+}
+
+export async function triggerSnapshotCreation(
+  params: TriggerSnapshotCreationParams,
+): Promise<void> {
   // Fire and forget - don't await
-  (async () => {
-    const daytona = new Daytona({
-      apiKey: params.apiKey,
-      apiUrl: params.apiUrl,
-      target: params.target,
-    });
-
-    try {
-      const { DaytonaSnapshotManager, createImageFromRepo } =
-        await import("../sandbox/daytona-snapshot-integration");
-      const { readFile } = await import("node:fs/promises");
-      const { existsSync } = await import("node:fs");
-
-      logger.info(
-        {
-          sandboxId: params.sandboxId,
-          repo: `${params.repoOwner}/${params.repoName}`,
-          profile: params.profile,
-        },
-        "[daytona-pool] Starting snapshot creation",
-      );
-
-      // Import profile-specific image builders
-      const { ProfileImageBuilder } =
-        await import("../sandbox/daytona-snapshot-integration");
-
-      // Create base image for the profile
-      const image = ProfileImageBuilder.forProfile(params.profile);
-
-      // Add repository-specific dependency installation to the image
-      const packageJsonPath = `${params.repoDir}/package.json`;
-      if (existsSync(packageJsonPath)) {
-        logger.debug(
-          "[daytona-pool] Found package.json, adding dependency install to snapshot",
-        );
-      }
-
-      // Generate snapshot name if not provided
-      const snapshotName =
-        params.snapshotName ||
-        `${params.repoOwner}-${params.repoName}-${params.profile}-${params.branch || "main"}-${Date.now()}`.toLowerCase();
-
-      // Create the snapshot via Daytona API
-      await daytona.snapshot.create(
-        {
-          name: snapshotName,
-          image,
-        },
-        {
-          onLogs: (chunk) => {
-            logger.debug(`[daytona-pool] Snapshot: ${chunk}`);
-          },
-          timeout: 15 * 60, // 15 minutes for snapshot creation
-        },
-      );
-
-      // Save snapshot metadata
-      const snapshotKey: SnapshotKey = {
-        repoOwner: params.repoOwner,
-        repoName: params.repoName,
-        profile: params.profile,
-        branch: params.branch || getDefaultBranch(),
-      };
-
-      await globalSnapshotStore.save({
-        snapshotId: snapshotName,
-        key: snapshotKey,
-        createdAt: new Date(),
-        refreshedAt: new Date(),
-        commitSha: "", // Will be filled if we run git rev-parse
-        dependencies: [],
-        preBuildSuccess: true,
-        size: 0, // Will be updated if we can get size from provider
-        provider: "daytona",
-        image: image.toString(),
-        refreshing: false,
-      });
-
-      logger.info(
-        {
-          snapshotId: snapshotName,
-          repo: `${params.repoOwner}/${params.repoName}`,
-          profile: params.profile,
-        },
-        "[daytona-pool] Snapshot created and metadata saved",
-      );
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      logger.error(
-        { error: errorMsg, sandboxId: params.sandboxId },
-        "[daytona-pool] Snapshot creation failed (non-fatal)",
-      );
-    } finally {
-      try {
-        await daytona[Symbol.asyncDispose]();
-      } catch (err) {
-        logger.warn(
-          { error: err },
-          "[daytona-pool] Failed to dispose client after snapshot",
-        );
-      }
-    }
-  })().catch((err) => {
+  executeSnapshotCreation(params).catch((err) => {
     logger.error(
       { error: err },
       "[daytona-pool] Background snapshot task failed",
     );
+  });
+}
+
+async function executeSnapshotCreation(
+  params: TriggerSnapshotCreationParams,
+): Promise<void> {
+  const daytona = new Daytona({
+    apiKey: params.apiKey,
+    apiUrl: params.apiUrl,
+    target: params.target,
+  });
+
+  try {
+    logger.info(
+      {
+        sandboxId: params.sandboxId,
+        repo: `${params.repoOwner}/${params.repoName}`,
+        profile: params.profile,
+      },
+      "[daytona-pool] Starting snapshot creation",
+    );
+
+    const image = await buildSnapshotImage(params.profile, params.repoDir);
+
+    // Generate snapshot name if not provided
+    const snapshotName =
+      params.snapshotName ||
+      `${params.repoOwner}-${params.repoName}-${params.profile}-${params.branch || "main"}-${Date.now()}`.toLowerCase();
+
+    await createDaytonaSnapshot(daytona, snapshotName, image);
+    await saveSnapshotMetadata(params, snapshotName, image.toString());
+
+    logger.info(
+      {
+        snapshotId: snapshotName,
+        repo: `${params.repoOwner}/${params.repoName}`,
+        profile: params.profile,
+      },
+      "[daytona-pool] Snapshot created and metadata saved",
+    );
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    logger.error(
+      { error: errorMsg, sandboxId: params.sandboxId },
+      "[daytona-pool] Snapshot creation failed (non-fatal)",
+    );
+  } finally {
+    try {
+      await daytona[Symbol.asyncDispose]();
+    } catch (err) {
+      logger.warn(
+        { error: err },
+        "[daytona-pool] Failed to dispose client after snapshot",
+      );
+    }
+  }
+}
+
+async function buildSnapshotImage(profile: SandboxProfile, repoDir: string) {
+  const { existsSync } = await import("node:fs");
+  const { ProfileImageBuilder } =
+    await import("../sandbox/daytona-snapshot-integration");
+
+  const image = ProfileImageBuilder.forProfile(profile);
+
+  const packageJsonPath = `${repoDir}/package.json`;
+  if (existsSync(packageJsonPath)) {
+    logger.debug(
+      "[daytona-pool] Found package.json, adding dependency install to snapshot",
+    );
+  }
+
+  return image;
+}
+
+async function createDaytonaSnapshot(
+  daytona: Daytona,
+  snapshotName: string,
+  image: any,
+) {
+  await daytona.snapshot.create(
+    {
+      name: snapshotName,
+      image,
+    },
+    {
+      onLogs: (chunk) => {
+        logger.debug(`[daytona-pool] Snapshot: ${chunk}`);
+      },
+      timeout: 15 * 60, // 15 minutes for snapshot creation
+    },
+  );
+}
+
+async function saveSnapshotMetadata(
+  params: TriggerSnapshotCreationParams,
+  snapshotName: string,
+  imageStr: string,
+) {
+  const snapshotKey: SnapshotKey = {
+    repoOwner: params.repoOwner,
+    repoName: params.repoName,
+    profile: params.profile,
+    branch: params.branch || getDefaultBranch(),
+  };
+
+  await globalSnapshotStore.save({
+    snapshotId: snapshotName,
+    key: snapshotKey,
+    createdAt: new Date(),
+    refreshedAt: new Date(),
+    commitSha: "", // Will be filled if we run git rev-parse
+    dependencies: [],
+    preBuildSuccess: true,
+    size: 0, // Will be updated if we can get size from provider
+    provider: "daytona",
+    image: imageStr,
+    refreshing: false,
   });
 }
