@@ -56,6 +56,107 @@ export function wasPrToolCalled(messages: any[]): boolean {
  * This runs after the agent completes. If the agent didn't call
  * commit_and_open_pr successfully, this node will do it.
  */
+async function commitChanges(params: {
+  sandbox: SandboxService;
+  repoDir: string;
+  threadId: string;
+  branchName?: string;
+}): Promise<{ currentBranch: string; commitMessage: string }> {
+  // Configure git user
+  await gitConfigUser(
+    params.sandbox,
+    params.repoDir,
+    "Open SWE Agent",
+    "open-swe@users.noreply.github.com",
+  );
+
+  // Stage all changes
+  await gitAddAll(params.sandbox, params.repoDir);
+
+  // Get current branch or create feature branch
+  let currentBranch = await gitCurrentBranch(params.sandbox, params.repoDir);
+
+  const targetBranch =
+    params.branchName || `open-swe/${params.threadId.slice(0, 8)}`;
+
+  if (currentBranch === "main" || currentBranch === "master") {
+    // Create and checkout feature branch
+    logger.info(
+      { currentBranch, targetBranch },
+      "[PRSubmitNode] Creating feature branch",
+    );
+    // Note: branch creation would be done here with gitCheckoutBranch
+  }
+
+  // Commit with default message
+  const commitMessage = "feat: automated changes from Open SWE agent";
+  await gitCommit(params.sandbox, params.repoDir, commitMessage);
+
+  return { currentBranch, commitMessage };
+}
+
+async function pushAndCreatePullRequest(params: {
+  sandbox: SandboxService;
+  repoDir: string;
+  repoOwner: string;
+  repoName: string;
+  currentBranch: string;
+  commitMessage: string;
+  githubToken?: string;
+}): Promise<{ prCreated: boolean; prUrl?: string; error?: string }> {
+  // Push to remote
+  logger.info(
+    { branch: params.currentBranch },
+    "[PRSubmitNode] Pushing changes",
+  );
+  await gitPush(params.sandbox, params.repoDir, params.currentBranch);
+
+  // Create PR
+  const token =
+    params.githubToken ||
+    process.env.GITHUB_TOKEN ||
+    process.env.GH_TOKEN ||
+    "";
+
+  if (!token) {
+    logger.warn("[PRSubmitNode] No GitHub token, skipping PR creation");
+    return {
+      prCreated: false,
+      error: "No GitHub token available",
+    };
+  }
+
+  logger.info("[PRSubmitNode] Creating GitHub PR");
+  const [prUrl, prNumber, success] = await createGithubPr(
+    params.repoOwner,
+    params.repoName,
+    token,
+    params.commitMessage,
+    params.currentBranch,
+    "Automated PR created by Open SWE agent.",
+  );
+
+  if (prUrl) {
+    logger.info({ prUrl, prNumber }, "[PRSubmitNode] PR created successfully");
+    return {
+      prCreated: true,
+      prUrl,
+    };
+  } else {
+    logger.error({ prNumber }, "[PRSubmitNode] PR creation failed");
+    return {
+      prCreated: false,
+      error: "PR creation returned no URL",
+    };
+  }
+}
+
+/**
+ * Enforce PR creation workflow
+ *
+ * This runs after the agent completes. If the agent didn't call
+ * commit_and_open_pr successfully, this node will do it.
+ */
 export async function enforcePRSubmission(params: {
   sandbox: SandboxService;
   repoDir: string;
@@ -99,84 +200,27 @@ export async function enforcePRSubmission(params: {
   logger.info("[PRSubmitNode] Found uncommitted changes, creating PR");
 
   try {
-    // Configure git user
-    await gitConfigUser(
-      params.sandbox,
-      params.repoDir,
-      "Open SWE Agent",
-      "open-swe@users.noreply.github.com",
-    );
+    const { currentBranch, commitMessage } = await commitChanges({
+      sandbox: params.sandbox,
+      repoDir: params.repoDir,
+      threadId: params.threadId,
+      branchName: params.branchName,
+    });
 
-    // Stage all changes
-    await gitAddAll(params.sandbox, params.repoDir);
-
-    // Get current branch or create feature branch
-    let currentBranch = await gitCurrentBranch(params.sandbox, params.repoDir);
-
-    const targetBranch =
-      params.branchName || `open-swe/${params.threadId.slice(0, 8)}`;
-
-    if (currentBranch === "main" || currentBranch === "master") {
-      // Create and checkout feature branch
-      logger.info(
-        { currentBranch, targetBranch },
-        "[PRSubmitNode] Creating feature branch",
-      );
-      // Note: branch creation would be done here with gitCheckoutBranch
-    }
-
-    // Commit with default message
-    const commitMessage = "feat: automated changes from Open SWE agent";
-    await gitCommit(params.sandbox, params.repoDir, commitMessage);
-
-    // Push to remote
-    logger.info({ branch: currentBranch }, "[PRSubmitNode] Pushing changes");
-    await gitPush(params.sandbox, params.repoDir, currentBranch);
-
-    // Create PR
-    const token =
-      params.githubToken ||
-      process.env.GITHUB_TOKEN ||
-      process.env.GH_TOKEN ||
-      "";
-
-    if (!token) {
-      logger.warn("[PRSubmitNode] No GitHub token, skipping PR creation");
-      return {
-        hasChanges: true,
-        prCreated: false,
-        error: "No GitHub token available",
-      };
-    }
-
-    logger.info("[PRSubmitNode] Creating GitHub PR");
-    const [prUrl, prNumber, success] = await createGithubPr(
-      params.repoOwner,
-      params.repoName,
-      token,
-      commitMessage,
+    const prResult = await pushAndCreatePullRequest({
+      sandbox: params.sandbox,
+      repoDir: params.repoDir,
+      repoOwner: params.repoOwner,
+      repoName: params.repoName,
       currentBranch,
-      "Automated PR created by Open SWE agent.",
-    );
+      commitMessage,
+      githubToken: params.githubToken,
+    });
 
-    if (prUrl) {
-      logger.info(
-        { prUrl, prNumber },
-        "[PRSubmitNode] PR created successfully",
-      );
-      return {
-        hasChanges: true,
-        prCreated: true,
-        prUrl,
-      };
-    } else {
-      logger.error({ prNumber }, "[PRSubmitNode] PR creation failed");
-      return {
-        hasChanges: true,
-        prCreated: false,
-        error: "PR creation returned no URL",
-      };
-    }
+    return {
+      hasChanges: true,
+      ...prResult,
+    };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     logger.error({ error: errorMsg }, "[PRSubmitNode] PR submission failed");
