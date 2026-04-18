@@ -84,6 +84,78 @@ async function processMessage(
 
 const PORT = Number.parseInt(process.env.PORT || "7860", 10);
 
+async function handleTelegramMessage(msg: any, telegramBotToken: string) {
+  if (!("text" in msg) || !msg.text) {
+    return;
+  }
+
+  // Skip duplicate messages
+  if (isDuplicateMessage(msg.chat.id, msg.message_id)) {
+    return;
+  }
+
+  logger.info(
+    {
+      chatId: msg.chat.id,
+      messageId: msg.message_id,
+      text: msg.text,
+    },
+    "[codeagent][telegram] message",
+  );
+
+  // Extract the user identity
+  const username = msg.from?.username || "unknown_user";
+  const email =
+    getEmailForIdentity("telegram", username) ||
+    getEmailForIdentity("github", username) ||
+    "No email found in identity map";
+
+  // Enrich the text payload
+  const enrichedText = `[System Context: Message sent by Telegram user @${username} (Email: ${email})]\n\n${msg.text}`;
+
+  // Generate threadId from chat ID for per-chat conversation history
+  const threadId = generateThreadId(msg.chat.id);
+
+  // Check if thread is active, queue if busy
+  if (isThreadActive(threadId)) {
+    logger.info(
+      { threadId, chatId: msg.chat.id },
+      "[codeagent][telegram] thread busy, queuing message",
+    );
+    enqueueMessage(threadId, enrichedText);
+    // Send acknowledgment
+    await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: msg.chat.id,
+        text: "Message queued. I'll get to it shortly...",
+      }),
+    });
+    return;
+  }
+
+  // Process the message and send reply
+  const reply = await processMessage(threadId, enrichedText);
+
+  // Send reply back to Telegram
+  await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: msg.chat.id,
+      text: reply,
+    }),
+  });
+
+  logger.info("[codeagent][telegram] reply sent");
+
+  // Process any queued messages
+  if (messageQueue.has(threadId)) {
+    void processQueue(threadId);
+  }
+}
+
 // Telegram polling for local development
 async function startTelegramPolling() {
   const { telegramBotToken } = loadTelegramConfig();
@@ -113,80 +185,7 @@ async function startTelegramPolling() {
 
           // Handle message updates
           if ("message" in update) {
-            const msg = update.message;
-            if ("text" in msg && msg.text) {
-              // Skip duplicate messages
-              if (isDuplicateMessage(msg.chat.id, msg.message_id)) {
-                continue;
-              }
-
-              logger.info(
-                {
-                  chatId: msg.chat.id,
-                  messageId: msg.message_id,
-                  text: msg.text,
-                },
-                "[codeagent][telegram] message",
-              );
-
-              // Extract the user identity
-              const username = msg.from?.username || "unknown_user";
-              const email =
-                getEmailForIdentity("telegram", username) ||
-                getEmailForIdentity("github", username) ||
-                "No email found in identity map";
-
-              // Enrich the text payload
-              const enrichedText = `[System Context: Message sent by Telegram user @${username} (Email: ${email})]\n\n${msg.text}`;
-
-              // Generate threadId from chat ID for per-chat conversation history
-              const threadId = generateThreadId(msg.chat.id);
-
-              // Check if thread is active, queue if busy
-              if (isThreadActive(threadId)) {
-                logger.info(
-                  { threadId, chatId: msg.chat.id },
-                  "[codeagent][telegram] thread busy, queuing message",
-                );
-                enqueueMessage(threadId, enrichedText);
-                // Send acknowledgment
-                await fetch(
-                  `https://api.telegram.org/bot${telegramBotToken}/sendMessage`,
-                  {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      chat_id: msg.chat.id,
-                      text: "Message queued. I'll get to it shortly...",
-                    }),
-                  },
-                );
-                continue;
-              }
-
-              // Process the message and send reply
-              const reply = await processMessage(threadId, enrichedText);
-
-              // Send reply back to Telegram
-              await fetch(
-                `https://api.telegram.org/bot${telegramBotToken}/sendMessage`,
-                {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    chat_id: msg.chat.id,
-                    text: reply,
-                  }),
-                },
-              );
-
-              logger.info("[codeagent][telegram] reply sent");
-
-              // Process any queued messages
-              if (messageQueue.has(threadId)) {
-                void processQueue(threadId);
-              }
-            }
+            await handleTelegramMessage(update.message, telegramBotToken);
           }
         }
       }
