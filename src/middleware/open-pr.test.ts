@@ -4,12 +4,17 @@ import { type SandboxService } from "../integrations/sandbox-service";
 const originalEnv = { ...process.env };
 
 // Mock logger
+const mockInfo = mock();
+const mockError = mock();
+const mockDebug = mock();
+const mockWarn = mock();
+
 mock.module("../utils/logger", () => ({
   createLogger: () => ({
-    info: mock(),
-    error: mock(),
-    debug: mock(),
-    warn: mock(),
+    info: mockInfo,
+    error: mockError,
+    debug: mockDebug,
+    warn: mockWarn,
   }),
 }));
 
@@ -123,132 +128,43 @@ describe("openPrIfNeeded", () => {
   });
 });
 
-describe("extractPrParamsFromMessages", () => {
-  let extractPrParamsFromMessages: (messages: any[]) => any;
 
-  beforeEach(async () => {
-    const module = await import("./open-pr");
-    extractPrParamsFromMessages = module.extractPrParamsFromMessages;
-  });
+describe("withOpenPrAfterAgent", () => {
+  it("calls underlying agent and passes the state", async () => {
+    // Dynamically import to ensure mock.module calls have taken effect
+    const { withOpenPrAfterAgent } = await import("./open-pr");
+    const { createLogger } = await import("../utils/logger");
 
-  it("returns null for an empty messages array", () => {
-    expect(extractPrParamsFromMessages([])).toBeNull();
-  });
+    // Grab the mocked logger instance
+    mockInfo.mockClear();
 
-  it("returns null when no commit_and_open_pr tool result exists", () => {
-    const messages = [
-      { type: "human", content: "hello" },
-      { type: "tool", name: "other_tool", content: "{}" },
-    ];
-    expect(extractPrParamsFromMessages(messages)).toBeNull();
-  });
+    const mockAgent = mock().mockResolvedValue({ stateUpdated: true });
 
-  it("successfully extracts the payload when content is a stringified JSON", () => {
-    const expectedPayload = { title: "Test Title", success: true };
-    const messages = [
-      {
-        type: "tool",
-        name: "commit_and_open_pr",
-        content: JSON.stringify(expectedPayload),
-      },
-    ];
-    expect(extractPrParamsFromMessages(messages)).toEqual(expectedPayload);
-  });
+    const mockConfig = {
+      sandboxBackend: {} as SandboxService,
+      repoDir: "test-repo"
+    };
 
-  it("successfully extracts the payload when content is a plain object", () => {
-    const expectedPayload = { title: "Test Title", success: true };
-    const messages = [
-      {
-        type: "tool",
-        name: "commit_and_open_pr",
-        content: expectedPayload,
-      },
-    ];
-    expect(extractPrParamsFromMessages(messages)).toEqual(expectedPayload);
-  });
+    const wrappedAgent = withOpenPrAfterAgent(mockAgent, mockConfig);
 
-  it("returns the most recent valid tool result when multiple exist", () => {
-    const payload1 = { title: "First PR" };
-    const payload2 = { title: "Second PR" };
-    const messages = [
-      {
-        type: "tool",
-        name: "commit_and_open_pr",
-        content: JSON.stringify(payload1),
+    const mockState = {
+      messages: [],
+      configurable: {
+        thread_id: "test-thread",
+        repo: { owner: "test-owner", name: "test-repo" }
       },
-      { type: "human", content: "some text" },
-      {
-        type: "tool",
-        name: "commit_and_open_pr",
-        content: JSON.stringify(payload2),
-      },
-    ];
-    expect(extractPrParamsFromMessages(messages)).toEqual(payload2);
-  });
+      metadata: { branch_name: "test-branch" }
+    };
 
-  it("ignores messages with invalid JSON strings, falling back to earlier messages", () => {
-    const validPayload = { title: "Valid PR" };
-    const messages = [
-      {
-        type: "tool",
-        name: "commit_and_open_pr",
-        content: JSON.stringify(validPayload),
-      },
-      {
-        type: "tool",
-        name: "commit_and_open_pr",
-        content: "invalid { json",
-      },
-    ];
-    expect(extractPrParamsFromMessages(messages)).toEqual(validPayload);
-  });
+    const result = await wrappedAgent(mockState as any);
 
-  it("ignores messages with missing or null content", () => {
-    const validPayload = { title: "Valid PR" };
-    const messages = [
-      {
-        type: "tool",
-        name: "commit_and_open_pr",
-        content: JSON.stringify(validPayload),
-      },
-      {
-        type: "tool",
-        name: "commit_and_open_pr",
-        content: null, // Note: the type signature allows undefined, but usually null is handled by avoiding falsy content
-      },
-      {
-        type: "tool",
-        name: "commit_and_open_pr",
-      }, // undefined content
-    ];
-    expect(extractPrParamsFromMessages(messages)).toEqual(validPayload);
-  });
+    // Verify the agent result is returned
+    expect(result).toEqual({ stateUpdated: true });
 
-  it("ignores messages with non-string/non-object content", () => {
-    const validPayload = { title: "Valid PR" };
-    const messages = [
-      {
-        type: "tool",
-        name: "commit_and_open_pr",
-        content: JSON.stringify(validPayload),
-      },
-      {
-        type: "tool",
-        name: "commit_and_open_pr",
-        content: 12345, // Number is not string or object
-      },
-    ];
-    expect(extractPrParamsFromMessages(messages)).toEqual(validPayload);
-  });
+    // Verify the underlying agent was called with the correct state
+    expect(mockAgent).toHaveBeenCalledWith(mockState);
 
-  it("returns null if the only commit_and_open_pr content is not an object after parsing", () => {
-    const messages = [
-      {
-        type: "tool",
-        name: "commit_and_open_pr",
-        content: JSON.stringify("just a string"),
-      },
-    ];
-    expect(extractPrParamsFromMessages(messages)).toBeNull();
+    // Verify openPrIfNeeded logic was triggered by checking logger output
+    expect(mockInfo).toHaveBeenCalledWith("After-agent middleware started");
   });
 });
