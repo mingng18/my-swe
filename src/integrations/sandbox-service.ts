@@ -64,6 +64,13 @@ export interface SandboxServiceConfig {
 /**
  * Unified Sandbox Service that abstracts the underlying provider.
  */
+/**
+ * Escapes a string so it can be safely used as a single argument in a POSIX shell.
+ */
+function escapeShellArg(arg: string): string {
+  return `'${arg.replace(/'/g, "'\\''")}'`;
+}
+
 export class SandboxService implements FilesystemPort, SandboxBackendPort {
   private backend: OpenSandboxBackend | DaytonaBackend;
   private provider: SandboxProvider;
@@ -476,13 +483,13 @@ export class SandboxService implements FilesystemPort, SandboxBackendPort {
       const sb = this.getSandbox();
       if (sb?.git && typeof sb.git.clone === "function") {
         // Ensure the workDir exists (some images default to /root, others to /workspace).
-        await this.execute(`mkdir -p "${workDir}"`);
+        await this.execute(`mkdir -p ${escapeShellArg(workDir)}`);
 
         const relPath = repoName; // relative to sandbox workdir per Daytona docs
 
         // Check if repo already exists
         const checkResult = await this.execute(
-          `test -d "${repoDir}/.git" && echo "exists" || echo "not_found"`,
+          `test -d ${escapeShellArg(repoDir + "/.git")} && echo "exists" || echo "not_found"`,
         );
 
         if (checkResult.output.includes("exists")) {
@@ -506,7 +513,9 @@ export class SandboxService implements FilesystemPort, SandboxBackendPort {
             );
           }
 
-          logger.info(`[sandbox-service] Repo updated successfully at ${repoDir}`);
+          logger.info(
+            `[sandbox-service] Repo updated successfully at ${repoDir}`,
+          );
           await this.setupRipgrep();
           return repoDir;
         }
@@ -516,17 +525,24 @@ export class SandboxService implements FilesystemPort, SandboxBackendPort {
         );
 
         if (githubToken) {
-          await sb.git.clone(cloneUrl, relPath, undefined, undefined, "git", githubToken);
+          await sb.git.clone(
+            cloneUrl,
+            relPath,
+            undefined,
+            undefined,
+            "git",
+            githubToken,
+          );
         } else {
           await sb.git.clone(cloneUrl, relPath);
         }
 
         // Configure git user for commits (best-effort; uses shell if git exists, otherwise noop)
         await this.execute(
-          `cd "${repoDir}" && git config user.name "open-swe[bot]" 2>/dev/null || true`,
+          `cd ${escapeShellArg(repoDir)} && git config user.name "open-swe[bot]" 2>/dev/null || true`,
         );
         await this.execute(
-          `cd "${repoDir}" && git config user.email "open-swe@users.noreply.github.com" 2>/dev/null || true`,
+          `cd ${escapeShellArg(repoDir)} && git config user.email "open-swe@users.noreply.github.com" 2>/dev/null || true`,
         );
 
         logger.info(`[sandbox-service] Repo cloned successfully to ${repoDir}`);
@@ -542,11 +558,11 @@ export class SandboxService implements FilesystemPort, SandboxBackendPort {
       : cloneUrl;
 
     // Ensure workspace directory exists
-    await this.execute(`mkdir -p ${workDir}`);
+    await this.execute(`mkdir -p ${escapeShellArg(workDir)}`);
 
     // Check if repo already exists
     const checkResult = await this.execute(
-      `test -d "${repoDir}/.git" && echo "exists" || echo "not_found"`,
+      `test -d ${escapeShellArg(repoDir + "/.git")} && echo "exists" || echo "not_found"`,
     );
 
     if (checkResult.output.includes("exists")) {
@@ -556,7 +572,7 @@ export class SandboxService implements FilesystemPort, SandboxBackendPort {
 
       // Fetch and pull latest changes
       const fetchResult = await this.execute(
-        `cd "${repoDir}" && git fetch origin 2>&1`,
+        `cd ${escapeShellArg(repoDir)} && git fetch origin 2>&1`,
       );
       if (fetchResult.exitCode !== 0) {
         logger.warn(
@@ -568,7 +584,7 @@ export class SandboxService implements FilesystemPort, SandboxBackendPort {
       // Primary approach: read remote HEAD branch (origin/HEAD -> origin/<branch>).
       // Fallback: try origin/main then origin/master.
       const remoteHead = await this.execute(
-        `cd "${repoDir}" && git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true`,
+        `cd ${escapeShellArg(repoDir)} && git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true`,
       );
 
       const remoteHeadStr = (remoteHead.output || "").trim();
@@ -583,14 +599,14 @@ export class SandboxService implements FilesystemPort, SandboxBackendPort {
         resetAttempt = {
           branch: defaultBranch,
           res: await this.execute(
-            `cd "${repoDir}" && git reset --hard "origin/${defaultBranch}" 2>&1`,
+            `cd ${escapeShellArg(repoDir)} && git reset --hard ${escapeShellArg("origin/" + defaultBranch)} 2>&1`,
           ),
         };
       }
 
       if (!resetAttempt || resetAttempt.res.exitCode !== 0) {
         const mainRes = await this.execute(
-          `cd "${repoDir}" && git reset --hard origin/main 2>&1`,
+          `cd ${escapeShellArg(repoDir)} && git reset --hard origin/main 2>&1`,
         );
         if (mainRes.exitCode === 0) {
           logger.info(
@@ -598,7 +614,7 @@ export class SandboxService implements FilesystemPort, SandboxBackendPort {
           );
         } else {
           const masterRes = await this.execute(
-            `cd "${repoDir}" && git reset --hard origin/master 2>&1`,
+            `cd ${escapeShellArg(repoDir)} && git reset --hard origin/master 2>&1`,
           );
           if (masterRes.exitCode === 0) {
             logger.info(
@@ -620,7 +636,7 @@ export class SandboxService implements FilesystemPort, SandboxBackendPort {
 
       // Clone the repository
       const result = await this.execute(
-        `git clone ${cloneUrlWithCreds} ${repoDir} 2>&1`,
+        `git clone ${escapeShellArg(cloneUrlWithCreds)} ${escapeShellArg(repoDir)} 2>&1`,
       );
 
       if (result.exitCode !== 0) {
@@ -629,10 +645,10 @@ export class SandboxService implements FilesystemPort, SandboxBackendPort {
 
       // Configure git user for commits
       await this.execute(
-        `cd "${repoDir}" && git config user.name "open-swe[bot]"`,
+        `cd ${escapeShellArg(repoDir)} && git config user.name "open-swe[bot]"`,
       );
       await this.execute(
-        `cd "${repoDir}" && git config user.email "open-swe@users.noreply.github.com"`,
+        `cd ${escapeShellArg(repoDir)} && git config user.email "open-swe@users.noreply.github.com"`,
       );
 
       logger.info(`[sandbox-service] Repo cloned successfully to ${repoDir}`);
