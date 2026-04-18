@@ -1,6 +1,6 @@
 // src/blueprints/actions.ts
 
-import { exec } from "child_process";
+import { execFile } from "child_process";
 import { promisify } from "util";
 import type {
   DeterministicAction,
@@ -8,7 +8,33 @@ import type {
   BlueprintState,
 } from "./types";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
+
+/**
+ * Parses a command string into a command and an array of arguments, handling quotes.
+ * @param commandStr The command string to parse.
+ * @returns An object with the command and args array.
+ */
+export function parseCommandArgs(commandStr: string): {
+  command: string;
+  args: string[];
+} {
+  const match = commandStr.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || [];
+  if (match.length === 0) return { command: "", args: [] };
+
+  const command = match[0];
+  const args = match.slice(1).map((arg) => {
+    if (
+      (arg.startsWith('"') && arg.endsWith('"')) ||
+      (arg.startsWith("'") && arg.endsWith("'"))
+    ) {
+      return arg.slice(1, -1);
+    }
+    return arg;
+  });
+
+  return { command, args };
+}
 
 /**
  * Registry for deterministic actions.
@@ -54,7 +80,11 @@ const runLintersAction: DeterministicAction = {
   execute: async (_state: BlueprintState): Promise<ActionResult> => {
     const linterCommand = process.env.LINTER_COMMAND || "bunx tsc --noEmit";
     try {
-      const { stdout, stderr } = await execAsync(linterCommand);
+      const { command, args } = parseCommandArgs(linterCommand);
+      if (!command) {
+        return { success: false, error: "Empty linter command" };
+      }
+      const { stdout, stderr } = await execFileAsync(command, args);
       return { success: true, output: stdout || "Linters passed" };
     } catch (error) {
       const err = error as { stderr?: string; message?: string };
@@ -77,7 +107,11 @@ const runTestsAction: DeterministicAction = {
   execute: async (_state: BlueprintState): Promise<ActionResult> => {
     const testCommand = process.env.TEST_COMMAND || "bun test";
     try {
-      const { stdout, stderr } = await execAsync(testCommand);
+      const { command, args } = parseCommandArgs(testCommand);
+      if (!command) {
+        return { success: false, error: "Empty test command" };
+      }
+      const { stdout, stderr } = await execFileAsync(command, args);
       return { success: true, output: stdout || "Tests passed" };
     } catch (error) {
       const err = error as { stderr?: string; message?: string };
@@ -99,7 +133,8 @@ const runTypecheckAction: DeterministicAction = {
   description: "Run TypeScript type checking",
   execute: async (_state: BlueprintState): Promise<ActionResult> => {
     try {
-      const { stdout, stderr } = await execAsync("bunx tsc --noEmit");
+      const { command, args } = parseCommandArgs("bunx tsc --noEmit");
+      const { stdout, stderr } = await execFileAsync(command, args);
       return { success: true, output: "Type check passed" };
     } catch (error) {
       const err = error as { stderr?: string; message?: string };

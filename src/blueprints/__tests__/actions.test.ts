@@ -5,6 +5,7 @@ import {
   ActionRegistry,
   actionRegistry,
   registerBuiltinActions,
+  parseCommandArgs,
 } from "../actions";
 import type { BlueprintState } from "../types";
 
@@ -55,5 +56,42 @@ describe("Builtin Actions", () => {
     expect(() => {
       registerBuiltinActions();
     }).toThrow(/already registered/);
+  });
+});
+
+describe("parseCommandArgs", () => {
+  it("should parse a simple command", () => {
+    expect(parseCommandArgs("bun test")).toEqual({
+      command: "bun",
+      args: ["test"],
+    });
+  });
+
+  it("should parse a command with double quotes", () => {
+    expect(parseCommandArgs('bun test "src/my test.ts"')).toEqual({
+      command: "bun",
+      args: ["test", "src/my test.ts"],
+    });
+  });
+
+  it("should parse a command with single quotes", () => {
+    expect(parseCommandArgs("bun test 'src/my test.ts'")).toEqual({
+      command: "bun",
+      args: ["test", "src/my test.ts"],
+    });
+  });
+
+  it("should handle empty strings", () => {
+    expect(parseCommandArgs("")).toEqual({
+      command: "",
+      args: [],
+    });
+  });
+
+  it("should parse a command with multiple arguments", () => {
+    expect(parseCommandArgs("bunx tsc --noEmit")).toEqual({
+      command: "bunx",
+      args: ["tsc", "--noEmit"],
+    });
   });
 });
