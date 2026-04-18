@@ -52,7 +52,9 @@ export function detectProvider(): LlmProvider {
 /**
  * Create a LangChain `BaseChatModel` from a provider-agnostic config.
  */
-export async function createChatModel(config: ModelConfig): Promise<BaseChatModel> {
+export async function createChatModel(
+  config: ModelConfig,
+): Promise<BaseChatModel> {
   switch (config.provider) {
     case "google":
       return createGoogleModel(config);
@@ -134,25 +136,34 @@ function stripUnsupportedGeminiProps(obj: unknown): unknown {
   }
   if (obj !== null && typeof obj === "object") {
     const cleaned: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+    for (const key in obj as Record<string, unknown>) {
       if (GEMINI_UNSUPPORTED_KEYWORDS.has(key)) continue;
-      cleaned[key] = stripUnsupportedGeminiProps(value);
+      cleaned[key] = stripUnsupportedGeminiProps(
+        (obj as Record<string, unknown>)[key],
+      );
     }
 
     // Fix `required` array: only keep entries that match keys in `properties`.
     // Zod's .optional().default() can produce schemas where `required` lists
     // property names that don't appear in `properties`, which Gemini rejects.
-    if (
-      Array.isArray(cleaned.required) &&
-      cleaned.properties &&
-      typeof cleaned.properties === "object"
-    ) {
-      const props = cleaned.properties as object;
-      cleaned.required = (cleaned.required as string[]).filter((k) =>
-        Object.prototype.hasOwnProperty.call(props, k),
-      );
-      // Remove empty required array entirely
-      if ((cleaned.required as string[]).length === 0) {
+    const req = cleaned.required;
+    const props = cleaned.properties;
+
+    if (Array.isArray(req)) {
+      if (props && typeof props === "object") {
+        const newReq: string[] = [];
+        for (let i = 0; i < req.length; i++) {
+          const k = req[i];
+          if (Object.prototype.hasOwnProperty.call(props, k)) {
+            newReq.push(k as string);
+          }
+        }
+        if (newReq.length > 0) {
+          cleaned.required = newReq;
+        } else {
+          delete cleaned.required;
+        }
+      } else if (req.length === 0) {
         delete cleaned.required;
       }
     }
