@@ -1,14 +1,15 @@
 // src/blueprints/actions.ts
 
-import { exec } from "child_process";
+import { execFile } from "child_process";
 import { promisify } from "util";
+import { parse } from "shell-quote";
 import type {
   DeterministicAction,
   ActionResult,
   BlueprintState,
 } from "./types";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 /**
  * Registry for deterministic actions.
@@ -54,13 +55,18 @@ const runLintersAction: DeterministicAction = {
   execute: async (_state: BlueprintState): Promise<ActionResult> => {
     const linterCommand = process.env.LINTER_COMMAND || "bunx tsc --noEmit";
     try {
-      const { stdout, stderr } = await execAsync(linterCommand);
+      const parsed = parse(linterCommand);
+      const cmd = parsed[0] as string;
+      const args = parsed.slice(1).map(String);
+      const { stdout, stderr } = await execFileAsync(cmd, args);
       return { success: true, output: stdout || "Linters passed" };
     } catch (error) {
-      const err = error as { stderr?: string; message?: string };
+      const err = error as { stderr?: string | Buffer; message?: string };
+      const stderrStr =
+        err.stderr instanceof Buffer ? err.stderr.toString() : err.stderr;
       return {
         success: false,
-        error: err.stderr || err.message || "Linters failed",
+        error: stderrStr || err.message || "Linters failed",
       };
     }
   },
@@ -77,13 +83,18 @@ const runTestsAction: DeterministicAction = {
   execute: async (_state: BlueprintState): Promise<ActionResult> => {
     const testCommand = process.env.TEST_COMMAND || "bun test";
     try {
-      const { stdout, stderr } = await execAsync(testCommand);
+      const parsed = parse(testCommand);
+      const cmd = parsed[0] as string;
+      const args = parsed.slice(1).map(String);
+      const { stdout, stderr } = await execFileAsync(cmd, args);
       return { success: true, output: stdout || "Tests passed" };
     } catch (error) {
-      const err = error as { stderr?: string; message?: string };
+      const err = error as { stderr?: string | Buffer; message?: string };
+      const stderrStr =
+        err.stderr instanceof Buffer ? err.stderr.toString() : err.stderr;
       return {
         success: false,
-        error: err.stderr || err.message || "Tests failed",
+        error: stderrStr || err.message || "Tests failed",
       };
     }
   },
@@ -99,13 +110,18 @@ const runTypecheckAction: DeterministicAction = {
   description: "Run TypeScript type checking",
   execute: async (_state: BlueprintState): Promise<ActionResult> => {
     try {
-      const { stdout, stderr } = await execAsync("bunx tsc --noEmit");
+      const { stdout, stderr } = await execFileAsync("bunx", [
+        "tsc",
+        "--noEmit",
+      ]);
       return { success: true, output: "Type check passed" };
     } catch (error) {
-      const err = error as { stderr?: string; message?: string };
+      const err = error as { stderr?: string | Buffer; message?: string };
+      const stderrStr =
+        err.stderr instanceof Buffer ? err.stderr.toString() : err.stderr;
       return {
         success: false,
-        error: err.stderr || err.message || "Type check failed",
+        error: stderrStr || err.message || "Type check failed",
       };
     }
   },
