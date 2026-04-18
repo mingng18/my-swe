@@ -63,7 +63,8 @@ function estimateMessageTokens(message: BaseMessage): number {
   if (typeof content === "string") {
     textLength = content.length;
   } else if (Array.isArray(content)) {
-    for (const part of content) {
+    for (let i = 0; i < content.length; i++) {
+      const part = content[i];
       if (part.type === "text" && part.text) {
         textLength += part.text.length;
       }
@@ -140,11 +141,18 @@ export function calculateImportance(
           isSuccessful = false;
         }
       } else if (Array.isArray(content)) {
-        const textContent = content
-          .filter((p) => p.type === "text")
-          .map((p) => p.text || "")
-          .join(" ")
-          .toLowerCase();
+        let textContent = "";
+        for (let i = 0; i < content.length; i++) {
+          const p = content[i];
+          if (p.type === "text" && p.text) {
+            if (textContent.length > 0) {
+              textContent += " ";
+            }
+            textContent += p.text;
+          }
+        }
+        textContent = textContent.toLowerCase();
+
         if (
           textContent.includes("error:") ||
           textContent.includes("failed") ||
