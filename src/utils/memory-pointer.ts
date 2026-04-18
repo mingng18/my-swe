@@ -396,7 +396,6 @@ export async function listArtifacts(
   const files = await readdir(MEMORY_POINTER_DIR);
   const artifacts: ArtifactMetadata[] = [];
 
-  // ⚡ Bolt: Use Promise.all to map readFile sequentially avoiding blocking IO bottleneck
   const readPromises = files
     .filter((file) => file.endsWith(".json"))
     .map(async (file) => {
@@ -413,7 +412,6 @@ export async function listArtifacts(
 
         // Only return artifacts for this thread
         if (artifact.metadata.threadId === threadId) {
-          // Don't include content in listing
           return artifact.metadata;
         }
       } catch (error) {
@@ -426,9 +424,9 @@ export async function listArtifacts(
     });
 
   const results = await Promise.all(readPromises);
-  for (const result of results) {
-    if (result) {
-      artifacts.push(result);
+  for (const metadata of results) {
+    if (metadata) {
+      artifacts.push(metadata);
     }
   }
 
@@ -461,7 +459,6 @@ export async function cleanupArtifacts(threadId: string): Promise<number> {
   const files = await readdir(MEMORY_POINTER_DIR);
   let cleanedCount = 0;
 
-  // ⚡ Bolt: Execute readFile via concurrent mapping for better throughput over sequential IO
   const cleanupPromises = files
     .filter((file) => file.endsWith(".json"))
     .map(async (file) => {
@@ -485,7 +482,7 @@ export async function cleanupArtifacts(threadId: string): Promise<number> {
     });
 
   const results = await Promise.all(cleanupPromises);
-  cleanedCount = results.reduce((sum, count) => sum + count, 0);
+  cleanedCount = results.reduce((sum: number, count) => sum + count, 0);
 
   if (cleanedCount > 0) {
     logger.info(
