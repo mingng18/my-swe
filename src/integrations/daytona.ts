@@ -191,9 +191,12 @@ export class DaytonaBackend extends BaseSandboxBackend {
         volumes: this.config.volumes,
       };
 
-      // Remove undefined keys so the SDK only receives explicit params.
-      for (const [k, v] of Object.entries(createParams)) {
-        if (v === undefined) delete createParams[k];
+      // ⚡ Bolt: Use for...in to create a new clean object instead of mutating with delete to avoid hidden class deoptimization
+      const cleanParams: Record<string, unknown> = {};
+      for (const k in createParams) {
+        if (createParams[k] !== undefined) {
+          cleanParams[k] = createParams[k];
+        }
       }
 
       const hasEnvVars = Object.keys(this.config.envVars ?? {}).length > 0;
@@ -211,7 +214,7 @@ export class DaytonaBackend extends BaseSandboxBackend {
       );
 
       // Creates a snapshot from the provided image and then creates the Sandbox.
-      this.sandbox = await this.daytona.create(createParams as any);
+      this.sandbox = await this.daytona.create(cleanParams as any);
       this._id = this.sandbox.id;
 
       logger.info(
@@ -714,7 +717,9 @@ export function createDaytonaBackendFromEnv(): DaytonaBackend {
       const parsed = JSON.parse(value);
       if (!parsed || typeof parsed !== "object") return undefined;
       const rec: Record<string, string> = {};
-      for (const [k, v] of Object.entries(parsed)) {
+      // ⚡ Bolt: Replace Object.entries with for...in to avoid intermediate array allocations
+      for (const k in parsed) {
+        const v = parsed[k];
         if (typeof v === "string") rec[k] = v;
         else if (v != null) rec[k] = String(v);
       }
