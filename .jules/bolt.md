@@ -4,3 +4,7 @@
 ## 2026-04-16 - Memory Pointer Iteration Concurrency Optimization
 **Learning:** Sequential await readFile inside loops in memory-pointer.ts and escalation-store.ts caused poor performance when there are multiple artifacts or escalations.
 **Action:** Use Promise.all with array mapping to allow concurrent file reads for significantly better latency.
+
+## 2024-03-24 - Blueprint Selection Performance Optimization
+**Learning:** Found a performance bottleneck in the Blueprint system (`src/blueprints/selection.ts`) during keyword matching. The original code dynamically generated a lowercased string via `.toLowerCase()` and sequentially used `.includes()` for matching, which repeatedly allocates temporary strings in a loop and is inefficient. The initial attempt to fix this by compiling regexes inside the loop for every single blueprint was rejected as a regression, since it caused dynamic regex generation inside a hot loop which is a known anti-pattern.
+**Action:** Optimized `selectBlueprint` by using a pre-compiled case-insensitive RegExp that matches any trigger keyword, and caching the compiled regex patterns in a `WeakMap<Blueprint, CompiledBlueprint>` so that we get fast regex operations without recompiling during every loop iteration.
