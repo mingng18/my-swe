@@ -112,38 +112,53 @@ export class DaytonaBackend extends BaseSandboxBackend {
 
     // If sandboxId is provided, reuse existing sandbox
     if (this.config.sandboxId) {
-      logger.info(
-        `[daytona] Reusing existing sandbox: ${this.config.sandboxId}`,
-      );
-      try {
-        // Get the existing sandbox (throws if missing/unauthorized)
-        const existing = await this.daytona.get(this.config.sandboxId);
-        this.sandbox = existing;
-        this._id = existing.id;
-
-        // Ensure it's started
-        if (existing.state !== "started") {
-          logger.info(`[daytona] Starting existing sandbox: ${existing.id}`);
-          await existing.waitUntilStarted(120);
-        }
-
-        // Create directories required by LangSmith experimental sandbox
-        await existing.process.executeCommand(
-          "mkdir -p /large_tool_results 2>/dev/null || true",
-        );
-
-        logger.info(
-          `[daytona] Reused sandbox successfully: ${this.sandbox.id} (${this.sandbox.state})`,
-        );
-        return;
-      } catch (err) {
-        logger.error(
-          { error: err },
-          "[daytona] Failed to reuse sandbox, creating new one",
-        );
-      }
+      const reused = await this.reuseSandbox();
+      if (reused) return;
     }
 
+    await this.createNewSandbox();
+  }
+
+  /**
+   * Attempt to reuse an existing sandbox.
+   * Returns true if successful, false otherwise.
+   */
+  private async reuseSandbox(): Promise<boolean> {
+    logger.info(`[daytona] Reusing existing sandbox: ${this.config.sandboxId}`);
+    try {
+      // Get the existing sandbox (throws if missing/unauthorized)
+      const existing = await this.daytona.get(this.config.sandboxId!);
+      this.sandbox = existing;
+      this._id = existing.id;
+
+      // Ensure it's started
+      if (existing.state !== "started") {
+        logger.info(`[daytona] Starting existing sandbox: ${existing.id}`);
+        await existing.waitUntilStarted(120);
+      }
+
+      // Create directories required by LangSmith experimental sandbox
+      await existing.process.executeCommand(
+        "mkdir -p /large_tool_results 2>/dev/null || true",
+      );
+
+      logger.info(
+        `[daytona] Reused sandbox successfully: ${this.sandbox.id} (${this.sandbox.state})`,
+      );
+      return true;
+    } catch (err) {
+      logger.error(
+        { error: err },
+        "[daytona] Failed to reuse sandbox, creating new one",
+      );
+      return false;
+    }
+  }
+
+  /**
+   * Create a new Daytona sandbox instance.
+   */
+  private async createNewSandbox(): Promise<void> {
     logger.info("[daytona] Creating new sandbox instance");
 
     try {
