@@ -235,9 +235,11 @@ export class FilesystemSnapshotStore implements SnapshotStore {
 
       const files = await findFiles(this.storageDir);
 
-      const filteredFiles = files.filter((file) => file.endsWith(METADATA_EXT));
+      const filteredFiles = files.filter((filePath) =>
+        filePath.endsWith(METADATA_EXT),
+      );
 
-      const metadataPromises = filteredFiles.map(async (filePath) => {
+      const readPromises = filteredFiles.map(async (filePath) => {
         try {
           const data = await readFile(filePath, "utf-8");
           const metadata = JSON.parse(data) as SnapshotMetadata;
@@ -253,7 +255,7 @@ export class FilesystemSnapshotStore implements SnapshotStore {
         }
       });
 
-      const results = await Promise.all(metadataPromises);
+      const results = await Promise.all(readPromises);
       for (const metadata of results) {
         if (metadata) {
           snapshots.push(metadata);
