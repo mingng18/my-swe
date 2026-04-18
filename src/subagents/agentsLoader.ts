@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from "fs";
+import { promises as fsPromises } from "fs";
 import { join } from "path";
 import { parse } from "yaml";
 import type { SubAgent } from "deepagents";
@@ -15,27 +15,25 @@ interface AgentsMdMetadata {
 export async function loadRepoAgents(
   agentsDir: string = ".agents/agents",
 ): Promise<SubAgent[]> {
-  const agents: SubAgent[] = [];
-
   try {
-    const files = readdirSync(agentsDir);
-    for (const file of files) {
-      if (file.endsWith(".md")) {
-        const content = readFileSync(join(agentsDir, file), "utf8");
-        const agent = parseAgentsMd(content, file);
-        if (agent) {
-          agents.push(agent);
-        }
-      }
-    }
+    const files = await fsPromises.readdir(agentsDir);
+    const mdFiles = files.filter((file) => file.endsWith(".md"));
+
+    const readPromises = mdFiles.map(async (file) => {
+      const content = await fsPromises.readFile(join(agentsDir, file), "utf8");
+      return parseAgentsMd(content, file);
+    });
+
+    const parsedAgents = await Promise.all(readPromises);
+
+    return parsedAgents.filter((agent): agent is SubAgent => agent !== null);
   } catch (err) {
     // Directory doesn't exist or isn't readable - that's fine
     if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
       console.warn(`[agentsLoader] Error reading agents directory: ${err}`);
     }
+    return [];
   }
-
-  return agents;
 }
 
 export function parseAgentsMd(
