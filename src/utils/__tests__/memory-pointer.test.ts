@@ -7,6 +7,7 @@ import {
   deleteArtifact,
   cleanupArtifacts,
   shouldStoreAsPointer,
+  createPointerReference,
   type ArtifactMetadata,
 } from "../memory-pointer";
 
@@ -22,6 +23,27 @@ describe("Memory Pointer", () => {
   afterAll(async () => {
     // Clean up after tests
     await cleanupArtifacts(TEST_THREAD_ID);
+  });
+
+  describe("createPointerReference", () => {
+    it("should format a pointer reference string correctly", () => {
+      const metadata = {
+        type: "test-type",
+        timestamp: new Date("2023-01-01T00:00:00Z").getTime(),
+        size: 10000,
+        threadId: TEST_THREAD_ID,
+        metadata: {},
+      };
+
+      const reference = createPointerReference("ptr_12345", metadata, 2500);
+
+      expect(reference).toContain("[MEMORY POINTER: ptr_12345]");
+      expect(reference).toContain("Type: test-type");
+      expect(reference).toContain("Stored: 2023-01-01T00:00:00.000Z");
+      expect(reference).toContain("Token count: 2500");
+      expect(reference).toContain("Original size: 10000 characters");
+      expect(reference).toContain('artifact-query(pointer_id="ptr_12345"');
+    });
   });
 
   describe("shouldStoreAsPointer", () => {
