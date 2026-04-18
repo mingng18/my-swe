@@ -76,30 +76,42 @@ export class McpClientManager {
 
     const configPath = path.join(this.workspaceRoot, ".agents", "mcp.json");
 
+    let content: string;
     try {
-      const content = await fs.readFile(configPath, "utf-8");
-      this.config = JSON.parse(content);
-
-      // Expand environment variables
-      this.config = expandEnvVarsRecursive(this.config);
-
-      if (!this.config) {
-        this.config = { servers: {} };
-      }
-
-      logger.info(
-        { serverCount: Object.keys(this.config.servers).length },
-        "[mcp-client] Loaded MCP configuration",
-      );
+      content = await fs.readFile(configPath, "utf-8");
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === "ENOENT") {
         logger.debug("[mcp-client] No .agents/mcp.json found, MCP disabled");
         this.config = { servers: {} };
       } else {
-        logger.error({ err }, "[mcp-client] Failed to load MCP config");
+        logger.error({ err }, "[mcp-client] Failed to read MCP config file");
         this.config = { servers: {} };
       }
+      return;
     }
+
+    try {
+      this.config = JSON.parse(content);
+    } catch (err) {
+      logger.error(
+        { err },
+        "[mcp-client] Failed to parse MCP config JSON, file might be corrupted",
+      );
+      this.config = { servers: {} };
+      return;
+    }
+
+    // Expand environment variables
+    this.config = expandEnvVarsRecursive(this.config);
+
+    if (!this.config) {
+      this.config = { servers: {} };
+    }
+
+    logger.info(
+      { serverCount: Object.keys(this.config?.servers || {}).length },
+      "[mcp-client] Loaded MCP configuration",
+    );
   }
 
   /**
