@@ -113,6 +113,19 @@ function extractModelName(request: any): string {
 }
 
 /**
+ * Check if the last message is from a user (indicating a new turn).
+ */
+function isNewTurn(messages: BaseMessage[]): boolean {
+  if (messages.length === 0) return false;
+
+  const lastMessage = messages[messages.length - 1];
+  const type = lastMessage.getType();
+
+  // Check if it's a human/user message
+  return type === "human" || type === "user";
+}
+
+/**
  * CompactionMiddleware options.
  */
 export interface CompactionMiddlewareOptions {
@@ -203,12 +216,12 @@ export function createCompactionMiddleware(
       const usageRatio = currentTokens / contextSize;
 
       // Run cascade if:
-      // 1. Messages increased (new turn), AND
+      // 1. Last message is from user (new turn started), AND
       // 2. Either:
       //    a. Above usage threshold, OR
       //    b. We haven't checked in a while (every 10 messages)
       const shouldRun =
-        currentMessageCount > state.lastMessageCount &&
+        isNewTurn(messages) &&
         (usageRatio > 0.5 ||
           currentMessageCount - state.lastMessageCount >= 10);
 
