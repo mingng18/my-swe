@@ -198,8 +198,10 @@ export { threadRepoMap };
 
 // Check if sandbox mode is enabled via environment variable
 const useSandbox = process.env.USE_SANDBOX === "true";
+// For complex SWE tasks, we need a much higher recursion limit
+// Default to 2000 steps (configurable via AGENT_RECURSION_LIMIT env var)
 const AGENT_RECURSION_LIMIT = Number.parseInt(
-  process.env.AGENT_RECURSION_LIMIT || "500",
+  process.env.AGENT_RECURSION_LIMIT || "2000",
   10,
 );
 let hasLoadedPersistedRepos = false;
