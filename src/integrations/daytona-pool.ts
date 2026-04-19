@@ -375,11 +375,15 @@ export async function acquireRepoSandbox(
         );
       }
 
-      for (const [k, v] of Object.entries(createParams)) {
-        if (v === undefined) delete createParams[k];
+      // ⚡ Bolt: Use for...in to create a new clean object instead of mutating with delete to avoid hidden class deoptimization
+      const cleanParams: Record<string, unknown> = {};
+      for (const k in createParams) {
+        if (createParams[k] !== undefined) {
+          cleanParams[k] = createParams[k];
+        }
       }
 
-      const sandbox = await daytona.create(createParams as any);
+      const sandbox = await daytona.create(cleanParams as any);
       const sandboxId = sandbox.id;
 
       logger.info(
@@ -461,11 +465,15 @@ export async function createRepoSandbox(
       createParams.snapshot = snapshotName;
     }
 
-    for (const [k, v] of Object.entries(createParams)) {
-      if (v === undefined) delete createParams[k];
+    // ⚡ Bolt: Use for...in to create a new clean object instead of mutating with delete to avoid hidden class deoptimization
+    const cleanParams: Record<string, unknown> = {};
+    for (const k in createParams) {
+      if (createParams[k] !== undefined) {
+        cleanParams[k] = createParams[k];
+      }
     }
 
-    const sandbox = await daytona.create(createParams as any);
+    const sandbox = await daytona.create(cleanParams as any);
     return sandbox.id;
   } finally {
     try {
