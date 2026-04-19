@@ -18,7 +18,7 @@ import type { BaseMessage } from "@langchain/core/messages";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { createMiddleware } from "langchain";
 import { runCompactionCascade, createCircuitBreakerState } from "./decision";
-import { countMessagesTokens, getContextWindowSize } from "./tokens";
+import { countMessagesTokens, getContextWindowSize, calculateTokenThreshold } from "./tokens";
 import type {
   CompactionConfig,
   CompactionMetadata,
@@ -215,14 +215,19 @@ export function createCompactionMiddleware(
       const contextSize = getContextWindowSize(effectiveModelName);
       const usageRatio = currentTokens / contextSize;
 
+      const cascadeThresholdTokens = calculateTokenThreshold(
+        config.cascadeTrigger!,
+        effectiveModelName,
+      );
+
       // Run cascade if:
       // 1. Last message is from user (new turn started), AND
       // 2. Either:
-      //    a. Above usage threshold, OR
+      //    a. Above cascade threshold, OR
       //    b. We haven't checked in a while (every 10 messages)
       const shouldRun =
         isNewTurn(messages) &&
-        (usageRatio > 0.5 ||
+        (currentTokens >= cascadeThresholdTokens ||
           currentMessageCount - state.lastMessageCount >= 10);
 
       let processedMessages = messages;

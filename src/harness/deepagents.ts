@@ -239,7 +239,14 @@ async function createAgentInstance(args: {
       model: chatModel,
       modelName: modelConfig.model || "gpt-4o",
       config: {
-        // Use environment variables or defaults
+        // Cascade trigger (when to start compaction at all)
+        cascadeTrigger: process.env.COMPACTION_CASCADE_TRIGGER_FRACTION
+          ? {
+              type: "fraction",
+              value: Number.parseFloat(process.env.COMPACTION_CASCADE_TRIGGER_FRACTION),
+            }
+          : { type: "fraction", value: 0.7 },
+        // Summarize trigger (when to use expensive LLM summarization)
         trigger: process.env.COMPACTION_TRIGGER_FRACTION
           ? {
               type: "fraction",
