@@ -184,6 +184,7 @@ export function createCompactionMiddleware(
   logger.info(
     {
       trigger: config.trigger,
+      cascadeTrigger: config.cascadeTrigger,
       keep: config.keep,
       maxConsecutiveFailures: config.maxConsecutiveFailures,
     },
@@ -216,7 +217,7 @@ export function createCompactionMiddleware(
       const usageRatio = currentTokens / contextSize;
 
       const cascadeThresholdTokens = calculateTokenThreshold(
-        config.cascadeTrigger!,
+        config.cascadeTrigger || DEFAULT_COMPACTION_CONFIG.cascadeTrigger,
         effectiveModelName,
       );
 

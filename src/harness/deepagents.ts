@@ -243,7 +243,25 @@ async function createAgentInstance(args: {
         cascadeTrigger: process.env.COMPACTION_CASCADE_TRIGGER_FRACTION
           ? {
               type: "fraction",
-              value: Number.parseFloat(process.env.COMPACTION_CASCADE_TRIGGER_FRACTION),
+              value: Math.max(
+                0,
+                Math.min(
+                  1,
+                  (() => {
+                    const parsed = Number.parseFloat(
+                      process.env.COMPACTION_CASCADE_TRIGGER_FRACTION || "",
+                    );
+                    if (Number.isNaN(parsed)) {
+                      logger.warn(
+                        { envValue: process.env.COMPACTION_CASCADE_TRIGGER_FRACTION },
+                        "[deepagents] Invalid COMPACTION_CASCADE_TRIGGER_FRACTION, using default 0.7",
+                      );
+                      return 0.7;
+                    }
+                    return parsed;
+                  })(),
+                ),
+              ),
             }
           : { type: "fraction", value: 0.7 },
         // Summarize trigger (when to use expensive LLM summarization)
