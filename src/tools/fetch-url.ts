@@ -316,18 +316,24 @@ export async function fetchUrl(
     // DNS resolution to prevent DNS rebinding
     const { address } = await lookupAsync(parsedUrl.hostname);
 
+    // Normalize IPv4-mapped IPv6 addresses for accurate checking
+    const normalizedAddress = address.toLowerCase().startsWith("::ffff:")
+      ? address.substring(7)
+      : address.toLowerCase();
+
     // Check for private / loopback IP addresses
     if (
-      address.startsWith("127.") ||
-      address.startsWith("169.254.") ||
-      address.startsWith("10.") ||
-      address.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./) ||
-      address.startsWith("192.168.") ||
-      address === "0.0.0.0" ||
-      address === "::1" ||
-      address.toLowerCase().startsWith("fc00:") ||
-      address.toLowerCase().startsWith("fd") ||
-      address.toLowerCase().startsWith("fe80:")
+      normalizedAddress.startsWith("127.") ||
+      normalizedAddress.startsWith("169.254.") ||
+      normalizedAddress.startsWith("10.") ||
+      normalizedAddress.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./) ||
+      normalizedAddress.startsWith("192.168.") ||
+      normalizedAddress === "0.0.0.0" ||
+      normalizedAddress === "::1" ||
+      normalizedAddress === "::" ||
+      normalizedAddress.startsWith("fc00:") ||
+      normalizedAddress.startsWith("fd") ||
+      normalizedAddress.startsWith("fe80:")
     ) {
       throw new Error("Local and private addresses are not allowed");
     }

@@ -1,5 +1,5 @@
 import { describe, expect, test, mock, afterEach } from "bun:test";
-import { fetchUrl, fetchUrlTool } from "./fetch-url";
+import { fetchUrl, fetchUrlTool } from "../fetch-url";
 
 describe("fetchUrl", () => {
   const originalFetch = globalThis.fetch;
@@ -30,6 +30,7 @@ describe("fetchUrl", () => {
       status: 200,
       url: "https://example.com",
       text: async () => "<h1>Hello World</h1><p>This is a test.</p>",
+      headers: { get: () => "0" },
     }) as unknown as typeof fetch;
 
     const result = await fetchUrl("https://example.com");
@@ -61,6 +62,7 @@ describe("fetchUrl", () => {
       status: 200,
       url: "https://example.com/tool",
       text: async () => "<p>Tool Test</p>",
+      headers: { get: () => "0" },
     }) as unknown as typeof fetch;
 
     const result = await fetchUrlTool.invoke({

@@ -1,8 +1,4 @@
-## 2024-05-24 - SSRF in multimodal utilities
-**Vulnerability:** fetchImageBlock failed to mitigate SSRF when downloading external images
-**Learning:** An attacker could supply internal loopback IPs or metadata IP addresses (e.g. 127.0.0.1, 169.254.x.x) which the server would fetch.
-**Prevention:** Always validate protocols using URL constructor and use DNS lookup to resolve the actual IP address, explicitly blocking local, private, and metadata IP ranges.
-## 2024-05-31 - Command Injection in SandboxService
-**Vulnerability:** Command injection in `SandboxService.cloneRepo()` via unescaped shell string interpolation (e.g., `workDir`, `repoDir`, `cloneUrlWithCreds`, `defaultBranch`).
-**Learning:** `execute()` command takes shell strings, so dynamically constructed strings require proper escaping before execution, even for seemingly safe inputs like branch names or repositories.
-**Prevention:** Always use an escaping function like `escapeShellArg` to wrap parameters securely before interpolating them into shell commands.
+## 2025-04-18 - SSRF Vulnerability via IPv4-mapped IPv6 Addresses
+**Vulnerability:** The application attempts to prevent SSRF by blocking local/private IP ranges (127.0.0.0/8, 169.254.0.0/16, etc.) using `dns.lookup`. However, it fails to account for IPv4-mapped IPv6 addresses like `::ffff:127.0.0.1` and `::ffff:169.254.169.254`. Since `dns.lookup` returns the mapped format directly when queried, an attacker could resolve an IPv6 address pointing to a protected IPv4 range and bypass the blocklist checks. Also `::` is equivalent to `0.0.0.0`/`localhost` in some contexts but isn't checked properly.
+**Learning:** Basic string matching for IP prefixes is insufficient when dealing with dual-stack IPv4/IPv6 environments. The `::ffff:` prefix (and related mapped formats) can effectively tunnel an IPv4 payload past naive regex/string blocking.
+**Prevention:** Always normalize IP addresses to strip the `::ffff:` prefix before applying blocklist checks, and expand the blocklist to catch edge cases like `::` which functions similarly to `0.0.0.0`.
