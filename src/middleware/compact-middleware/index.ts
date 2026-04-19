@@ -30,6 +30,25 @@ import { createLogger } from "../../utils/logger";
 const logger = createLogger("compact-middleware");
 
 /**
+ * Serialize error for logging (handles both Error and plain objects).
+ */
+function serializeError(error: unknown): Record<string, unknown> {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    };
+  }
+
+  if (error && typeof error === "object") {
+    return error as Record<string, unknown>;
+  }
+
+  return { error: String(error) };
+}
+
+/**
  * Per-thread state for compaction.
  */
 interface ThreadCompactionState {
@@ -267,7 +286,10 @@ export function createCompactionMiddleware(
           );
         } catch (error) {
           logger.error(
-            { error, threadId },
+            {
+              error: serializeError(error),
+              threadId,
+            },
             "[compact-middleware] Compaction failed, proceeding with original messages",
           );
           // Continue with original messages on error
