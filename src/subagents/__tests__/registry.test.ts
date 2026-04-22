@@ -2,8 +2,8 @@ import { describe, it, expect } from "bun:test";
 import { builtInSubagents } from "../registry";
 
 describe("subagent registry", () => {
-  it("should have 8 built-in subagents", () => {
-    expect(builtInSubagents.length).toBe(8);
+  it("should have 11 built-in subagents", () => {
+    expect(builtInSubagents.length).toBe(11);
   });
 
   it("should have explore-agent with correct config", () => {
@@ -31,5 +31,26 @@ describe("subagent registry", () => {
     const toolNames = explore.tools?.map((t) => t.name) ?? [];
     expect(toolNames).not.toContain("commit-and-open-pr");
     expect(toolNames).not.toContain("merge-pr");
+  });
+
+  it("should have typescript-reviewer with correct config", () => {
+    const tsReviewer = builtInSubagents.find((a) => a.name === "typescript-reviewer");
+    expect(tsReviewer).toBeDefined();
+    expect(tsReviewer?.description).toContain("TypeScript");
+    expect(tsReviewer?.description).toContain("type safety");
+  });
+
+  it("should have rust-reviewer with correct config", () => {
+    const rustReviewer = builtInSubagents.find((a) => a.name === "rust-reviewer");
+    expect(rustReviewer).toBeDefined();
+    expect(rustReviewer?.description).toContain("Rust");
+    expect(rustReviewer?.description).toContain("ownership");
+  });
+
+  it("should have java-reviewer with correct config", () => {
+    const javaReviewer = builtInSubagents.find((a) => a.name === "java-reviewer");
+    expect(javaReviewer).toBeDefined();
+    expect(javaReviewer?.description).toContain("Java");
+    expect(javaReviewer?.description).toContain("JVM");
   });
 });

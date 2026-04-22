@@ -3,13 +3,13 @@
   "spec": "002-add-typescript-rust-and-java-code-reviewer-subagen",
   "state": "building",
   "subtasks": {
-    "completed": 4,
+    "completed": 5,
     "total": 7,
     "in_progress": 1,
     "failed": 0
   },
   "phase": {
-    "current": "Update Subagent Registry and Mappings",
+    "current": "Update Tests",
     "id": null,
     "total": 2
   },
@@ -18,8 +18,8 @@
     "max": 1
   },
   "session": {
-    "number": 6,
+    "number": 7,
     "started_at": "2026-04-22T19:39:04.657469"
   },
-  "last_update": "2026-04-22T19:47:02.178374"
+  "last_update": "2026-04-22T19:48:13.226053"
 }
