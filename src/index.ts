@@ -4,7 +4,11 @@ import { serve } from "bun";
 
 import app from "./webapp";
 import { initAgentProviderAtStartup } from "./harness";
-import { loadTelegramConfig, validateStartupConfig } from "./utils/config";
+import {
+  loadTelegramBackoffConfig,
+  loadTelegramConfig,
+  validateStartupConfig,
+} from "./utils/config";
 import { runCodeagentTurn } from "./server";
 import { getEmailForIdentity } from "./utils/identity";
 import { isDuplicateMessage } from "./utils/telegram";
@@ -159,10 +163,9 @@ async function handleTelegramMessage(msg: any, telegramBotToken: string) {
 // Telegram polling for local development
 async function startTelegramPolling() {
   const { telegramBotToken } = loadTelegramConfig();
+  const { baseDelayMs, maxDelayMs } = loadTelegramBackoffConfig();
   let offset = 0;
   let consecutiveErrors = 0;
-  const baseDelayMs = 1000;
-  const maxDelayMs = 60000; // Cap at 1 minute
 
   logger.info("[codeagent] starting Telegram polling mode (for local dev)");
 

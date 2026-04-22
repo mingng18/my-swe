@@ -19,6 +19,32 @@ export function loadTelegramConfig(): {
   return { telegramBotToken: token, telegramAdminChatId: adminChatId };
 }
 
+/** Load exponential backoff configuration for Telegram polling retries. */
+export function loadTelegramBackoffConfig(): {
+  baseDelayMs: number;
+  maxDelayMs: number;
+} {
+  const baseDelayMs =
+    Number.parseInt(process.env.TELEGRAM_BACKOFF_BASE_MS || "1000", 10) || 1000;
+  const maxDelayMs =
+    Number.parseInt(process.env.TELEGRAM_BACKOFF_MAX_MS || "60000", 10) ||
+    60000;
+
+  if (baseDelayMs < 0) {
+    throw new Error(
+      "TELEGRAM_BACKOFF_BASE_MS must be a non-negative number. Set it in .env (see .env.example).",
+    );
+  }
+
+  if (maxDelayMs < baseDelayMs) {
+    throw new Error(
+      "TELEGRAM_BACKOFF_MAX_MS must be greater than or equal to TELEGRAM_BACKOFF_BASE_MS. Set it in .env (see .env.example).",
+    );
+  }
+
+  return { baseDelayMs, maxDelayMs };
+}
+
 /** Where the linter runs (clone target later; defaults to process cwd). */
 export function loadPipelineConfig(): {
   workspaceRoot: string;
