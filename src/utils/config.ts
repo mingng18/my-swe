@@ -24,25 +24,35 @@ export function loadTelegramBackoffConfig(): {
   baseDelayMs: number;
   maxDelayMs: number;
 } {
-  const baseDelayMs =
-    Number.parseInt(process.env.TELEGRAM_BACKOFF_BASE_MS || "1000", 10) || 1000;
-  const maxDelayMs =
-    Number.parseInt(process.env.TELEGRAM_BACKOFF_MAX_MS || "60000", 10) ||
-    60000;
+  const baseDelayMsRaw = process.env.TELEGRAM_BACKOFF_BASE_MS;
+  const maxDelayMsRaw = process.env.TELEGRAM_BACKOFF_MAX_MS;
 
-  if (baseDelayMs < 0) {
+  const baseDelayMs =
+    baseDelayMsRaw !== undefined
+      ? Number.parseInt(baseDelayMsRaw, 10)
+      : 1000;
+  const maxDelayMs =
+    maxDelayMsRaw !== undefined
+      ? Number.parseInt(maxDelayMsRaw, 10)
+      : 60000;
+
+  // Handle NaN from invalid input
+  const finalBaseDelayMs = Number.isNaN(baseDelayMs) ? 1000 : baseDelayMs;
+  const finalMaxDelayMs = Number.isNaN(maxDelayMs) ? 60000 : maxDelayMs;
+
+  if (finalBaseDelayMs < 0) {
     throw new Error(
       "TELEGRAM_BACKOFF_BASE_MS must be a non-negative number. Set it in .env (see .env.example).",
     );
   }
 
-  if (maxDelayMs < baseDelayMs) {
+  if (finalMaxDelayMs < finalBaseDelayMs) {
     throw new Error(
       "TELEGRAM_BACKOFF_MAX_MS must be greater than or equal to TELEGRAM_BACKOFF_BASE_MS. Set it in .env (see .env.example).",
     );
   }
 
-  return { baseDelayMs, maxDelayMs };
+  return { baseDelayMs: finalBaseDelayMs, maxDelayMs: finalMaxDelayMs };
 }
 
 /** Where the linter runs (clone target later; defaults to process cwd). */
