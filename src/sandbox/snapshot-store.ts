@@ -55,7 +55,7 @@ interface CacheEntry<T> {
 /**
  * Cache statistics for monitoring cache performance.
  */
-interface CacheStats {
+export interface CacheStats {
   hits: number;
   misses: number;
 }
@@ -150,6 +150,14 @@ export class FilesystemSnapshotStore implements SnapshotStore {
     this.listAllCache = null;
     this.cacheStats = { hits: 0, misses: 0 };
     logger.debug(`[snapshot-store] Cache cleared`);
+  }
+
+  /**
+   * Get current cache statistics for debugging and monitoring.
+   * Returns a copy of the statistics to prevent external modification.
+   */
+  getCacheStats(): CacheStats {
+    return { ...this.cacheStats };
   }
 
   /**
