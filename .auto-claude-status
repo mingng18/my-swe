@@ -3,9 +3,9 @@
   "spec": "005-lazy-load-sandbox-snapshots-instead-of-preloading-",
   "state": "building",
   "subtasks": {
-    "completed": 8,
+    "completed": 10,
     "total": 21,
-    "in_progress": 1,
+    "in_progress": 0,
     "failed": 0
   },
   "phase": {
@@ -18,8 +18,8 @@
     "max": 1
   },
   "session": {
-    "number": 10,
+    "number": 11,
     "started_at": "2026-04-22T20:01:14.971662"
   },
-  "last_update": "2026-04-22T20:12:08.033812"
+  "last_update": "2026-04-22T20:16:27.774"
 }
