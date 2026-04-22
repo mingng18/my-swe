@@ -47,9 +47,11 @@ export async function fetchImageBlock(
 
       const { address } = await lookupAsync(parsedUrl.hostname);
       // Normalize IPv4-mapped IPv6 addresses for accurate checking
-      const normalizedAddress = address.toLowerCase().startsWith("::ffff:")
-        ? address.substring(7)
-        : address.toLowerCase();
+      let normalizedAddress = address.toLowerCase();
+      normalizedAddress = normalizedAddress.replace(/^(?:0+:)+ffff:/, "");
+      if (normalizedAddress.startsWith("::ffff:")) {
+        normalizedAddress = normalizedAddress.substring(7);
+      }
 
       if (
         normalizedAddress.startsWith("127.") ||
