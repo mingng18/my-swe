@@ -395,10 +395,22 @@ export class FilesystemSnapshotStore implements SnapshotStore {
 
     try {
       await unlink(filePath);
+
+      // Remove the individual cache entry
+      const cacheKey = this.getCacheKey(key);
+      this.cache.delete(cacheKey);
+
+      // Invalidate the listAll cache since the snapshot list has changed
+      this.listAllCache = null;
+
       logger.debug({ key }, `[snapshot-store] Deleted snapshot`);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-        return; // Already deleted
+        // Already deleted - still invalidate cache to ensure consistency
+        const cacheKey = this.getCacheKey(key);
+        this.cache.delete(cacheKey);
+        this.listAllCache = null;
+        return;
       }
       logger.warn({ error, key }, `[snapshot-store] Failed to delete snapshot`);
     }
