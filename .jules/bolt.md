@@ -11,3 +11,6 @@
 ## 2026-04-18 - Object property cleanup optimization
 **Learning:** In V8, using `delete` on object properties deoptimizes hidden classes, and `Object.entries()` creates unnecessary temporary arrays, causing performance overhead in hot paths.
 **Action:** Use `for...in` loops to construct new, clean objects instead of mutating and using `Object.entries()` for small configuration objects.
+## 2024-04-20 - Object.entries in Recursive Functions Performance Optimization
+**Learning:** Using `Object.entries` creates temporary arrays of key-value pairs for every property. In recursive object traversal functions like `truncateObject` that run on large/deep JSON payloads, this causes unnecessary memory allocations and garbage collection overhead in hot paths.
+**Action:** Use `for...in` loops to iterate over object keys without intermediate array allocations in hot paths or recursive functions.
