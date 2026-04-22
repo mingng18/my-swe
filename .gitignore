@@ -4,3 +4,6 @@ node_modules/
 .env.worktrees/
 .env
 .worktrees/
+
+# Auto Claude data directory
+.auto-claude/

@@ -85,6 +85,51 @@ export class FilesystemSnapshotStore implements SnapshotStore {
   }
 
   /**
+   * Generate a cache key for a snapshot key.
+   */
+  private getCacheKey(key: SnapshotKey): string {
+    return snapshotKeyToString(key);
+  }
+
+  /**
+   * Get snapshot metadata from cache if valid (not expired).
+   * Returns null if not in cache or expired.
+   */
+  private getFromCache(key: SnapshotKey): SnapshotMetadata | null {
+    const cacheKey = this.getCacheKey(key);
+    const entry = this.cache.get(cacheKey);
+
+    if (!entry) {
+      this.cacheStats.misses++;
+      return null;
+    }
+
+    // Check if entry has expired
+    const now = Date.now();
+    const age = now - entry.timestamp;
+    if (age > CACHE_TTL_MS) {
+      this.cache.delete(cacheKey);
+      this.cacheStats.misses++;
+      return null;
+    }
+
+    this.cacheStats.hits++;
+    return entry.data;
+  }
+
+  /**
+   * Store snapshot metadata in cache with current timestamp.
+   */
+  private setInCache(metadata: SnapshotMetadata): void {
+    const cacheKey = this.getCacheKey(metadata.key);
+    const entry: CacheEntry<SnapshotMetadata> = {
+      data: metadata,
+      timestamp: Date.now(),
+    };
+    this.cache.set(cacheKey, entry);
+  }
+
+  /**
    * Initialize the storage directory.
    */
   async initialize(): Promise<void> {
