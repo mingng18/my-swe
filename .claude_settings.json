@@ -1,0 +1,44 @@
+{
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": true
+  },
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Read(./**)",
+      "Write(./**)",
+      "Edit(./**)",
+      "Glob(./**)",
+      "Grep(./**)",
+      "Read(/Users/ming/Documents/GitHub/my-swe/.auto-claude/worktrees/tasks/002-add-typescript-rust-and-java-code-reviewer-subagen/**)",
+      "Write(/Users/ming/Documents/GitHub/my-swe/.auto-claude/worktrees/tasks/002-add-typescript-rust-and-java-code-reviewer-subagen/**)",
+      "Edit(/Users/ming/Documents/GitHub/my-swe/.auto-claude/worktrees/tasks/002-add-typescript-rust-and-java-code-reviewer-subagen/**)",
+      "Glob(/Users/ming/Documents/GitHub/my-swe/.auto-claude/worktrees/tasks/002-add-typescript-rust-and-java-code-reviewer-subagen/**)",
+      "Grep(/Users/ming/Documents/GitHub/my-swe/.auto-claude/worktrees/tasks/002-add-typescript-rust-and-java-code-reviewer-subagen/**)",
+      "Read(/Users/ming/Documents/GitHub/my-swe/.auto-claude/worktrees/tasks/002-add-typescript-rust-and-java-code-reviewer-subagen/.auto-claude/specs/002-add-typescript-rust-and-java-code-reviewer-subagen/**)",
+      "Write(/Users/ming/Documents/GitHub/my-swe/.auto-claude/worktrees/tasks/002-add-typescript-rust-and-java-code-reviewer-subagen/.auto-claude/specs/002-add-typescript-rust-and-java-code-reviewer-subagen/**)",
+      "Edit(/Users/ming/Documents/GitHub/my-swe/.auto-claude/worktrees/tasks/002-add-typescript-rust-and-java-code-reviewer-subagen/.auto-claude/specs/002-add-typescript-rust-and-java-code-reviewer-subagen/**)",
+      "Read(/Users/ming/Documents/GitHub/my-swe/.auto-claude/**)",
+      "Write(/Users/ming/Documents/GitHub/my-swe/.auto-claude/**)",
+      "Edit(/Users/ming/Documents/GitHub/my-swe/.auto-claude/**)",
+      "Glob(/Users/ming/Documents/GitHub/my-swe/.auto-claude/**)",
+      "Grep(/Users/ming/Documents/GitHub/my-swe/.auto-claude/**)",
+      "Read(/Users/ming/Documents/GitHub/my-swe/.worktrees/**)",
+      "Write(/Users/ming/Documents/GitHub/my-swe/.worktrees/**)",
+      "Edit(/Users/ming/Documents/GitHub/my-swe/.worktrees/**)",
+      "Glob(/Users/ming/Documents/GitHub/my-swe/.worktrees/**)",
+      "Grep(/Users/ming/Documents/GitHub/my-swe/.worktrees/**)",
+      "Bash(*)",
+      "WebFetch(*)",
+      "WebSearch(*)",
+      "mcp__context7__resolve-library-id(*)",
+      "mcp__context7__query-docs(*)",
+      "mcp__graphiti-memory__search_nodes(*)",
+      "mcp__graphiti-memory__search_facts(*)",
+      "mcp__graphiti-memory__add_episode(*)",
+      "mcp__graphiti-memory__get_episodes(*)",
+      "mcp__graphiti-memory__get_entity_edge(*)"
+    ]
+  }
+}
