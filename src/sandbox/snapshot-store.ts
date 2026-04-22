@@ -307,6 +307,23 @@ export class FilesystemSnapshotStore implements SnapshotStore {
    * List all snapshots.
    */
   async listAll(): Promise<SnapshotMetadata[]> {
+    // Check cache first
+    if (this.listAllCache !== null) {
+      const now = Date.now();
+      const age = now - this.listAllCache.timestamp;
+
+      // Check if cache entry has expired
+      if (age <= CACHE_TTL_MS) {
+        this.cacheStats.hits++;
+        return this.listAllCache.data;
+      }
+
+      // Cache expired, invalidate
+      this.listAllCache = null;
+    }
+
+    // Cache miss - read from filesystem
+    this.cacheStats.misses++;
     await this.initialize();
 
     const snapshots: SnapshotMetadata[] = [];
@@ -352,6 +369,12 @@ export class FilesystemSnapshotStore implements SnapshotStore {
           snapshots.push(metadata);
         }
       }
+
+      // Cache the result for future reads
+      this.listAllCache = {
+        data: snapshots,
+        timestamp: Date.now(),
+      };
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
         logger.error(
