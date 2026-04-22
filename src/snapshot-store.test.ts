@@ -201,6 +201,71 @@ describe("FilesystemSnapshotStore", () => {
       expect(mockReadFile).not.toHaveBeenCalled();
     });
 
+    test("should invalidate existing cache entry when saving updated snapshot", async () => {
+      const key: SnapshotKey = {
+        repoOwner: "test-owner",
+        repoName: "test-repo",
+        profile: "default",
+        branch: "main",
+      };
+
+      // Create initial metadata
+      const originalMetadata = createTestMetadata({
+        key,
+        snapshotId: "original-snapshot",
+        sandboxId: "sandbox-123",
+      });
+
+      // Populate cache with original metadata
+      mockExistsSync.mockReturnValue(true);
+      mockReadFile.mockResolvedValue(JSON.stringify(originalMetadata, null, 2));
+      await store.get(originalMetadata.key);
+
+      const stats1 = store.getCacheStats();
+      expect(stats1.misses).toBe(1);
+      expect(stats1.hits).toBe(0);
+
+      // Clear readFile mock to track if it's called again
+      mockReadFile.mockClear();
+
+      // Verify original is cached by calling get() again - should be cache hit
+      const result1 = await store.get(originalMetadata.key);
+      expect(normalizeMetadata(result1!)).toEqual(originalMetadata);
+      expect(mockReadFile).not.toHaveBeenCalled();
+
+      const stats2 = store.getCacheStats();
+      expect(stats2.hits).toBe(1);
+
+      // Now save updated metadata with same key but different values
+      const updatedMetadata = createTestMetadata({
+        key,
+        snapshotId: "updated-snapshot",
+        sandboxId: "sandbox-456", // Different sandbox ID
+        refreshedAt: new Date(Date.now() + 10000), // Different timestamp
+      });
+
+      mockExistsSync.mockReturnValue(false);
+      mockWriteFile.mockResolvedValue(undefined);
+      await store.save(updatedMetadata);
+
+      // Clear readFile mock to track if next get() reads from filesystem
+      mockReadFile.mockClear();
+
+      // Get the snapshot again - should return updated version from cache
+      const result2 = await store.get(updatedMetadata.key);
+
+      // Should get the updated metadata, not the original
+      expect(result2!.snapshotId).toBe("updated-snapshot");
+      expect(result2!.sandboxId).toBe("sandbox-456");
+      expect(normalizeMetadata(result2!)).toEqual(updatedMetadata);
+
+      // Should not have read from filesystem - updated version was in cache
+      expect(mockReadFile).not.toHaveBeenCalled();
+
+      const stats3 = store.getCacheStats();
+      expect(stats3.hits).toBe(2); // Previous hit + this hit
+    });
+
     test("should invalidate listAll cache when saving snapshot", async () => {
       const metadata = createTestMetadata();
 
