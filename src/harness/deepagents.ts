@@ -1379,6 +1379,9 @@ export async function initDeepAgentsAtStartup(): Promise<void> {
   }
 
   // Snapshot store now lazy-loads on first access (no need to initialize at startup)
+  logger.info(
+    "[deepagents] Snapshot store configured for lazy-loading (initializes on first access)",
+  );
 
   await getAgentHarness();
 }
