@@ -29,13 +29,18 @@ const logger = createLogger("snapshot-store");
 /**
  * Storage directory for snapshot metadata.
  * Can be overridden via SNAPSHOT_STORAGE_DIR env var.
+ *
+ * Environment variable: SNAPSHOT_STORAGE_DIR
+ * Default: /tmp/snapshots
  */
 const STORAGE_DIR = process.env.SNAPSHOT_STORAGE_DIR || "/tmp/snapshots";
 
 /**
  * Cache TTL in milliseconds.
  * Can be overridden via SNAPSHOT_CACHE_TTL_MS env var.
- * Default: 5 minutes
+ *
+ * Environment variable: SNAPSHOT_CACHE_TTL_MS
+ * Default: 300000 (5 minutes)
  */
 const CACHE_TTL_MS = Number.parseInt(process.env.SNAPSHOT_CACHE_TTL_MS || "300000", 10);
 
@@ -48,27 +53,57 @@ const METADATA_EXT = ".json";
  * Cache entry with timestamp for TTL expiration.
  */
 interface CacheEntry<T> {
+  /** Cached snapshot metadata */
   data: T;
+
+  /** Unix timestamp in milliseconds when entry was cached */
   timestamp: number;
 }
 
 /**
  * Cache statistics for monitoring cache performance.
+ * Used for debugging and optimizing cache behavior.
  */
 export interface CacheStats {
+  /** Number of successful cache hits */
   hits: number;
+
+  /** Number of cache misses */
   misses: number;
 }
 
 /**
- * Filesystem-based implementation of SnapshotStore.
+ * Filesystem-based implementation of SnapshotStore with in-memory caching.
+ *
+ * Caching strategy:
+ * - Individual snapshots are cached by key with TTL expiration
+ * - List operations are cached separately to avoid repeated filesystem scans
+ * - Cache statistics are tracked for monitoring and debugging
+ *
+ * The cache is write-through: saves update both cache and filesystem.
+ * Reads check cache first, falling back to filesystem on miss.
+ *
+ * Thread safety: Not thread-safe. Use a single instance or external synchronization.
  */
 export class FilesystemSnapshotStore implements SnapshotStore {
+  /** Directory where snapshot metadata files are stored */
   private storageDir: string;
+
+  /** Cache for individual snapshot metadata by key */
   private cache: Map<string, CacheEntry<SnapshotMetadata>>;
+
+  /** Cache for listAll() operation results */
   private listAllCache: CacheEntry<SnapshotMetadata[]> | null;
+
+  /** Cache performance statistics */
   private cacheStats: CacheStats;
 
+  /**
+   * Create a new filesystem snapshot store.
+   *
+   * @param storageDir - Directory path for storing snapshot metadata files.
+   *                    Defaults to SNAPSHOT_STORAGE_DIR env var or /tmp/snapshots.
+   */
   constructor(storageDir: string = STORAGE_DIR) {
     this.storageDir = storageDir;
     this.cache = new Map();
@@ -77,7 +112,10 @@ export class FilesystemSnapshotStore implements SnapshotStore {
   }
 
   /**
-   * Get the file path for a snapshot key.
+   * Get the filesystem path for a snapshot metadata file.
+   *
+   * @param key - Snapshot key to generate path for
+   * @returns Absolute file path to the snapshot metadata JSON file
    */
   private getFilePath(key: SnapshotKey): string {
     const keyStr = snapshotKeyToString(key);
@@ -85,7 +123,11 @@ export class FilesystemSnapshotStore implements SnapshotStore {
   }
 
   /**
-   * Generate a cache key for a snapshot key.
+   * Generate a cache key string for a snapshot key.
+   * Uses the same string format as filesystem paths for consistency.
+   *
+   * @param key - Snapshot key to generate cache key for
+   * @returns String key suitable for Map lookup
    */
   private getCacheKey(key: SnapshotKey): string {
     return snapshotKeyToString(key);
@@ -93,7 +135,10 @@ export class FilesystemSnapshotStore implements SnapshotStore {
 
   /**
    * Get snapshot metadata from cache if valid (not expired).
-   * Returns null if not in cache or expired.
+   * Updates cache statistics (hits/misses) on every call.
+   *
+   * @param key - Snapshot key to look up
+   * @returns Cached metadata if found and valid, null otherwise
    */
   private getFromCache(key: SnapshotKey): SnapshotMetadata | null {
     const cacheKey = this.getCacheKey(key);
@@ -119,6 +164,9 @@ export class FilesystemSnapshotStore implements SnapshotStore {
 
   /**
    * Store snapshot metadata in cache with current timestamp.
+   * Overwrites any existing entry for the same key.
+   *
+   * @param metadata - Snapshot metadata to cache
    */
   private setInCache(metadata: SnapshotMetadata): void {
     const cacheKey = this.getCacheKey(metadata.key);
@@ -131,6 +179,10 @@ export class FilesystemSnapshotStore implements SnapshotStore {
 
   /**
    * Initialize the storage directory.
+   * Creates the directory if it doesn't exist.
+   * Called automatically on first operation, but can be called explicitly at startup.
+   *
+   * @returns Promise that resolves when directory is ready
    */
   async initialize(): Promise<void> {
     if (!existsSync(this.storageDir)) {
@@ -144,6 +196,11 @@ export class FilesystemSnapshotStore implements SnapshotStore {
   /**
    * Clear all caches for manual cache invalidation.
    * Clears individual snapshot cache, listAll cache, and resets statistics.
+   *
+   * Use this when:
+   * - External changes to the filesystem are detected
+   * - Testing or debugging requires fresh data
+   * - Cache consistency issues are suspected
    */
   clearCache(): void {
     this.cache.clear();
@@ -155,6 +212,8 @@ export class FilesystemSnapshotStore implements SnapshotStore {
   /**
    * Get current cache statistics for debugging and monitoring.
    * Returns a copy of the statistics to prevent external modification.
+   *
+   * @returns Current cache statistics (hits and misses)
    */
   getCacheStats(): CacheStats {
     return { ...this.cacheStats };
@@ -162,6 +221,14 @@ export class FilesystemSnapshotStore implements SnapshotStore {
 
   /**
    * Get snapshot metadata by key.
+   *
+   * Cache behavior:
+   * - Checks cache first for fast lookup
+   * - On cache miss, reads from filesystem and caches the result
+   * - Returns null if snapshot doesn't exist
+   *
+   * @param key - Snapshot key identifying the snapshot
+   * @returns Snapshot metadata if found, null otherwise
    */
   async get(key: SnapshotKey): Promise<SnapshotMetadata | null> {
     // Check cache first
@@ -196,6 +263,14 @@ export class FilesystemSnapshotStore implements SnapshotStore {
 
   /**
    * Save snapshot metadata.
+   *
+   * Cache behavior:
+   * - Updates individual snapshot cache entry (write-through)
+   * - Invalidates listAll cache since the snapshot list has changed
+   * - Throws on filesystem errors
+   *
+   * @param metadata - Snapshot metadata to save
+   * @throws Error if filesystem write fails
    */
   async save(metadata: SnapshotMetadata): Promise<void> {
     await this.initialize();
@@ -324,6 +399,16 @@ export class FilesystemSnapshotStore implements SnapshotStore {
 
   /**
    * List all snapshots.
+   *
+   * Cache behavior:
+   * - Checks listAll cache first (separate from individual snapshot cache)
+   * - On cache miss, scans filesystem recursively and caches results
+   * - Returns empty array if storage directory doesn't exist
+   *
+   * Performance: Filesystem scan can be expensive for large numbers of snapshots.
+   * The cache helps avoid repeated scans.
+   *
+   * @returns Array of all snapshot metadata (empty if none exist)
    */
   async listAll(): Promise<SnapshotMetadata[]> {
     // Check cache first
@@ -408,6 +493,13 @@ export class FilesystemSnapshotStore implements SnapshotStore {
 
   /**
    * Delete a snapshot.
+   *
+   * Cache behavior:
+   * - Removes individual snapshot cache entry if present
+   * - Invalidates listAll cache since the snapshot list has changed
+   * - If snapshot doesn't exist (ENOENT), still invalidates cache for consistency
+   *
+   * @param key - Snapshot key identifying the snapshot to delete
    */
   async delete(key: SnapshotKey): Promise<void> {
     const filePath = this.getFilePath(key);
@@ -437,7 +529,16 @@ export class FilesystemSnapshotStore implements SnapshotStore {
 
   /**
    * Clean up old snapshots beyond max age.
-   * Returns the number of snapshots deleted.
+   *
+   * Cache behavior:
+   * - Clears entire cache after cleanup since multiple snapshots may be deleted
+   * - This ensures cache consistency without tracking individual deletions
+   *
+   * Performance: Reads all metadata files to check expiration.
+   * For large numbers of snapshots, consider running this operation during low-traffic periods.
+   *
+   * @param maxAgeHours - Maximum age in hours before a snapshot is considered expired
+   * @returns Number of snapshots deleted
    */
   async cleanup(maxAgeHours: number): Promise<number> {
     await this.initialize();
@@ -482,6 +583,8 @@ export class FilesystemSnapshotStore implements SnapshotStore {
     }
 
     if (deleted > 0) {
+      // Clear cache to ensure consistency after deletions
+      this.clearCache();
       logger.info({ deleted }, `[snapshot-store] Cleanup completed`);
     }
 
@@ -491,11 +594,24 @@ export class FilesystemSnapshotStore implements SnapshotStore {
 
 /**
  * Global snapshot store instance.
+ * Initialized at startup and used throughout the application.
+ *
+ * Configuration:
+ * - Storage directory: SNAPSHOT_STORAGE_DIR env var (default: /tmp/snapshots)
+ * - Cache TTL: SNAPSHOT_CACHE_TTL_MS env var (default: 300000ms / 5 minutes)
  */
 export const globalSnapshotStore = new FilesystemSnapshotStore();
 
 /**
- * Initialize the snapshot store (call at startup).
+ * Initialize the snapshot store.
+ * Call this during application startup to ensure the storage directory exists.
+ *
+ * Example:
+ * ```ts
+ * await initializeSnapshotStore();
+ * ```
+ *
+ * @returns Promise that resolves when the store is ready
  */
 export async function initializeSnapshotStore(): Promise<void> {
   await globalSnapshotStore.initialize();
