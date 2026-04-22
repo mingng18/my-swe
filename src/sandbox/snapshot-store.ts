@@ -145,6 +145,13 @@ export class FilesystemSnapshotStore implements SnapshotStore {
    * Get snapshot metadata by key.
    */
   async get(key: SnapshotKey): Promise<SnapshotMetadata | null> {
+    // Check cache first
+    const cached = this.getFromCache(key);
+    if (cached !== null) {
+      return cached;
+    }
+
+    // Cache miss - read from filesystem
     const filePath = this.getFilePath(key);
 
     try {
@@ -154,6 +161,9 @@ export class FilesystemSnapshotStore implements SnapshotStore {
       // Parse date strings back to Date objects
       metadata.createdAt = new Date(metadata.createdAt);
       metadata.refreshedAt = new Date(metadata.refreshedAt);
+
+      // Cache the result for future reads
+      this.setInCache(metadata);
 
       return metadata;
     } catch (error) {
