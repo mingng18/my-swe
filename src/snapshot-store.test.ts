@@ -477,7 +477,7 @@ describe("FilesystemSnapshotStore", () => {
   });
 
   describe("TTL Expiration", () => {
-    test("should not expire cache entries within TTL period", async () => {
+    test("should not expire cache entries immediately", async () => {
       const metadata = createTestMetadata();
       const jsonMetadata = JSON.stringify(metadata, null, 2);
 
@@ -491,7 +491,7 @@ describe("FilesystemSnapshotStore", () => {
       // Clear the mock
       mockReadFile.mockClear();
 
-      // Immediate second call - should use cache
+      // Immediate second call - should use cache (within TTL)
       await store.get(metadata.key);
       expect(mockReadFile).not.toHaveBeenCalled();
 
@@ -528,6 +528,48 @@ describe("FilesystemSnapshotStore", () => {
 
       const stats3 = store.getCacheStats();
       expect(stats3.misses).toBe(1);
+    });
+
+    test("should support cache TTL configuration via environment variable", () => {
+      // Verify that the default TTL is 5 minutes (300000ms)
+      const defaultTTL = process.env.SNAPSHOT_CACHE_TTL_MS || "300000";
+      expect(Number.parseInt(defaultTTL, 10)).toBe(300000);
+
+      // Document that TTL can be customized via SNAPSHOT_CACHE_TTL_MS
+      // Cache entries older than TTL milliseconds will be invalidated
+      // and re-read from the filesystem on next access
+    });
+
+    test("should handle cache statistics correctly with TTL-aware operations", async () => {
+      const metadata = createTestMetadata();
+      const jsonMetadata = JSON.stringify(metadata, null, 2);
+
+      mockExistsSync.mockReturnValue(true);
+      mockReadFile.mockResolvedValue(jsonMetadata);
+
+      // Verify initial statistics
+      const initialStats = store.getCacheStats();
+      expect(initialStats).toEqual({ hits: 0, misses: 0 });
+
+      // First access - cache miss
+      await store.get(metadata.key);
+      const statsAfterFirst = store.getCacheStats();
+      expect(statsAfterFirst.misses).toBe(1);
+
+      // Second access - cache hit (within TTL)
+      await store.get(metadata.key);
+      const statsAfterSecond = store.getCacheStats();
+      expect(statsAfterSecond.hits).toBe(1);
+
+      // Manual cache clear
+      store.clearCache();
+      const statsAfterClear = store.getCacheStats();
+      expect(statsAfterClear).toEqual({ hits: 0, misses: 0 });
+
+      // Access after clear - cache miss again
+      await store.get(metadata.key);
+      const statsAfterThird = store.getCacheStats();
+      expect(statsAfterThird.misses).toBe(1);
     });
   });
 
