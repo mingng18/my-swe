@@ -1,0 +1,25 @@
+{
+  "active": true,
+  "spec": "004-implement-exponential-backoff-in-telegram-polling-",
+  "state": "building",
+  "subtasks": {
+    "completed": 1,
+    "total": 6,
+    "in_progress": 1,
+    "failed": 0
+  },
+  "phase": {
+    "current": "Update Telegram Polling Loop",
+    "id": null,
+    "total": 2
+  },
+  "workers": {
+    "active": 0,
+    "max": 1
+  },
+  "session": {
+    "number": 3,
+    "started_at": "2026-04-22T08:34:27.145480"
+  },
+  "last_update": "2026-04-22T08:38:20.425505"
+}

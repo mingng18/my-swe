@@ -160,6 +160,9 @@ async function handleTelegramMessage(msg: any, telegramBotToken: string) {
 async function startTelegramPolling() {
   const { telegramBotToken } = loadTelegramConfig();
   let offset = 0;
+  let consecutiveErrors = 0;
+  const baseDelayMs = 1000;
+  const maxDelayMs = 60000; // Cap at 1 minute
 
   logger.info("[codeagent] starting Telegram polling mode (for local dev)");
 
@@ -189,10 +192,29 @@ async function startTelegramPolling() {
           }
         }
       }
+
+      // Reset error counter on successful request
+      consecutiveErrors = 0;
     } catch (error) {
-      logger.error({ error }, "[codeagent][telegram] polling error");
-      // Wait before retrying to avoid rapid error loops
-      await new Promise((resolve) => setTimeout(resolve, 5000));
+      consecutiveErrors++;
+
+      const isError = error instanceof Error;
+      const errorMsg = isError ? error.message : String(error);
+      const delayMs = Math.min(
+        baseDelayMs * Math.pow(2, consecutiveErrors - 1),
+        maxDelayMs,
+      );
+
+      logger.error(
+        {
+          error: errorMsg,
+          attempt: consecutiveErrors,
+          delayMs,
+        },
+        "[codeagent][telegram] polling error - retrying with exponential backoff",
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
 }
