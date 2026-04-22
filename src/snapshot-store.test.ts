@@ -318,6 +318,90 @@ describe("FilesystemSnapshotStore", () => {
       expect(stats2.hits).toBeGreaterThan(stats1.hits);
     });
 
+    test("should cache listAll results with actual snapshot data", async () => {
+      const metadata1 = createTestMetadata({
+        snapshotId: "test-snapshot-1",
+        repoOwner: "test-owner",
+        repoName: "test-repo",
+      });
+      const metadata2 = createTestMetadata({
+        snapshotId: "test-snapshot-2",
+        repoOwner: "test-owner",
+        repoName: "test-repo",
+        branch: "develop",
+      });
+
+      mockExistsSync.mockReturnValue(true);
+
+      // First call - reads from filesystem
+      // Setup mock to return file paths, then mock readFile to return metadata
+      mockReaddir.mockResolvedValue([
+        { name: "test-owner/test-repo/default/main.json", isDirectory: () => false },
+        { name: "test-owner/test-repo/default/develop.json", isDirectory: () => false },
+      ]);
+
+      // Mock readFile to return different metadata based on file path
+      mockReadFile.mockImplementation((filePath) => {
+        if (filePath.includes("main.json")) {
+          return Promise.resolve(JSON.stringify(metadata1, null, 2));
+        } else if (filePath.includes("develop.json")) {
+          return Promise.resolve(JSON.stringify(metadata2, null, 2));
+        }
+        return Promise.reject(new Error("Unexpected file path"));
+      });
+
+      const result1 = await store.listAll();
+      expect(result1).toHaveLength(2);
+      expect(mockReadFile).toHaveBeenCalledTimes(2);
+
+      const stats1 = store.getCacheStats();
+      expect(stats1.misses).toBeGreaterThan(0);
+      const initialHits = stats1.hits;
+
+      // Clear mocks to verify they're not called again
+      mockReaddir.mockClear();
+      mockReadFile.mockClear();
+
+      // Second call - should use cache (no filesystem reads)
+      const result2 = await store.listAll();
+      expect(result2).toHaveLength(2);
+      expect(mockReaddir).not.toHaveBeenCalled();
+      expect(mockReadFile).not.toHaveBeenCalled();
+
+      const stats2 = store.getCacheStats();
+      expect(stats2.hits).toBeGreaterThan(initialHits);
+    });
+
+    test("should track cache statistics accurately for listAll()", async () => {
+      mockExistsSync.mockReturnValue(true);
+      mockReaddir.mockResolvedValue([]);
+
+      const statsBefore = store.getCacheStats();
+      expect(statsBefore.misses).toBe(0);
+      expect(statsBefore.hits).toBe(0);
+
+      // First call - cache miss
+      await store.listAll();
+
+      const statsAfterFirst = store.getCacheStats();
+      expect(statsAfterFirst.misses).toBe(1);
+      expect(statsAfterFirst.hits).toBe(0);
+
+      // Second call - cache hit
+      await store.listAll();
+
+      const statsAfterSecond = store.getCacheStats();
+      expect(statsAfterSecond.misses).toBe(1);
+      expect(statsAfterSecond.hits).toBe(1);
+
+      // Third call - another cache hit
+      await store.listAll();
+
+      const statsAfterThird = store.getCacheStats();
+      expect(statsAfterThird.misses).toBe(1);
+      expect(statsAfterThird.hits).toBe(2);
+    });
+
     test("should return empty array when no snapshots exist", async () => {
       mockExistsSync.mockReturnValue(true);
       mockReaddir.mockResolvedValue([]);
