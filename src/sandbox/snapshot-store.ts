@@ -142,6 +142,17 @@ export class FilesystemSnapshotStore implements SnapshotStore {
   }
 
   /**
+   * Clear all caches for manual cache invalidation.
+   * Clears individual snapshot cache, listAll cache, and resets statistics.
+   */
+  clearCache(): void {
+    this.cache.clear();
+    this.listAllCache = null;
+    this.cacheStats = { hits: 0, misses: 0 };
+    logger.debug(`[snapshot-store] Cache cleared`);
+  }
+
+  /**
    * Get snapshot metadata by key.
    */
   async get(key: SnapshotKey): Promise<SnapshotMetadata | null> {
