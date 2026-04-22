@@ -1036,6 +1036,9 @@ describe("SnapshotScheduler", () => {
         get: mockGet,
         save: mockSave,
         delete: mock(),
+        listByRepo: mock(),
+        listByProfile: mock(),
+        cleanup: mock(),
         listAll: mockListAll,
       };
 

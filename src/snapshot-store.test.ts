@@ -54,7 +54,7 @@ function createTestMetadata(overrides?: Partial<SnapshotMetadata>): SnapshotMeta
   const key: SnapshotKey = {
     repoOwner: "test-owner",
     repoName: "test-repo",
-    profile: "default",
+    profile: "typescript",
     branch: "main",
   };
   const now = new Date();
@@ -63,9 +63,13 @@ function createTestMetadata(overrides?: Partial<SnapshotMetadata>): SnapshotMeta
     snapshotId: "test-snapshot-1",
     createdAt: now,
     refreshedAt: now,
-    sandboxId: "sandbox-123",
-    expiresAt: new Date(now.getTime() + 3600000), // 1 hour from now
-    workspaceId: "workspace-456",
+    commitSha: "abc123",
+    dependencies: [],
+    preBuildSuccess: true,
+    size: 1000,
+    provider: "opensandbox",
+    image: "node:18",
+    refreshing: false,
     ...overrides,
   };
 }
@@ -76,7 +80,6 @@ function normalizeMetadata(metadata: SnapshotMetadata): SnapshotMetadata {
     ...metadata,
     createdAt: new Date(metadata.createdAt),
     refreshedAt: new Date(metadata.refreshedAt),
-    expiresAt: new Date(metadata.expiresAt),
   };
 }
 
@@ -166,7 +169,7 @@ describe("FilesystemSnapshotStore", () => {
       const key: SnapshotKey = {
         repoOwner: "unknown",
         repoName: "unknown",
-        profile: "default",
+        profile: "typescript",
         branch: "main",
       };
 
@@ -205,7 +208,7 @@ describe("FilesystemSnapshotStore", () => {
       const key: SnapshotKey = {
         repoOwner: "test-owner",
         repoName: "test-repo",
-        profile: "default",
+        profile: "typescript",
         branch: "main",
       };
 
@@ -213,7 +216,6 @@ describe("FilesystemSnapshotStore", () => {
       const originalMetadata = createTestMetadata({
         key,
         snapshotId: "original-snapshot",
-        sandboxId: "sandbox-123",
       });
 
       // Populate cache with original metadata
@@ -240,7 +242,7 @@ describe("FilesystemSnapshotStore", () => {
       const updatedMetadata = createTestMetadata({
         key,
         snapshotId: "updated-snapshot",
-        sandboxId: "sandbox-456", // Different sandbox ID
+        commitSha: "def456", // Different commit SHA
         refreshedAt: new Date(Date.now() + 10000), // Different timestamp
       });
 
@@ -256,7 +258,7 @@ describe("FilesystemSnapshotStore", () => {
 
       // Should get the updated metadata, not the original
       expect(result2!.snapshotId).toBe("updated-snapshot");
-      expect(result2!.sandboxId).toBe("sandbox-456");
+      expect(result2!.commitSha).toBe("def456");
       expect(normalizeMetadata(result2!)).toEqual(updatedMetadata);
 
       // Should not have read from filesystem - updated version was in cache
@@ -321,14 +323,21 @@ describe("FilesystemSnapshotStore", () => {
     test("should cache listAll results with actual snapshot data", async () => {
       const metadata1 = createTestMetadata({
         snapshotId: "test-snapshot-1",
-        repoOwner: "test-owner",
-        repoName: "test-repo",
+        key: {
+          repoOwner: "test-owner",
+          repoName: "test-repo",
+          profile: "typescript",
+          branch: "main",
+        },
       });
       const metadata2 = createTestMetadata({
         snapshotId: "test-snapshot-2",
-        repoOwner: "test-owner",
-        repoName: "test-repo",
-        branch: "develop",
+        key: {
+          repoOwner: "test-owner",
+          repoName: "test-repo",
+          profile: "typescript",
+          branch: "develop",
+        },
       });
 
       mockExistsSync.mockReturnValue(true);
