@@ -33,18 +33,47 @@ const logger = createLogger("snapshot-store");
 const STORAGE_DIR = process.env.SNAPSHOT_STORAGE_DIR || "/tmp/snapshots";
 
 /**
+ * Cache TTL in milliseconds.
+ * Can be overridden via SNAPSHOT_CACHE_TTL_MS env var.
+ * Default: 5 minutes
+ */
+const CACHE_TTL_MS = Number.parseInt(process.env.SNAPSHOT_CACHE_TTL_MS || "300000", 10);
+
+/**
  * File extension for snapshot metadata files.
  */
 const METADATA_EXT = ".json";
+
+/**
+ * Cache entry with timestamp for TTL expiration.
+ */
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
+/**
+ * Cache statistics for monitoring cache performance.
+ */
+interface CacheStats {
+  hits: number;
+  misses: number;
+}
 
 /**
  * Filesystem-based implementation of SnapshotStore.
  */
 export class FilesystemSnapshotStore implements SnapshotStore {
   private storageDir: string;
+  private cache: Map<string, CacheEntry<SnapshotMetadata>>;
+  private listAllCache: CacheEntry<SnapshotMetadata[]> | null;
+  private cacheStats: CacheStats;
 
   constructor(storageDir: string = STORAGE_DIR) {
     this.storageDir = storageDir;
+    this.cache = new Map();
+    this.listAllCache = null;
+    this.cacheStats = { hits: 0, misses: 0 };
   }
 
   /**
