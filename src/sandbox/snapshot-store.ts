@@ -186,6 +186,13 @@ export class FilesystemSnapshotStore implements SnapshotStore {
     try {
       const data = JSON.stringify(metadata, null, 2);
       await writeFile(filePath, data, "utf-8");
+
+      // Update the individual cache entry
+      this.setInCache(metadata);
+
+      // Invalidate the listAll cache since the snapshot list has changed
+      this.listAllCache = null;
+
       logger.debug(
         { snapshotId: metadata.snapshotId, key: metadata.key },
         `[snapshot-store] Saved snapshot metadata`,
