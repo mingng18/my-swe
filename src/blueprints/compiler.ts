@@ -31,7 +31,10 @@ export class BlueprintCompiler {
     const graph = new StateGraph(BlueprintStateAnnotation);
 
     // Add all nodes with their possible destinations
-    for (const [stateId, state] of Object.entries(blueprint.states)) {
+    // ⚡ Bolt: Replace Object.entries with for...in to avoid intermediate array allocations
+    for (const stateId in blueprint.states) {
+      if (!Object.prototype.hasOwnProperty.call(blueprint.states, stateId)) continue;
+      const state = blueprint.states[stateId as keyof typeof blueprint.states];
       const ends = this.getNodeEnds(state);
       if (ends.length > 0) {
         graph.addNode(stateId, this.createNode(state, blueprint), { ends });
@@ -102,7 +105,10 @@ export class BlueprintCompiler {
   }
 
   private addEdges(graph: any, blueprint: Blueprint): void {
-    for (const [stateId, state] of Object.entries(blueprint.states)) {
+    // ⚡ Bolt: Replace Object.entries with for...in to avoid intermediate array allocations
+    for (const stateId in blueprint.states) {
+      if (!Object.prototype.hasOwnProperty.call(blueprint.states, stateId)) continue;
+      const state = blueprint.states[stateId as keyof typeof blueprint.states];
       if (state.type === "terminal") continue;
 
       if (state.type === "agent") {
