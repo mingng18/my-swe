@@ -24,6 +24,7 @@
     "js-yaml": "^4.1.1",
     "langchain": "^1.2.37",
     "langfuse": "^3.38.20",
+    "langfuse-langchain": "^3.38.20",
     "lru-cache": "^11.3.3",
     "octokit": "^5.0.5",
     "pino": "^10.3.1",
