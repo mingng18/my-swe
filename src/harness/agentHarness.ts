@@ -9,6 +9,7 @@ export interface AgentResponse {
 
 export interface AgentInvokeOptions {
   threadId?: string;
+  userId?: string;
 }
 
 export interface AgentHarness {
