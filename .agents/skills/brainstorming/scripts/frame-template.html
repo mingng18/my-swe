@@ -74,10 +74,6 @@
         line-height: 1.5;
       }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> origin/palette/semantic-landmarks-14709351523339103612
       /* ===== FRAME STRUCTURE ===== */
       .header {
         background: var(--bg-secondary);
@@ -112,45 +108,6 @@
         background: var(--success);
         border-radius: 50%;
       }
-<<<<<<< HEAD
-=======
-    .indicator-bar {
-      background: var(--bg-secondary);
-      border-top: 1px solid var(--border);
-      padding: 0.5rem 1.5rem;
-      flex-shrink: 0;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      text-align: center;
-    }
-    kbd { background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 4px; padding: 0.1rem 0.3rem; font-family: inherit; font-size: 0.85em; }
-    .indicator-bar span {
-      font-size: 0.75rem;
-      color: var(--text-secondary);
-      flex: 1;
-    }
-    .indicator-bar .selected-text {
-      color: var(--accent);
-      font-weight: 500;
-    }
->>>>>>> origin/palette/inclusive-language-feedback-8065972046666855899
-=======
->>>>>>> origin/palette/semantic-landmarks-14709351523339103612
-
-      .main {
-        flex: 1;
-        overflow-y: auto;
-      }
-      #claude-content {
-        padding: 2rem;
-        min-height: 100%;
-      }
-
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> origin/palette/semantic-landmarks-14709351523339103612
       .indicator-bar {
         background: var(--bg-secondary);
         border-top: 1px solid var(--border);
@@ -161,7 +118,15 @@
         align-items: center;
         text-align: center;
       }
-      .indicator-bar > span {
+      kbd {
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 0.1rem 0.3rem;
+        font-family: inherit;
+        font-size: 0.85em;
+      }
+      .indicator-bar span {
         font-size: 0.75rem;
         color: var(--text-secondary);
         flex: 1;
@@ -170,7 +135,15 @@
         color: var(--accent);
         font-weight: 500;
       }
-<<<<<<< HEAD
+
+      .main {
+        flex: 1;
+        overflow-y: auto;
+      }
+      #claude-content {
+        padding: 2rem;
+        min-height: 100%;
+      }
 
       /* ===== TYPOGRAPHY ===== */
       h2 {
@@ -197,86 +170,6 @@
         letter-spacing: 0.05em;
         margin-bottom: 0.5rem;
       }
-=======
-    /* ===== OPTIONS (for A/B/C choices) ===== */
-    .options { display: flex; flex-direction: column; gap: 0.75rem; }
-    .option {
-      background: var(--bg-secondary);
-      border: 2px solid var(--border);
-      border-radius: 12px;
-      padding: 1rem 1.25rem;
-      cursor: pointer;
-      transition: all 0.15s ease;
-      display: flex;
-      align-items: flex-start;
-      gap: 1rem;
-    }
-    .option:hover { border-color: var(--accent); }
-    .option:active { transform: scale(0.99); }
-    .option:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-    .option:active { transform: scale(0.99); }
-    .option.selected { background: var(--selected-bg); border-color: var(--selected-border); }
-    .option .letter {
-      background: var(--bg-tertiary);
-      color: var(--text-secondary);
-      width: 1.75rem; height: 1.75rem;
-      border-radius: 6px;
-      display: flex; align-items: center; justify-content: center;
-      font-weight: 600; font-size: 0.85rem; flex-shrink: 0;
-    }
-    .option.selected .letter { background: var(--accent); color: white; }
-    .option .content { flex: 1; }
-    .option .content h3 { font-size: 0.95rem; margin-bottom: 0.15rem; }
-    .option .content p { color: var(--text-secondary); font-size: 0.85rem; margin: 0; }
-
-    /* ===== CARDS (for showing designs/mockups) ===== */
-    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
-    .card {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      overflow: hidden;
-      cursor: pointer;
-      transition: all 0.15s ease;
-    }
-    .card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-    .card:active { transform: scale(0.98); }
-    .card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-    .card:active { transform: scale(0.99); }
-    .card.selected { border-color: var(--selected-border); border-width: 2px; }
-    .card-image { background: var(--bg-tertiary); aspect-ratio: 16/10; display: flex; align-items: center; justify-content: center; }
-    .card-body { padding: 1rem; }
-    .card-body h3 { margin-bottom: 0.25rem; }
-    .card-body p { color: var(--text-secondary); font-size: 0.85rem; }
->>>>>>> origin/palette/inclusive-language-feedback-8065972046666855899
-=======
-
-      /* ===== TYPOGRAPHY ===== */
-      h2 {
-        font-size: 1.5rem;
-        font-weight: 600;
-        margin-bottom: 0.5rem;
-      }
-      h3 {
-        font-size: 1.1rem;
-        font-weight: 600;
-        margin-bottom: 0.25rem;
-      }
-      .subtitle {
-        color: var(--text-secondary);
-        margin-bottom: 1.5rem;
-      }
-      .section {
-        margin-bottom: 2rem;
-      }
-      .label {
-        font-size: 0.7rem;
-        color: var(--text-secondary);
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        margin-bottom: 0.5rem;
-      }
->>>>>>> origin/palette/semantic-landmarks-14709351523339103612
 
       /* ===== OPTIONS (for A/B/C choices) ===== */
       .options {
@@ -418,10 +311,6 @@
         }
       }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> origin/palette/semantic-landmarks-14709351523339103612
       /* ===== PROS/CONS ===== */
       .pros-cons {
         display: grid;
@@ -455,29 +344,6 @@
       .cons li {
         margin-bottom: 0.25rem;
       }
-<<<<<<< HEAD
-=======
-    /* ===== INLINE MOCKUP ELEMENTS ===== */
-    .mock-nav { background: var(--accent); color: white; padding: 0.75rem 1rem; display: flex; gap: 1.5rem; font-size: 0.9rem; }
-    .mock-sidebar { background: var(--bg-tertiary); padding: 1rem; min-width: 180px; }
-    .mock-content { padding: 1.5rem; flex: 1; }
-    .mock-button { background: var(--accent); color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.85rem; }
-    .mock-button:active { transform: scale(0.99); }
-    .mock-input { background: var(--bg-primary); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem; width: 100%; }
->>>>>>> origin/palette/inclusive-language-feedback-8065972046666855899
-=======
->>>>>>> origin/palette/semantic-landmarks-14709351523339103612
-
-      /* ===== PLACEHOLDER (for mockup areas) ===== */
-      .placeholder {
-        background: var(--bg-tertiary);
-        border: 2px dashed var(--border);
-        border-radius: 8px;
-        padding: 2rem;
-        text-align: center;
-        color: var(--text-tertiary);
-      }
-
       /* ===== INLINE MOCKUP ELEMENTS ===== */
       .mock-nav {
         background: var(--accent);
@@ -504,6 +370,9 @@
         border-radius: 6px;
         font-size: 0.85rem;
       }
+      .mock-button:active {
+        transform: scale(0.99);
+      }
       .mock-input {
         background: var(--bg-primary);
         border: 1px solid var(--border);
@@ -512,10 +381,16 @@
         width: 100%;
       }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> origin/palette/semantic-landmarks-14709351523339103612
+      /* ===== PLACEHOLDER (for mockup areas) ===== */
+      .placeholder {
+        background: var(--bg-tertiary);
+        border: 2px dashed var(--border);
+        border-radius: 8px;
+        padding: 2rem;
+        text-align: center;
+        color: var(--text-tertiary);
+      }
+
       /* ===== KEYBOARD HINTS ===== */
       .keyboard-shortcuts {
         display: flex;
@@ -548,14 +423,6 @@
       </h1>
       <div class="status">Connected</div>
     </header>
-<<<<<<< HEAD
-=======
-  <div class="indicator-bar">
-    <span id="indicator-text" aria-live="polite" role="status">Select an option above, or press <kbd>Enter</kbd> / <kbd>Space</kbd>, then return to the terminal</span>
-  </div>
->>>>>>> origin/palette/inclusive-language-feedback-8065972046666855899
-=======
->>>>>>> origin/palette/semantic-landmarks-14709351523339103612
 
     <main class="main">
       <div id="claude-content">
@@ -567,7 +434,8 @@
       <div style="width: 80px"></div>
       <!-- Spacer for center alignment -->
       <span id="indicator-text" aria-live="polite" role="status"
-        >Select an option above, then return to the terminal</span
+        >Select an option above, or press <kbd>Enter</kbd> / <kbd>Space</kbd>,
+        then return to the terminal</span
       >
       <div
         class="keyboard-shortcuts"
