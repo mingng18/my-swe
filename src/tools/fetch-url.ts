@@ -318,10 +318,10 @@ export async function fetchUrl(
 
     // Normalize IPv4-mapped IPv6 addresses for accurate checking
     let normalizedAddress = address.toLowerCase();
-    normalizedAddress = normalizedAddress.replace(/^(?:0+:)+ffff:/, "");
-    if (normalizedAddress.startsWith("::ffff:")) {
-      normalizedAddress = normalizedAddress.substring(7);
-    }
+    normalizedAddress = normalizedAddress.replace(
+      /^((?:0+:)+|(?:0+:)*:+(?:0+:)*)ffff:/,
+      "",
+    );
 
     // Check for private / loopback IP addresses
     if (
