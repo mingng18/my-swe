@@ -60,6 +60,20 @@ import { type BaseMessage, type ToolCall } from "@langchain/core/messages";
 
 const logger = createLogger("deepagents");
 
+// ============================================================================
+// Thread Cleanup Configuration
+// ============================================================================
+
+/**
+ * Time in milliseconds after which thread map entries are cleaned up.
+ * Default: 1 hour (3600000 ms)
+ * Can be overridden via THREAD_TTL_MS environment variable.
+ */
+const THREAD_TTL_MS = Number.parseInt(
+  process.env.THREAD_TTL_MS || "3600000",
+  10,
+);
+
 /**
  * Create middleware that tracks and limits tool invocations per thread.
  *
@@ -292,6 +306,185 @@ function setThreadRepo(
   repo: { owner: string; name: string; workspaceDir: string },
 ): void {
   map.set(threadId, { ...repo, lastAccessed: Date.now() });
+}
+
+// ============================================================================
+// Thread Cleanup Functions
+// ============================================================================
+
+/**
+ * Remove agent entries from threadAgentMap that are older than THREAD_TTL_MS.
+ * This prevents unbounded memory growth from abandoned threads.
+ */
+function cleanupOldEntriesFromThreadAgentMap(): void {
+  const now = Date.now();
+  const threadsToDelete: string[] = [];
+
+  for (const [threadId, entry] of threadAgentMap.entries()) {
+    const age = now - entry.lastAccessed;
+    if (age > THREAD_TTL_MS) {
+      threadsToDelete.push(threadId);
+    }
+  }
+
+  for (const threadId of threadsToDelete) {
+    threadAgentMap.delete(threadId);
+    logger.debug(
+      { threadId },
+      "[deepagents] Cleaned up old agent entry",
+    );
+  }
+
+  if (threadsToDelete.length > 0) {
+    logger.info(
+      { count: threadsToDelete.length },
+      "[deepagents] Cleaned up old agent entries",
+    );
+  }
+}
+
+/**
+ * Remove sandbox entries from threadSandboxMap that are older than THREAD_TTL_MS.
+ * Properly releases sandboxes back to the pool and disposes backends.
+ */
+async function cleanupOldEntriesFromThreadSandboxMap(): Promise<void> {
+  const now = Date.now();
+  const threadsToDelete: Array<{
+    threadId: string;
+    entry: {
+      backend: SandboxService;
+      profile: SandboxProfile;
+      repo: { owner: string; name: string; workspaceDir: string };
+      lastAccessed: number;
+    };
+  }> = [];
+
+  for (const [threadId, entry] of threadSandboxMap.entries()) {
+    const age = now - entry.lastAccessed;
+    if (age > THREAD_TTL_MS) {
+      threadsToDelete.push({ threadId, entry });
+    }
+  }
+
+  // Release sandboxes back to the pool and dispose backends in parallel
+  await Promise.all(
+    threadsToDelete.map(async ({ threadId, entry }) => {
+      try {
+        await releaseRepoSandbox({
+          apiKey: process.env.DAYTONA_API_KEY || "",
+          apiUrl: process.env.DAYTONA_API_URL,
+          target: process.env.DAYTONA_TARGET,
+          sandboxId: entry.backend.id,
+          profile: entry.profile,
+          repoOwner: entry.repo.owner,
+          repoName: entry.repo.name,
+        });
+      } catch (err) {
+        logger.warn(
+          { error: err, threadId },
+          "[deepagents] Failed to release old sandbox",
+        );
+      }
+      try {
+        await entry.backend.cleanup();
+      } catch (err) {
+        logger.warn(
+          { error: err, threadId },
+          "[deepagents] Failed to cleanup old backend",
+        );
+      }
+      clearSandboxBackend(threadId);
+      // Clean up tool invocation tracking for this thread
+      toolInvocationTracker.clearThread(threadId);
+      // Remove from map
+      threadSandboxMap.delete(threadId);
+      logger.debug(
+        { threadId, ageMs: now - entry.lastAccessed },
+        "[deepagents] Cleaned up old sandbox entry",
+      );
+    }),
+  );
+
+  if (threadsToDelete.length > 0) {
+    logger.info(
+      { count: threadsToDelete.length },
+      "[deepagents] Cleaned up old sandbox entries",
+    );
+  }
+}
+
+/**
+ * Remove repo entries from threadRepoMap that are older than THREAD_TTL_MS.
+ * Also removes persisted thread metadata for cleaned entries.
+ */
+async function cleanupOldEntriesFromThreadRepoMap(): Promise<void> {
+  const now = Date.now();
+  const threadsToDelete: string[] = [];
+
+  for (const [threadId, entry] of threadRepoMap.entries()) {
+    const age = now - entry.lastAccessed;
+    if (age > THREAD_TTL_MS) {
+      threadsToDelete.push(threadId);
+    }
+  }
+
+  for (const threadId of threadsToDelete) {
+    // Remove persisted thread metadata
+    try {
+      await removePersistedThreadRepo(threadId);
+    } catch (err) {
+      logger.warn(
+        { error: err, threadId },
+        "[deepagents] Failed to remove persisted thread repo",
+      );
+    }
+    // Remove from map
+    threadRepoMap.delete(threadId);
+    logger.debug(
+      { threadId },
+      "[deepagents] Cleaned up old repo entry",
+    );
+  }
+
+  if (threadsToDelete.length > 0) {
+    logger.info(
+      { count: threadsToDelete.length },
+      "[deepagents] Cleaned up old repo entries",
+    );
+  }
+}
+
+/**
+ * Master cleanup function that removes old entries from all thread maps.
+ * This should be called periodically or before accessing thread maps.
+ *
+ * This function:
+ * 1. Removes old agent entries from threadAgentMap
+ * 2. Releases old sandboxes from threadSandboxMap
+ * 3. Removes old repo entries from threadRepoMap
+ *
+ * The cleanup is time-based (TTL) and prevents unbounded memory growth
+ * from abandoned threads.
+ */
+export async function cleanupThreadMaps(): Promise<void> {
+  const startTime = Date.now();
+
+  // Clean up agent entries (synchronous)
+  cleanupOldEntriesFromThreadAgentMap();
+
+  // Clean up sandbox entries (asynchronous - releases resources)
+  await cleanupOldEntriesFromThreadSandboxMap();
+
+  // Clean up repo entries (asynchronous - removes persisted metadata)
+  await cleanupOldEntriesFromThreadRepoMap();
+
+  const duration = Date.now() - startTime;
+  if (duration > 100) {
+    logger.debug(
+      { durationMs: duration },
+      "[deepagents] Thread maps cleanup completed",
+    );
+  }
 }
 
 async function createAgentInstance(args: {
