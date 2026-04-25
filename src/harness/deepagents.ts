@@ -355,6 +355,12 @@ async function createAgentInstance(args: {
     middleware,
   };
 
+  // Add LangChain callback for automatic tracing
+  if (isLangfuseEnabled()) {
+    config.callbacks = [new LangfuseLangChain()];
+    logger.debug("[deepagents] Langfuse LangChain callback registered");
+  }
+
   if (args.backend) {
     config.backend = args.backend;
   }
