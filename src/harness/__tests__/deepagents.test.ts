@@ -66,11 +66,13 @@ describe("initDeepAgentsAtStartup", () => {
     expect(threadMetadataStore.loadPersistedThreadRepos).toHaveBeenCalled();
     const repoMap = getThreadRepoMapForTesting();
     expect(repoMap.size).toBe(1);
-    expect(repoMap.get("thread1")).toEqual({
-      owner: "test",
-      name: "repo",
-      workspaceDir: "/tmp/dir",
-    });
+    const thread1Repo = repoMap.get("thread1");
+    expect(thread1Repo).toBeDefined();
+    expect(thread1Repo?.owner).toBe("test");
+    expect(thread1Repo?.name).toBe("repo");
+    expect(thread1Repo?.workspaceDir).toBe("/tmp/dir");
+    expect(thread1Repo?.lastAccessed).toBeDefined();
+    expect(typeof thread1Repo?.lastAccessed).toBe("number");
 
     expect(sandbox.initializeSnapshotStore).toHaveBeenCalled();
   });

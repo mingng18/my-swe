@@ -183,13 +183,17 @@ function createToolInvocationLimitsMiddleware() {
   });
 }
 
-const threadAgentMap = new Map<string, DeepAgent>();
+const threadAgentMap = new Map<
+  string,
+  { agent: DeepAgent; lastAccessed: number }
+>();
 const threadSandboxMap = new Map<
   string,
   {
     backend: SandboxService;
     profile: SandboxProfile;
     repo: { owner: string; name: string; workspaceDir: string };
+    lastAccessed: number;
   }
 >();
 
@@ -203,6 +207,92 @@ const AGENT_RECURSION_LIMIT = Number.parseInt(
   10,
 );
 let hasLoadedPersistedRepos = false;
+
+// Helper functions for managing lastAccessed timestamps
+function updateThreadAgentAccess(
+  map: Map<string, { agent: DeepAgent; lastAccessed: number }>,
+  threadId: string,
+): void {
+  const entry = map.get(threadId);
+  if (entry) {
+    entry.lastAccessed = Date.now();
+  }
+}
+
+function setThreadAgent(
+  map: Map<string, { agent: DeepAgent; lastAccessed: number }>,
+  threadId: string,
+  agent: DeepAgent,
+): void {
+  map.set(threadId, { agent, lastAccessed: Date.now() });
+}
+
+function updateThreadSandboxAccess(
+  map: Map<
+    string,
+    {
+      backend: SandboxService;
+      profile: SandboxProfile;
+      repo: { owner: string; name: string; workspaceDir: string };
+      lastAccessed: number;
+    }
+  >,
+  threadId: string,
+): void {
+  const entry = map.get(threadId);
+  if (entry) {
+    entry.lastAccessed = Date.now();
+  }
+}
+
+function setThreadSandbox(
+  map: Map<
+    string,
+    {
+      backend: SandboxService;
+      profile: SandboxProfile;
+      repo: { owner: string; name: string; workspaceDir: string };
+      lastAccessed: number;
+    }
+  >,
+  threadId: string,
+  value: {
+    backend: SandboxService;
+    profile: SandboxProfile;
+    repo: { owner: string; name: string; workspaceDir: string; lastAccessed?: number };
+  },
+): void {
+  const { lastAccessed: _, ...repoWithoutLastAccessed } = value.repo;
+  map.set(threadId, {
+    ...value,
+    repo: repoWithoutLastAccessed,
+    lastAccessed: Date.now(),
+  });
+}
+
+function updateThreadRepoAccess(
+  map: Map<
+    string,
+    { owner: string; name: string; workspaceDir: string; lastAccessed: number }
+  >,
+  threadId: string,
+): void {
+  const entry = map.get(threadId);
+  if (entry) {
+    entry.lastAccessed = Date.now();
+  }
+}
+
+function setThreadRepo(
+  map: Map<
+    string,
+    { owner: string; name: string; workspaceDir: string; lastAccessed: number }
+  >,
+  threadId: string,
+  repo: { owner: string; name: string; workspaceDir: string },
+): void {
+  map.set(threadId, { ...repo, lastAccessed: Date.now() });
+}
 
 async function createAgentInstance(args: {
   workspaceRoot?: string;
@@ -620,7 +710,7 @@ function extractRepoFromInput(
 // if the user doesn't re-type `--repo foo/bar`.
 const threadRepoMap = new Map<
   string,
-  { owner: string; name: string; workspaceDir: string }
+  { owner: string; name: string; workspaceDir: string; lastAccessed: number }
 >();
 
 function getSandboxProfileFromEnv(): SandboxProfile {
@@ -714,18 +804,25 @@ export class DeepAgentWrapper implements AgentHarness {
     if (!hasLoadedPersistedRepos) {
       const persisted = await loadPersistedThreadRepos();
       for (const [id, repo] of persisted.entries()) {
-        threadRepoMap.set(id, repo);
+        setThreadRepo(threadRepoMap, id, repo);
       }
       hasLoadedPersistedRepos = true;
     }
 
     const parsedRepo = extractRepoFromInput(input);
-    let activeRepo = threadRepoMap.get(threadId);
+    let activeRepo:
+      | { owner: string; name: string; workspaceDir: string; lastAccessed: number }
+      | undefined = threadRepoMap.get(threadId);
+    if (activeRepo) {
+      updateThreadRepoAccess(threadRepoMap, threadId);
+    }
     const profile = getSandboxProfileFromEnv();
 
-    const hasBackendForThread = Boolean(
-      threadSandboxMap.get(threadId)?.backend,
-    );
+    const sandboxEntry = threadSandboxMap.get(threadId);
+    if (sandboxEntry) {
+      updateThreadSandboxAccess(threadSandboxMap, threadId);
+    }
+    const hasBackendForThread = Boolean(sandboxEntry?.backend);
 
     // Acquire/clone repo when:
     // 1) user specified a different repo, OR
@@ -740,6 +837,7 @@ export class DeepAgentWrapper implements AgentHarness {
       // If we already held a sandbox for this thread, release it back to the pool.
       const prior = threadSandboxMap.get(threadId);
       if (prior) {
+        updateThreadSandboxAccess(threadSandboxMap, threadId);
         try {
           await releaseRepoSandbox({
             apiKey: process.env.DAYTONA_API_KEY || "",
@@ -788,17 +886,20 @@ export class DeepAgentWrapper implements AgentHarness {
             `[deepagents] Repo acquire+clone took ${Date.now() - cloneStart}ms`,
           );
 
-          activeRepo = { ...parsedRepo, workspaceDir };
-          threadRepoMap.set(threadId, activeRepo);
+          activeRepo = { ...parsedRepo, workspaceDir, lastAccessed: Date.now() };
+          setThreadRepo(threadRepoMap, threadId, activeRepo);
+          const { lastAccessed, ...repoForPersistence } = threadRepoMap.get(
+            threadId,
+          ) || { owner: parsedRepo.owner, name: parsedRepo.name, workspaceDir };
           await persistThreadRepo(threadId, {
-            ...activeRepo,
+            ...repoForPersistence,
             sandbox: {
               sandboxId: backend.id,
               profile,
             },
           });
 
-          threadSandboxMap.set(threadId, {
+          setThreadSandbox(threadSandboxMap, threadId, {
             backend,
             profile,
             repo: activeRepo,
@@ -841,17 +942,20 @@ export class DeepAgentWrapper implements AgentHarness {
             `[deepagents] OpenSandbox repo acquire+clone took ${Date.now() - cloneStart}ms`,
           );
 
-          activeRepo = { ...parsedRepo, workspaceDir };
-          threadRepoMap.set(threadId, activeRepo);
+          activeRepo = { ...parsedRepo, workspaceDir, lastAccessed: Date.now() };
+          setThreadRepo(threadRepoMap, threadId, activeRepo);
+          const { lastAccessed, ...repoForPersistence } = threadRepoMap.get(
+            threadId,
+          ) || { owner: parsedRepo.owner, name: parsedRepo.name, workspaceDir };
           await persistThreadRepo(threadId, {
-            ...activeRepo,
+            ...repoForPersistence,
             sandbox: {
               sandboxId: backend.id,
               profile,
             },
           });
 
-          threadSandboxMap.set(threadId, {
+          setThreadSandbox(threadSandboxMap, threadId, {
             backend,
             profile,
             repo: activeRepo,
@@ -875,9 +979,13 @@ export class DeepAgentWrapper implements AgentHarness {
         activeRepo = {
           ...parsedRepo,
           workspaceDir: `/workspace/${parsedRepo.name}`,
+          lastAccessed: Date.now(),
         };
-        threadRepoMap.set(threadId, activeRepo);
-        await persistThreadRepo(threadId, activeRepo);
+        setThreadRepo(threadRepoMap, threadId, activeRepo);
+        const { lastAccessed, ...repoForPersistence } = threadRepoMap.get(
+          threadId,
+        ) || { owner: parsedRepo.owner, name: parsedRepo.name, workspaceDir: activeRepo.workspaceDir };
+        await persistThreadRepo(threadId, repoForPersistence);
       }
     }
 
@@ -895,7 +1003,11 @@ export class DeepAgentWrapper implements AgentHarness {
     configurable.tools = currentTools;
 
     // Get or create a DeepAgent instance for this thread.
-    let agent = threadAgentMap.get(threadId);
+    let agentEntry = threadAgentMap.get(threadId);
+    if (agentEntry) {
+      updateThreadAgentAccess(threadAgentMap, threadId);
+    }
+    let agent = agentEntry?.agent;
     if (!agent) {
       if (useSandbox) {
         const backend = threadSandboxMap.get(threadId)?.backend;
@@ -920,7 +1032,7 @@ export class DeepAgentWrapper implements AgentHarness {
         agent = await createAgentInstance({});
       }
 
-      threadAgentMap.set(threadId, agent);
+      setThreadAgent(threadAgentMap, threadId, agent);
       logger.info({ threadId }, `[deepagents] Agent initialized for thread`);
     }
     return { agent, configurable, activeRepo };
@@ -935,6 +1047,9 @@ export class DeepAgentWrapper implements AgentHarness {
       const threadId = options?.threadId || "default-session";
       let { agent, configurable } = await this.prepareAgent(input, threadId);
       const activeRepo = threadRepoMap.get(threadId);
+      if (activeRepo) {
+        updateThreadRepoAccess(threadRepoMap, threadId);
+      }
 
       // Blueprint selection: Choose workflow template based on task keywords
       // This is a lightweight operation that just returns metadata
@@ -1008,6 +1123,9 @@ If you need to make additional changes, continue working and they'll be added to
       // Clean repository state before agent run if using sandbox
       // This prevents the agent from being confused by leftover changes from previous runs
       const sandboxEntry = threadSandboxMap.get(threadId);
+      if (sandboxEntry) {
+        updateThreadSandboxAccess(threadSandboxMap, threadId);
+      }
       if (sandboxEntry && activeRepo) {
         try {
           const hasUncommitted = await gitHasUncommittedChanges(
@@ -1352,9 +1470,10 @@ If you need to make additional changes, continue working and they'll be added to
   }
 
   async getState(threadId: string): Promise<any> {
-    const agent = threadAgentMap.get(threadId);
-    if (!agent) return null;
-    return agent.getState({ configurable: { thread_id: threadId } });
+    const agentEntry = threadAgentMap.get(threadId);
+    if (!agentEntry) return null;
+    updateThreadAgentAccess(threadAgentMap, threadId);
+    return agentEntry.agent.getState({ configurable: { thread_id: threadId } });
   }
 }
 
@@ -1373,7 +1492,7 @@ export async function initDeepAgentsAtStartup(): Promise<void> {
   if (!hasLoadedPersistedRepos) {
     const persisted = await loadPersistedThreadRepos();
     for (const [id, repo] of persisted.entries()) {
-      threadRepoMap.set(id, repo);
+      setThreadRepo(threadRepoMap, id, repo);
     }
     hasLoadedPersistedRepos = true;
   }
