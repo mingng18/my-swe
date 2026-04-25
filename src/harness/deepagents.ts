@@ -1843,6 +1843,9 @@ export async function cleanupDeepAgents(): Promise<void> {
 
 // Exposed for testing purposes
 export function resetDeepAgentsStateForTesting(): void {
+  // Stop the thread cleanup scheduler to prevent it from interfering with tests
+  stopThreadCleanupScheduler();
+
   hasLoadedPersistedRepos = false;
   threadRepoMap.clear();
   threadSandboxMap.clear();
