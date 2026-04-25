@@ -8,6 +8,11 @@ import {
   shutdownLangfuse,
   createTrace,
 } from "../utils/langfuse";
+import {
+  startThreadCleanupScheduler,
+  stopThreadCleanupScheduler,
+  type ThreadMapCleanupFn,
+} from "../utils/thread-cleanup-scheduler";
 import { MemorySaver } from "@langchain/langgraph";
 import {
   modelRetryMiddleware,
@@ -316,13 +321,13 @@ function setThreadRepo(
  * Remove agent entries from threadAgentMap that are older than THREAD_TTL_MS.
  * This prevents unbounded memory growth from abandoned threads.
  */
-function cleanupOldEntriesFromThreadAgentMap(): void {
+function cleanupOldEntriesFromThreadAgentMap(ttlMs: number = THREAD_TTL_MS): void {
   const now = Date.now();
   const threadsToDelete: string[] = [];
 
   for (const [threadId, entry] of threadAgentMap.entries()) {
     const age = now - entry.lastAccessed;
-    if (age > THREAD_TTL_MS) {
+    if (age > ttlMs) {
       threadsToDelete.push(threadId);
     }
   }
@@ -347,7 +352,7 @@ function cleanupOldEntriesFromThreadAgentMap(): void {
  * Remove sandbox entries from threadSandboxMap that are older than THREAD_TTL_MS.
  * Properly releases sandboxes back to the pool and disposes backends.
  */
-async function cleanupOldEntriesFromThreadSandboxMap(): Promise<void> {
+async function cleanupOldEntriesFromThreadSandboxMap(ttlMs: number = THREAD_TTL_MS): Promise<void> {
   const now = Date.now();
   const threadsToDelete: Array<{
     threadId: string;
@@ -361,7 +366,7 @@ async function cleanupOldEntriesFromThreadSandboxMap(): Promise<void> {
 
   for (const [threadId, entry] of threadSandboxMap.entries()) {
     const age = now - entry.lastAccessed;
-    if (age > THREAD_TTL_MS) {
+    if (age > ttlMs) {
       threadsToDelete.push({ threadId, entry });
     }
   }
@@ -417,13 +422,13 @@ async function cleanupOldEntriesFromThreadSandboxMap(): Promise<void> {
  * Remove repo entries from threadRepoMap that are older than THREAD_TTL_MS.
  * Also removes persisted thread metadata for cleaned entries.
  */
-async function cleanupOldEntriesFromThreadRepoMap(): Promise<void> {
+async function cleanupOldEntriesFromThreadRepoMap(ttlMs: number = THREAD_TTL_MS): Promise<void> {
   const now = Date.now();
   const threadsToDelete: string[] = [];
 
   for (const [threadId, entry] of threadRepoMap.entries()) {
     const age = now - entry.lastAccessed;
-    if (age > THREAD_TTL_MS) {
+    if (age > ttlMs) {
       threadsToDelete.push(threadId);
     }
   }
@@ -465,26 +470,43 @@ async function cleanupOldEntriesFromThreadRepoMap(): Promise<void> {
  *
  * The cleanup is time-based (TTL) and prevents unbounded memory growth
  * from abandoned threads.
+ *
+ * @param ttlMs - Time-to-live in milliseconds (defaults to THREAD_TTL_MS)
+ * @returns The total number of entries cleaned across all maps
  */
-export async function cleanupThreadMaps(): Promise<void> {
+export async function cleanupThreadMaps(ttlMs: number = THREAD_TTL_MS): Promise<number> {
   const startTime = Date.now();
 
+  // Count entries before cleanup
+  const beforeAgentCount = threadAgentMap.size;
+  const beforeSandboxCount = threadSandboxMap.size;
+  const beforeRepoCount = threadRepoMap.size;
+
   // Clean up agent entries (synchronous)
-  cleanupOldEntriesFromThreadAgentMap();
+  cleanupOldEntriesFromThreadAgentMap(ttlMs);
 
   // Clean up sandbox entries (asynchronous - releases resources)
-  await cleanupOldEntriesFromThreadSandboxMap();
+  await cleanupOldEntriesFromThreadSandboxMap(ttlMs);
 
   // Clean up repo entries (asynchronous - removes persisted metadata)
-  await cleanupOldEntriesFromThreadRepoMap();
+  await cleanupOldEntriesFromThreadRepoMap(ttlMs);
+
+  // Calculate total cleaned
+  const totalCleaned =
+    beforeAgentCount +
+    beforeSandboxCount +
+    beforeRepoCount -
+    (threadAgentMap.size + threadSandboxMap.size + threadRepoMap.size);
 
   const duration = Date.now() - startTime;
   if (duration > 100) {
     logger.debug(
-      { durationMs: duration },
+      { durationMs: duration, cleaned: totalCleaned },
       "[deepagents] Thread maps cleanup completed",
     );
   }
+
+  return totalCleaned;
 }
 
 async function createAgentInstance(args: {
@@ -1017,6 +1039,12 @@ export class DeepAgentWrapper implements AgentHarness {
     }
     const hasBackendForThread = Boolean(sandboxEntry?.backend);
 
+    // Mark thread as accessed in cleanup scheduler
+    const scheduler = await import("../utils/thread-cleanup-scheduler").then(m => m.getThreadCleanupScheduler());
+    if (scheduler) {
+      scheduler.markAccessed(threadId);
+    }
+
     // Acquire/clone repo when:
     // 1) user specified a different repo, OR
     // 2) sandbox mode is enabled and this thread has no backend yet (rehydration case)
@@ -1244,6 +1272,12 @@ export class DeepAgentWrapper implements AgentHarness {
         updateThreadRepoAccess(threadRepoMap, threadId);
       }
 
+      // Mark thread as accessed in cleanup scheduler
+      const scheduler = await import("../utils/thread-cleanup-scheduler").then(m => m.getThreadCleanupScheduler());
+      if (scheduler) {
+        scheduler.markAccessed(threadId);
+      }
+
       // Blueprint selection: Choose workflow template based on task keywords
       // This is a lightweight operation that just returns metadata
       // The actual execution is still handled by DeepAgents + middleware
@@ -1319,6 +1353,13 @@ If you need to make additional changes, continue working and they'll be added to
       if (sandboxEntry) {
         updateThreadSandboxAccess(threadSandboxMap, threadId);
       }
+
+      // Mark thread as accessed in cleanup scheduler
+      const invokeScheduler = await import("../utils/thread-cleanup-scheduler").then(m => m.getThreadCleanupScheduler());
+      if (invokeScheduler) {
+        invokeScheduler.markAccessed(threadId);
+      }
+
       if (sandboxEntry && activeRepo) {
         try {
           const hasUncommitted = await gitHasUncommittedChanges(
@@ -1666,6 +1707,13 @@ If you need to make additional changes, continue working and they'll be added to
     const agentEntry = threadAgentMap.get(threadId);
     if (!agentEntry) return null;
     updateThreadAgentAccess(threadAgentMap, threadId);
+
+    // Mark thread as accessed in cleanup scheduler
+    const scheduler = await import("../utils/thread-cleanup-scheduler").then(m => m.getThreadCleanupScheduler());
+    if (scheduler) {
+      scheduler.markAccessed(threadId);
+    }
+
     return agentEntry.agent.getState({ configurable: { thread_id: threadId } });
   }
 }
@@ -1703,6 +1751,39 @@ export async function initDeepAgentsAtStartup(): Promise<void> {
   }
 
   await getAgentHarness();
+
+  // Initialize thread cleanup scheduler
+  const cleanupIntervalMs = Number.parseInt(
+    process.env.THREAD_CLEANUP_INTERVAL_MS || "3600000",
+    10,
+  ); // Default 1 hour
+  const cleanupTtlMs = Number.parseInt(
+    process.env.THREAD_CLEANUP_TTL_MS || THREAD_TTL_MS.toString(),
+    10,
+  ); // Use same default as THREAD_TTL_MS
+
+  const scheduler = startThreadCleanupScheduler({
+    intervalMs: cleanupIntervalMs,
+    ttlMs: cleanupTtlMs,
+    enabled: process.env.THREAD_CLEANUP_ENABLED !== "false",
+  });
+
+  // Register cleanup function that integrates with ThreadCleanupScheduler
+  const cleanupFn: ThreadMapCleanupFn = async (
+    _metadata: Map<string, { threadId: string; lastAccessed: Date }>,
+    ttlMs: number,
+  ): Promise<number> => {
+    return await cleanupThreadMaps(ttlMs);
+  };
+
+  scheduler.registerCleanupFn(cleanupFn);
+  logger.info(
+    {
+      intervalMs: cleanupIntervalMs,
+      ttlMs: cleanupTtlMs,
+    },
+    "[deepagents] Thread cleanup scheduler registered",
+  );
 }
 
 /**
@@ -1711,6 +1792,9 @@ export async function initDeepAgentsAtStartup(): Promise<void> {
  */
 export async function cleanupDeepAgents(): Promise<void> {
   logger.info("[deepagents] Cleaning up...");
+
+  // Stop the thread cleanup scheduler
+  stopThreadCleanupScheduler();
 
   // Release sandboxes back to the pool and dispose backends in parallel.
   await Promise.all(
