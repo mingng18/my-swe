@@ -7,6 +7,7 @@ import {
   flushLangfuse,
   shutdownLangfuse,
   createTrace,
+  maskSensitiveData,
 } from "../utils/langfuse";
 import { CallbackHandler as LangfuseLangChain } from "langfuse-langchain";
 import { MemorySaver } from "@langchain/langgraph";
@@ -1094,7 +1095,7 @@ If you need to make additional changes, continue working and they'll be added to
 
       // Create Langfuse trace for this agent turn (manual instrumentation)
       const langfuseTrace = isLangfuseEnabled()
-        ? createTrace("agent-turn", threadId)
+        ? createTrace("agent-turn", threadId, options?.userId)
         : null;
 
       let invokeProgressTicker: ReturnType<typeof setInterval> | undefined;
@@ -1117,7 +1118,15 @@ If you need to make additional changes, continue working and they'll be added to
 
         // Update trace with input
         if (langfuseTrace) {
-          langfuseTrace.update({ input: modifiedInput });
+          langfuseTrace.update({
+            input: maskSensitiveData(modifiedInput),
+            metadata: {
+              transport: "api", // Default transport
+              blueprintId: blueprintSelection.blueprint.id,
+              blueprintName: blueprintSelection.blueprint.name,
+              repo: activeRepo ? `${activeRepo.owner}/${activeRepo.name}` : undefined,
+            },
+          });
         }
 
         result = traceTerminal
@@ -1241,10 +1250,11 @@ If you need to make additional changes, continue working and they'll be added to
       // Update Langfuse trace with output
       if (langfuseTrace) {
         langfuseTrace.update({
-          output: responseText,
+          output: maskSensitiveData(responseText),
           metadata: {
             totalMessages: messages.length,
             responseLength: responseText.length,
+            totalDurationMs: Date.now() - startTime,
           },
         });
       }
