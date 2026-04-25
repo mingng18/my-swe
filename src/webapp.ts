@@ -47,7 +47,7 @@ async function processMessage(
 ): Promise<string> {
   activeThreads.add(threadId);
   try {
-    const reply = await runCodeagentTurn(enrichedText, threadId);
+    const reply = await runCodeagentTurn(enrichedText, threadId, undefined, "telegram");
     return reply;
   } finally {
     activeThreads.delete(threadId);
@@ -130,7 +130,7 @@ app.post("/run", async (c) => {
       );
     }
 
-    const out = await runCodeagentTurn(input, threadId, userId);
+    const out = await runCodeagentTurn(input, threadId, userId, "http");
 
     return c.json({
       result: out,
@@ -174,7 +174,7 @@ app.post("/v1/chat/completions", async (c) => {
     // Optional thread_id for conversation history (defaults to "default")
     const threadId = body.thread_id || "default";
 
-    const out = await runCodeagentTurn(input, threadId);
+    const out = await runCodeagentTurn(input, threadId, undefined, "http");
 
     return c.json({
       id: `chatcmpl-${Date.now()}`,
@@ -427,7 +427,7 @@ app.post("/webhook/github", async (c) => {
 
             const finalMessage = `[System Context: Webhook event ${githubEvent} from GitHub user @${githubLogin} (Email: ${email})]\n\n${prompt}`;
 
-            await runCodeagentTurn(finalMessage);
+            await runCodeagentTurn(finalMessage, undefined, undefined, "github");
           } catch (err) {
             log.error(
               { err },
@@ -465,7 +465,7 @@ app.post("/webhook/github", async (c) => {
             void (async () => {
               try {
                 const prompt = `New issue opened in ${repoOwner}/${repoName}#${issueNumber}:\nTitle: ${issueTitle}\n\n${issueBody}\n\nPlease analyze this issue and provide a helpful response.`;
-                const reply = await runCodeagentTurn(prompt);
+                const reply = await runCodeagentTurn(prompt, undefined, undefined, "github");
 
                 const token =
                   getGithubToken() || (await getGithubAppInstallationToken());
@@ -514,7 +514,7 @@ app.post("/webhook/github", async (c) => {
         const input = `A push event was received on repository ${repoName} for ref ${ref} with ${commitsCount} commits.`;
 
         // Run the agent graph asynchronously so we don't block the webhook response
-        runCodeagentTurn(input).catch((err) => {
+        runCodeagentTurn(input, undefined, undefined, "github").catch((err) => {
           log.error(
             { error: err },
             "[webapp][github] Error running agent on push event",

@@ -1121,7 +1121,7 @@ If you need to make additional changes, continue working and they'll be added to
           langfuseTrace.update({
             input: maskSensitiveData(modifiedInput),
             metadata: {
-              transport: "api", // Default transport
+              transport: options?.transport || "api",
               blueprintId: blueprintSelection.blueprint.id,
               blueprintName: blueprintSelection.blueprint.name,
               repo: activeRepo ? `${activeRepo.owner}/${activeRepo.name}` : undefined,

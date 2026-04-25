@@ -19,6 +19,7 @@ export async function runCodeagentTurn(
   userText: string,
   threadId?: string,
   userId?: string,
+  transport?: "telegram" | "http" | "github",
 ): Promise<string> {
   const startedAt = Date.now();
 
@@ -27,6 +28,7 @@ export async function runCodeagentTurn(
     const result = await harness.run(userText, {
       threadId: threadId ?? "default-session",
       userId,
+      transport,
     });
 
     logger.info(

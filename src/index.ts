@@ -76,7 +76,7 @@ async function processMessage(
 ): Promise<string> {
   activeThreads.add(threadId);
   try {
-    const reply = await runCodeagentTurn(enrichedText, threadId, userId);
+    const reply = await runCodeagentTurn(enrichedText, threadId, userId, "telegram");
     return reply;
   } finally {
     activeThreads.delete(threadId);
