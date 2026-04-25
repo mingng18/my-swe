@@ -8,6 +8,7 @@ import {
   shutdownLangfuse,
   createTrace,
 } from "../utils/langfuse";
+import { CallbackHandler as LangfuseLangChain } from "langfuse-langchain";
 import { MemorySaver } from "@langchain/langgraph";
 import {
   modelRetryMiddleware,
