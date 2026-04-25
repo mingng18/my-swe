@@ -79,7 +79,7 @@ app.use(
   cors({
     origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
     allowMethods: ["POST", "GET", "OPTIONS"],
-    allowHeaders: ["Content-Type", "Authorization"],
+    allowHeaders: ["Content-Type", "Authorization", "X-User-Id"],
   }),
 );
 
@@ -120,7 +120,8 @@ app.get("/info", (c) => {
  */
 app.post("/run", async (c) => {
   try {
-    const { input } = await c.req.json();
+    const { input, threadId } = await c.req.json();
+    const userId = c.req.header("X-User-Id") || undefined;
 
     if (typeof input !== "string" || !input.trim()) {
       return c.json(
@@ -129,7 +130,7 @@ app.post("/run", async (c) => {
       );
     }
 
-    const out = await runCodeagentTurn(input);
+    const out = await runCodeagentTurn(input, threadId, userId);
 
     return c.json({
       result: out,
