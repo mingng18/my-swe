@@ -11,7 +11,7 @@ import {
 } from "./utils/config";
 import { runCodeagentTurn } from "./server";
 import { getEmailForIdentity } from "./utils/identity";
-import { isDuplicateMessage } from "./utils/telegram";
+import { isDuplicateMessage, formatTelegramMarkdownV2 } from "./utils/telegram";
 
 // Memory system integration
 import { getMemoryDaemon } from "./memory/daemon";
@@ -89,7 +89,7 @@ async function processMessage(
 
 const PORT = Number.parseInt(process.env.PORT || "7860", 10);
 
-async function handleTelegramMessage(msg: any, telegramBotToken: string) {
+async function handleTelegramMessage(msg: any, telegramBotToken: string, parseMode: string) {
   if (!("text" in msg) || !msg.text) {
     return;
   }
@@ -136,6 +136,7 @@ async function handleTelegramMessage(msg: any, telegramBotToken: string) {
       body: JSON.stringify({
         chat_id: msg.chat.id,
         text: "Message queued. I'll get to it shortly...",
+        parse_mode: parseMode,
       }),
     });
     return;
@@ -144,13 +145,19 @@ async function handleTelegramMessage(msg: any, telegramBotToken: string) {
   // Process the message and send reply
   const reply = await processMessage(threadId, enrichedText, userId);
 
+  // Format reply for Telegram MarkdownV2 (only when parseMode is MarkdownV2)
+  const formattedReply = parseMode === "MarkdownV2"
+    ? formatTelegramMarkdownV2(reply)
+    : reply;
+
   // Send reply back to Telegram
   await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       chat_id: msg.chat.id,
-      text: reply,
+      text: formattedReply,
+      parse_mode: parseMode,
     }),
   });
 
@@ -164,7 +171,7 @@ async function handleTelegramMessage(msg: any, telegramBotToken: string) {
 
 // Telegram polling for local development
 async function startTelegramPolling() {
-  const { telegramBotToken } = loadTelegramConfig();
+  const { telegramBotToken, telegramParseMode } = loadTelegramConfig();
   const { baseDelayMs, maxDelayMs } = loadTelegramBackoffConfig();
   let offset = 0;
   let consecutiveErrors = 0;
@@ -193,7 +200,7 @@ async function startTelegramPolling() {
 
           // Handle message updates
           if ("message" in update) {
-            await handleTelegramMessage(update.message, telegramBotToken);
+            await handleTelegramMessage(update.message, telegramBotToken, telegramParseMode);
           }
         }
       }

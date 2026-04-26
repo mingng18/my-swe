@@ -1,15 +1,15 @@
 {
   "active": true,
-  "spec": "011-add-tool-usage-analytics-dashboard-endpoint",
-  "state": "planning",
+  "spec": "013-add-markdown-formatting-to-telegram-responses",
+  "state": "building",
   "subtasks": {
-    "completed": 0,
-    "total": 0,
+    "completed": 3,
+    "total": 7,
     "in_progress": 1,
     "failed": 0
   },
   "phase": {
-    "current": "Implementation",
+    "current": "Configuration",
     "id": null,
     "total": 4
   },
@@ -18,8 +18,8 @@
     "max": 1
   },
   "session": {
-    "number": 2,
-    "started_at": "2026-04-26T15:35:09.480799"
+    "number": 16,
+    "started_at": "2026-04-26T14:35:24.778644"
   },
-  "last_update": "2026-04-26T15:36:35.794061"
+  "last_update": "2026-04-26T15:24:45.527364"
 }
