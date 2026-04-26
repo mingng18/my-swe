@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createLogger } from "../utils/logger";
 import { MemoryRepository } from "../memory/repository";
 import type { MemoryType } from "../memory/types";
+import { GenericCache } from "../utils/cache/lru-cache";
 
 const logger = createLogger("memory-search");
 
@@ -10,6 +11,74 @@ const logger = createLogger("memory-search");
 const MEMORY_SEARCH_ENABLED = process.env.MEMORY_SEARCH_ENABLED !== "false";
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 50;
+
+// Cache configuration
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const MAX_CACHE_SIZE_BYTES = 25 * 1024 * 1024; // 25MB
+
+/**
+ * Memory search cache with LRU eviction.
+ *
+ * Wraps the GenericCache to provide a memory-search-specific caching interface
+ * with enhanced statistics and pattern-based invalidation.
+ */
+class MemorySearchCache {
+  private cache: GenericCache;
+
+  constructor() {
+    this.cache = new GenericCache({
+      maxSize: MAX_CACHE_SIZE_BYTES,
+      ttl: CACHE_TTL_MS,
+      debug: "memory-search-cache",
+    });
+  }
+
+  /**
+   * Get a cached value.
+   */
+  get<T>(threadId: string, query: string, types?: MemoryType[]): T | null {
+    return this.cache.get<T>(this.makeKey(threadId, query, types));
+  }
+
+  /**
+   * Set a cached value.
+   */
+  set<T>(threadId: string, query: string, data: T, types?: MemoryType[]): void {
+    this.cache.set(this.makeKey(threadId, query, types), data);
+  }
+
+  /**
+   * Invalidate cache entries matching a pattern.
+   */
+  invalidate(pattern: string): void {
+    this.cache.invalidate(pattern);
+  }
+
+  /**
+   * Clear all cached entries.
+   */
+  clear(): void {
+    this.cache.clear();
+  }
+
+  /**
+   * Get cache statistics.
+   */
+  getStats() {
+    return this.cache.getStats();
+  }
+
+  /**
+   * Create a cache key from parameters.
+   */
+  private makeKey(threadId: string, query: string, types?: MemoryType[]): string {
+    const typesKey = types ? `:${types.sort().join(",")}` : "";
+    return `memory:${threadId}:${query}${typesKey}`;
+  }
+}
+
+// Global cache instance
+export const memorySearchCache = new MemorySearchCache();
 
 /**
  * Simple keyword-based search for memories.
@@ -97,18 +166,52 @@ export const memorySearchTool = tool(
     );
 
     try {
+      // Check cache for existing results
+      const cacheKeyParams = {
+        limit: resultLimit,
+        types: types || null,
+      };
+      const cached = memorySearchCache.get<
+        { matches: unknown[]; total: number; query: string; types: MemoryType[] | null }
+      >(threadId, query, types);
+
+      if (cached !== null) {
+        logger.debug(
+          { query, threadId, cacheHits: cached.total },
+          "[memory-search] Cache hit",
+        );
+
+        // Return cached result with limit applied
+        const limitedMatches = cached.matches.slice(0, resultLimit);
+        return JSON.stringify({
+          ...cached,
+          matches: limitedMatches,
+          total: limitedMatches.length,
+        });
+      }
+
+      logger.debug(
+        { query, threadId },
+        "[memory-search] Cache miss, executing search",
+      );
+
       const repo = new MemoryRepository();
 
       // Fetch all memories for this thread (with optional type filter)
       const memories = await repo.getByThread(threadId, types);
 
       if (memories.length === 0) {
-        return JSON.stringify({
+        const emptyResult = {
           matches: [],
           total: 0,
           query,
           message: "No memories found for this thread",
-        });
+        };
+
+        // Cache empty result
+        memorySearchCache.set(threadId, query, emptyResult, types);
+
+        return JSON.stringify(emptyResult);
       }
 
       // Score and rank memories using keyword matching
@@ -142,17 +245,22 @@ export const memorySearchTool = tool(
         .sort((a, b) => b.relevanceScore - a.relevanceScore)
         .slice(0, resultLimit);
 
+      const result = {
+        matches: scored,
+        total: scored.length,
+        query,
+        types: types || null,
+      };
+
+      // Cache the result
+      memorySearchCache.set(threadId, query, result, types);
+
       logger.info(
         { totalMatches: scored.length, query },
         "[memory-search] Search completed",
       );
 
-      return JSON.stringify({
-        matches: scored,
-        total: scored.length,
-        query,
-        types: types || null,
-      });
+      return JSON.stringify(result);
     } catch (error) {
       logger.error({ error, query }, "[memory-search] Search failed");
 
@@ -194,3 +302,39 @@ export const memorySearchTool = tool(
     }),
   },
 );
+
+/**
+ * Invalidate cache entries for a specific thread.
+ * Call this after creating/updating/deleting memories in a thread.
+ */
+export function invalidateThreadCache(threadId: string): void {
+  memorySearchCache.invalidate(`^memory:${threadId}:.*`);
+}
+
+/**
+ * Invalidate cache entries for a specific thread and query pattern.
+ * Useful for fine-grained invalidation when you know which queries are affected.
+ */
+export function invalidateQueryCache(
+  threadId: string,
+  queryPattern: string
+): void {
+  memorySearchCache.invalidate(`^memory:${threadId}:${queryPattern}`);
+}
+
+/**
+ * Clear all memory search cache entries.
+ * Useful for testing or when the entire memory store is reset.
+ */
+export function clearMemorySearchCache(): void {
+  memorySearchCache.clear();
+}
+
+/**
+ * Get memory search cache statistics.
+ * Useful for monitoring cache effectiveness.
+ */
+export function getMemorySearchCacheStats() {
+  return memorySearchCache.getStats();
+}
+

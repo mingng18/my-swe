@@ -8,6 +8,7 @@ import {
 export function loadTelegramConfig(): {
   telegramBotToken: string;
   telegramAdminChatId?: string;
+  telegramParseMode: string;
 } {
   const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
   if (!token) {
@@ -16,7 +17,12 @@ export function loadTelegramConfig(): {
     );
   }
   const adminChatId = process.env.TELEGRAM_ADMIN_CHAT_ID?.trim();
-  return { telegramBotToken: token, telegramAdminChatId: adminChatId };
+  const parseMode = process.env.TELEGRAM_PARSE_MODE?.trim() || "Markdown";
+  return {
+    telegramBotToken: token,
+    telegramAdminChatId: adminChatId,
+    telegramParseMode: parseMode,
+  };
 }
 
 /** Load exponential backoff configuration for Telegram polling retries. */

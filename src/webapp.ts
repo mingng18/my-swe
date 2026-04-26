@@ -5,7 +5,7 @@ import { cors } from "hono/cors";
 import { logger as httpLogger } from "hono/logger";
 
 import { runCodeagentTurn } from "./server";
-import { isDuplicateMessage, sendChatAction } from "./utils/telegram";
+import { isDuplicateMessage, sendChatAction, formatTelegramMarkdownV2 } from "./utils/telegram";
 
 // Message queue for concurrent requests (shared across all transports)
 const messageQueue = new Map<string, string[]>();
@@ -214,7 +214,7 @@ app.post("/v1/chat/completions", async (c) => {
  */
 app.post("/webhook/telegram", async (c) => {
   try {
-    const { telegramBotToken } = loadTelegramConfig();
+    const { telegramBotToken, telegramParseMode } = loadTelegramConfig();
 
     const body = await c.req.json();
     const update = body as any;
@@ -264,6 +264,7 @@ app.post("/webhook/telegram", async (c) => {
               body: JSON.stringify({
                 chat_id: msg.chat.id,
                 text: "Message queued. I'll get to it shortly...",
+                parse_mode: telegramParseMode,
               }),
             },
           );
@@ -276,6 +277,11 @@ app.post("/webhook/telegram", async (c) => {
         // Process the message
         const reply = await processMessage(threadId, msg.text);
 
+        // Format reply for Telegram MarkdownV2 (only when parseMode is MarkdownV2)
+        const formattedReply = telegramParseMode === "MarkdownV2"
+          ? formatTelegramMarkdownV2(reply)
+          : reply;
+
         // Send reply back to Telegram
         await fetch(
           `https://api.telegram.org/bot${telegramBotToken}/sendMessage`,
@@ -284,7 +290,8 @@ app.post("/webhook/telegram", async (c) => {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               chat_id: msg.chat.id,
-              text: reply,
+              text: formattedReply,
+              parse_mode: telegramParseMode,
             }),
           },
         );
@@ -609,6 +616,29 @@ app.get("/metrics", async (c) => {
     });
   } catch (error) {
     log.error({ error }, "[webapp] /metrics error");
+    return c.json(
+      { error: error instanceof Error ? error.message : "Unknown error" },
+      500,
+    );
+  }
+});
+
+/**
+ * Tool usage analytics endpoint
+ * GET /analytics/tools
+ */
+app.get("/analytics/tools", async (c) => {
+  const { getGlobalToolMetrics } = await import("./utils/telemetry");
+
+  try {
+    const tools = getGlobalToolMetrics();
+
+    return c.json({
+      tools,
+      timestamp: Date.now(),
+    });
+  } catch (error) {
+    log.error({ error }, "[webapp] /analytics/tools error");
     return c.json(
       { error: error instanceof Error ? error.message : "Unknown error" },
       500,

@@ -79,4 +79,148 @@ export async function sendChatAction(
     logger.error({ chatId, action, error }, "Failed to send chat action");
     throw error;
   }
+
+/**
+ * Format a string as a code block for Telegram MarkdownV2.
+ *
+ * Wraps the provided code in triple backticks with proper formatting.
+ *
+ * @param code - The code to format
+ * @returns Code wrapped in triple backticks
+ *
+ * @example
+ * ```ts
+ * formatCodeBlock('console.log("test")')
+ * // Returns: "```\nconsole.log(\"test\")\n```"
+ * ```
+ */
+export function formatCodeBlock(code: string): string {
+  if (!code) {
+    return "";
+  }
+
+  // Remove leading/trailing whitespace and wrap in code block markers
+  const trimmedCode = code.trim();
+  return `\`\`\`\n${trimmedCode}\n\`\`\``;
+}
+
+/**
+ * Escape a string for use in Telegram MarkdownV2 format.
+ *
+ * This function escapes special characters that have meaning in MarkdownV2,
+ * while preserving intentional markdown syntax (bold, italic, code, links, etc.).
+ *
+ * @param text - The text to format
+ * @returns Text with special characters properly escaped for MarkdownV2
+ *
+ * @example
+ * ```ts
+ * formatTelegramMarkdownV2("*bold* text")
+ * // Returns: "*bold* text" (markdown preserved)
+ *
+ * formatTelegramMarkdownV2("Check value: 5.5!")
+ * // Returns: "Check value: 5\\.5\\!" (special chars escaped)
+ * ```
+ */
+export function formatTelegramMarkdownV2(text: string): string {
+  if (!text) {
+    return "";
+  }
+
+  // Special characters in Telegram MarkdownV2 that need escaping
+  const specialChars = [
+    "_",
+    "*",
+    "[",
+    "]",
+    "(",
+    ")",
+    "~",
+    "`",
+    ">",
+    "#",
+    "+",
+    "-",
+    "=",
+    "|",
+    "{",
+    "}",
+    ".",
+    "!",
+  ];
+
+  // Build regex pattern for all special chars
+  const escapePattern = new RegExp(
+    `([${specialChars.map((c) => `\\${c}`).join("")}])`,
+    "g",
+  );
+
+  let result = "";
+  let i = 0;
+
+  while (i < text.length) {
+    // Check for markdown patterns to preserve
+    const remaining = text.slice(i);
+
+    // Bold: *text* or __text__
+    const boldMatch = remaining.match(/^\*([^*\n]+)\*/);
+    const boldMatch2 = remaining.match(/^__([^_\n]+)__/);
+    if (boldMatch) {
+      const content = formatTelegramMarkdownV2(boldMatch[1]); // Recursively format content
+      result += `*${content}*`;
+      i += boldMatch[0].length;
+      continue;
+    }
+    if (boldMatch2) {
+      const content = formatTelegramMarkdownV2(boldMatch2[1]); // Recursively format content
+      result += `__${content}__`;
+      i += boldMatch2[0].length;
+      continue;
+    }
+
+    // Italic: _text_ (but not already matched as bold)
+    const italicMatch = remaining.match(/^_([^_\n]+)_/);
+    if (italicMatch) {
+      const content = formatTelegramMarkdownV2(italicMatch[1]); // Recursively format content
+      result += `_${content}_`;
+      i += italicMatch[0].length;
+      continue;
+    }
+
+    // Code: `text`
+    const codeMatch = remaining.match(/^`([^`]+)`/);
+    if (codeMatch) {
+      result += codeMatch[0]; // Preserve code blocks as-is
+      i += codeMatch[0].length;
+      continue;
+    }
+
+    // Pre: ```text```
+    const preMatch = remaining.match(/^```([\s\S]*?)```/);
+    if (preMatch) {
+      result += preMatch[0]; // Preserve pre blocks as-is
+      i += preMatch[0].length;
+      continue;
+    }
+
+    // URL: [text](url)
+    const urlMatch = remaining.match(/^\[([^\]]+)\]\(([^)]+)\)/);
+    if (urlMatch) {
+      const linkText = formatTelegramMarkdownV2(urlMatch[1]); // Recursively format link text
+      result += `[${linkText}](${urlMatch[2]})`;
+      i += urlMatch[0].length;
+      continue;
+    }
+
+    // Escape special characters
+    if (specialChars.includes(text[i])) {
+      result += `\\${text[i]}`;
+      i++;
+    } else {
+      result += text[i];
+      i++;
+    }
+  }
+
+  return result;
 }
