@@ -45,6 +45,14 @@ export {
   type UserIdentity,
 } from "./authorship";
 
+// GitHub API caching utilities
+export {
+  githubApiCache,
+  cachedGithubApiCall,
+  invalidateRepoCache,
+  invalidatePrCache,
+} from "./github-cache";
+
 // Git utilities and GitHub API
 export {
   isValidGitRepo,
