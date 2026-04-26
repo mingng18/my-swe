@@ -65,6 +65,7 @@ export {
   gitPush,
   gitRemoteBranchExists,
   createGithubPr,
+  createGithubIssue,
   runGit,
   findExistingPr,
   listGithubPrs,

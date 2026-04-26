@@ -4,6 +4,8 @@ import { fetchUrlTool } from "./fetch-url";
 import { mergePrTool } from "./merge-pr";
 import { searchTool } from "./search";
 import { githubCommentTool } from "./github-comment";
+import { createGithubIssueTool } from "./create-github-issue";
+import { commentGithubIssueTool } from "./comment-github-issue";
 import { sandboxTools } from "./sandbox-shell";
 import {
   artifactQueryTool,
@@ -38,6 +40,8 @@ export const allToolsUncompressed = [
   fetchUrlTool,
   searchTool,
   githubCommentTool,
+  createGithubIssueTool,
+  commentGithubIssueTool,
   artifactQueryTool,
   artifactListTool,
   artifactDeleteTool,
