@@ -1,23 +1,16 @@
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
 
-let mockCreateGithubIssue = mock().mockResolvedValue([
-  "https://github.com/test-owner/test-repo/issues/123",
-  123,
-]);
-
-mock.module("../../utils/github", () => ({
-  createGithubIssue: (...args: any[]) => mockCreateGithubIssue(...args),
-}));
-
+import { spyOn } from "bun:test";
+import * as github from "../../utils/github";
 import { createGithubIssueTool } from "../create-github-issue";
 
 describe("createGithubIssueTool", () => {
   const originalEnv = process.env;
+  let mockCreateGithubIssue: any;
 
   beforeEach(() => {
     process.env = { ...originalEnv };
-    mockCreateGithubIssue.mockClear();
-    mockCreateGithubIssue.mockResolvedValue([
+    mockCreateGithubIssue = spyOn(github, "createGithubIssue").mockResolvedValue([
       "https://github.com/test-owner/test-repo/issues/123",
       123,
     ]);
@@ -25,6 +18,7 @@ describe("createGithubIssueTool", () => {
 
   afterEach(() => {
     process.env = originalEnv;
+    if (mockCreateGithubIssue) mockCreateGithubIssue.mockRestore();
   });
 
   const validConfig = {
@@ -50,7 +44,7 @@ describe("createGithubIssueTool", () => {
       },
     } as any);
 
-    const result = JSON.parse(resultJson);
+    const result = JSON.parse(resultJson as string);
     expect(result.success).toBe(false);
     expect(result.error).toContain("Repository configuration missing");
   });
@@ -63,7 +57,7 @@ describe("createGithubIssueTool", () => {
       },
     } as any);
 
-    const result = JSON.parse(resultJson);
+    const result = JSON.parse(resultJson as string);
     expect(result.success).toBe(false);
     expect(result.error).toContain("Repository configuration missing");
   });
@@ -72,7 +66,7 @@ describe("createGithubIssueTool", () => {
     delete process.env.GITHUB_TOKEN;
 
     const resultJson = await createGithubIssueTool.invoke(validArgs, validConfig as any);
-    const result = JSON.parse(resultJson);
+    const result = JSON.parse(resultJson as string);
 
     expect(result.success).toBe(false);
     expect(result.error).toContain("Missing GITHUB_TOKEN");
@@ -84,8 +78,8 @@ describe("createGithubIssueTool", () => {
 
     const resultJson = await createGithubIssueTool.invoke(validArgs, validConfig as any);
     // Extract JSON part (before the citation reminder)
-    const jsonMatch = resultJson.match(/\{[\s\S]*?\}/);
-    const result = JSON.parse(jsonMatch ? jsonMatch[0] : resultJson);
+    const jsonMatch = (resultJson as string).match(/\{[\s\S]*?\}/);
+    const result = JSON.parse(jsonMatch ? jsonMatch[0] : (resultJson as string));
 
     expect(result.success).toBe(true);
     expect(result.issue_url).toBe("https://github.com/test-owner/test-repo/issues/123");
@@ -115,7 +109,7 @@ describe("createGithubIssueTool", () => {
     mockCreateGithubIssue.mockResolvedValue([null, null]);
 
     const resultJson = await createGithubIssueTool.invoke(validArgs, validConfig as any);
-    const result = JSON.parse(resultJson);
+    const result = JSON.parse(resultJson as string);
 
     expect(result.success).toBe(false);
     expect(result.error).toContain("Failed to create issue. No URL or number returned");
@@ -126,7 +120,7 @@ describe("createGithubIssueTool", () => {
     mockCreateGithubIssue.mockRejectedValue(new Error("API rate limit exceeded"));
 
     const resultJson = await createGithubIssueTool.invoke(validArgs, validConfig as any);
-    const result = JSON.parse(resultJson);
+    const result = JSON.parse(resultJson as string);
 
     expect(result.success).toBe(false);
     expect(result.error).toBe("API rate limit exceeded");
@@ -144,7 +138,7 @@ describe("createGithubIssueTool", () => {
     mockCreateGithubIssue.mockRejectedValue(error);
 
     const resultJson = await createGithubIssueTool.invoke(validArgs, validConfig as any);
-    const result = JSON.parse(resultJson);
+    const result = JSON.parse(resultJson as string);
 
     expect(result.success).toBe(false);
     expect(result.error).toBe("Bad credentials");
@@ -164,7 +158,7 @@ describe("createGithubIssueTool", () => {
     mockCreateGithubIssue.mockRejectedValue(error);
 
     const resultJson = await createGithubIssueTool.invoke(validArgs, validConfig as any);
-    const result = JSON.parse(resultJson);
+    const result = JSON.parse(resultJson as string);
 
     expect(result.success).toBe(false);
     expect(result.status).toBe(403);
@@ -175,7 +169,7 @@ describe("createGithubIssueTool", () => {
     mockCreateGithubIssue.mockRejectedValue(new Error("Unknown error"));
 
     const resultJson = await createGithubIssueTool.invoke(validArgs, validConfig as any);
-    const result = JSON.parse(resultJson);
+    const result = JSON.parse(resultJson as string);
 
     expect(result.success).toBe(false);
     expect(result.error).toBe("Unknown error");

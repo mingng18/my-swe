@@ -27,12 +27,15 @@ describe("Memory Pointer", () => {
 
   describe("createPointerReference", () => {
     it("should format a pointer reference string correctly", () => {
-      const metadata = {
+      const metadata: any = {
         type: "test-type",
         timestamp: new Date("2023-01-01T00:00:00Z").getTime(),
         size: 10000,
         threadId: TEST_THREAD_ID,
         metadata: {},
+        id: "ptr_12345",
+        tokenCount: 2500,
+        expiresAt: new Date("2023-01-02T00:00:00Z").getTime(),
       };
 
       const reference = createPointerReference("ptr_12345", metadata, 2500);

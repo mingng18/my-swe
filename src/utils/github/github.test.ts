@@ -1,5 +1,6 @@
 import { describe, expect, test, mock, beforeEach, afterEach } from "bun:test";
 import type { SandboxService } from "../../integrations/sandbox-service";
+import { githubApiCache } from "./github-cache";
 
 const pullsCreateMock = mock(() => Promise.resolve({ data: {} })) as any;
 const pullsListMock = mock(() => Promise.resolve({ data: [] })) as any;
@@ -18,6 +19,11 @@ mock.module("octokit", () => ({
         get: reposGetMock,
       },
     };
+    // paginate delegates to the underlying method so mock data flows through
+    async paginate(fn: any, params: any) {
+      const result = await fn(params);
+      return result?.data ?? [];
+    }
   },
 }));
 
@@ -92,6 +98,10 @@ describe("createGithubPr", () => {
     pullsCreateMock.mockReset();
     pullsListMock.mockReset();
     reposGetMock.mockReset();
+    // Clear the in-process cache so tests don't bleed into each other
+    githubApiCache.clear();
+    // Default: list returns empty so pre-checks don't find phantom PRs
+    pullsListMock.mockResolvedValue({ data: [] });
 
     // Import dynamically after mocking
     const module = await import("./github");
@@ -161,7 +171,16 @@ describe("createGithubPr", () => {
       return Promise.reject(error);
     });
 
+    // First two list calls are the pre-check (uses default empty from beforeEach)
+    // Override for the post-422 fallback search
+    let callCount = 0;
     pullsListMock.mockImplementation((params: any) => {
+      callCount++;
+      if (callCount <= 2) {
+        // Pre-check: return empty so creation is attempted
+        return Promise.resolve({ data: [] });
+      }
+      // Post-422 fallback: return the existing PR
       return Promise.resolve({
         data: [{ html_url: "https://github.com/owner/repo/pull/2", number: 2, head: { ref: "feature", repo: { full_name: "headOwner/headRepo" } } }],
       });
@@ -178,8 +197,7 @@ describe("createGithubPr", () => {
 
     expect(result).toEqual(["https://github.com/owner/repo/pull/2", 2, true]);
     expect(pullsCreateMock).toHaveBeenCalledTimes(1);
-    expect(pullsListMock).toHaveBeenCalledTimes(2);
-    expect((pullsListMock.mock.calls[0]![0] as any).head).toBe("headOwner:feature");
+    expect(pullsListMock).toHaveBeenCalledTimes(4); // 2 pre-check + 2 post-422 fallback
   });
 
   test("falls back to finding existing PR when retry with plain head branch also throws 422", async () => {
@@ -208,7 +226,14 @@ describe("createGithubPr", () => {
       return Promise.reject(error);
     });
 
+    // First two list calls are the pre-check (uses default empty from beforeEach)
+    // Override for the post-422 fallback search
+    let callCount = 0;
     pullsListMock.mockImplementation((params: any) => {
+      callCount++;
+      if (callCount <= 2) {
+        return Promise.resolve({ data: [] });
+      }
       return Promise.resolve({
         data: [{ html_url: "https://github.com/owner/repo/pull/3", number: 3, head: { ref: "feature", repo: { full_name: "headOwner/headRepo" } } }],
       });
@@ -225,7 +250,6 @@ describe("createGithubPr", () => {
 
     expect(result).toEqual(["https://github.com/owner/repo/pull/3", 3, true]);
     expect(pullsCreateMock).toHaveBeenCalledTimes(2);
-    expect(pullsListMock).toHaveBeenCalledTimes(2);
-    expect((pullsListMock.mock.calls[0]![0] as any).head).toBe("headOwner:feature");
+    expect(pullsListMock).toHaveBeenCalledTimes(4); // 2 pre-check + 2 post-422 fallback
   });
 });

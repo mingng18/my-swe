@@ -595,6 +595,8 @@ export async function createGithubPr(
           },
           "[github] 422 error indicates existing PR, searching for it...",
         );
+        // Invalidate cache to get fresh PR list after 422
+        invalidatePrCache(baseRepoOwner, baseRepoName);
         const existing = await findExistingPr(
           baseRepoOwner,
           baseRepoName,
@@ -648,6 +650,9 @@ export async function createGithubPr(
       }
 
       // Final attempt: search for existing PR as fallback
+      // Invalidate cache first — the pre-creation check may have cached an empty
+      // result, but after a 422, GitHub's state may have changed.
+      invalidatePrCache(baseRepoOwner, baseRepoName);
       const existing = await findExistingPr(
         baseRepoOwner,
         baseRepoName,

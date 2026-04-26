@@ -435,7 +435,7 @@ export class FilesystemSnapshotStore implements SnapshotStore {
     try {
       // Find all JSON files recursively using a helper function
       const findFiles = async (dir: string): Promise<string[]> => {
-        const dirents = await fs.promises.readdir(dir, { withFileTypes: true });
+        const dirents = await readdir(dir, { withFileTypes: true });
         const files = await Promise.all(
           dirents.map((dirent) => {
             const res = resolve(dir, dirent.name);

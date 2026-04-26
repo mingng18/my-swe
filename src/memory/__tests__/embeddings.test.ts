@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeAll, beforeEach } from "bun:test";
+import { describe, it, expect, beforeAll, beforeEach, mock } from "bun:test";
 import { EmbeddingService } from "../embeddings";
 
 // Mock fetch for testing
-let mockFetch: ReturnType<typeof jest.fn>;
+let mockFetch: ReturnType<typeof mock>;
 
 // Create deterministic embeddings based on text content
 function createMockEmbedding(text: string, dimension: number = 1536): number[] {
@@ -25,7 +25,7 @@ function createMockEmbedding(text: string, dimension: number = 1536): number[] {
 }
 
 function setupMockFetch() {
-  mockFetch = global.fetch = async (
+  mockFetch = mock(async (
     url: string | Request,
     options?: RequestInit,
   ) => {
@@ -50,7 +50,8 @@ function setupMockFetch() {
     }
 
     return new Response("Not found", { status: 404 });
-  };
+  });
+  global.fetch = mockFetch as any;
 }
 
 function restoreFetch() {

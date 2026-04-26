@@ -1,22 +1,21 @@
 import { expect, test, describe, beforeEach, afterEach, mock } from "bun:test";
 
+import { spyOn } from "bun:test";
+import * as sandboxState from "../../utils/sandboxState";
+
 describe("codeSearchTool", () => {
   let mockExecute: ReturnType<typeof mock>;
   let codeSearchTool: any;
+  let mockGetSandboxBackendSync: any;
 
   beforeEach(async () => {
     mockExecute = mock(async (cmd: string) => {
       return { exitCode: 0, output: "" };
     });
 
-    // Reset modules to ensure fresh state
-    mock.module("../utils/sandboxState", () => {
-      return {
-        getSandboxBackendSync: () => ({
-          execute: mockExecute,
-        }),
-      };
-    });
+    sandboxState.setSandboxBackend("test-thread", {
+      execute: mockExecute,
+    } as any);
 
     // Import after mocking
     const toolModule = await import("../code-search");
@@ -24,6 +23,7 @@ describe("codeSearchTool", () => {
   });
 
   afterEach(() => {
+    sandboxState.clearSandboxBackend("test-thread");
     mock.restore();
   });
 
@@ -43,10 +43,7 @@ describe("codeSearchTool", () => {
   });
 
   test("returns error if sandbox is not initialized", async () => {
-    // Override the mock for this specific test
-    mock.module("../utils/sandboxState", () => ({
-      getSandboxBackendSync: () => null,
-    }));
+    sandboxState.clearSandboxBackend("test-thread");
 
     // We need to re-import because of how Bun's module mocking works
     const { codeSearchTool: tool } = await import("../code-search");

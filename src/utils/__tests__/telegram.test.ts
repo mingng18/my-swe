@@ -14,7 +14,7 @@ describe("sendChatAction", () => {
     const mockFetch = mock().mockResolvedValue({
       ok: true,
       status: 200,
-    }) as unknown as typeof fetch;
+    }) as any;
 
     globalThis.fetch = mockFetch;
 
@@ -38,7 +38,7 @@ describe("sendChatAction", () => {
     const mockFetch = mock().mockResolvedValue({
       ok: true,
       status: 200,
-    }) as unknown as typeof fetch;
+    }) as any;
 
     globalThis.fetch = mockFetch;
 
@@ -75,7 +75,7 @@ describe("sendChatAction", () => {
     const mockFetch = mock().mockResolvedValue({
       ok: true,
       status: 200,
-    }) as unknown as typeof fetch;
+    }) as any;
 
     globalThis.fetch = mockFetch;
 
@@ -104,7 +104,7 @@ describe("sendChatAction", () => {
       status: 400,
       statusText: "Bad Request",
       text: async () => "Bad Request: chat not found",
-    }) as unknown as typeof fetch;
+    }) as any;
 
     globalThis.fetch = mockFetch;
 
@@ -119,7 +119,7 @@ describe("sendChatAction", () => {
       status: 401,
       statusText: "Unauthorized",
       text: async () => "Unauthorized",
-    }) as unknown as typeof fetch;
+    }) as any;
 
     globalThis.fetch = mockFetch;
 
@@ -131,7 +131,7 @@ describe("sendChatAction", () => {
   test("throws error on network failure", async () => {
     const mockFetch = mock().mockRejectedValue(
       new Error("Network Error"),
-    ) as unknown as typeof fetch;
+    ) as any;
 
     globalThis.fetch = mockFetch;
 
@@ -144,7 +144,7 @@ describe("sendChatAction", () => {
     const mockFetch = mock().mockResolvedValue({
       ok: true,
       status: 200,
-    }) as unknown as typeof fetch;
+    }) as any;
 
     globalThis.fetch = mockFetch;
 
@@ -160,7 +160,7 @@ describe("sendChatAction", () => {
     const mockFetch = mock().mockResolvedValue({
       ok: true,
       status: 200,
-    }) as unknown as typeof fetch;
+    }) as any;
 
     globalThis.fetch = mockFetch;
 
@@ -174,7 +174,7 @@ describe("sendChatAction", () => {
     const mockFetch = mock().mockResolvedValue({
       ok: true,
       status: 200,
-    }) as unknown as typeof fetch;
+    }) as any;
 
     globalThis.fetch = mockFetch;
 

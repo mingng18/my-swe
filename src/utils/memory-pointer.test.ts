@@ -156,7 +156,7 @@ describe("memory-pointer", () => {
 
       expect(artifact).not.toBeNull();
       expect(artifact!.content).toBe(content);
-      expect(artifact!.metadata.id).toBe(pointerId);
+      expect(artifact!.metadata.id as string).toBe(pointerId!);
     });
 
     it("should return null for non-existent artifact", async () => {

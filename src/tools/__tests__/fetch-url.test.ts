@@ -1,20 +1,51 @@
-import { describe, expect, test, mock, afterEach } from "bun:test";
-import { fetchUrl, fetchUrlTool } from "../fetch-url";
+import { describe, expect, test, mock, afterEach, beforeEach } from "bun:test";
 
+const mockUndiciFetch = mock();
+
+mock.module("undici", () => ({
+  fetch: mockUndiciFetch,
+  Agent: class {},
+}));
+
+// Import dynamically so the mock applies
 describe("fetchUrl", () => {
-  const originalFetch = globalThis.fetch;
-
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
+  beforeEach(() => {
+    mockUndiciFetch.mockReset();
+    mockUndiciFetch.mockImplementation(async (url: string | URL) => {
+      const urlStr = url.toString();
+      if (urlStr.includes("not-found")) {
+        return {
+          ok: false,
+          status: 404,
+          statusText: "Not Found",
+          url: urlStr,
+        } as any;
+      }
+      if (urlStr.includes("error")) {
+        throw new Error("Network Error");
+      }
+      if (urlStr.includes("tool")) {
+        return {
+          ok: true,
+          status: 200,
+          url: urlStr,
+          text: async () => "<p>Tool Test</p>",
+          headers: { get: () => "0" },
+        } as any;
+      }
+      // default success
+      return {
+        ok: true,
+        status: 200,
+        url: urlStr,
+        text: async () => "<h1>Hello World</h1><p>This is a test.</p>",
+        headers: { get: () => "0" },
+      } as any;
+    });
   });
 
   test("handles non-OK HTTP responses", async () => {
-    globalThis.fetch = mock().mockResolvedValue({
-      ok: false,
-      status: 404,
-      statusText: "Not Found",
-      url: "https://example.com/not-found",
-    }) as unknown as typeof fetch;
+    const { fetchUrl } = await import("../fetch-url");
 
     const result = await fetchUrl("https://example.com/not-found");
 
@@ -25,13 +56,7 @@ describe("fetchUrl", () => {
   });
 
   test("fetches and converts HTML to markdown on success", async () => {
-    globalThis.fetch = mock().mockResolvedValue({
-      ok: true,
-      status: 200,
-      url: "https://example.com",
-      text: async () => "<h1>Hello World</h1><p>This is a test.</p>",
-      headers: { get: () => "0" },
-    }) as unknown as typeof fetch;
+    const { fetchUrl } = await import("../fetch-url");
 
     const result = await fetchUrl("https://example.com");
 
@@ -44,9 +69,7 @@ describe("fetchUrl", () => {
   });
 
   test("handles fetch throwing an error", async () => {
-    globalThis.fetch = mock().mockRejectedValue(
-      new Error("Network Error"),
-    ) as unknown as typeof fetch;
+    const { fetchUrl } = await import("../fetch-url");
 
     const result = await fetchUrl("https://example.com/error");
 
@@ -57,13 +80,7 @@ describe("fetchUrl", () => {
   });
 
   test("fetchUrlTool returns stringified result", async () => {
-    globalThis.fetch = mock().mockResolvedValue({
-      ok: true,
-      status: 200,
-      url: "https://example.com/tool",
-      text: async () => "<p>Tool Test</p>",
-      headers: { get: () => "0" },
-    }) as unknown as typeof fetch;
+    const { fetchUrlTool } = await import("../fetch-url");
 
     const result = await fetchUrlTool.invoke({
       url: "https://example.com/tool",

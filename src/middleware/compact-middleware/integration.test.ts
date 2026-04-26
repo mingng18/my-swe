@@ -67,8 +67,8 @@ describe("Compaction Integration", () => {
         {
           messages,
           configurable: { thread_id: "test-thread" },
-        },
-        handler,
+        } as any,
+        handler as any,
       );
     }
 

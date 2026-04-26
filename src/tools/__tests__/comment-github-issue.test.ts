@@ -1,31 +1,25 @@
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
 
-let mockPostGithubComment = mock().mockResolvedValue(true);
-let mockGetGithubTokenFromThread = mock().mockResolvedValue(["mock_thread_token"]);
-
-mock.module("../../utils/github/index", () => ({
-  postGithubComment: (...args: any[]) => mockPostGithubComment(...args),
-}));
-
-mock.module("../../utils/github/github-token", () => ({
-  getGithubTokenFromThread: (...args: any[]) => mockGetGithubTokenFromThread(...args),
-}));
-
+import { spyOn } from "bun:test";
+import * as githubIndex from "../../utils/github/index";
+import * as githubToken from "../../utils/github/github-token";
 import { commentGithubIssueTool } from "../comment-github-issue";
 
 describe("commentGithubIssueTool", () => {
   const originalEnv = process.env;
+  let mockPostGithubComment: any;
+  let mockGetGithubTokenFromThread: any;
 
   beforeEach(() => {
     process.env = { ...originalEnv };
-    mockPostGithubComment.mockClear();
-    mockGetGithubTokenFromThread.mockClear();
-    mockPostGithubComment.mockResolvedValue(true);
-    mockGetGithubTokenFromThread.mockResolvedValue(["mock_thread_token"]);
+    mockPostGithubComment = spyOn(githubIndex, "postGithubComment").mockResolvedValue(true);
+    mockGetGithubTokenFromThread = spyOn(githubToken, "getGithubTokenFromThread").mockResolvedValue(["mock_thread_token"] as any);
   });
 
   afterEach(() => {
     process.env = originalEnv;
+    if (mockPostGithubComment) mockPostGithubComment.mockRestore();
+    if (mockGetGithubTokenFromThread) mockGetGithubTokenFromThread.mockRestore();
   });
 
   const validConfig = {
@@ -51,7 +45,7 @@ describe("commentGithubIssueTool", () => {
       },
     } as any);
 
-    const result = JSON.parse(resultJson);
+    const result = JSON.parse(resultJson as string);
     expect(result.success).toBe(false);
     expect(result.error).toBe("Repository configuration missing.");
   });
@@ -64,7 +58,7 @@ describe("commentGithubIssueTool", () => {
       },
     } as any);
 
-    const result = JSON.parse(resultJson);
+    const result = JSON.parse(resultJson as string);
     expect(result.success).toBe(false);
     expect(result.error).toBe("Repository configuration missing.");
   });
@@ -73,7 +67,7 @@ describe("commentGithubIssueTool", () => {
     process.env.GITHUB_TOKEN = "env_token";
 
     const resultJson = await commentGithubIssueTool.invoke(validArgs, validConfig as any);
-    const result = JSON.parse(resultJson);
+    const result = JSON.parse(resultJson as string);
 
     expect(result.success).toBe(true);
     expect(mockPostGithubComment).toHaveBeenCalledWith(
@@ -89,7 +83,7 @@ describe("commentGithubIssueTool", () => {
     delete process.env.GITHUB_TOKEN;
 
     const resultJson = await commentGithubIssueTool.invoke(validArgs, validConfig as any);
-    const result = JSON.parse(resultJson);
+    const result = JSON.parse(resultJson as string);
 
     expect(result.success).toBe(true);
     expect(mockGetGithubTokenFromThread).toHaveBeenCalledWith("test-thread");
@@ -106,7 +100,7 @@ describe("commentGithubIssueTool", () => {
     mockGetGithubTokenFromThread.mockResolvedValue([]); // No token in thread
 
     const resultJson = await commentGithubIssueTool.invoke(validArgs, validConfig as any);
-    const result = JSON.parse(resultJson);
+    const result = JSON.parse(resultJson as string);
 
     expect(result.success).toBe(false);
     expect(result.error).toContain("Missing GITHUB_TOKEN");
@@ -118,7 +112,7 @@ describe("commentGithubIssueTool", () => {
     mockPostGithubComment.mockResolvedValue(false);
 
     const resultJson = await commentGithubIssueTool.invoke(validArgs, validConfig as any);
-    const result = JSON.parse(resultJson);
+    const result = JSON.parse(resultJson as string);
 
     expect(result.success).toBe(false);
     expect(result.error).toContain("Failed to post comment. Check logs.");
@@ -129,7 +123,7 @@ describe("commentGithubIssueTool", () => {
     mockPostGithubComment.mockRejectedValue(new Error("API rate limit exceeded"));
 
     const resultJson = await commentGithubIssueTool.invoke(validArgs, validConfig as any);
-    const result = JSON.parse(resultJson);
+    const result = JSON.parse(resultJson as string);
 
     expect(result.success).toBe(false);
     expect(result.error).toBe("API rate limit exceeded");

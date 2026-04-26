@@ -1,5 +1,5 @@
 import { createLogger } from "../utils/logger";
-import { threadManager, threadRepoMap } from "./thread-manager";
+import { threadManager, threadRepoMap, THREAD_TTL_MS, type RepoContext } from "./thread-manager";
 import { loadLlmConfig, loadModelConfig } from "../utils/config";
 import { createChatModel } from "../utils/model-factory";
 import { createDeepAgent, FilesystemBackend, type DeepAgent } from "deepagents";
@@ -67,6 +67,10 @@ import { asyncSubagents } from "../subagents/async";
 import { type BaseMessage, type ToolCall } from "@langchain/core/messages";
 
 const logger = createLogger("deepagents");
+
+const useSandbox = process.env.USE_SANDBOX === "true";
+const AGENT_RECURSION_LIMIT = Number.parseInt(process.env.AGENT_RECURSION_LIMIT || "100", 10);
+let hasLoadedPersistedRepos = false;
 
 // ============================================================================
 // Thread Cleanup Configuration
@@ -174,8 +178,6 @@ async function createAgentInstance(args: {
     contextEditingMiddleware({
       edits: [createProgressiveContextEdit()],
     }),
-    // Custom: track and limit tool invocations to prevent runaway loops
-    createToolInvocationLimitsMiddleware(),
     // Custom: detect and break tool-call loops
     createLoopDetectionMiddleware(),
     // Custom: ensure model always produces meaningful output
@@ -613,7 +615,7 @@ async function acquireDaytonaSandboxForThreadRepo(args: {
 async function resolveSandboxContext(
   threadId: string,
   parsedRepo: { owner: string; name: string },
-  profile: string,
+  profile: SandboxProfile,
 ) {
   const cloneStart = Date.now();
   const provider = process.env.SANDBOX_PROVIDER || "opensandbox";
@@ -696,9 +698,7 @@ export class DeepAgentWrapper implements AgentHarness {
     }
 
     const parsedRepo = extractRepoFromInput(input);
-    let activeRepo:
-      | { owner: string; name: string; workspaceDir: string; lastAccessed: number }
-      | undefined = threadManager.getRepo(threadId);
+    let activeRepo: RepoContext | undefined = threadManager.getRepo(threadId);
     if (activeRepo) {
       
     }
@@ -793,11 +793,7 @@ export class DeepAgentWrapper implements AgentHarness {
     configurable.tools = currentTools;
 
     // Get or create a DeepAgent instance for this thread.
-    let agentEntry = threadManager.getAgent(threadId);
-    if (agentEntry) {
-      
-    }
-    let agent = agentEntry?.agent;
+    let agent = threadManager.getAgent(threadId);
     if (!agent) {
       if (useSandbox) {
         const backend = threadManager.getSandbox(threadId)?.backend;
@@ -1282,8 +1278,8 @@ If you need to make additional changes, continue working and they'll be added to
   }
 
   async getState(threadId: string): Promise<any> {
-    const agentEntry = threadManager.getAgent(threadId);
-    if (!agentEntry) return null;
+    const agent = threadManager.getAgent(threadId);
+    if (!agent) return null;
     
 
     // Mark thread as accessed in cleanup scheduler
@@ -1292,7 +1288,7 @@ If you need to make additional changes, continue working and they'll be added to
       scheduler.markAccessed(threadId);
     }
 
-    return agentEntry.agent.getState({ configurable: { thread_id: threadId } });
+    return agent.getState({ configurable: { thread_id: threadId } });
   }
 }
 
@@ -1369,7 +1365,7 @@ export async function cleanupDeepAgents(): Promise<void> {
 
   // Release sandboxes back to the pool and dispose backends in parallel.
   await Promise.all(
-    Array.from(threadSandboxMap.entries()).map(async ([threadId, entry]) => {
+    Array.from(threadManager.threadSandboxMap.entries()).map(async ([threadId, entry]) => {
       try {
         await releaseRepoSandbox({
           apiKey: process.env.DAYTONA_API_KEY || "",

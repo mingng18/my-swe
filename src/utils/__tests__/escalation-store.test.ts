@@ -1,5 +1,5 @@
 import { describe, expect, test, beforeEach, afterEach } from "bun:test";
-import { storeEscalation, getEscalations } from "./escalation-store";
+import { storeEscalation, getEscalations } from "../escalation-store";
 import { rm, mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { randomUUID } from "node:crypto";

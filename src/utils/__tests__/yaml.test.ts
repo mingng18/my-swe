@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { parseYamlFrontmatter, stripFrontmatter } from "./yaml";
+import { parseYamlFrontmatter, stripFrontmatter } from "../yaml";
 
 describe("YAML Utilities", () => {
   describe("parseYamlFrontmatter", () => {

@@ -2,78 +2,93 @@ import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
 
 const originalFetch = globalThis.fetch;
 
-// Mock the required dependencies
-mock.module("./server", () => {
-  return {
-    runCodeagentTurn: mock((input: string) =>
-      Promise.resolve(`Mocked reply for: ${input}`),
-    ),
-  };
-});
 
-mock.module("./utils/logger", () => {
-  return {
-    createLogger: () => ({
-      info: mock(),
-      warn: mock(),
-      error: mock(),
-    }),
-  };
-});
 
-mock.module("./utils/config", () => {
-  return {
-    loadTelegramConfig: mock(() => ({ telegramBotToken: "mock-bot-token" })),
-  };
-});
+import { spyOn } from "bun:test";
+import * as configUtils from "../utils/config";
+import * as githubUtils from "../utils/github/index";
+import * as identityUtils from "../utils/identity";
+import * as telegramUtils from "../utils/telegram";
 
-// We need to mutate verifyGithubSignature per test, so let's export a mutable mock
-let mockVerifyGithubSignature = mock(() => true);
+let mockLoadTelegramConfig: any;
+let mockVerifyGithubSignature: any;
+let mockExtractPrContext: any;
+let mockFetchPrCommentsSinceLastTag: any;
+let mockBuildPrPrompt: any;
+let mockReactToGithubComment: any;
+let mockGetThreadIdFromBranch: any;
+let mockGetGithubAppInstallationToken: any;
+let mockStoreGithubTokenInThread: any;
+let mockPostGithubComment: any;
+let mockGetGithubToken: any;
+let mockGetEmailForIdentity: any;
+let mockIsDuplicateMessage: any;
+let mockSendChatAction: any;
 
-mock.module("./utils/github", () => {
-  return {
-    verifyGithubSignature: (...args: any[]) =>
-      (mockVerifyGithubSignature as any)(...args),
-    extractPrContext: mock(() =>
-      Promise.resolve([
-        {},
-        123,
-        "main",
-        "testuser",
-        "https://github.com/pr",
-        "comment-1",
-        "node-1",
-      ]),
-    ),
-    fetchPrCommentsSinceLastTag: mock(() =>
-      Promise.resolve([{ body: "test comment" }]),
-    ),
-    buildPrPrompt: mock(() => "mock pr prompt"),
-    reactToGithubComment: mock(() => Promise.resolve()),
-    getThreadIdFromBranch: mock(() => Promise.resolve("mock-thread-id")),
-    getGithubAppInstallationToken: mock(() =>
-      Promise.resolve("mock-app-token"),
-    ),
-    storeGithubTokenInThread: mock(() => Promise.resolve()),
-    postGithubComment: mock(() => Promise.resolve()),
-    getGithubToken: mock(() => "mock-gh-token"),
-  };
-});
-
-mock.module("./utils/identity", () => {
-  return {
-    getEmailForIdentity: mock(() => "test@example.com"),
-  };
-});
+// Export a mutable mock property for tests to change verifyGithubSignature behavior
+export const mockVerifyGithubSignatureMutable = {
+  returnValue: true
+};
 
 // Important: Import app AFTER setting up the mocks
 const { default: app } = await import("../webapp");
-const { runCodeagentTurn } = await import("../server");
-const githubUtils = await import("../utils/github");
+import * as server from "../server";
+
+beforeEach(() => {
+  mockLoadTelegramConfig = spyOn(configUtils, "loadTelegramConfig").mockReturnValue({ 
+    telegramBotToken: "mock-bot-token",
+    telegramParseMode: "HTML"
+  });
+  mockVerifyGithubSignature = spyOn(githubUtils, "verifyGithubSignature").mockImplementation(() => mockVerifyGithubSignatureMutable.returnValue);
+  mockExtractPrContext = spyOn(githubUtils, "extractPrContext").mockResolvedValue([
+    {} as any, 123, "main", "testuser", "https://github.com/pr", 1, "node-1"
+  ]);
+  mockFetchPrCommentsSinceLastTag = spyOn(githubUtils, "fetchPrCommentsSinceLastTag").mockResolvedValue([{ body: "test comment" } as any]);
+  mockBuildPrPrompt = spyOn(githubUtils, "buildPrPrompt").mockReturnValue("mock pr prompt");
+  mockReactToGithubComment = spyOn(githubUtils, "reactToGithubComment").mockResolvedValue(true);
+  mockGetThreadIdFromBranch = spyOn(githubUtils, "getThreadIdFromBranch").mockReturnValue("mock-thread-id");
+  mockGetGithubAppInstallationToken = spyOn(githubUtils, "getGithubAppInstallationToken").mockResolvedValue("mock-app-token");
+  mockStoreGithubTokenInThread = spyOn(githubUtils, "storeGithubTokenInThread").mockResolvedValue(undefined as any);
+  mockPostGithubComment = spyOn(githubUtils, "postGithubComment").mockResolvedValue(true);
+  mockGetGithubToken = spyOn(githubUtils, "getGithubToken").mockReturnValue("mock-gh-token");
+  
+  mockGetEmailForIdentity = spyOn(identityUtils, "getEmailForIdentity").mockReturnValue("test@example.com");
+  
+  mockIsDuplicateMessage = spyOn(telegramUtils, "isDuplicateMessage").mockReturnValue(false);
+  mockSendChatAction = spyOn(telegramUtils, "sendChatAction").mockResolvedValue(undefined as any);
+});
+
+afterEach(() => {
+  if (mockLoadTelegramConfig) mockLoadTelegramConfig.mockRestore();
+  if (mockVerifyGithubSignature) mockVerifyGithubSignature.mockRestore();
+  if (mockExtractPrContext) mockExtractPrContext.mockRestore();
+  if (mockFetchPrCommentsSinceLastTag) mockFetchPrCommentsSinceLastTag.mockRestore();
+  if (mockBuildPrPrompt) mockBuildPrPrompt.mockRestore();
+  if (mockReactToGithubComment) mockReactToGithubComment.mockRestore();
+  if (mockGetThreadIdFromBranch) mockGetThreadIdFromBranch.mockRestore();
+  if (mockGetGithubAppInstallationToken) mockGetGithubAppInstallationToken.mockRestore();
+  if (mockStoreGithubTokenInThread) mockStoreGithubTokenInThread.mockRestore();
+  if (mockPostGithubComment) mockPostGithubComment.mockRestore();
+  if (mockGetGithubToken) mockGetGithubToken.mockRestore();
+  
+  if (mockGetEmailForIdentity) mockGetEmailForIdentity.mockRestore();
+  
+  if (mockIsDuplicateMessage) mockIsDuplicateMessage.mockRestore();
+  if (mockSendChatAction) mockSendChatAction.mockRestore();
+});
+
+
+
+afterEach(() => {
+  if (mockIsDuplicateMessage) mockIsDuplicateMessage.mockRestore();
+  if (mockSendChatAction) mockSendChatAction.mockRestore();
+});
+
 
 describe("webapp", () => {
   let mockFetch: ReturnType<typeof mock>;
 
+  let mockRunCodeagentTurn: any;
   beforeEach(() => {
     mockFetch = mock(() =>
       Promise.resolve(new Response(JSON.stringify({ ok: true }))),
@@ -81,13 +96,16 @@ describe("webapp", () => {
     globalThis.fetch = mockFetch as unknown as typeof fetch;
     mock.restore(); // reset general call counts
     // Reset our specific mocks
-    (runCodeagentTurn as any).mockClear();
-    mockVerifyGithubSignature.mockClear();
-    mockVerifyGithubSignature.mockImplementation(() => true);
+    mockRunCodeagentTurn = spyOn(server, "runCodeagentTurn").mockImplementation(async (input: string) => `Mocked reply for: ${input}`);
+    if (mockVerifyGithubSignature) mockVerifyGithubSignature.mockClear();
+    mockVerifyGithubSignatureMutable.returnValue = true;
   });
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    if (mockRunCodeagentTurn) {
+      mockRunCodeagentTurn.mockRestore();
+    }
   });
 
   describe("GET /health", () => {
@@ -141,7 +159,7 @@ describe("webapp", () => {
       expect(data.result).toBe("Mocked reply for: hello world");
       expect(data.input).toBe("hello world");
       expect(data.state.replyLength).toBeGreaterThan(0);
-      expect(runCodeagentTurn).toHaveBeenCalledWith("hello world");
+      expect(server.runCodeagentTurn).toHaveBeenCalledWith("hello world", undefined, undefined, "http");
     });
   });
 
@@ -195,9 +213,11 @@ describe("webapp", () => {
       expect(res.status).toBe(200);
       expect(await res.json()).toEqual({
         ok: true,
-        message: "Message processed",
+        message: "Message processing started",
       });
-      expect(runCodeagentTurn).toHaveBeenCalled();
+      // runCodeagentTurn is called async in queue, wait a tick
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(server.runCodeagentTurn).toHaveBeenCalled();
       expect(mockFetch).toHaveBeenCalled();
     });
 
@@ -216,7 +236,7 @@ describe("webapp", () => {
         ok: true,
         message: "Update received",
       });
-      expect(runCodeagentTurn).not.toHaveBeenCalled();
+      expect(server.runCodeagentTurn).not.toHaveBeenCalled();
     });
   });
 
@@ -236,7 +256,7 @@ describe("webapp", () => {
 
     it("returns 401 if invalid signature", async () => {
       // Temporarily mock it to fail
-      mockVerifyGithubSignature.mockImplementation(() => false);
+      mockVerifyGithubSignatureMutable.returnValue = false;
 
       const res = await app.request("/webhook/github", {
         method: "POST",
@@ -286,7 +306,7 @@ describe("webapp", () => {
 
       // runCodeagentTurn is called async, wait a tick
       await new Promise((resolve) => setTimeout(resolve, 0));
-      expect(runCodeagentTurn).toHaveBeenCalled();
+      expect(server.runCodeagentTurn).toHaveBeenCalled();
     });
   });
 });

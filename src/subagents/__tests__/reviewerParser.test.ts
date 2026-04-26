@@ -328,7 +328,7 @@ describe("formatIssues", () => {
   });
 
   it("handles single issue", () => {
-    const singleIssue = [
+    const singleIssue: ReviewIssue[] = [
       {
         severity: "MEDIUM",
         file: "test.ts",

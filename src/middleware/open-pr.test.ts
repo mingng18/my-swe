@@ -1,4 +1,4 @@
-import { describe, expect, it, mock, beforeEach, afterEach } from "bun:test";
+import { describe, expect, it, mock, beforeEach, afterEach, spyOn } from "bun:test";
 import { type SandboxService } from "../integrations/sandbox-service";
 
 
@@ -53,22 +53,17 @@ describe("openPrIfNeeded", () => {
   it("handles PR creation failure gracefully when gitPush succeeds and octokit throws", async () => {
     const githubModule = await import("../utils/github");
 
-    mock.module("../utils/github", () => {
-      return {
-        ...githubModule,
-        getGithubTokenFromThread: mock().mockResolvedValue(["fake-token"]),
-        gitHasUncommittedChanges: mock().mockResolvedValue(true),
-        gitFetchOrigin: mock().mockResolvedValue("fetched"),
-        gitHasUnpushedCommits: mock().mockResolvedValue(true),
-        gitCurrentBranch: mock().mockResolvedValue("test-branch"),
-        gitCheckoutBranch: mock().mockResolvedValue(true),
-        gitConfigUser: mock().mockResolvedValue(undefined),
-        gitAddAll: mock().mockResolvedValue("added"),
-        gitCommit: mock().mockResolvedValue("committed"),
-        findExistingPr: mock().mockResolvedValue(null),
-        gitPush: mock().mockResolvedValue("pushed"),
-      };
-    });
+    spyOn(githubModule, "getGithubTokenFromThread").mockResolvedValue(["fake-token"] as any);
+    spyOn(githubModule, "gitHasUncommittedChanges").mockResolvedValue(true);
+    spyOn(githubModule, "gitFetchOrigin").mockResolvedValue("fetched");
+    spyOn(githubModule, "gitHasUnpushedCommits").mockResolvedValue(true);
+    spyOn(githubModule, "gitCurrentBranch").mockResolvedValue("test-branch");
+    spyOn(githubModule, "gitCheckoutBranch").mockResolvedValue(true);
+    spyOn(githubModule, "gitConfigUser").mockResolvedValue(undefined as any);
+    spyOn(githubModule, "gitAddAll").mockResolvedValue("added");
+    spyOn(githubModule, "gitCommit").mockResolvedValue("committed" as any);
+    spyOn(githubModule, "findExistingPr").mockResolvedValue(null);
+    spyOn(githubModule, "gitPush").mockResolvedValue("pushed" as any);
 
     const { openPrIfNeeded } = await import("./open-pr");
 

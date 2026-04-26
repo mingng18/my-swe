@@ -1,4 +1,5 @@
-import { describe, expect, test, mock, beforeEach } from "bun:test";
+import { describe, expect, test, mock, beforeEach, spyOn, afterEach } from "bun:test";
+import * as sandboxState from "../../utils/sandboxState";
 import {
   sandboxShellTool,
   sandboxMetricsTool,
@@ -7,40 +8,46 @@ import {
   sandboxResumeTool,
   sandboxRenewTool,
   sandboxEndpointTool,
-} from "./sandbox-shell";
-
-// Mock the getSandboxBackendFromConfig
-mock.module("../utils/sandboxState", () => ({
-  getSandboxBackendFromConfig: mock((config: any) => {
-    // We can simulate missing backend if configurable.missingBackend is set
-    if (config?.configurable?.missingBackend) {
-      return null;
-    }
-
-    return {
-      execute: mock().mockResolvedValue({
-        output: "mock output",
-        exitCode: 0,
-        truncated: false,
-      }),
-      getInfo: mock().mockResolvedValue({
-        id: "sandbox-123",
-        state: "running",
-        createdAt: "2023-01-01T00:00:00Z",
-        expiresAt: "2023-01-01T01:00:00Z",
-      }),
-      patchEgressRules: mock().mockResolvedValue(true),
-      pause: mock().mockResolvedValue(true),
-      resume: mock().mockResolvedValue(true),
-      renew: mock().mockResolvedValue(true),
-      getEndpointUrl: mock().mockResolvedValue("https://example.com:8080"),
-    };
-  }),
-}));
+} from "../sandbox-shell";
 
 describe("sandbox tools", () => {
-  const config = { configurable: {} };
+  const config = { configurable: { thread_id: "test-thread" } };
   const missingBackendConfig = { configurable: { missingBackend: true } };
+
+  let spy: any;
+
+  beforeEach(() => {
+    spy = spyOn(sandboxState, "getSandboxBackendFromConfig").mockImplementation((config: any) => {
+      if (config?.configurable?.missingBackend) {
+        return null;
+      }
+
+      return {
+        execute: mock().mockResolvedValue({
+          output: "mock output",
+          exitCode: 0,
+          truncated: false,
+        }),
+        getInfo: mock().mockResolvedValue({
+          id: "sandbox-123",
+          state: "running",
+          createdAt: "2023-01-01T00:00:00Z",
+          expiresAt: "2023-01-01T01:00:00Z",
+        }),
+        patchEgressRules: mock().mockResolvedValue(true),
+        pause: mock().mockResolvedValue(true),
+        resume: mock().mockResolvedValue(true),
+        renew: mock().mockResolvedValue(true),
+        getEndpointUrl: mock().mockResolvedValue("https://example.com:8080"),
+      } as any;
+    });
+  });
+
+  afterEach(() => {
+    if (spy) {
+      spy.mockRestore();
+    }
+  });
 
   describe("sandboxShellTool", () => {
     test("throws error if backend is missing", async () => {

@@ -14,6 +14,7 @@ export interface RepoContext {
   owner: string;
   name: string;
   workspaceDir: string;
+  lastAccessed?: number;
 }
 
 export interface ThreadSandboxEntry {
@@ -22,7 +23,7 @@ export interface ThreadSandboxEntry {
   repo: RepoContext;
 }
 
-const THREAD_TTL_MS = Number.parseInt(process.env.THREAD_TTL_MS || "3600000", 10);
+export const THREAD_TTL_MS = Number.parseInt(process.env.THREAD_TTL_MS || "3600000", 10);
 
 export class ThreadManager {
   public threadAgentMap: LRUCache<string, DeepAgent>;

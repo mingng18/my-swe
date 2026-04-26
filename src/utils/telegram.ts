@@ -79,6 +79,7 @@ export async function sendChatAction(
     logger.error({ chatId, action, error }, "Failed to send chat action");
     throw error;
   }
+}
 
 /**
  * Format a string as a code block for Telegram MarkdownV2.

@@ -12,7 +12,7 @@ describe("subagents integration", () => {
     const model = await createChatModel(modelConfig);
 
     const agent = createDeepAgent({
-      model,
+      model: model as any,
       subagents: builtInSubagents,
     });
 
@@ -42,9 +42,9 @@ describe("subagents integration", () => {
     const model = await createChatModel(modelConfig);
 
     const agent = createDeepAgent({
-      model,
+      model: model as any,
       asyncSubagents,
-    });
+    } as any);
 
     expect(agent).toBeDefined();
   });
@@ -63,10 +63,10 @@ describe("subagents integration", () => {
     const allSubagents = mergeSubagents(builtInSubagents, repoAgents);
 
     const agent = createDeepAgent({
-      model,
+      model: model as any,
       subagents: allSubagents,
       asyncSubagents,
-    });
+    } as any);
 
     expect(agent).toBeDefined();
   });

@@ -61,22 +61,21 @@ describe("merge_pr tool", () => {
 
     process.env.GITHUB_TOKEN = "ghp_test_token";
 
-    // Mock mergeGithubPr to succeed
-    mock.module("../utils/github", () => ({
-      mergeGithubPr: mock(async () => {
-        return {
-          merged: true,
-          message: "Pull Request successfully merged",
-          sha: "abcdef123456",
-        };
-      }),
+    // mock.module is required here because merge-pr.ts uses a destructured import
+    // (import { mergeGithubPr } from "../utils/github") which spyOn cannot intercept
+    mock.module("../../utils/github", () => ({
+      mergeGithubPr: mock(async () => ({
+        merged: true,
+        message: "Pull Request successfully merged",
+        sha: "abcdef123456",
+      })),
     }));
 
-    // Import the tool after mocking
-    const { mergePrTool: mockMergePrTool } = await import("../merge-pr");
-
-    const resultStr = await mockMergePrTool.invoke({ pr_number: 123 }, config);
-    const result = JSON.parse(resultStr);
+    const { mergePrTool: freshTool } = await import("../merge-pr");
+    const resultStr = await freshTool.invoke({ pr_number: 123 }, config);
+    // Strip citation reminder before parsing
+    const jsonPart = resultStr.match(/^\{[\s\S]*?\}/)?.[0] ?? resultStr;
+    const result = JSON.parse(jsonPart);
 
     expect(result.success).toBe(true);
     expect(result.merged).toBe(true);
@@ -96,24 +95,19 @@ describe("merge_pr tool", () => {
 
     process.env.GITHUB_TOKEN = "ghp_test_token";
 
-    // Mock mergeGithubPr to fail
-    mock.module("../utils/github", () => ({
-      mergeGithubPr: mock(async () => {
-        const error: any = new Error("Merge conflict");
-        error.status = 405;
-        error.response = {
-          data: {
-            message: "Pull Request is not mergeable",
-          },
-        };
-        throw error;
-      }),
+    const error: any = new Error("Merge conflict");
+    error.status = 405;
+    error.response = {
+      data: {
+        message: "Pull Request is not mergeable",
+      },
+    };
+    mock.module("../../utils/github", () => ({
+      mergeGithubPr: mock(async () => { throw error; }),
     }));
 
-    // Import the tool after mocking
-    const { mergePrTool: mockMergePrTool } = await import("../merge-pr");
-
-    const resultStr = await mockMergePrTool.invoke({ pr_number: 123 }, config);
+    const { mergePrTool: freshTool } = await import("../merge-pr");
+    const resultStr = await freshTool.invoke({ pr_number: 123 }, config);
     const result = JSON.parse(resultStr);
 
     expect(result.success).toBe(false);
@@ -122,3 +116,4 @@ describe("merge_pr tool", () => {
     expect(result.pr_number).toBe(123);
   });
 });
+

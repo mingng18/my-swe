@@ -1,0 +1,99 @@
+src/blueprints/actions.ts(36,12): error TS2322: Type 'string | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/memory/__tests__/daemon.test.ts(186,14): error TS2673: Constructor of class 'MemoryDaemon' is private and only accessible within the class declaration.
+src/memory/__tests__/embeddings.test.ts(5,34): error TS2304: Cannot find name 'jest'.
+src/memory/__tests__/embeddings.test.ts(28,15): error TS2741: Property 'preconnect' is missing in type '(url: string | Request, options?: RequestInit) => Promise<Response>' but required in type 'typeof fetch'.
+src/memory/__tests__/search.test.ts(280,41): error TS2554: Expected 2 arguments, but got 1.
+src/middleware/compact-middleware/integration.test.ts(69,11): error TS2353: Object literal may only specify known properties, and 'configurable' does not exist in type 'ModelRequest<AgentBuiltInState, unknown>'.
+src/middleware/compact-middleware/turn-detection.test.ts(41,9): error TS2353: Object literal may only specify known properties, and 'configurable' does not exist in type 'ModelRequest<AgentBuiltInState, unknown>'.
+src/middleware/compact-middleware/turn-detection.test.ts(64,9): error TS2353: Object literal may only specify known properties, and 'configurable' does not exist in type 'ModelRequest<AgentBuiltInState, unknown>'.
+src/middleware/compact-middleware/turn-detection.test.ts(105,9): error TS2353: Object literal may only specify known properties, and 'configurable' does not exist in type 'ModelRequest<AgentBuiltInState, unknown>'.
+src/middleware/compact-middleware/turn-detection.test.ts(142,9): error TS2353: Object literal may only specify known properties, and 'configurable' does not exist in type 'ModelRequest<AgentBuiltInState, unknown>'.
+src/middleware/compact-middleware/turn-detection.test.ts(171,9): error TS2353: Object literal may only specify known properties, and 'configurable' does not exist in type 'ModelRequest<AgentBuiltInState, unknown>'.
+src/subagents/__tests__/integration.test.ts(15,7): error TS2322: Type 'BaseChatModel<BaseChatModelCallOptions, AIMessageChunk<MessageStructure<MessageToolSet>>>' is not assignable to type 'string | BaseLanguageModel<any, BaseLanguageModelCallOptions> | undefined'.
+  Type 'BaseChatModel<BaseChatModelCallOptions, AIMessageChunk<MessageStructure<MessageToolSet>>>' is not assignable to type 'BaseLanguageModel<any, BaseLanguageModelCallOptions>'.
+    Types of property 'caller' are incompatible.
+      Type 'import("/Users/ming/Documents/GitHub/my-swe/node_modules/@langchain/core/dist/utils/async_caller").AsyncCaller' is not assignable to type 'import("/Users/ming/Documents/GitHub/my-swe/node_modules/deepagents/node_modules/@langchain/core/dist/utils/async_caller").AsyncCaller'.
+        Property 'maxConcurrency' is protected but type 'AsyncCaller' is not a class derived from 'AsyncCaller'.
+src/subagents/__tests__/integration.test.ts(45,7): error TS2322: Type 'BaseChatModel<BaseChatModelCallOptions, AIMessageChunk<MessageStructure<MessageToolSet>>>' is not assignable to type 'string | BaseLanguageModel<any, BaseLanguageModelCallOptions> | undefined'.
+  Type 'BaseChatModel<BaseChatModelCallOptions, AIMessageChunk<MessageStructure<MessageToolSet>>>' is not assignable to type 'BaseLanguageModel<any, BaseLanguageModelCallOptions>'.
+    Types of property 'caller' are incompatible.
+      Type 'import("/Users/ming/Documents/GitHub/my-swe/node_modules/@langchain/core/dist/utils/async_caller").AsyncCaller' is not assignable to type 'import("/Users/ming/Documents/GitHub/my-swe/node_modules/deepagents/node_modules/@langchain/core/dist/utils/async_caller").AsyncCaller'.
+        Property 'maxConcurrency' is protected but type 'AsyncCaller' is not a class derived from 'AsyncCaller'.
+src/subagents/__tests__/integration.test.ts(66,7): error TS2322: Type 'BaseChatModel<BaseChatModelCallOptions, AIMessageChunk<MessageStructure<MessageToolSet>>>' is not assignable to type 'string | BaseLanguageModel<any, BaseLanguageModelCallOptions> | undefined'.
+  Type 'BaseChatModel<BaseChatModelCallOptions, AIMessageChunk<MessageStructure<MessageToolSet>>>' is not assignable to type 'BaseLanguageModel<any, BaseLanguageModelCallOptions>'.
+    Types of property 'caller' are incompatible.
+      Type 'import("/Users/ming/Documents/GitHub/my-swe/node_modules/@langchain/core/dist/utils/async_caller").AsyncCaller' is not assignable to type 'import("/Users/ming/Documents/GitHub/my-swe/node_modules/deepagents/node_modules/@langchain/core/dist/utils/async_caller").AsyncCaller'.
+        Property 'maxConcurrency' is protected but type 'AsyncCaller' is not a class derived from 'AsyncCaller'.
+src/subagents/__tests__/reviewerParser.test.ts(341,36): error TS2345: Argument of type '{ severity: string; file: string; line: number; issue: string; fix: string; }[]' is not assignable to parameter of type 'ReviewIssue[]'.
+  Type '{ severity: string; file: string; line: number; issue: string; fix: string; }' is not assignable to type 'ReviewIssue'.
+    Types of property 'severity' are incompatible.
+      Type 'string' is not assignable to type '"LOW" | "MEDIUM" | "HIGH" | "CRITICAL"'.
+src/subagents/toolFilter.ts(9,15): error TS2459: Module '"deepagents"' declares 'StructuredTool' locally, but it is not exported.
+src/tools/__tests__/comment-github-issue.test.ts(54,31): error TS2345: Argument of type 'string | ToolMessage<MessageStructure<MessageToolSet>> | ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to parameter of type 'string'.
+  Type 'ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to type 'string'.
+src/tools/__tests__/comment-github-issue.test.ts(67,31): error TS2345: Argument of type 'string | ToolMessage<MessageStructure<MessageToolSet>> | ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to parameter of type 'string'.
+  Type 'ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to type 'string'.
+src/tools/__tests__/comment-github-issue.test.ts(76,31): error TS2345: Argument of type 'string | ToolMessage<MessageStructure<MessageToolSet>> | ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to parameter of type 'string'.
+  Type 'ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to type 'string'.
+src/tools/__tests__/comment-github-issue.test.ts(92,31): error TS2345: Argument of type 'string | ToolMessage<MessageStructure<MessageToolSet>> | ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to parameter of type 'string'.
+  Type 'ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to type 'string'.
+src/tools/__tests__/comment-github-issue.test.ts(109,31): error TS2345: Argument of type 'string | ToolMessage<MessageStructure<MessageToolSet>> | ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to parameter of type 'string'.
+  Type 'ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to type 'string'.
+src/tools/__tests__/comment-github-issue.test.ts(121,31): error TS2345: Argument of type 'string | ToolMessage<MessageStructure<MessageToolSet>> | ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to parameter of type 'string'.
+  Type 'ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to type 'string'.
+src/tools/__tests__/comment-github-issue.test.ts(132,31): error TS2345: Argument of type 'string | ToolMessage<MessageStructure<MessageToolSet>> | ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to parameter of type 'string'.
+  Type 'ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to type 'string'.
+src/tools/__tests__/commit-and-open-pr.test.ts(2,37): error TS2307: Cannot find module './commit-and-open-pr' or its corresponding type declarations.
+src/tools/__tests__/create-github-issue.test.ts(53,31): error TS2345: Argument of type 'string | ToolMessage<MessageStructure<MessageToolSet>> | ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to parameter of type 'string'.
+  Type 'ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to type 'string'.
+src/tools/__tests__/create-github-issue.test.ts(66,31): error TS2345: Argument of type 'string | ToolMessage<MessageStructure<MessageToolSet>> | ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to parameter of type 'string'.
+  Type 'ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to type 'string'.
+src/tools/__tests__/create-github-issue.test.ts(75,31): error TS2345: Argument of type 'string | ToolMessage<MessageStructure<MessageToolSet>> | ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to parameter of type 'string'.
+  Type 'ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to type 'string'.
+src/tools/__tests__/create-github-issue.test.ts(87,34): error TS2339: Property 'match' does not exist on type 'string | ToolMessage<MessageStructure<MessageToolSet>> | ToolMessage<MessageStructure<MessageToolSet>>'.
+  Property 'match' does not exist on type 'ToolMessage<MessageStructure<MessageToolSet>>'.
+src/tools/__tests__/create-github-issue.test.ts(118,31): error TS2345: Argument of type 'string | ToolMessage<MessageStructure<MessageToolSet>> | ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to parameter of type 'string'.
+  Type 'ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to type 'string'.
+src/tools/__tests__/create-github-issue.test.ts(129,31): error TS2345: Argument of type 'string | ToolMessage<MessageStructure<MessageToolSet>> | ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to parameter of type 'string'.
+  Type 'ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to type 'string'.
+src/tools/__tests__/create-github-issue.test.ts(147,31): error TS2345: Argument of type 'string | ToolMessage<MessageStructure<MessageToolSet>> | ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to parameter of type 'string'.
+  Type 'ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to type 'string'.
+src/tools/__tests__/create-github-issue.test.ts(167,31): error TS2345: Argument of type 'string | ToolMessage<MessageStructure<MessageToolSet>> | ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to parameter of type 'string'.
+  Type 'ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to type 'string'.
+src/tools/__tests__/create-github-issue.test.ts(178,31): error TS2345: Argument of type 'string | ToolMessage<MessageStructure<MessageToolSet>> | ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to parameter of type 'string'.
+  Type 'ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to type 'string'.
+src/tools/__tests__/github-comment.test.ts(54,31): error TS2345: Argument of type 'string | ToolMessage<MessageStructure<MessageToolSet>> | ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to parameter of type 'string'.
+  Type 'ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to type 'string'.
+src/tools/__tests__/github-comment.test.ts(67,31): error TS2345: Argument of type 'string | ToolMessage<MessageStructure<MessageToolSet>> | ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to parameter of type 'string'.
+  Type 'ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to type 'string'.
+src/tools/__tests__/github-comment.test.ts(76,31): error TS2345: Argument of type 'string | ToolMessage<MessageStructure<MessageToolSet>> | ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to parameter of type 'string'.
+  Type 'ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to type 'string'.
+src/tools/__tests__/github-comment.test.ts(92,31): error TS2345: Argument of type 'string | ToolMessage<MessageStructure<MessageToolSet>> | ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to parameter of type 'string'.
+  Type 'ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to type 'string'.
+src/tools/__tests__/github-comment.test.ts(109,31): error TS2345: Argument of type 'string | ToolMessage<MessageStructure<MessageToolSet>> | ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to parameter of type 'string'.
+  Type 'ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to type 'string'.
+src/tools/__tests__/github-comment.test.ts(121,31): error TS2345: Argument of type 'string | ToolMessage<MessageStructure<MessageToolSet>> | ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to parameter of type 'string'.
+  Type 'ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to type 'string'.
+src/tools/__tests__/github-comment.test.ts(132,31): error TS2345: Argument of type 'string | ToolMessage<MessageStructure<MessageToolSet>> | ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to parameter of type 'string'.
+  Type 'ToolMessage<MessageStructure<MessageToolSet>>' is not assignable to type 'string'.
+src/tools/__tests__/sandbox-files.test.ts(13,8): error TS2307: Cannot find module './sandbox-files' or its corresponding type declarations.
+src/tools/__tests__/sandbox-shell.test.ts(10,8): error TS2307: Cannot find module './sandbox-shell' or its corresponding type declarations.
+src/tools/__tests__/search.test.ts(63,30): error TS2307: Cannot find module './search' or its corresponding type declarations.
+src/tools/__tests__/search.test.ts(83,30): error TS2307: Cannot find module './search' or its corresponding type declarations.
+src/tools/run-reviewers.ts(143,13): error TS2353: Object literal may only specify known properties, and 'configurable' does not exist in type 'Command<any, any, any> | ({ messages: Messages; } & FilterPrivateProps<{ todos?: { content: string; status: "pending" | "completed" | "in_progress"; }[] | undefined; }> & FilterPrivateProps<...> & FilterPrivateProps<...>)'.
+src/tools/semantic-search.ts(373,15): error TS1107: Jump target cannot cross function boundary.
+src/utils/__tests__/escalation-store.test.ts(2,49): error TS2307: Cannot find module './escalation-store' or its corresponding type declarations.
+src/utils/__tests__/memory-pointer.test.ts(38,61): error TS2345: Argument of type '{ type: string; timestamp: number; size: number; threadId: string; metadata: {}; }' is not assignable to parameter of type 'ArtifactMetadata'.
+  Type '{ type: string; timestamp: number; size: number; threadId: string; metadata: {}; }' is missing the following properties from type 'ArtifactMetadata': id, tokenCount, expiresAt
+src/utils/__tests__/telegram.test.ts(153,32): error TS2339: Property 'mock' does not exist on type 'typeof fetch'.
+src/utils/__tests__/telegram.test.ts(169,32): error TS2339: Property 'mock' does not exist on type 'typeof fetch'.
+src/utils/__tests__/telegram.test.ts(183,32): error TS2339: Property 'mock' does not exist on type 'typeof fetch'.
+src/utils/__tests__/yaml.test.ts(2,56): error TS2307: Cannot find module './yaml' or its corresponding type declarations.
+src/utils/memory-pointer.test.ts(159,42): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(expected: string): void', gave the following error.
+    Argument of type 'string | null' is not assignable to parameter of type 'string'.
+      Type 'null' is not assignable to type 'string'.
+  Overload 2 of 2, '(expected: string): void', gave the following error.
+    Argument of type 'string | null' is not assignable to parameter of type 'string'.
+      Type 'null' is not assignable to type 'string'.

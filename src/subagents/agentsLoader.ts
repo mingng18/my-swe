@@ -69,7 +69,7 @@ export function parseAgentsMd(
       name: metadata.name,
       description: metadata.description,
       systemPrompt,
-      tools: filterToolsByName(metadata.tools, metadata.disallowedTools),
+      tools: filterToolsByName(metadata.tools, metadata.disallowedTools) as any,
       model: metadata.model || "inherit",
     };
   } catch (err) {

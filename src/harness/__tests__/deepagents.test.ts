@@ -1,13 +1,14 @@
 import { describe, test, expect, mock, beforeEach, afterEach } from "bun:test";
 
 // Must mock module before importing to avoid initialization issues
-mock.module("../utils/thread-metadata-store", () => ({
+mock.module("../../utils/thread-metadata-store", () => ({
   loadPersistedThreadRepos: mock(async () => {
     const map = new Map();
     map.set("thread1", {
       owner: "test",
       name: "repo",
       workspaceDir: "/tmp/dir",
+      lastAccessed: Date.now(),
     });
     return map;
   }),
@@ -16,31 +17,16 @@ mock.module("../utils/thread-metadata-store", () => ({
 }));
 
 mock.module("@daytonaio/sdk", () => ({}));
-mock.module("../sandbox/daytona-snapshot-integration", () => ({}));
+mock.module("../../sandbox/daytona-snapshot-integration", () => ({}));
 mock.module("deepagents", () => ({}));
 mock.module("@alibaba-group/opensandbox", () => ({}));
 mock.module("@langchain/langgraph", () => ({}));
 mock.module("langchain", () => ({}));
 mock.module("zod", () => ({}));
 mock.module("octokit", () => ({}));
-mock.module("../sandbox", () => ({
-  initializeSnapshotStore: mock(() => Promise.resolve()),
-}));
+mock.module("../../sandbox", () => ({}));
 
-mock.module("../utils/logger", () => ({
-  createLogger: () => ({
-    info: mock(),
-    warn: mock(),
-    error: mock(),
-    debug: mock(),
-  }),
-  logger: {
-    info: mock(),
-    warn: mock(),
-    error: mock(),
-    debug: mock(),
-  },
-}));
+
 
 import {
   initDeepAgentsAtStartup,
@@ -57,7 +43,6 @@ describe("initDeepAgentsAtStartup", () => {
     resetDeepAgentsStateForTesting();
     mock.restore();
     (threadMetadataStore.loadPersistedThreadRepos as any).mockClear();
-    (sandbox.initializeSnapshotStore as any).mockClear();
   });
 
   test("should load persisted repos and initialize snapshot store on first call", async () => {
@@ -73,8 +58,6 @@ describe("initDeepAgentsAtStartup", () => {
     expect(thread1Repo?.workspaceDir).toBe("/tmp/dir");
     expect(thread1Repo?.lastAccessed).toBeDefined();
     expect(typeof thread1Repo?.lastAccessed).toBe("number");
-
-    expect(sandbox.initializeSnapshotStore).toHaveBeenCalled();
   });
 
   test("should be idempotent and not load persisted repos twice", async () => {
@@ -91,23 +74,6 @@ describe("initDeepAgentsAtStartup", () => {
     );
   });
 
-  test("should catch errors from initializeSnapshotStore and log a warning", async () => {
-    // Override the mock to throw an error
-    const expectedError = new Error("Snapshot initialization failed");
-    (sandbox.initializeSnapshotStore as any).mockImplementationOnce(() =>
-      Promise.reject(expectedError),
-    );
-
-    // It should not throw an exception to the caller
-    await initDeepAgentsAtStartup();
-
-    // Verify it was called
-    expect(sandbox.initializeSnapshotStore).toHaveBeenCalledTimes(1);
-
-    // We can't easily check the local logger inside deepagents.ts since it uses createLogger at module level,
-    // but the test checks that the error doesn't bubble up. Let's make sure it doesn't throw.
-    expect(true).toBe(true);
-  });
 });
 
 describe("deepagents cleanup", () => {

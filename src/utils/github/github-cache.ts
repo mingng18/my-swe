@@ -116,5 +116,6 @@ export function invalidateRepoCache(
  * Invalidate cache entries for PRs in a repository.
  */
 export function invalidatePrCache(owner: string, repo: string): void {
-  githubApiCache.invalidate(`pulls.*owner=${owner}.*repo=${repo}`);
+  // Cache keys use JSON.stringify for values: owner="headOwner"&repo="repoName"
+  githubApiCache.invalidate(`pulls.*owner=${JSON.stringify(owner)}.*repo=${JSON.stringify(repo)}`);
 }

@@ -138,10 +138,10 @@ export const runReviewersTool = tool(
           });
 
           // Run the review
-          const result = await agent.invoke({
-            messages: [{ role: "user", content: `Review these files for quality, security, and maintainability:\n\n${files.join("\n")}` }],
-            configurable: { thread_id: threadId },
-          });
+          const result = await agent.invoke(
+            { messages: [{ role: "user", content: `Review these files for quality, security, and maintainability:\n\n${files.join("\n")}` }] },
+            { configurable: { thread_id: threadId } }
+          );
 
           // Parse the output
           const lastMsg = result.messages[result.messages.length - 1];

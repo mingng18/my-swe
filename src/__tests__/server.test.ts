@@ -1,37 +1,36 @@
-import { describe, it, expect, mock, beforeEach } from "bun:test";
-
-const mockRun = mock();
-const mockGetAgentHarness = mock().mockReturnValue({
-  run: mockRun,
-});
-
-mock.module("./harness", () => ({
-  getAgentHarness: mockGetAgentHarness,
-}));
-
-mock.module("./utils/logger", () => ({
-  createLogger: () => ({
-    info: mock(),
-    error: mock(),
-    warn: mock(),
-    debug: mock(),
-  }),
-}));
-
+import { describe, it, expect, mock, beforeEach, spyOn, afterEach } from "bun:test";
+import * as harness from "../harness";
+import * as loggerModule from "../utils/logger";
 import { runCodeagentTurn } from "../server";
 
 describe("runCodeagentTurn", () => {
+  let mockRun: any;
+  let harnessSpy: any;
+  let loggerSpy: any;
+
   beforeEach(() => {
-    mockRun.mockClear();
-    mockGetAgentHarness.mockClear();
+    mockRun = mock();
+    harnessSpy = spyOn(harness, "getAgentHarness").mockReturnValue(Promise.resolve({ run: mockRun }) as any);
+    loggerSpy = spyOn(loggerModule, "createLogger").mockReturnValue({
+      info: mock(),
+      error: mock(),
+      warn: mock(),
+      debug: mock(),
+    } as any);
   });
+
+  afterEach(() => {
+    if (harnessSpy) harnessSpy.mockRestore();
+    if (loggerSpy) loggerSpy.mockRestore();
+  });
+
 
   it("should return the reply on successful execution with default threadId", async () => {
     mockRun.mockResolvedValue({ reply: "Hello world!" });
 
     const result = await runCodeagentTurn("Hi");
 
-    expect(mockGetAgentHarness).toHaveBeenCalledTimes(1);
+    expect(harnessSpy).toHaveBeenCalledTimes(1);
     expect(mockRun).toHaveBeenCalledWith("Hi", { threadId: "default-session" });
     expect(result).toBe("Hello world!");
   });

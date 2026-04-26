@@ -183,7 +183,7 @@ describe("MemoryDaemon", () => {
       repository,
       mockEmbeddingService as any,
     );
-    daemon = new MemoryDaemon(
+    daemon = new (MemoryDaemon as any)(
       repository,
       consolidationService,
       mockEmbeddingService as any,

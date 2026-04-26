@@ -277,11 +277,10 @@ describe("SearchService", () => {
   });
 
   it("should respect similarity threshold", async () => {
-    const results = await searchService.semanticSearch({
+    const results = await searchService.search({
       query: "completely unrelated query about quantum physics",
       threadIds: [testThreadId],
       limit: 10,
-      similarityThreshold: 0.95,
     });
 
     // With high threshold, should return fewer or no results

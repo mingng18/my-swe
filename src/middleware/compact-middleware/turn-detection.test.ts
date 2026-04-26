@@ -39,10 +39,10 @@ describe("Turn Detection", () => {
       {
         messages: firstCallMessages,
         configurable: { thread_id: threadId },
-      },
-      async (req: any) => {
+      } as any,
+      (async (req: any) => {
         return { content: "response" };
-      },
+      }) as any,
     );
 
     const metadata1 = getThreadMetadata(threadId);
@@ -62,10 +62,10 @@ describe("Turn Detection", () => {
       {
         messages: secondCallMessages,
         configurable: { thread_id: threadId },
-      },
-      async (req: any) => {
+      } as any,
+      (async (req: any) => {
         return { content: "response" };
-      },
+      }) as any,
     );
 
     const metadata2 = getThreadMetadata(threadId);
@@ -103,10 +103,10 @@ describe("Turn Detection", () => {
       {
         messages: userEndedMessages,
         configurable: { thread_id: threadId },
-      },
-      async (req: any) => {
+      } as any,
+      (async (req: any) => {
         return { content: "response" };
-      },
+      }) as any,
     );
 
     const metadata = getThreadMetadata(threadId);
@@ -140,10 +140,10 @@ describe("Turn Detection", () => {
       {
         messages: [...messages, new HumanMessage("user message")],
         configurable: { thread_id: threadId },
-      },
-      async (req: any) => {
+      } as any,
+      (async (req: any) => {
         return { content: "response" };
-      },
+      }) as any,
     );
 
     const metadata1 = getThreadMetadata(threadId);
@@ -169,10 +169,10 @@ describe("Turn Detection", () => {
       {
         messages: toolEndedMessages,
         configurable: { thread_id: threadId },
-      },
-      async (req: any) => {
+      } as any,
+      (async (req: any) => {
         return { content: "response" };
-      },
+      }) as any,
     );
 
     const metadata2 = getThreadMetadata(threadId);

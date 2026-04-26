@@ -3,16 +3,7 @@ import { describe, expect, test, mock, beforeEach, afterEach } from "bun:test";
 const mockCall = mock();
 const mockTavilySearchConstructor = mock();
 
-const mockToolImplementation = {
-  tool: (fn: any, config: any) => {
-    const wrapped = async (args: any) => await fn(args);
-    wrapped.invoke = async (args: any) => await fn(args);
-    return wrapped;
-  }
-};
 
-mock.module("langchain", () => mockToolImplementation);
-mock.module("@langchain/core/tools", () => mockToolImplementation);
 
 mock.module("@langchain/tavily", () => {
   return {
@@ -25,23 +16,6 @@ mock.module("@langchain/tavily", () => {
   };
 });
 
-// Mock zod as per the memory hint for tests that error on 'zod' resolution
-mock.module("zod", () => {
-  const chainable = () => ({
-    describe: chainable,
-    optional: chainable,
-    default: chainable,
-  });
-  return {
-    z: {
-      object: chainable,
-      string: chainable,
-      number: chainable,
-      boolean: chainable,
-      enum: chainable,
-    }
-  };
-});
 
 describe("search tool tests", () => {
   let originalEnv: NodeJS.ProcessEnv;
@@ -60,7 +34,7 @@ describe("search tool tests", () => {
     process.env.TAVILY_API_KEY = "test-api-key";
 
     // Dynamic import to allow mocks to apply first
-    const mod = await import("./search");
+    const mod = await import("../search");
     const toolToTest = mod.searchTool;
 
     mockCall.mockResolvedValue("mocked search result");
@@ -80,7 +54,7 @@ describe("search tool tests", () => {
   test("calls TavilySearch with provided arguments", async () => {
     process.env.TAVILY_API_KEY = "test-api-key-2";
 
-    const mod = await import("./search");
+    const mod = await import("../search");
     const toolToTest = mod.searchTool;
 
     mockCall.mockResolvedValue("mocked search result 2");

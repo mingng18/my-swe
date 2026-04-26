@@ -22,7 +22,7 @@ export function parseCommandArgs(commandStr: string): {
   const match = commandStr.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || [];
   if (match.length === 0) return { command: "", args: [] };
 
-  const command = match[0];
+  const command = match[0]!;
   const args = match.slice(1).map((arg) => {
     if (
       (arg.startsWith('"') && arg.endsWith('"')) ||

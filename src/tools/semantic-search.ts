@@ -370,7 +370,7 @@ export const semanticSearchTool = tool(
             );
 
             if (!readResult.output) {
-              continue;
+              return;
             }
 
             const lines = readResult.output.split("\n");

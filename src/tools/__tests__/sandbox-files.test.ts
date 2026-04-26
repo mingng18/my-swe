@@ -10,40 +10,54 @@ import {
   readSandboxFileTool,
   writeSandboxFileTool,
   listSandboxFilesTool
-} from "./sandbox-files";
+} from "../sandbox-files";
 import * as fsPromises from "fs/promises";
 
+import { spyOn } from "bun:test";
+import * as sandboxState from "../../utils/sandboxState";
+
 const mockExecute = mock();
+const mockRead = mock();
+const mockWrite = mock();
+const mockLsInfo = mock();
 
-mock.module("../utils/sandboxState", () => ({
-  getSandboxBackendFromConfig: mock((config) => {
-    if (config?.configurable?.thread_id === "test-thread-valid") {
-      return {
-        execute: mockExecute,
-      };
-    }
-    return null;
-  })
-}));
+beforeEach(() => {
+  sandboxState.setSandboxBackend("test-thread-valid", {
+    execute: mockExecute,
+    read: mockRead,
+    write: mockWrite,
+    lsInfo: mockLsInfo
+  } as any);
+});
 
-const mockReadFile = mock();
-const mockWriteFile = mock();
-const mockMkdir = mock();
-const mockReaddir = mock();
+afterEach(() => {
+  sandboxState.clearSandboxBackend("test-thread-valid");
+});
 
-mock.module("fs/promises", () => {
-  return {
-    readFile: mockReadFile,
-    writeFile: mockWriteFile,
-    mkdir: mockMkdir,
-    readdir: mockReaddir,
-    default: {
-      readFile: mockReadFile,
-      writeFile: mockWriteFile,
-      mkdir: mockMkdir,
-      readdir: mockReaddir,
-    }
-  };
+
+
+let mockReadFile: any;
+let mockWriteFile: any;
+let mockMkdir: any;
+let mockReaddir: any;
+
+const originalReadFile = fsPromises.readFile;
+const originalWriteFile = fsPromises.writeFile;
+const originalMkdir = fsPromises.mkdir;
+const originalReaddir = fsPromises.readdir;
+
+beforeEach(() => {
+  mockReadFile = spyOn(fsPromises, "readFile");
+  mockWriteFile = spyOn(fsPromises, "writeFile");
+  mockMkdir = spyOn(fsPromises, "mkdir");
+  mockReaddir = spyOn(fsPromises, "readdir");
+});
+
+afterEach(() => {
+  if (mockReadFile) mockReadFile.mockRestore();
+  if (mockWriteFile) mockWriteFile.mockRestore();
+  if (mockMkdir) mockMkdir.mockRestore();
+  if (mockReaddir) mockReaddir.mockRestore();
 });
 
 
@@ -223,23 +237,23 @@ describe("Sandbox Files Tools", () => {
     });
   });
 
-  describe("fs/promises-based tools", () => {
+  describe("Backend-based tools (formerly fs/promises)", () => {
     describe("readSandboxFileTool", () => {
       test("reads file completely", async () => {
-        mockReadFile.mockResolvedValue("line1\\nline2\\nline3");
+        mockRead.mockResolvedValue("line1\\nline2\\nline3");
         const result = await readSandboxFileTool.invoke({ filePath: "/test.txt" }, validConfig);
         expect(result).toBe("line1\\nline2\\nline3");
-        expect(mockReadFile).toHaveBeenCalledWith("/test.txt", "utf-8");
+        expect(mockRead).toHaveBeenCalledWith("/test.txt");
       });
 
       test("reads specific lines", async () => {
-        mockReadFile.mockResolvedValue("line1\nline2\nline3\nline4");
+        mockRead.mockResolvedValue("line1\nline2\nline3\nline4");
         const result = await readSandboxFileTool.invoke({ filePath: "/test.txt", startLine: 2, endLine: 3 }, validConfig);
         expect(result).toBe("line2\nline3");
       });
 
       test("handles read error", async () => {
-        mockReadFile.mockRejectedValue(new Error("File not found"));
+        mockRead.mockRejectedValue(new Error("File not found"));
         await expect(readSandboxFileTool.invoke({ filePath: "/test.txt" }, validConfig))
           .rejects.toThrow("Failed to read file: File not found");
       });
@@ -247,21 +261,21 @@ describe("Sandbox Files Tools", () => {
 
     describe("writeSandboxFileTool", () => {
       test("writes file successfully", async () => {
-        mockMkdir.mockResolvedValue(undefined);
-        mockWriteFile.mockResolvedValue(undefined);
+        mockExecute.mockResolvedValue({ exitCode: 0, output: "" });
+        mockWrite.mockResolvedValue(undefined);
 
         const result = await writeSandboxFileTool.invoke({ filePath: "/dir/test.txt", content: "data" }, validConfig);
         expect(result).toBe("Successfully wrote to /dir/test.txt");
-        expect(mockMkdir).toHaveBeenCalledWith("/dir", { recursive: true });
-        expect(mockWriteFile).toHaveBeenCalledWith("/dir/test.txt", "data", "utf-8");
+        expect(mockExecute).toHaveBeenCalledWith("mkdir -p $(dirname '/dir/test.txt')");
+        expect(mockWrite).toHaveBeenCalledWith("/dir/test.txt", "data");
       });
     });
 
     describe("listSandboxFilesTool", () => {
       test("lists directory contents", async () => {
-        mockReaddir.mockResolvedValue([
-          { name: "file.txt", isDirectory: () => false },
-          { name: "dir1", isDirectory: () => true }
+        mockLsInfo.mockResolvedValue([
+          { path: "file.txt", is_dir: false },
+          { path: "dir1", is_dir: true }
         ]);
 
         const result = await listSandboxFilesTool.invoke({ dirPath: "/dir" }, validConfig);

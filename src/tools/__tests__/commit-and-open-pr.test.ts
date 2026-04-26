@@ -1,7 +1,23 @@
-import { describe, it, expect, mock, beforeEach } from "bun:test";
-import { commitAndOpenPrTool } from "./commit-and-open-pr";
+import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
+import { commitAndOpenPrTool } from "../commit-and-open-pr";
+
+import { spyOn } from "bun:test";
+import * as githubToken from "../../utils/github/github-token";
+import * as sandboxState from "../../utils/sandboxState";
 
 describe("commit_and_open_pr tool", () => {
+  let mockGetGithubTokenFromThread: any;
+  let mockGetSandboxBackendSync: any;
+
+  beforeEach(() => {
+    mockGetGithubTokenFromThread = spyOn(githubToken, "getGithubTokenFromThread").mockResolvedValue(["ghp_test_token"] as any);
+  });
+
+  afterEach(() => {
+    if (mockGetGithubTokenFromThread) mockGetGithubTokenFromThread.mockRestore();
+    if (mockGetSandboxBackendSync) mockGetSandboxBackendSync.mockRestore();
+  });
+
   describe("branch naming", () => {
     it("should use simple branch name without timestamp", async () => {
       const mockSandbox = {
@@ -22,15 +38,8 @@ describe("commit_and_open_pr tool", () => {
         },
       };
 
-      // Mock getGithubTokenFromThread to return a token
-      mock.module("../utils/github/github-token", () => ({
-        getGithubTokenFromThread: async () => ["ghp_test_token"],
-      }));
-
-      // Mock sandbox state
-      mock.module("../utils/sandboxState", () => ({
-        getSandboxBackendSync: () => mockSandbox,
-      }));
+      // Mock sandbox state using spyOn
+      mockGetSandboxBackendSync = spyOn(sandboxState, "getSandboxBackendSync").mockReturnValue(mockSandbox as any);
 
       // The branch name should be `open-swe/test-thread-123` without timestamp
       // This is tested implicitly by the tool execution

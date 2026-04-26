@@ -5,49 +5,32 @@ import * as fsPromises from "node:fs/promises";
 import * as fs from "node:fs";
 import { join, resolve } from "node:path";
 
-// Mock filesystem functions
-const mockMkdir = mock();
-const mockReadFile = mock();
-const mockWriteFile = mock();
-const mockReaddir = mock();
-const mockUnlink = mock();
-const mockExistsSync = mock();
+import { spyOn } from "bun:test";
 
-mock.module("node:fs/promises", () => ({
-  mkdir: mockMkdir,
-  readFile: mockReadFile,
-  writeFile: mockWriteFile,
-  readdir: mockReaddir,
-  unlink: mockUnlink,
-  default: {
-    mkdir: mockMkdir,
-    readFile: mockReadFile,
-    writeFile: mockWriteFile,
-    readdir: mockReaddir,
-    unlink: mockUnlink,
-  },
-}));
+let mockMkdir: any;
+let mockReadFile: any;
+let mockWriteFile: any;
+let mockReaddir: any;
+let mockUnlink: any;
+let mockExistsSync: any;
 
-mock.module("node:fs", () => ({
-  existsSync: mockExistsSync,
-  promises: {
-    mkdir: mockMkdir,
-    readFile: mockReadFile,
-    writeFile: mockWriteFile,
-    readdir: mockReaddir,
-    unlink: mockUnlink,
-  },
-  default: {
-    existsSync: mockExistsSync,
-    promises: {
-      mkdir: mockMkdir,
-      readFile: mockReadFile,
-      writeFile: mockWriteFile,
-      readdir: mockReaddir,
-      unlink: mockUnlink,
-    },
-  },
-}));
+beforeEach(() => {
+  mockMkdir = spyOn(fsPromises, "mkdir");
+  mockReadFile = spyOn(fsPromises, "readFile");
+  mockWriteFile = spyOn(fsPromises, "writeFile");
+  mockReaddir = spyOn(fsPromises, "readdir");
+  mockUnlink = spyOn(fsPromises, "unlink");
+  mockExistsSync = spyOn(fs, "existsSync");
+});
+
+afterEach(() => {
+  if (mockMkdir) mockMkdir.mockRestore();
+  if (mockReadFile) mockReadFile.mockRestore();
+  if (mockWriteFile) mockWriteFile.mockRestore();
+  if (mockReaddir) mockReaddir.mockRestore();
+  if (mockUnlink) mockUnlink.mockRestore();
+  if (mockExistsSync) mockExistsSync.mockRestore();
+});
 
 // Helper to create test snapshot metadata
 function createTestMetadata(overrides?: Partial<SnapshotMetadata>): SnapshotMetadata {
@@ -350,7 +333,7 @@ describe("FilesystemSnapshotStore", () => {
       ]);
 
       // Mock readFile to return different metadata based on file path
-      mockReadFile.mockImplementation((filePath) => {
+      mockReadFile.mockImplementation((filePath: string) => {
         if (filePath.includes("main.json")) {
           return Promise.resolve(JSON.stringify(metadata1, null, 2));
         } else if (filePath.includes("develop.json")) {
