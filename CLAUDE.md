@@ -64,6 +64,50 @@ Uses OpenAI-compatible API trio (works with OpenAI, OpenRouter, Z.ai GLM):
 
 The model string is prefixed with `openai:` in `src/harness/deepagents.ts` to force LangChain's provider inference.
 
+## Langfuse Observability
+
+Bullhorse integrates Langfuse for comprehensive LLM observability. The integration uses LangChain's automatic callback tracing.
+
+### Configuration
+
+Set these environment variables to enable Langfuse:
+
+```bash
+# Required for Langfuse tracing
+LANGFUSE_PUBLIC_KEY=pk-xxx
+LANGFUSE_SECRET_KEY=sk-xxx
+
+# Optional: Langfuse host (for self-hosted or EU region)
+LANGFUSE_HOST=https://cloud.langfuse.com
+```
+
+### What Gets Traced
+
+- **LLM calls** — Automatic token usage, latency, and model tracking
+- **Tool invocations** — Tool names, arguments, results, and duration
+- **Agent turns** — Session-based traces with transport metadata
+- **User attribution** — UserId from Telegram, HTTP headers, or GitHub webhooks
+
+### Sensitive Data Masking
+
+API keys, tokens, and passwords are automatically masked before being sent to Langfuse. The masking patterns include:
+- Bearer tokens
+- OpenAI-style API keys (`sk-...`)
+- Langfuse keys (`pk-...`, `sk-...`)
+- Generic `api_key`, `token`, and `password` fields
+
+### Viewing Traces
+
+Access your traces at the Langfuse dashboard:
+- Cloud: https://cloud.langfuse.com
+- Self-hosted: Your `LANGFUSE_HOST` value
+
+### Environment Setup
+
+- **Development:** Enable for debugging and testing
+- **Staging:** Leave credentials empty to disable
+- **Production:** Enable for monitoring and analytics
+
 ## Adding New Tools
 
 Create tool functions in `src/tools/` and export them. Tools are LangChain-compatible functions passed to DeepAgents via the `tools` array in `createDeepAgent()`.
@@ -112,6 +156,8 @@ System prompt here...
 ## Blueprint System
 
 Bullhorse uses a blueprint system inspired by [Stripe Minions](https://stripe.com/blog/minions). Blueprints define state machine workflows that intermix agent nodes and deterministic nodes.
+
+**📚 For comprehensive documentation, including API reference, examples, and advanced usage, see [docs/blueprints.md](docs/blueprints.md).**
 
 ### Usage
 

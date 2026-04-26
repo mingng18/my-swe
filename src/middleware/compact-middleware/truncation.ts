@@ -27,7 +27,10 @@ function truncateObject(
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
-  for (const [key, value] of Object.entries(obj)) {
+  // ⚡ Bolt: Replace Object.entries with for...in to avoid intermediate array allocations
+  for (const key in obj) {
+    if (!Object.prototype.hasOwnProperty.call(obj, key)) continue;
+    const value = obj[key];
     if (typeof value === "string") {
       result[key] = truncateValue(value, maxLength);
     } else if (

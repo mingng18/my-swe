@@ -1,3 +1,14 @@
 {
-  "repos": {}
+  "repos": {
+    "20fd8b09ab1ca3ea": {
+      "owner": "mingng18",
+      "name": "recipe-rn",
+      "workspaceDir": "/home/daytona/recipe-rn",
+      "sandbox": {
+        "sandboxId": "e647fe08-4e19-4574-bf02-34167e3254b1",
+        "profile": "typescript"
+      },
+      "updatedAt": "2026-04-19T15:34:29.118Z"
+    }
+  }
 }
