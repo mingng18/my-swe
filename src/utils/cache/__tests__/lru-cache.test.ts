@@ -501,8 +501,8 @@ describe("conditionalCachedCall", () => {
     // Simulate different HTTP methods
     const getMethod = "GET";
     const postMethod = "POST";
-    const shouldCacheGet = getMethod === "GET";
-    const shouldCachePost = postMethod === "GET";
+    const shouldCacheGet = true; // Cache GET requests
+    const shouldCachePost = false; // Don't cache POST requests
 
     // Cache GET requests
     const result1 = await conditionalCachedCall(
