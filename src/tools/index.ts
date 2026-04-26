@@ -17,6 +17,11 @@ import { activateSkillTool } from "./activate-skill";
 import { toolSearchTool } from "./tool-search";
 import { listMcpResourcesTool } from "./list-mcp-resources";
 import { readMcpResourceTool } from "./read-mcp-resource";
+import { callMcpToolTool } from "./call-mcp-tool";
+
+// Re-export MCP tools for direct import
+export { listMcpResourcesTool, readMcpResourceTool, callMcpToolTool };
+
 import { memorySearchTool } from "./memory-search";
 import { memoryGetTool } from "./memory-get";
 import { memoryForgetTool } from "./memory-forget";
@@ -50,6 +55,7 @@ export const allToolsUncompressed = [
   toolSearchTool,
   listMcpResourcesTool,
   readMcpResourceTool,
+  callMcpToolTool,
   memorySearchTool,
   memoryGetTool,
   memoryForgetTool,
