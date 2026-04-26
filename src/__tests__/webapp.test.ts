@@ -30,58 +30,48 @@ export const mockVerifyGithubSignatureMutable = {
   returnValue: true
 };
 
+// Mock dependencies using mock.module BEFORE importing app
+mock.module("../utils/config", () => ({
+  loadTelegramConfig: () => ({ 
+    telegramBotToken: "mock-bot-token",
+    telegramParseMode: "HTML"
+  })
+}));
+
+mock.module("../utils/github", () => ({
+  verifyGithubSignature: () => mockVerifyGithubSignatureMutable.returnValue,
+  extractPrContext: async () => [
+    {} as any, 123, "main", "testuser", "https://github.com/pr", 1, "node-1"
+  ],
+  fetchPrCommentsSinceLastTag: async () => [{ body: "test comment" }],
+  buildPrPrompt: () => "mock pr prompt",
+  reactToGithubComment: async () => true,
+  getThreadIdFromBranch: () => "mock-thread-id",
+  getGithubAppInstallationToken: async () => "mock-app-token",
+  storeGithubTokenInThread: async () => {},
+  postGithubComment: async () => true,
+  getGithubToken: () => "mock-gh-token",
+}));
+
+mock.module("../utils/identity", () => ({
+  getEmailForIdentity: () => "test@example.com",
+}));
+
+mock.module("../utils/telegram", () => ({
+  isDuplicateMessage: () => false,
+  sendChatAction: async () => {},
+}));
+
 // Important: Import app AFTER setting up the mocks
 const { default: app } = await import("../webapp");
 import * as server from "../server";
 
 beforeEach(() => {
-  mockLoadTelegramConfig = spyOn(configUtils, "loadTelegramConfig").mockReturnValue({ 
-    telegramBotToken: "mock-bot-token",
-    telegramParseMode: "HTML"
-  });
-  mockVerifyGithubSignature = spyOn(githubUtils, "verifyGithubSignature").mockImplementation(() => mockVerifyGithubSignatureMutable.returnValue);
-  mockExtractPrContext = spyOn(githubUtils, "extractPrContext").mockResolvedValue([
-    {} as any, 123, "main", "testuser", "https://github.com/pr", 1, "node-1"
-  ]);
-  mockFetchPrCommentsSinceLastTag = spyOn(githubUtils, "fetchPrCommentsSinceLastTag").mockResolvedValue([{ body: "test comment" } as any]);
-  mockBuildPrPrompt = spyOn(githubUtils, "buildPrPrompt").mockReturnValue("mock pr prompt");
-  mockReactToGithubComment = spyOn(githubUtils, "reactToGithubComment").mockResolvedValue(true);
-  mockGetThreadIdFromBranch = spyOn(githubUtils, "getThreadIdFromBranch").mockReturnValue("mock-thread-id");
-  mockGetGithubAppInstallationToken = spyOn(githubUtils, "getGithubAppInstallationToken").mockResolvedValue("mock-app-token");
-  mockStoreGithubTokenInThread = spyOn(githubUtils, "storeGithubTokenInThread").mockResolvedValue(undefined as any);
-  mockPostGithubComment = spyOn(githubUtils, "postGithubComment").mockResolvedValue(true);
-  mockGetGithubToken = spyOn(githubUtils, "getGithubToken").mockReturnValue("mock-gh-token");
-  
-  mockGetEmailForIdentity = spyOn(identityUtils, "getEmailForIdentity").mockReturnValue("test@example.com");
-  
-  mockIsDuplicateMessage = spyOn(telegramUtils, "isDuplicateMessage").mockReturnValue(false);
-  mockSendChatAction = spyOn(telegramUtils, "sendChatAction").mockResolvedValue(undefined as any);
+  // Reset mocks if needed, but they are already set up at top level
 });
 
 afterEach(() => {
-  if (mockLoadTelegramConfig) mockLoadTelegramConfig.mockRestore();
-  if (mockVerifyGithubSignature) mockVerifyGithubSignature.mockRestore();
-  if (mockExtractPrContext) mockExtractPrContext.mockRestore();
-  if (mockFetchPrCommentsSinceLastTag) mockFetchPrCommentsSinceLastTag.mockRestore();
-  if (mockBuildPrPrompt) mockBuildPrPrompt.mockRestore();
-  if (mockReactToGithubComment) mockReactToGithubComment.mockRestore();
-  if (mockGetThreadIdFromBranch) mockGetThreadIdFromBranch.mockRestore();
-  if (mockGetGithubAppInstallationToken) mockGetGithubAppInstallationToken.mockRestore();
-  if (mockStoreGithubTokenInThread) mockStoreGithubTokenInThread.mockRestore();
-  if (mockPostGithubComment) mockPostGithubComment.mockRestore();
-  if (mockGetGithubToken) mockGetGithubToken.mockRestore();
-  
-  if (mockGetEmailForIdentity) mockGetEmailForIdentity.mockRestore();
-  
-  if (mockIsDuplicateMessage) mockIsDuplicateMessage.mockRestore();
-  if (mockSendChatAction) mockSendChatAction.mockRestore();
-});
-
-
-
-afterEach(() => {
-  if (mockIsDuplicateMessage) mockIsDuplicateMessage.mockRestore();
-  if (mockSendChatAction) mockSendChatAction.mockRestore();
+  // Mocks are handled by mock.module
 });
 
 
@@ -94,7 +84,7 @@ describe("webapp", () => {
       Promise.resolve(new Response(JSON.stringify({ ok: true }))),
     );
     globalThis.fetch = mockFetch as unknown as typeof fetch;
-    mock.restore(); // reset general call counts
+    // mock.restore(); // REMOVED: this would kill our mock.module mocks
     // Reset our specific mocks
     mockRunCodeagentTurn = spyOn(server, "runCodeagentTurn").mockImplementation(async (input: string) => `Mocked reply for: ${input}`);
     if (mockVerifyGithubSignature) mockVerifyGithubSignature.mockClear();
