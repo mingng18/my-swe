@@ -794,6 +794,302 @@ for (const blueprint of blueprints.sort((a, b) => b.priority - a.priority)) {
 return { blueprint: defaultBlueprint, confidence: 0, matchedKeywords: [] };
 ```
 
+### Trigger Keywords Pattern
+
+The trigger keywords system uses regex-based pattern matching with performance optimizations to automatically select the appropriate blueprint for a given task.
+
+#### How Keyword Matching Works
+
+**1. Pattern Compilation**
+
+Each blueprint's trigger keywords are compiled into efficient regex patterns:
+
+```typescript
+// Blueprint with keywords: ["fix", "bug", "error"]
+// → Compiled to: /^(fix|bug|error)$/i
+
+const pattern = blueprint.triggerKeywords
+  .map(k => k.replace(/[.*+?^\${}()|[\]\\]/g, '\\$&'))  // Escape special chars
+  .join('|');  // Join with OR operator
+
+const fastPathRegex = new RegExp(pattern, 'i');  // Case-insensitive
+```
+
+**Key Features:**
+- **Special character escaping**: Characters like `.`, `*`, `?`, `$`, etc. are escaped to match literally
+- **Case-insensitive**: Matching works regardless of letter case
+- **OR logic**: Any keyword in the array can trigger the blueprint
+
+**2. Two-Stage Matching**
+
+The selection process uses two regex patterns for efficiency:
+
+```typescript
+interface CompiledBlueprint {
+  fastPathRegex: RegExp;              // Quick check: matches ANY keyword
+  keywordRegexes: {                   // Detailed check: identifies WHICH keywords
+    keyword: string;
+    regex: RegExp;
+  }[];
+}
+```
+
+**Stage 1: Fast Path Check**
+```typescript
+// Quick check: Does ANY keyword match?
+if (fastPathRegex.test(task)) {
+  // Proceed to stage 2
+}
+```
+
+**Stage 2: Keyword Identification**
+```typescript
+// Identify which specific keywords matched
+const matchedKeywords: string[] = [];
+for (const { keyword, regex } of keywordRegexes) {
+  if (regex.test(task)) {
+    matchedKeywords.push(keyword);
+  }
+}
+```
+
+**3. Confidence Calculation**
+
+Confidence score represents how well the task matches the blueprint:
+
+```typescript
+confidence = matchedKeywords.length / totalKeywords.length
+```
+
+| Matched Keywords | Total Keywords | Confidence | Interpretation |
+|-----------------|----------------|------------|----------------|
+| 3 | 3 | 1.0 | Perfect match |
+| 2 | 3 | 0.67 | Strong match |
+| 1 | 3 | 0.33 | Weak match |
+| 0 | 3 | 0.0 | No match |
+
+#### Priority and Selection Order
+
+**Blueprints are evaluated in priority order (highest first):**
+
+```typescript
+// Blueprints sorted by priority (descending)
+const sorted = [
+  { id: 'critical-fix', priority: 100, triggerKeywords: ['security', 'critical'] },
+  { id: 'bug-fix', priority: 90, triggerKeywords: ['fix', 'bug'] },
+  { id: 'feature', priority: 80, triggerKeywords: ['implement', 'add'] },
+  { id: 'default', priority: 0, triggerKeywords: [] }
+];
+```
+
+**Selection Process:**
+
+1. Iterate through blueprints in priority order
+2. For each blueprint, test if ANY keyword matches the task
+3. Return the FIRST blueprint with a matching keyword
+4. If no blueprint matches, return the `default` blueprint
+
+**Example:**
+
+```typescript
+const task = "Fix the security vulnerability in authentication";
+
+// Iteration 1: critical-fix (priority 100)
+// Keywords: ["security", "critical"]
+// Match: "security" ✓
+// → Returns critical-fix blueprint immediately
+
+// Even though "fix" would match bug-fix, critical-fix wins due to higher priority
+```
+
+#### Caching and Performance
+
+**Blueprint compilation results are cached using WeakMap:**
+
+```typescript
+const compiledCache = new WeakMap<Blueprint, CompiledBlueprint>();
+
+function getCompiledBlueprint(blueprint: Blueprint): CompiledBlueprint {
+  let compiled = compiledCache.get(blueprint);
+  if (!compiled) {
+    // Compile regex patterns
+    compiled = { fastPathRegex, keywordRegexes };
+    compiledCache.set(blueprint, compiled);
+  }
+  return compiled;
+}
+```
+
+**Benefits:**
+- Regex patterns compiled once per blueprint
+- Automatic garbage collection when blueprint is no longer referenced
+- O(1) lookup for subsequent selections
+
+#### Special Character Handling
+
+**Special regex characters are automatically escaped:**
+
+| Keyword | Escaped Pattern | Matches |
+|---------|----------------|---------|
+| `fix` | `fix` | "fix", "Fix", "FIX" |
+| `bug.*` | `bug\.\*` | Literal "bug.*" (not wildcard) |
+| `C++` | `C\+\+` | Literal "C++" |
+| `$test` | `\$test` | Literal "$test" |
+| `file.js` | `file\.js` | Literal "file.js" |
+
+**Escaped Characters:**
+`. * + ? ^ $ { } ( ) | [ ] \`
+
+#### Matching Examples
+
+```typescript
+// Blueprint: bug-fix
+// Keywords: ["fix", "bug", "error"]
+// Priority: 100
+
+const examples = [
+  {
+    task: "Fix the login bug",
+    result: {
+      blueprint: "bug-fix",
+      confidence: 0.67,  // 2/3 keywords matched: "fix", "bug"
+      matchedKeywords: ["fix", "bug"]
+    }
+  },
+  {
+    task: "There's an error in the API",
+    result: {
+      blueprint: "bug-fix",
+      confidence: 0.33,  // 1/3 keywords matched: "error"
+      matchedKeywords: ["error"]
+    }
+  },
+  {
+    task: "Add a new feature",
+    result: {
+      blueprint: "default",  // No match
+      confidence: 0.0,
+      matchedKeywords: []
+    }
+  }
+];
+```
+
+#### Priority Conflict Resolution
+
+**When multiple blueprints match, priority determines the winner:**
+
+```typescript
+const blueprints = [
+  {
+    id: 'security-fix',
+    priority: 100,
+    triggerKeywords: ['security', 'vulnerability']
+  },
+  {
+    id: 'bug-fix',
+    priority: 90,
+    triggerKeywords: ['fix', 'bug', 'security']  // Also has "security"
+  },
+  {
+    id: 'feature',
+    priority: 80,
+    triggerKeywords: ['implement', 'add']
+  }
+];
+
+const task = "Fix the security vulnerability";
+
+// Both security-fix and bug-fix have "security" keyword
+// security-fix wins because priority 100 > 90
+const selection = selectBlueprint(task, blueprints);
+// → { blueprint: security-fix, confidence: 1.0, matchedKeywords: ['security'] }
+```
+
+#### Best Practices for Trigger Keywords
+
+**1. Be Specific:**
+
+```yaml
+# ❌ Too broad
+triggerKeywords: ["do", "make", "create"]
+
+# ✅ Specific
+triggerKeywords: ["implement", "add", "feature"]
+```
+
+**2. Use Multiple Keywords for Better Matching:**
+
+```yaml
+# ❌ Single keyword (low confidence)
+triggerKeywords: ["fix"]
+
+# ✅ Multiple related keywords (higher confidence)
+triggerKeywords: ["fix", "bug", "error", "broken"]
+```
+
+**3. Set Appropriate Priorities:**
+
+```yaml
+# High priority for specific workflows
+id: "critical-fix"
+priority: 100
+triggerKeywords: ["security", "critical", "vulnerability"]
+
+# Medium priority for general workflows
+id: "bug-fix"
+priority: 90
+triggerKeywords: ["fix", "bug", "error"]
+
+# Low priority for fallback
+id: "default"
+priority: 0
+triggerKeywords: []
+```
+
+**4. Avoid Keyword Overlap:**
+
+```yaml
+# ❌ High overlap (confusing)
+# Blueprint A: ["fix", "bug", "security"]
+# Blueprint B: ["fix", "security", "vulnerability"]
+
+# ✅ Clear separation
+# Blueprint A: ["bug", "error", "broken"]
+# Blueprint B: ["security", "vulnerability", "exploit"]
+```
+
+#### Edge Cases
+
+**Empty Keyword Array:**
+
+```typescript
+// Blueprint with empty triggerKeywords is skipped during selection
+{
+  id: 'default',
+  triggerKeywords: [],  // Skipped, selected as fallback only
+  priority: 0
+}
+```
+
+**No Matches:**
+
+```typescript
+// If no blueprint matches, return the "default" blueprint
+const task = "Update the documentation";
+// → { blueprint: default, confidence: 0, matchedKeywords: [] }
+```
+
+**Case Insensitivity:**
+
+```typescript
+// All of these match the "fix" keyword
+"Fix the bug"      // ✓ Matches
+"fix the bug"      // ✓ Matches
+"FIX THE BUG"      // ✓ Matches
+"FyX thE bUg"      // ✗ Doesn't match (exact substring match)
+```
+
 ### Utility Functions
 
 ```typescript
