@@ -108,6 +108,16 @@
         background: var(--success);
         border-radius: 50%;
       }
+
+      .main {
+        flex: 1;
+        overflow-y: auto;
+      }
+      #claude-content {
+        padding: 2rem;
+        min-height: 100%;
+      }
+
       .indicator-bar {
         background: var(--bg-secondary);
         border-top: 1px solid var(--border);
@@ -143,32 +153,6 @@
       #claude-content {
         padding: 2rem;
         min-height: 100%;
-      }
-
-      /* ===== TYPOGRAPHY ===== */
-      h2 {
-        font-size: 1.5rem;
-        font-weight: 600;
-        margin-bottom: 0.5rem;
-      }
-      h3 {
-        font-size: 1.1rem;
-        font-weight: 600;
-        margin-bottom: 0.25rem;
-      }
-      .subtitle {
-        color: var(--text-secondary);
-        margin-bottom: 1.5rem;
-      }
-      .section {
-        margin-bottom: 2rem;
-      }
-      .label {
-        font-size: 0.7rem;
-        color: var(--text-secondary);
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        margin-bottom: 0.5rem;
       }
 
       /* ===== OPTIONS (for A/B/C choices) ===== */
@@ -344,6 +328,17 @@
       .cons li {
         margin-bottom: 0.25rem;
       }
+
+      /* ===== PLACEHOLDER (for mockup areas) ===== */
+      .placeholder {
+        background: var(--bg-tertiary);
+        border: 2px dashed var(--border);
+        border-radius: 8px;
+        padding: 2rem;
+        text-align: center;
+        color: var(--text-tertiary);
+      }
+
       /* ===== INLINE MOCKUP ELEMENTS ===== */
       .mock-nav {
         background: var(--accent);
@@ -379,16 +374,6 @@
         border-radius: 6px;
         padding: 0.5rem;
         width: 100%;
-      }
-
-      /* ===== PLACEHOLDER (for mockup areas) ===== */
-      .placeholder {
-        background: var(--bg-tertiary);
-        border: 2px dashed var(--border);
-        border-radius: 8px;
-        padding: 2rem;
-        text-align: center;
-        color: var(--text-tertiary);
       }
 
       /* ===== KEYBOARD HINTS ===== */
@@ -432,10 +417,9 @@
 
     <footer class="indicator-bar">
       <div style="width: 80px"></div>
-      <!-- Spacer for center alignment -->
       <span id="indicator-text" aria-live="polite" role="status"
-        >Select an option above, or press <kbd>Enter</kbd> / <kbd>Space</kbd>,
-        then return to the terminal</span
+        >Select an option above, or press <kbd class="kbd-hint">Enter</kbd> /
+        <kbd class="kbd-hint">Space</kbd>, then return to the terminal</span
       >
       <div
         class="keyboard-shortcuts"
