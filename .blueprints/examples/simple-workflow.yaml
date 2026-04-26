@@ -1,0 +1,25 @@
+# .blueprints/examples/simple-workflow.yaml
+# A minimal example demonstrating the basic blueprint pattern:
+# agent node → deterministic node → terminal state
+id: "simple-workflow"
+name: "Simple Workflow"
+description: "Minimal example showing agent → deterministic → terminal flow"
+triggerKeywords: ["simple", "example", "basic"]
+priority: 50
+initialState: "do_work"
+states:
+  do_work:
+    type: "agent"
+    config:
+      models: ["claude-sonnet-4-6"]
+      tools: ["read", "write", "edit"]
+      systemPrompt: "Perform the requested task."
+    next: ["verify"]
+  verify:
+    type: "deterministic"
+    action: "run_verification"
+    on:
+      pass: ["done"]
+      fail: ["do_work"]
+  done:
+    type: "terminal"

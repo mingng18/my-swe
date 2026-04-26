@@ -14,3 +14,6 @@
 ## 2024-04-20 - Object.entries in Recursive Functions Performance Optimization
 **Learning:** Using `Object.entries` creates temporary arrays of key-value pairs for every property. In recursive object traversal functions like `truncateObject` that run on large/deep JSON payloads, this causes unnecessary memory allocations and garbage collection overhead in hot paths.
 **Action:** Use `for...in` loops to iterate over object keys without intermediate array allocations in hot paths or recursive functions.
+## 2024-05-18 - [Avoid Object.entries in Hot Paths]
+**Learning:** [In V8/Node.js environments, using `Object.entries()` in performance-critical loops (like blueprint compilation, schema cleaning, or token tracking) creates an anti-pattern by allocating multiple intermediate arrays of key-value pairs, which causes massive overhead. Replacing this with `for...in` avoids these allocations.]
+**Action:** [Strictly replace `Object.entries` with `for...in` loops accompanied by `Object.prototype.hasOwnProperty.call` when iterating over object keys in performance-sensitive contexts.]

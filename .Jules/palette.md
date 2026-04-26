@@ -13,3 +13,6 @@
 ## 2026-04-22 - Resolving UI Merge Conflicts
 **Learning:** When resolving Git merge conflicts that combine accessibility improvements (like `<kbd>` keyboard hints) with semantic HTML structure updates, it's crucial to manually ensure the newly combined layout applies all required styling hooks (e.g., preserving `.kbd-hint` classes). Otherwise, the new semantic structure may render the accessibility hints without the intended tactile visual feedback or sizing.
 **Action:** Always visually verify merged UI template files using tools like Playwright or visual inspection to ensure that custom CSS styles and accessibility affordances added in parallel branches apply correctly when combined.
+## 2025-02-14 - Keyboard Shortcut Discovery
+**Learning:** Combining explicit keyboard hints (<kbd>Tab</kbd>) with semantic roles (like <footer aria-live="polite">) creates a highly discoverable and accessible experience for companion web frames without cluttering the visual UI.
+**Action:** Consistently pair visual shortcut hints (<kbd>) with ARIA live regions when instructing users on keyboard-driven navigation in isolated frame views.

@@ -1,0 +1,132 @@
+# .blueprints/examples/custom-action.yaml
+#
+# This example demonstrates how to define and use custom deterministic actions
+# in your blueprints.
+#
+# Custom deterministic actions are registered in the actionRegistry (typically in
+# src/blueprints/index.ts) and then referenced by name in your blueprint YAML.
+#
+# To register a custom action:
+#
+# 1. Define the action function:
+#    ```typescript
+#    const myCustomAction = async (state: BlueprintState, context: ActionContext) => {
+#      // Your deterministic logic here
+#      console.log('Running custom action');
+#      // Return result object
+#      return { success: true, output: 'Action completed' };
+#    };
+#    ```
+#
+# 2. Register it in the actionRegistry:
+#    ```typescript
+#    export const actionRegistry = {
+#      // Built-in actions...
+#      run_linters: linterAction,
+#      run_tests: testAction,
+#
+#      // Your custom actions
+#      generate_docs: generateDocsAction,
+#      security_scan: securityScanAction,
+#      // ...
+#    };
+#    ```
+#
+# 3. Reference it in your blueprint YAML using the action name
+#
+
+id: "security-check"
+name: "Security Scan Workflow"
+description: "Run security scanning and generate reports"
+triggerKeywords: ["security", "scan", "vulnerability", "audit"]
+priority: 95
+initialState: "prepare"
+states:
+  prepare:
+    type: "agent"
+    config:
+      models: ["claude-sonnet-4-6"]
+      tools: ["read", "code_search"]
+      systemPrompt: "Review the codebase and identify security-sensitive files to scan."
+    next: ["scan"]
+  scan:
+    # Custom deterministic action - must be registered in actionRegistry
+    type: "deterministic"
+    action: "security_scan"
+    # The action receives the current state and can access:
+    # - state.input: Original user input
+    # - state.currentState: Current workflow state
+    # - state.threadId: Thread identifier for tracking
+    on:
+      # On success, transition to these states
+      pass: ["analyze"]
+      # On failure, transition to these states
+      fail: ["fix_vulnerabilities"]
+  analyze:
+    type: "agent"
+    config:
+      models: ["claude-sonnet-4-6"]
+      tools: ["read", "grep"]
+      systemPrompt: "Analyze the security scan results and prioritize findings."
+    next: ["generate_report"]
+  generate_report:
+    # Another custom action for generating documentation
+    type: "deterministic"
+    action: "generate_docs"
+    next: ["done"]
+  fix_vulnerabilities:
+    type: "agent"
+    config:
+      models: ["sonnet"]
+      tools: ["edit", "write", "read"]
+      systemPrompt: "Fix the identified security vulnerabilities."
+    next: ["scan"]
+  done:
+    type: "terminal"
+
+# Action Implementation Example (TypeScript):
+#
+# ```typescript
+# import { BlueprintState, ActionContext } from './types';
+#
+# interface SecurityScanResult {
+#   vulnerabilities: Array<{
+#     severity: 'high' | 'medium' | 'low';
+#     file: string;
+#     line: number;
+#     description: string;
+#   }>;
+# }
+#
+# export const securityScanAction = async (
+#   state: BlueprintState,
+#   context: ActionContext
+# ): Promise<ActionResult> => {
+#   try {
+#     // Run security scanning tool (e.g., semgrep, bandit, etc.)
+#     const result = await exec('security-scan . --json');
+#
+#     const findings: SecurityScanResult = JSON.parse(result.stdout);
+#
+#     // Store results in state for next state to access
+#     state.securityFindings = findings;
+#
+#     // Determine if we found any high-severity issues
+#     const hasHighSeverity = findings.vulnerabilities.some(
+#       v => v.severity === 'high'
+#     );
+#
+#     return {
+#       success: !hasHighSeverity, // Fail if high-severity issues found
+#       output: `Found ${findings.vulnerabilities.length} vulnerabilities`,
+#       state
+#     };
+#   } catch (error) {
+#     return {
+#       success: false,
+#       output: `Security scan failed: ${error.message}`,
+#       state
+#     };
+#   }
+# };
+# ```
