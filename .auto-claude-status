@@ -1,15 +1,15 @@
 {
   "active": true,
-  "spec": "002-add-typescript-rust-and-java-code-reviewer-subagen",
+  "spec": "013-add-markdown-formatting-to-telegram-responses",
   "state": "building",
   "subtasks": {
-    "completed": 5,
-    "total": 7,
+    "completed": 0,
+    "total": 0,
     "in_progress": 1,
     "failed": 0
   },
   "phase": {
-    "current": "Update Tests",
+    "current": "Telegram Formatting Utilities",
     "id": null,
     "total": 2
   },
@@ -18,8 +18,8 @@
     "max": 1
   },
   "session": {
-    "number": 7,
-    "started_at": "2026-04-22T19:39:04.657469"
+    "number": 13,
+    "started_at": "2026-04-26T14:35:24.778644"
   },
-  "last_update": "2026-04-22T19:48:13.226053"
+  "last_update": "2026-04-26T15:18:06.436985"
 }
