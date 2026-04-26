@@ -16,6 +16,7 @@ The Bullhorse blueprint system is a state machine workflow framework inspired by
 10. [Creating Blueprints](#10-creating-blueprints) - Writing custom blueprints
 11. [Default Blueprints](#11-default-blueprints) - Included blueprint examples
 12. [API Reference](#12-api-reference) - Complete API documentation
+13. [Agent Configuration](#13-agent-configuration) - Models, tools, and system prompts
 
 ---
 
@@ -3217,6 +3218,1183 @@ try {
   }
 }
 ```
+
+---
+
+## 13. Agent Configuration
+
+Agent configuration is the heart of blueprint-based workflows. The `AgentConfig` interface defines how agent states behave, which models they use, what tools they can access, and how they're instructed to approach tasks.
+
+### Overview
+
+Every agent state in a blueprint requires an `AgentConfig` object:
+
+```typescript
+interface AgentConfig {
+  /** Optional display name for this agent instance */
+  name?: string;
+
+  /** Model array for fallback (tries in order) */
+  models: string[];
+
+  /** Tool allowlist (only these tools available) */
+  tools: string[];
+
+  /** Optional custom system prompt */
+  systemPrompt?: string;
+}
+```
+
+**Key Principles:**
+
+| Principle | Description | Example |
+|-----------|-------------|---------|
+| **Least Privilege** | Only grant tools that are necessary for the task | Exploration states get read-only tools |
+| **Model Optimization** | Use cheaper models for simple tasks, premium for complex reasoning | Haiku for exploration, Sonnet for implementation |
+| **Graceful Degradation** | Fallback chains ensure reliability even if primary model fails | `models: ["sonnet", "haiku"]` |
+| **Task-Specific Prompts** | Custom system prompts guide agent behavior for specific states | Different prompts for planning vs. implementing |
+
+### 13.1 Models Array
+
+The `models` array specifies which LLM models to use, in priority order. The system tries each model sequentially until one succeeds.
+
+#### How Model Fallback Works
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                   Model Fallback Flow                        │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  Agent State Execution                                      │
+│       │                                                     │
+│       ├─► Try models[0] (sonnet)                            │
+│       │     │                                               │
+│       │     ├─► Success → Continue workflow                │
+│       │     │                                               │
+│       │     └─► Error/Failure → Try next model             │
+│       │                            │                        │
+│       │                            ▼                        │
+│       │                     Try models[1] (haiku)           │
+│       │                            │                        │
+│       │                            ├─► Success → Continue  │
+│       │                            │                        │
+│       │                            └─► Error → Fail state  │
+│       │                                                     │
+│       └─► If all models fail → Workflow error              │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Available Models
+
+| Model ID | Speed | Cost | Quality | Context Window | Best Use Case |
+|----------|-------|------|---------|----------------|---------------|
+| `haiku` | Fast | Low | Good | 200K tokens | Exploration, documentation, simple edits |
+| `sonnet` | Medium | Medium | High | 200K tokens | Most code work, bug fixes, refactoring |
+| `claude-sonnet-4-6` | Slower | Higher | Best | 200K tokens | Planning, architecture, complex reasoning |
+
+#### Model Selection Strategy
+
+**Single Model (No Fallback):**
+
+```yaml
+analyze:
+  type: "agent"
+  config:
+    models: ["sonnet"]  # Only tries Sonnet
+    tools: ["read", "grep"]
+  next: ["implement"]
+```
+
+**Use Case:** When you're confident the model will succeed and don't want to pay for fallback attempts.
+
+**Fallback Chain (Recommended):**
+
+```yaml
+implement:
+  type: "agent"
+  config:
+    models: ["sonnet", "haiku"]  # Try Sonnet, fall back to Haiku
+    tools: ["write", "edit"]
+  next: ["verify"]
+```
+
+**Use Case:** Balancing quality and cost. Primary model for best results, cheaper fallback for reliability.
+
+**Progressive Escalation:**
+
+```yaml
+investigate:
+  type: "agent"
+  config:
+    models: ["haiku", "sonnet", "claude-sonnet-4-6"]
+    tools: ["read", "semantic_search"]
+    systemPrompt: "Start with Haiku for quick investigation. If complexity is high, the system will automatically escalate."
+  next: ["report"]
+```
+
+**Use Case:** When task complexity is unknown. Start fast, escalate if needed.
+
+#### Cost Optimization Patterns
+
+**Fast Exploration, Quality Implementation:**
+
+```yaml
+# Fast exploration with Haiku (~$0.25/1M tokens)
+explore:
+  type: "agent"
+  config:
+    models: ["haiku"]
+    tools: ["code_search", "read"]
+  next: ["plan"]
+
+# Quality planning with Sonnet (~$3/1M tokens)
+plan:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["read", "grep"]
+  next: ["implement"]
+
+# Implementation with fallback
+implement:
+  type: "agent"
+  config:
+    models: ["sonnet", "haiku"]  # Quality primary, cost fallback
+    tools: ["write", "edit"]
+  next: ["done"]
+```
+
+**Estimated Cost for Typical Workflow:**
+- Exploration (Haiku): ~500 tokens × $0.25/M = $0.000125
+- Planning (Sonnet): ~2,000 tokens × $3/M = $0.006
+- Implementation (Sonnet): ~5,000 tokens × $3/M = $0.015
+- **Total:** ~$0.021 per workflow execution
+
+#### Model Selection Guidelines
+
+| Task Complexity | Recommended Model | Fallback | Rationale |
+|----------------|-------------------|----------|-----------|
+| **Simple** (file reading, basic edits) | `haiku` | none | Fast and cheap, sufficient for simple tasks |
+| **Medium** (bug fixes, refactoring) | `sonnet` | `haiku` | Quality first, cost fallback |
+| **Complex** (architecture, planning) | `claude-sonnet-4-6` | `sonnet`, `haiku` | Best reasoning, multiple fallbacks |
+| **Unknown** (exploration) | `haiku` | `sonnet` | Start cheap, escalate if needed |
+
+#### Common Anti-Patterns
+
+**❌ Anti-Pattern 1: Over-Engineering Simple Tasks**
+
+```yaml
+# Bad: Using premium model for trivial task
+read_readme:
+  type: "agent"
+  config:
+    models: ["claude-sonnet-4-6"]  # Overkill
+    tools: ["read"]
+  next: ["done"]
+```
+
+**✅ Better: Use appropriate model**
+
+```yaml
+read_readme:
+  type: "agent"
+  config:
+    models: ["haiku"]  # Fast and cheap
+    tools: ["read"]
+  next: ["done"]
+```
+
+**❌ Anti-Pattern 2: No Fallback for Critical Tasks**
+
+```yaml
+# Bad: If model fails, entire workflow fails
+implement:
+  type: "agent"
+  config:
+    models: ["claude-sonnet-4-6"]  # Single point of failure
+    tools: ["write", "edit"]
+  next: ["verify"]
+```
+
+**✅ Better: Provide fallback**
+
+```yaml
+implement:
+  type: "agent"
+  config:
+    models: ["claude-sonnet-4-6", "sonnet", "haiku"]  # Multiple fallbacks
+    tools: ["write", "edit"]
+  next: ["verify"]
+```
+
+**❌ Anti-Pattern 3: Reverse Priority (Expensive First)**
+
+```yaml
+# Bad: Tries expensive model first, wastes money
+implement:
+  type: "agent"
+  config:
+    models: ["claude-sonnet-4-6", "sonnet", "haiku"]  # Always tries most expensive first
+    tools: ["write"]
+  next: ["done"]
+```
+
+**✅ Better: Start with appropriate model**
+
+```yaml
+# For typical implementation: Sonnet is usually sufficient
+implement:
+  type: "agent"
+  config:
+    models: ["sonnet", "haiku"]  # Quality primary, cheap fallback
+    tools: ["write"]
+  next: ["done"]
+```
+
+### 13.2 Tool Allowlisting
+
+The `tools` array specifies which tools the agent can use. This is a security and control feature - agents can only use tools explicitly listed.
+
+#### How Tool Allowlisting Works
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Tool Allowlisting                         │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  Agent Request: "I want to edit src/app.ts"                 │
+│       │                                                     │
+│       ▼                                                     │
+│  Tool Allowlist Check                                       │
+│       │                                                     │
+│       ├─► Is "edit" in tools[]?                             │
+│       │     │                                               │
+│       │     ├─► Yes → Allow tool execution                 │
+│       │     │                                               │
+│       │     └─► No → Deny with error message               │
+│       │                                                     │
+│       └─► Agent can only use allowed tools                 │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Available Tools
+
+| Tool Name | Description | Risk Level | Best For |
+|-----------|-------------|------------|----------|
+| `read` | Read file contents | None | Exploration, analysis |
+| `code_search` | Search code by pattern | None | Finding files, patterns |
+| `grep` | Search text in files | None | Text search, content analysis |
+| `semantic_search` | Search by meaning | None | Conceptual queries ("where is auth?") |
+| `write` | Write new files | Medium | Creating new files |
+| `edit` | Edit existing files | High | Modifying code |
+| `bash` | Execute shell commands | Critical | Running tests, git operations |
+
+#### Tool Categories by Use Case
+
+**Read-Only Exploration (Safe):**
+
+```yaml
+explore:
+  type: "agent"
+  config:
+    models: ["haiku"]
+    tools: ["read", "code_search", "grep", "semantic_search"]
+  next: ["report"]
+```
+
+**Use Case:** Initial exploration, understanding codebase, finding files. No risk of modifications.
+
+**Code Modification (Controlled Risk):**
+
+```yaml
+implement:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["read", "write", "edit"]  # Can modify files
+  next: ["verify"]
+```
+
+**Use Case:** Making code changes. Includes read tools for understanding before editing.
+
+**Full Access (High Risk):**
+
+```yaml
+fix:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["read", "write", "edit", "bash"]  # Everything
+  next: ["verify"]
+```
+
+**Use Case:** Complex fixes that may require running tests, git operations, or multiple file modifications.
+
+#### Security Best Practices
+
+**Principle of Least Privilege:**
+
+```yaml
+# ✅ Good: Only grant necessary tools
+analyze_code:
+  type: "agent"
+  config:
+    models: ["haiku"]
+    tools: ["read", "grep"]  # Can't modify anything
+  next: ["report"]
+
+# ❌ Bad: Unnecessary tool access
+analyze_code:
+  type: "agent"
+  config:
+    models: ["haiku"]
+    tools: ["read", "write", "edit", "bash"]  # Dangerous for analysis task
+  next: ["report"]
+```
+
+**Progressive Tool Access:**
+
+```yaml
+# Stage 1: Read-only exploration
+explore:
+  type: "agent"
+  config:
+    models: ["haiku"]
+    tools: ["read", "code_search"]
+  next: ["plan"]
+
+# Stage 2: Planning (still read-only)
+plan:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["read", "grep", "semantic_search"]
+  next: ["implement"]
+
+# Stage 3: Implementation (write access)
+implement:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["read", "write", "edit"]  # Now allow modifications
+  next: ["verify"]
+
+# Stage 4: Verification (bash access)
+verify:
+  type: "deterministic"
+  action: "run_tests"
+  on:
+    pass: ["done"]
+    fail: ["fix"]  # Fix gets full access
+```
+
+#### Tool Selection Guidelines
+
+| Task | Recommended Tools | Rationale |
+|------|-------------------|-----------|
+| **Explore codebase** | `read`, `code_search`, `grep` | Read-only, comprehensive search |
+| **Find by concept** | `semantic_search`, `read` | Meaning-based search |
+| **Create new files** | `write`, `read` | No edit needed for new files |
+| **Modify existing code** | `read`, `edit` | Read first, then edit |
+| **Complex multi-file** | `read`, `write`, `edit`, `bash` | Full access for complex changes |
+| **Debug tests** | `read`, `edit`, `bash` | bash to run tests, edit to fix |
+
+#### Tool Allowlisting Examples
+
+**Example 1: Documentation Task (Read + Write)**
+
+```yaml
+# Safe: Can create new docs, can't modify code
+update_docs:
+  type: "agent"
+  config:
+    models: ["haiku"]
+    tools: ["read", "write"]  # No "edit" - can't modify existing files
+  next: ["done"]
+```
+
+**Example 2: Bug Fix (Full Access)**
+
+```yaml
+# Necessary: Bug fixes may require any operation
+fix_bug:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["read", "write", "edit", "bash", "grep"]
+  next: ["verify"]
+```
+
+**Example 3: Code Review (Read-Only)**
+
+```yaml
+# Safe: Reviewers shouldn't modify code
+review:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["read", "grep", "code_search"]  # Read-only tools only
+  next: ["approve"]
+```
+
+**Example 4: Refactoring (Read + Edit)**
+
+```yaml
+# Targeted: Refactoring modifies existing code
+refactor:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["read", "edit", "grep"]  # Edit for changes, grep for finding
+  next: ["verify"]
+```
+
+#### Common Anti-Patterns
+
+**❌ Anti-Pattern 1: Over-Permission**
+
+```yaml
+# Bad: Giving bash access for simple analysis
+analyze:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["read", "write", "edit", "bash"]  # Too much power
+  next: ["report"]
+```
+
+**✅ Better: Minimum required tools**
+
+```yaml
+analyze:
+  type: "agent"
+  config:
+    models: ["haiku"]
+    tools: ["read", "grep"]  # Sufficient for analysis
+  next: ["report"]
+```
+
+**❌ Anti-Pattern 2: Missing Read Tools**
+
+```yaml
+# Bad: Can edit but can't read existing code
+modify:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["write", "edit"]  # Missing "read"!
+  next: ["done"]
+```
+
+**✅ Better: Include read tools**
+
+```yaml
+modify:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["read", "write", "edit"]  # Read before editing
+  next: ["done"]
+```
+
+### 13.3 System Prompt
+
+The `systemPrompt` field allows you to override the default agent instructions for a specific state. This is powerful for guiding agent behavior.
+
+#### When to Use Custom System Prompts
+
+| Use Case | Example | Benefit |
+|----------|---------|---------|
+| **Task-Specific Instructions** | Bug fix vs. feature implementation | Tailored approach to different task types |
+| **Constraint Enforcement** | "Only modify tests, not production code" | Prevents unintended changes |
+| **Output Format** | "Return JSON with specific fields" | Structured, parseable outputs |
+| **Behavior Guidance** | "Be conservative vs. be aggressive" | Adjusts agent's decision-making |
+| **Role Definition** | "You are a security reviewer" | Context-appropriate perspective |
+
+#### System Prompt Hierarchy
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                 System Prompt Priority                       │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  1. Blueprint systemPrompt (Highest Priority)               │
+│     │                                                       │
+│     ├─► Overrides all other prompts                        │
+│     ├─► Used when: State-specific behavior needed           │
+│     └─► Example: "Fix tests, don't modify production code"  │
+│                                                             │
+│  2. Agent harness default prompt                            │
+│     │                                                       │
+│     ├─► Used when: No systemPrompt in blueprint            │
+│     ├─► General-purpose instructions                        │
+│     └─► Example: "You are a helpful coding assistant"       │
+│                                                             │
+│  3. Model base prompt (Lowest Priority)                     │
+│     │                                                       │
+│     ├─► Model's default behavior                            │
+│     ├─► Used when: No other prompts provided               │
+│     └─► Example: Model's built-in personality              │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Writing Effective System Prompts
+
+**Principle 1: Be Specific and Actionable**
+
+```yaml
+# ❌ Vague
+analyze:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["read", "grep"]
+    systemPrompt: "Analyze the code well."  # Too vague
+  next: ["report"]
+
+# ✅ Specific
+analyze:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["read", "grep"]
+    systemPrompt: |
+      Analyze the code for:
+      1. Security vulnerabilities (SQL injection, XSS, etc.)
+      2. Performance issues (N+1 queries, missing indexes)
+      3. Code smell (long functions, deep nesting)
+
+      For each issue found, provide:
+      - File path and line number
+      - Severity level (critical/high/medium/low)
+      - Specific recommendation for fix
+  next: ["report"]
+```
+
+**Principle 2: Define Constraints Explicitly**
+
+```yaml
+# ❌ Implicit constraints
+fix_tests:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["read", "edit"]
+    systemPrompt: "Fix the failing tests."  # Doesn't say what NOT to do
+  next: ["verify"]
+
+# ✅ Explicit constraints
+fix_tests:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["read", "edit"]
+    systemPrompt: |
+      Fix the failing tests with these constraints:
+      - ONLY modify files in tests/ directory
+      - DO NOT change production code (src/)
+      - DO NOT modify test assertions, only implementation
+      - Preserve test structure and naming
+
+      If tests fail due to production code bugs:
+      - Document the issue in a comment
+      - DO NOT fix the production code yourself
+  next: ["verify"]
+```
+
+**Principle 3: Provide Context and Examples**
+
+```yaml
+# ✅ Rich context with examples
+refactor:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["read", "edit"]
+    systemPrompt: |
+      Refactor the code to improve maintainability while preserving behavior.
+
+      Refactoring goals:
+      1. Extract repeated logic into functions
+      2. Simplify complex conditions
+      3. Improve naming clarity
+      4. Reduce cognitive complexity
+
+      Example transformation:
+
+      Before:
+      ```typescript
+      if (user && user.profile && user.profile.settings && user.profile.settings.notifications) {
+        // ...
+      }
+      ```
+
+      After:
+      ```typescript
+      const hasNotificationsEnabled = user?.profile?.settings?.notifications ?? false;
+      if (hasNotificationsEnabled) {
+        // ...
+      }
+      ```
+
+      Constraints:
+      - DO NOT change external interfaces
+      - DO NOT alter behavior (only structure)
+      - Run tests after each change
+  next: ["verify"]
+```
+
+#### Common System Prompt Patterns
+
+**Pattern 1: Role-Based Prompting**
+
+```yaml
+security_review:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["read", "grep"]
+    systemPrompt: |
+      You are a security reviewer with expertise in:
+      - OWASP Top 10 vulnerabilities
+      - Common security anti-patterns
+      - Authentication and authorization best practices
+
+      Review the code for security issues and provide:
+      1. Vulnerability description
+      2. Attack scenario
+      3. Recommended fix
+      4. Severity rating (critical/high/medium/low)
+  next: ["report"]
+```
+
+**Pattern 2: Output Format Specification**
+
+```yaml
+analyze:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["read", "grep"]
+    systemPrompt: |
+      Analyze the codebase and return findings in this JSON format:
+
+      {
+        "summary": "Brief overview",
+        "issues": [
+          {
+            "type": "security|performance|maintainability",
+            "severity": "critical|high|medium|low",
+            "file": "path/to/file.ts",
+            "line": 123,
+            "description": "Issue description",
+            "recommendation": "How to fix"
+          }
+        ],
+        "metrics": {
+          "totalFiles": 10,
+          "totalLines": 5000,
+          "issuesFound": 3
+        }
+      }
+
+      Return ONLY valid JSON, no markdown formatting.
+  next: ["process"]
+```
+
+**Pattern 3: Decision Tree Guidance**
+
+```yaml
+assess:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["read", "grep"]
+    systemPrompt: |
+      Assess the bug and choose the appropriate fix approach:
+
+      Decision Tree:
+
+      1. Is the bug in test code?
+         YES → Transition to "fix_tests"
+         NO → Continue to step 2
+
+      2. Is the bug a simple typo (fix < 5 lines)?
+         YES → Transition to "quick_fix"
+         NO → Continue to step 3
+
+      3. Does the fix require understanding multiple files?
+         YES → Transition to "complex_fix"
+         NO → Continue to step 4
+
+      4. Is the bug in a critical path (auth, payments)?
+         YES → Transition to "critical_fix"
+         NO → Transition to "standard_fix"
+
+      After assessment, transition to the appropriate state.
+  next: ["fix_tests", "quick_fix", "complex_fix", "critical_fix", "standard_fix"]
+```
+
+**Pattern 4: Progressive Prompting**
+
+```yaml
+# Stage 1: Broad exploration
+explore:
+  type: "agent"
+  config:
+    models: ["haiku"]
+    tools: ["read", "code_search"]
+    systemPrompt: |
+      Explore the codebase to understand:
+      1. Overall architecture
+      2. Main components and their relationships
+      3. Entry points and data flow
+
+      Provide a high-level summary (2-3 paragraphs).
+  next: ["deep_dive"]
+
+# Stage 2: Focused analysis
+deep_dive:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["read", "grep", "semantic_search"]
+    systemPrompt: |
+      Based on the exploration summary, perform a deep dive on:
+      1. Potential security vulnerabilities
+      2. Performance bottlenecks
+      3. Code quality issues
+
+      For each issue, provide:
+      - File path and line number
+      - Detailed explanation
+      - Recommended fix approach
+  next: ["report"]
+```
+
+#### System Prompt Best Practices
+
+**✅ DO:**
+
+- Use clear, specific instructions
+- Define constraints explicitly
+- Provide examples and context
+- Specify output format when needed
+- Include decision logic for branching
+- Iterate and refine based on results
+
+**❌ DON'T:**
+
+- Use vague instructions ("do a good job")
+- Over-constrain (paralysis by analysis)
+- Make prompts too long (loses focus)
+- Ignore model capabilities
+- Assume domain knowledge without context
+- Use prompts that conflict with tool access
+
+#### System Prompt Examples by Use Case
+
+**Bug Fix:**
+
+```yaml
+fix_bug:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["read", "edit", "bash"]
+    systemPrompt: |
+      Fix the bug described in the task. Approach:
+      1. Understand the bug from error messages and code
+      2. Identify root cause
+      3. Implement minimal fix
+      4. Verify fix addresses root cause, not symptoms
+
+      Principles:
+      - Fix the root cause, not workarounds
+      - Minimal changes (prefer small edits)
+      - Preserve existing behavior
+      - Add tests if applicable
+  next: ["verify"]
+```
+
+**Feature Implementation:**
+
+```yaml
+implement_feature:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["read", "write", "edit"]
+    systemPrompt: |
+      Implement the feature following:
+      1. Project architecture patterns
+      2. Existing code style and conventions
+      3. Type safety and error handling
+
+      Implementation checklist:
+      - [ ] Feature works as specified
+      - [ ] Error handling in place
+      - [ ] Type definitions updated
+      - [ ] Code follows project patterns
+      - [ ] Documentation updated
+  next: ["verify"]
+```
+
+**Refactoring:**
+
+```yaml
+refactor:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["read", "edit"]
+    systemPrompt: |
+      Refactor to improve code quality while preserving behavior.
+
+      Refactoring priorities:
+      1. Improve readability (naming, structure)
+      2. Reduce duplication (DRY principle)
+      3. Simplify complex logic
+      4. Better separation of concerns
+
+      Constraints:
+      - DO NOT change external interfaces
+      - DO NOT alter behavior (verify with tests)
+      - Make incremental changes (one improvement at a time)
+  next: ["verify"]
+```
+
+**Documentation:**
+
+```yaml
+document:
+  type: "agent"
+  config:
+    models: ["haiku"]
+    tools: ["read", "write"]
+    systemPrompt: |
+      Create clear, concise documentation following:
+      1. Project documentation style
+      2. Markdown formatting standards
+      3. Code examples where helpful
+
+      Documentation guidelines:
+      - Start with user's goal (not implementation details)
+      - Provide concrete examples
+      - Keep explanations brief and scannable
+      - Include edge cases and gotchas
+      - Link to related documentation
+  next: ["done"]
+```
+
+### 13.4 Complete Agent Configuration Examples
+
+**Example 1: Progressive Escalation Workflow**
+
+```yaml
+id: "progressive-escalation"
+name: "Progressive Escalation"
+description: "Starts fast, escalates model and tool access based on complexity"
+triggerKeywords: ["fix", "bug", "error"]
+priority: 100
+initialState: "assess"
+
+states:
+  # Fast assessment with minimal tools
+  assess:
+    type: "agent"
+    config:
+      name: "quick_assessor"
+      models: ["haiku"]
+      tools: ["read", "grep"]
+      systemPrompt: |
+        Quickly assess the bug:
+        1. What file is affected?
+        2. Is it a simple fix (< 5 lines)?
+
+        If simple → transition to "quick_fix"
+        If complex → transition to "detailed_analysis"
+    next: ["quick_fix", "detailed_analysis"]
+
+  # Simple fix with restricted access
+  quick_fix:
+    type: "agent"
+    config:
+      name: "fixer"
+      models: ["sonnet"]
+      tools: ["read", "edit"]  # No bash - simple edits only
+      systemPrompt: |
+        Apply a quick fix (< 5 line changes).
+        DO NOT run tests (will be done separately).
+    next: ["verify"]
+
+  # Deep analysis with full access
+  detailed_analysis:
+    type: "agent"
+    config:
+      name: "analyzer"
+      models: ["claude-sonnet-4-6", "sonnet"]  # Best quality with fallback
+      tools: ["read", "grep", "semantic_search"]  # Read-only
+      systemPrompt: |
+        Perform deep analysis:
+        1. Root cause identification
+        2. Impact assessment
+        3. Fix strategy
+        4. Risk evaluation
+
+        Provide detailed analysis report.
+    next: ["plan_fix"]
+
+  # Planning with quality model
+  plan_fix:
+    type: "agent"
+    config:
+      name: "planner"
+      models: ["sonnet"]
+      tools: ["read", "write"]  # Can create plan files
+      systemPrompt: |
+        Create implementation plan:
+        1. Step-by-step changes
+        2. Files to modify
+        3. Tests to add/update
+        4. Rollback strategy
+    next: ["implement"]
+
+  # Implementation with fallback
+  implement:
+    type: "agent"
+    config:
+      name: "implementer"
+      models: ["sonnet", "haiku"]  # Quality with cost fallback
+      tools: ["read", "write", "edit", "bash"]  # Full access
+      systemPrompt: |
+        Implement the plan:
+        1. Follow the plan step-by-step
+        2. Make incremental changes
+        3. Run tests after each change
+        4. Roll back if tests fail
+    next: ["verify"]
+
+  verify:
+    type: "deterministic"
+    action: "run_tests"
+    on:
+      pass: ["done"]
+      fail: ["implement"]  # Fix and retry
+
+  done:
+    type: "terminal"
+```
+
+**Example 2: Security Review with Role-Based Prompting**
+
+```yaml
+id: "security-review"
+name: "Security Review Workflow"
+description: "Security-focused code review with specialized prompts"
+triggerKeywords: ["security", "audit", "vulnerability"]
+priority: 100
+initialState: "scan"
+
+states:
+  # Automated vulnerability scan
+  scan:
+    type: "agent"
+    config:
+      name: "scanner"
+      models: ["haiku"]  # Fast scanning
+      tools: ["grep", "read"]
+      systemPrompt: |
+        Scan for common vulnerability patterns:
+        1. SQL injection: (query.*, execute.*, `.*$\{.*\}.*`)
+        2. XSS: (innerHTML.*, insertAdjacentHTML.*)
+        3. Hardcoded secrets: (api_key.*, password.*, secret.*=.*['"].*['"])
+        4. Missing auth: (public.*, noAuth.*true)
+
+        For each match, provide file path, line number, and severity.
+    next: ["analyze"]
+
+  # Deep security analysis
+  analyze:
+    type: "agent"
+    config:
+      name: "security_analyst"
+      models: ["claude-sonnet-4-6"]  # Best reasoning for security
+      tools: ["read", "grep", "semantic_search"]
+      systemPrompt: |
+        You are a security expert. Analyze the code for:
+        1. Authentication and authorization flaws
+        2. Input validation issues
+        3. Cryptographic weaknesses
+        4. Insecure data handling
+        5. Dependency vulnerabilities
+
+        For each vulnerability found:
+        - Describe the attack scenario
+        - Estimate exploitability (easy/medium/hard)
+        - Assess impact (low/medium/high/critical)
+        - Provide specific remediation steps
+    next: ["report"]
+
+  # Generate security report
+  report:
+    type: "agent"
+    config:
+      name: "reporter"
+      models: ["sonnet"]
+      tools: ["write"]
+      systemPrompt: |
+        Generate security report in markdown:
+
+        # Security Review Report
+
+        ## Executive Summary
+        - Total vulnerabilities: X
+        - Critical: X, High: X, Medium: X, Low: X
+
+        ## Findings
+
+        ### [CRITICAL/HIGH/MEDIUM/LOW] Vulnerability Name
+        **Location:** `file.ts:123`
+        **Exploitability:** Easy/Medium/Hard
+        **Impact:** Low/Medium/High/Critical
+
+        **Description:**
+        [Detailed description]
+
+        **Remediation:**
+        [Specific fix steps]
+
+        ## Recommendations
+        [Prioritized action items]
+    next: ["done"]
+
+  done:
+    type: "terminal"
+```
+
+**Example 3: Multi-Stage Documentation Generation**
+
+```yaml
+id: "docs-generator"
+name: "Documentation Generator"
+description: "Generate documentation with multiple refinement stages"
+triggerKeywords: ["document", "docs", "readme"]
+priority: 80
+initialState: "outline"
+
+states:
+  # Create outline with fast model
+  outline:
+    type: "agent"
+    config:
+      name: "outliner"
+      models: ["haiku"]  # Fast model for outline
+      tools: ["read", "code_search"]
+      systemPrompt: |
+        Create documentation outline:
+        1. Scan codebase to understand structure
+        2. Identify key components and features
+        3. Create hierarchical outline with sections
+
+        Output structure:
+        # Title
+        ## Overview
+        ## Installation
+        ## Usage
+        ## API Reference
+        ## Examples
+        ## Contributing
+    next: ["draft"]
+
+  # Write first draft with medium model
+  draft:
+    type: "agent"
+    config:
+      name: "drafter"
+      models: ["sonnet"]  # Quality model for content
+      tools: ["read", "write"]
+      systemPrompt: |
+        Write documentation based on outline:
+        1. Follow the outline structure
+        2. Write clear, concise explanations
+        3. Include code examples
+        4. Add practical use cases
+
+        Writing style:
+        - Start with user's goal
+        - Provide concrete examples
+        - Keep explanations brief
+        - Use formatting for readability
+    next: ["review"]
+
+  # Review and refine with best model
+  review:
+    type: "agent"
+    config:
+      name: "refiner"
+      models: ["claude-sonnet-4-6"]  # Best model for refinement
+      tools: ["read", "edit"]
+      systemPrompt: |
+        Review and refine documentation:
+        1. Check for clarity and completeness
+        2. Verify accuracy of code examples
+        3. Improve flow and readability
+        4. Fix grammar and style issues
+        5. Add missing information
+
+        Focus on:
+        - Is the explanation clear to newcomers?
+        - Are examples accurate and runnable?
+        - Is formatting consistent?
+        - Are edge cases covered?
+    next: ["format"]
+
+  # Format and finalize
+  format:
+    type: "agent"
+    config:
+      name: "formatter"
+      models: ["haiku"]  # Fast model for formatting
+      tools: ["edit"]
+      systemPrompt: |
+        Final formatting pass:
+        1. Ensure consistent heading levels
+        2. Check code block syntax highlighting
+        3. Verify link references
+        4. Add table of contents if needed
+    next: ["done"]
+
+  done:
+    type: "terminal"
+```
+
+### 13.5 Agent Configuration Checklist
+
+When configuring agent states, verify:
+
+**Models Array:**
+- [ ] Models are ordered by priority (best first)
+- [ ] Fallback models are appropriate for the task
+- [ ] Cost/speed/quality tradeoffs are considered
+- [ ] Model capabilities match task complexity
+
+**Tool Allowlist:**
+- [ ] Only necessary tools are included
+- [ ] Read tools are included if write/edit tools are used
+- [ ] Security risks are assessed (especially for `bash`)
+- [ ] Tools match the task requirements
+
+**System Prompt:**
+- [ ] Instructions are specific and actionable
+- [ ] Constraints are explicitly defined
+- [ ] Examples and context are provided
+- [ ] Output format is specified if needed
+- [ ] Decision logic is clear for branching states
+- [ ] Role is defined if using specialized prompting
 
 ---
 
