@@ -10,11 +10,12 @@ The Bullhorse blueprint system is a state machine workflow framework inspired by
 4. [Loading Blueprints](#4-loading-blueprints) - Loading and validation
 5. [Selection Logic](#5-selection-logic) - Automatic blueprint selection
 6. [Compilation](#6-compilation) - Converting blueprints to LangGraph
-7. [Built-in Actions](#7-built-in-actions) - Deterministic node implementations
-8. [Custom Actions](#8-custom-actions) - Creating and registering actions
-9. [Creating Blueprints](#9-creating-blueprints) - Writing custom blueprints
-10. [Default Blueprints](#10-default-blueprints) - Included blueprint examples
-11. [API Reference](#11-api-reference) - Complete API documentation
+7. [State Transitions](#7-state-transitions) - Simple and conditional transitions
+8. [Built-in Actions](#8-built-in-actions) - Deterministic node implementations
+9. [Custom Actions](#9-custom-actions) - Creating and registering actions
+10. [Creating Blueprints](#10-creating-blueprints) - Writing custom blueprints
+11. [Default Blueprints](#11-default-blueprints) - Included blueprint examples
+12. [API Reference](#12-api-reference) - Complete API documentation
 
 ---
 
@@ -1246,7 +1247,695 @@ graph.addConditionalEdges(
 
 ---
 
-## 7. Built-in Actions
+## 7. State Transitions
+
+State transitions define how the workflow moves from one state to another based on execution results. The blueprint system supports two types of transitions: **simple transitions** for agent states and **conditional transitions** for deterministic states.
+
+### Overview
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      State Transition Flow                      │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│   ┌──────────────┐    simple edges     ┌──────────────┐         │
+│   │ Agent State  │ ──────────────────► │ Next State   │         │
+│   │              │    (agent chooses)  │              │         │
+│   └──────────────┘                      └──────────────┘         │
+│         │                                                        │
+│         │ next[] array                                          │
+│         ▼                                                        │
+│   ┌──────────────┐                                             │
+│   │ Deterministic│    conditional edges                        │
+│   │ State        │ ──────────────────►  pass / fail            │
+│   │              │    (based on result)                        │
+│   └──────────────┘                      └──────────────┘       │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 7.1 Simple Transitions
+
+Simple transitions are used by **agent states** where the LLM dynamically chooses which state to transition to from a list of possible next states.
+
+#### How Simple Transitions Work
+
+```yaml
+agent_state:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["read", "write"]
+  next: ["option_a", "option_b", "option_c"]
+  # Agent uses reasoning to choose ONE of these options
+```
+
+**Key Characteristics:**
+
+| Feature | Description |
+|---------|-------------|
+| **Array of options** | The `next` property contains multiple possible state IDs |
+| **Agent choice** | The LLM evaluates the situation and selects the most appropriate next state |
+| **Dynamic routing** | Different executions may choose different paths based on context |
+| **No conditions** | All states in the array are equally valid choices |
+
+#### Simple Transition Examples
+
+**Single Next State:**
+
+```yaml
+implement:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["write", "edit"]
+  next: ["verify"]  # Only one option (effectively deterministic)
+```
+
+**Multiple Next States (Branching):**
+
+```yaml
+assess:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["read", "grep"]
+    systemPrompt: |
+      Assess the bug complexity and choose the appropriate approach:
+      - "simple_fix" for straightforward bugs
+      - "complex_refactor" for architectural issues
+      - "manual_review" for cases requiring human judgment
+  next: ["simple_fix", "complex_refactor", "manual_review"]
+```
+
+**Pipeline Flow:**
+
+```yaml
+explore:
+  type: "agent"
+  config:
+    models: ["haiku"]
+    tools: ["read", "code_search"]
+  next: ["plan"]  # Always goes to plan
+
+plan:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["write"]
+  next: ["implement"]  # Always goes to implement
+
+implement:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["write", "edit"]
+  next: ["verify", "skip_verification"]  # Agent decides if verification is needed
+```
+
+#### How Simple Transitions Are Compiled
+
+In the `BlueprintCompiler`, simple transitions are compiled using LangGraph's `addEdge()` method:
+
+```typescript
+// From src/blueprints/compiler.ts
+private addEdges(graph: any, blueprint: Blueprint): void {
+  for (const [stateId, state] of Object.entries(blueprint.states)) {
+    if (state.type === "agent") {
+      for (const next of state.next) {
+        graph.addEdge(stateId, next);
+      }
+    }
+  }
+}
+```
+
+**What happens:**
+
+1. Each state ID in the `next` array becomes a separate edge
+2. The agent node evaluates which edge to follow during execution
+3. The chosen state becomes the next `currentState` in the workflow
+
+### 7.2 Conditional Transitions
+
+Conditional transitions are used by **deterministic states** where the next state depends on whether the action succeeded or failed.
+
+#### How Conditional Transitions Work
+
+```yaml
+verify:
+  type: "deterministic"
+  action: "run_tests"
+  on:
+    pass: ["deploy"]     # If tests pass (exit code 0)
+    fail: ["fix_tests"]  # If tests fail (non-zero exit code)
+```
+
+**Key Characteristics:**
+
+| Feature | Description |
+|---------|-------------|
+| **Result-based** | Transition depends on action execution result |
+| **Binary outcome** | Either `pass` (success) or `fail` (failure) |
+| **Automatic routing** | No agent choice - determined by exit code |
+| **Optional branches** | Can specify only `pass`, only `fail`, or both |
+
+#### Conditional Transition Rules
+
+The system evaluates conditional transitions based on the action's `ActionResult`:
+
+```typescript
+interface ActionResult {
+  success: boolean;  // true = pass, false = fail
+  output?: string;
+  error?: string;
+}
+```
+
+**Decision Logic:**
+
+```
+┌─────────────────────────────────────────────────────┐
+│          Conditional Transition Logic               │
+├─────────────────────────────────────────────────────┤
+│                                                      │
+│  Action executes → ActionResult.success?            │
+│         │                                           │
+│    ┌────┴────┐                                      │
+│    │         │                                      │
+│  true      false                                    │
+│    │         │                                      │
+│    ▼         ▼                                      │
+│  pass       fail                                    │
+│    │         │                                      │
+│    ▼         ▼                                      │
+│ on.pass   on.fail                                   │
+│    │         │                                      │
+│    ▼         ▼                                      │
+│ Pass       Fail                                     │
+│ States     States                                   │
+│                                                      │
+└─────────────────────────────────────────────────────┘
+```
+
+**Default Behavior:**
+
+| Condition | Default Transition |
+|-----------|-------------------|
+| No `on.pass` specified | `["__end__"]` (workflow ends) |
+| No `on.fail` specified | `["__end__"]` (workflow ends) |
+| No `on` specified | `["__end__"]` (implicit terminal) |
+| Both specified | Follows the appropriate branch |
+
+#### Conditional Transition Examples
+
+**Both Pass and Fail Paths:**
+
+```yaml
+verify:
+  type: "deterministic"
+  action: "run_tests"
+  on:
+    pass: ["deploy"]      # Tests pass → proceed to deployment
+    fail: ["fix_tests"]   # Tests fail → go back to fixing
+```
+
+**Only Pass Path (Fail Ends Workflow):**
+
+```yaml
+lint:
+  type: "deterministic"
+  action: "run_linters"
+  on:
+    pass: ["test"]  # Lint passes → test
+    # fail defaults to ["__end__"] - workflow ends on lint failure
+```
+
+**Only Fail Path (Pass Ends Workflow):**
+
+```yaml
+check_blocker:
+  type: "deterministic"
+  action: "check_blocking_issues"
+  on:
+    fail: ["block"]  # Issues found → block deployment
+    # pass defaults to ["__end__"] - workflow continues on success
+```
+
+**Multiple Pass/Fail States:**
+
+```yaml
+comprehensive_test:
+  type: "deterministic"
+  action: "run_full_test_suite"
+  on:
+    pass: ["deploy_staging", "notify_success"]  # Multiple success states
+    fail: ["log_failure", "create_issue", "notify_team"]  # Multiple failure states
+```
+
+**Verification Loop Pattern:**
+
+```yaml
+implement:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["write", "edit"]
+  next: ["verify"]
+
+verify:
+  type: "deterministic"
+  action: "run_tests"
+  on:
+    pass: ["done"]      # Tests pass → workflow complete
+    fail: ["fix"]       # Tests fail → fix issues
+
+fix:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["edit"]
+    systemPrompt: "Fix the failing tests based on the error output."
+  next: ["verify"]     # After fixing, verify again (loop)
+
+done:
+  type: "terminal"
+```
+
+#### How Conditional Transitions Are Compiled
+
+In the `BlueprintCompiler`, conditional transitions are compiled using LangGraph's `addConditionalEdges()` method:
+
+```typescript
+// From src/blueprints/compiler.ts
+private addEdges(graph: any, blueprint: Blueprint): void {
+  for (const [stateId, state] of Object.entries(blueprint.states)) {
+    if (state.type === "deterministic" && state.on) {
+      graph.addConditionalEdges(
+        stateId,
+        (s: typeof BlueprintStateAnnotation.State) =>
+          s.lastResult?.success ? "pass" : "fail",
+        {
+          pass: state.on.pass || ["__end__"],
+          fail: state.on.fail || ["__end__"],
+        },
+      );
+    }
+  }
+}
+```
+
+**What happens:**
+
+1. A routing function checks `lastResult?.success` to determine outcome
+2. The graph follows the `pass` edge if `success === true`
+3. The graph follows the `fail` edge if `success === false`
+4. If either branch is undefined, it defaults to `["__end__"]`
+
+### 7.3 Transition Logic
+
+The `BlueprintCompiler` processes transitions in a specific order, with deterministic states supporting both conditional and simple transitions.
+
+#### Transition Priority
+
+For **deterministic states**, the compiler checks for transitions in this order:
+
+```
+┌──────────────────────────────────────────────────┐
+│         Deterministic State Transition          │
+│                   Priority                       │
+├──────────────────────────────────────────────────┤
+│                                                  │
+│  1. Check for 'on' (conditional transitions)    │
+│     │                                            │
+│     ├─► Found: Use conditional edges            │
+│     │    (pass/fail based on result)            │
+│     │                                            │
+│     └─► Not found: Check for 'next'             │
+│          │                                        │
+│          ├─► Found: Use simple edges             │
+│          │    (all states in array)              │
+│          │                                        │
+│          └─► Not found: Transition to __end__    │
+│                                                  │
+└──────────────────────────────────────────────────┘
+```
+
+**Rules:**
+
+| State Type | Property Checked | Behavior |
+|------------|-----------------|----------|
+| **Agent** | `next` (required) | Uses simple edges for all states in array |
+| **Deterministic** | `on` (optional) | Uses conditional edges if specified |
+| **Deterministic** | `next` (fallback) | Uses simple edges if `on` not specified |
+| **Deterministic** | (neither) | Transitions to `["__end__"]` |
+| **Terminal** | (none) | End of workflow |
+
+#### Node Ends Configuration
+
+The compiler also configures "node ends" - the possible destination states for each node:
+
+```typescript
+private getNodeEnds(state: State): string[] {
+  if (state.type === "agent") {
+    return state.next;
+  } else if (state.type === "deterministic" && state.on) {
+    return [...(state.on.pass || []), ...(state.on.fail || [])];
+  }
+  return [];
+}
+```
+
+**Purpose:**
+
+- Helps LangGraph optimize graph execution
+- Provides visibility into all possible exit paths from a node
+- Used for graph validation and visualization
+
+#### Complete Transition Flow Example
+
+```yaml
+id: "complete-example"
+initialState: "assess"
+
+states:
+  assess:
+    type: "agent"
+    config:
+      models: ["sonnet"]
+      tools: ["read", "grep"]
+    next: ["simple", "complex"]
+
+  simple:
+    type: "agent"
+    config:
+      models: ["haiku"]
+      tools: ["edit"]
+    next: ["verify"]
+
+  complex:
+    type: "agent"
+    config:
+      models: ["claude-sonnet-4-6"]
+      tools: ["write", "read"]
+    next: ["verify"]
+
+  verify:
+    type: "deterministic"
+    action: "run_tests"
+    on:
+      pass: ["deploy"]
+      fail: ["fix"]
+
+  fix:
+    type: "agent"
+    config:
+      models: ["sonnet"]
+      tools: ["edit"]
+    next: ["verify"]
+
+  deploy:
+    type: "deterministic"
+    action: "deploy_to_production"
+    on:
+      pass: ["success"]
+      fail: ["rollback"]
+
+  rollback:
+    type: "agent"
+    config:
+      models: ["sonnet"]
+      tools: ["bash"]
+    next: ["notify"]
+
+  success:
+    type: "terminal"
+
+  notify:
+    type: "deterministic"
+    action: "notify_team"
+    # No 'on' specified → transitions to __end__
+```
+
+**Execution Paths:**
+
+```
+Simple path:
+  assess ──► simple ──► verify ──► deploy ──► success (terminal)
+
+Complex path with failure:
+  assess ──► complex ──► verify ──► fix ──► verify ──► deploy ──► rollback ──► notify ──► __end__
+```
+
+### 7.4 Transition Best Practices
+
+#### 1. Verification Loops
+
+Always provide a fix path for verification states:
+
+```yaml
+# ✅ Good - Complete verification loop
+verify:
+  type: "deterministic"
+  action: "run_tests"
+  on:
+    pass: ["done"]
+    fail: ["fix"]
+
+fix:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["edit"]
+  next: ["verify"]  # Loop back to verification
+```
+
+```yaml
+# ❌ Bad - No fix path (tests fail → workflow ends)
+verify:
+  type: "deterministic"
+  action: "run_tests"
+  on:
+    pass: ["done"]
+    # No fail path - failures end the workflow
+```
+
+#### 2. Explicit Transitions
+
+Be explicit about transition destinations:
+
+```yaml
+# ✅ Good - Explicit transitions
+check:
+  type: "deterministic"
+  action: "verify_types"
+  on:
+    pass: ["continue"]
+    fail: ["fix_types", "log_error"]  # Clear failure path
+```
+
+```yaml
+# ❌ Bad - Implicit end state
+check:
+  type: "deterministic"
+  action: "verify_types"
+  # No 'on' - failures silently end the workflow
+```
+
+#### 3. Agent State Branching
+
+Use agent states for intelligent routing:
+
+```yaml
+# ✅ Good - Agent chooses based on context
+assess:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["read", "grep"]
+    systemPrompt: |
+      Analyze the bug and choose the appropriate fix approach:
+      - "quick_fix" for simple bugs (< 10 lines)
+      - "refactor" for complex issues requiring architectural changes
+      - "investigate" for bugs requiring deeper research
+  next: ["quick_fix", "refactor", "investigate"]
+```
+
+```yaml
+# ❌ Bad - Deterministic state for decision-making
+assess:
+  type: "deterministic"
+  action: "check_bug_type"
+  on:
+    pass: ["quick_fix"]  # Can't handle multiple outcomes
+    fail: ["refactor"]
+```
+
+#### 4. Terminal State Placement
+
+Always end workflows explicitly:
+
+```yaml
+# ✅ Good - Explicit terminal state
+verify:
+  type: "deterministic"
+  action: "run_tests"
+  on:
+    pass: ["done"]      # Explicit terminal state
+    fail: ["fix"]
+
+done:
+  type: "terminal"
+```
+
+```yaml
+# ⚠️ Acceptable - Implicit terminal (for unimportant branches)
+notify:
+  type: "deterministic"
+  action: "send_notification"
+  # No 'on' - transitions to __end__ automatically
+```
+
+#### 5. Avoid Infinite Loops
+
+Ensure loops have exit conditions:
+
+```yaml
+# ✅ Good - Loop with exit
+verify:
+  type: "deterministic"
+  action: "run_tests"
+  on:
+    pass: ["deploy"]  # Exit path on success
+    fail: ["fix"]
+
+fix:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["edit"]
+    systemPrompt: |
+      Fix the failing tests. If you've attempted 3+ times,
+      transition to 'manual_review' instead of 'verify'.
+  next: ["verify", "manual_review"]  # Possible exit from loop
+
+manual_review:
+  type: "terminal"
+```
+
+```yaml
+# ❌ Bad - Potential infinite loop
+fix:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["edit"]
+  next: ["verify"]  # Always goes back to verify, no other option
+
+verify:
+  type: "deterministic"
+  action: "run_tests"
+  on:
+    pass: ["deploy"]
+    fail: ["fix"]  # If fix never succeeds, infinite loop
+```
+
+### 7.5 Transition Patterns
+
+#### Pattern 1: Linear Pipeline
+
+```yaml
+step1:
+  type: "agent"
+  next: ["step2"]
+
+step2:
+  type: "agent"
+  next: ["step3"]
+
+step3:
+  type: "agent"
+  next: ["done"]
+
+done:
+  type: "terminal"
+```
+
+#### Pattern 2: Verification Loop
+
+```yaml
+implement:
+  type: "agent"
+  next: ["verify"]
+
+verify:
+  type: "deterministic"
+  action: "run_tests"
+  on:
+    pass: ["done"]
+    fail: ["fix"]
+
+fix:
+  type: "agent"
+  next: ["verify"]  # Loop back
+
+done:
+  type: "terminal"
+```
+
+#### Pattern 3: Multi-Branch with Convergence
+
+```yaml
+assess:
+  type: "agent"
+  next: ["branch_a", "branch_b", "branch_c"]
+
+branch_a:
+  type: "agent"
+  next: ["merge"]
+
+branch_b:
+  type: "agent"
+  next: ["merge"]
+
+branch_c:
+  type: "agent"
+  next: ["merge"]
+
+merge:
+  type: "deterministic"
+  action: "finalize"
+  on:
+    pass: ["done"]
+
+done:
+  type: "terminal"
+```
+
+#### Pattern 4: Progressive Enhancement
+
+```yaml
+quick_check:
+  type: "deterministic"
+  action: "basic_lint"
+  on:
+    pass: ["deploy"]
+    fail: ["full_check"]
+
+full_check:
+  type: "deterministic"
+  action: "comprehensive_test"
+  on:
+    pass: ["deploy"]
+    fail: ["fix"]
+
+deploy:
+  type: "terminal"
+```
+
+---
+
+## 8. Built-in Actions
 
 ### Action Registry
 
@@ -1393,7 +2082,7 @@ parseCommandArgs('echo "Hello \'world\'"');
 
 ---
 
-## 8. Custom Actions
+## 9. Custom Actions
 
 ### Creating Custom Actions
 
@@ -1531,7 +2220,7 @@ const safeAction: DeterministicAction = {
 
 ---
 
-## 9. Creating Blueprints
+## 10. Creating Blueprints
 
 ### Minimal Blueprint Template
 
@@ -1754,7 +2443,7 @@ triggerKeywords: []
 
 ---
 
-## 10. Default Blueprints
+## 11. Default Blueprints
 
 ### Included Blueprints
 
@@ -1887,7 +2576,7 @@ implement (sonnet) → done
 
 ---
 
-## 11. API Reference
+## 12. API Reference
 
 ### Loading API
 
