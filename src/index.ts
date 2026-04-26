@@ -145,8 +145,10 @@ async function handleTelegramMessage(msg: any, telegramBotToken: string, parseMo
   // Process the message and send reply
   const reply = await processMessage(threadId, enrichedText, userId);
 
-  // Format reply for Telegram MarkdownV2
-  const formattedReply = formatTelegramMarkdownV2(reply);
+  // Format reply for Telegram MarkdownV2 (only when parseMode is MarkdownV2)
+  const formattedReply = parseMode === "MarkdownV2"
+    ? formatTelegramMarkdownV2(reply)
+    : reply;
 
   // Send reply back to Telegram
   await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {

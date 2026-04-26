@@ -274,8 +274,10 @@ app.post("/webhook/telegram", async (c) => {
         // Process the message
         const reply = await processMessage(threadId, msg.text);
 
-        // Format reply for Telegram MarkdownV2
-        const formattedReply = formatTelegramMarkdownV2(reply);
+        // Format reply for Telegram MarkdownV2 (only when parseMode is MarkdownV2)
+        const formattedReply = telegramParseMode === "MarkdownV2"
+          ? formatTelegramMarkdownV2(reply)
+          : reply;
 
         // Send reply back to Telegram
         await fetch(

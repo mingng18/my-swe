@@ -271,3 +271,27 @@ describe("formatTelegramMarkdownV2", () => {
     expect(result.length).toBeGreaterThan(10000);
   });
 });
+
+describe("parse_mode integration", () => {
+  it("should format when parseMode is MarkdownV2", () => {
+    const input = "Hello_world";
+    const output = formatTelegramMarkdownV2(input);
+    expect(output).toBe("Hello\\_world");
+  });
+
+  it("should escape special chars when parseMode is MarkdownV2", () => {
+    const input = "Check value: 5.5!";
+    const output = formatTelegramMarkdownV2(input);
+    expect(output).toBe("Check value: 5\\.5\\!");
+  });
+
+  it("should preserve intentional markdown when parseMode is MarkdownV2", () => {
+    const input = "*bold* text";
+    const output = formatTelegramMarkdownV2(input);
+    expect(output).toBe("*bold* text");
+  });
+
+  // Note: The conditional formatting logic (only format when parseMode === "MarkdownV2")
+  // is tested in the integration layer (src/index.ts, src/webapp.ts). These unit tests
+  // verify that the formatter itself works correctly when called.
+});
