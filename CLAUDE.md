@@ -287,6 +287,211 @@ Skills are activated automatically by the agent when it recognizes a task that m
 | `artifact_list` | List all artifacts for current thread |
 | `artifact_delete` | Delete a specific artifact |
 
+## Cache Utility
+
+Bullhorse provides a generic LRU (Least Recently Used) cache utility for caching API responses, file contents, and computational results. The cache supports size-based eviction, TTL expiration, and pattern-based invalidation.
+
+### Core Features
+
+- **LRU Eviction**: Automatically removes least recently used entries when size limit is reached
+- **TTL Expiration**: Time-based expiration for cached entries
+- **Parameterized Keys**: Cache keys can include parameters for granular caching
+- **Statistics**: Track hits, misses, and hit ratios for performance monitoring
+- **Pattern Invalidation**: Bulk invalidation using regex patterns
+
+### Basic Usage
+
+```typescript
+import { GenericCache, createCache } from './utils/cache/lru-cache';
+
+// Create a cache instance
+const cache = new GenericCache({
+  maxSize: 100 * 1024 * 1024, // 100MB
+  ttl: 30 * 60 * 1000, // 30 minutes
+  debug: "MyCache", // Optional debug logging
+});
+
+// Or use the factory function
+const cache = createCache({ ttl: 60 * 60 * 1000 });
+
+// Store and retrieve values
+cache.set("user:123", { name: "Alice", email: "alice@example.com" });
+const user = cache.get<{ name: string; email: string }>("user:123");
+
+// Check if key exists
+if (cache.has("user:123")) {
+  console.log("User data is cached");
+}
+
+// Delete specific entry
+cache.delete("user:123");
+
+// Clear all entries
+cache.clear();
+```
+
+### Parameterized Cache Keys
+
+Cache entries can be parameterized for granular caching:
+
+```typescript
+// Same endpoint, different parameters are cached separately
+cache.set("api/users", page1Data, { page: 1, limit: 10 });
+cache.set("api/users", page2Data, { page: 2, limit: 10 });
+
+const page1 = cache.get("api/users", { page: 1, limit: 10 });
+const page2 = cache.get("api/users", { page: 2, limit: 10 });
+
+// Parameters are sorted alphabetically in the cache key
+// Key format: "api/users?page=1&limit=10"
+```
+
+### Caching Function Calls
+
+Use `cachedCall` to automatically cache expensive operations:
+
+```typescript
+import { cachedCall } from './utils/cache/lru-cache';
+
+const cache = new GenericCache();
+
+async function fetchUser(userId: string) {
+  return await cachedCall(
+    cache,
+    "user", // Base cache key
+    { userId }, // Parameters
+    async () => {
+      // Only called on cache miss
+      const response = await fetch(`/api/users/${userId}`);
+      return response.json();
+    }
+  );
+}
+
+// First call executes the function
+const user1 = await fetchUser("123");
+
+// Subsequent calls return cached value
+const user2 = await fetchUser("123");
+```
+
+### Conditional Caching
+
+Use `conditionalCachedCall` to selectively bypass cache:
+
+```typescript
+import { conditionalCachedCall } from './utils/cache/lru-cache';
+
+async function apiCall(method: string, endpoint: string, params: object) {
+  return await conditionalCachedCall(
+    cache,
+    method === "GET", // Only cache GET requests
+    endpoint,
+    params,
+    async () => fetchApi(method, endpoint, params)
+  );
+}
+```
+
+### Pattern-Based Invalidation
+
+Invalidate multiple cache entries matching a regex pattern:
+
+```typescript
+// Invalidate all user-related cache entries
+cache.invalidate("user:.*");
+
+// Invalidate all entries for a specific repository
+cache.invalidate("repos/owner/repo/.*");
+
+// Invalidate all pagination results for an endpoint
+cache.invalidate("api/users.*page=");
+
+// Returns the number of entries invalidated
+const count = cache.invalidate("user:.*");
+console.log(`Invalidated ${count} entries`);
+```
+
+### Cache Statistics
+
+Monitor cache performance with built-in statistics:
+
+```typescript
+const stats = cache.getStats();
+
+console.log(`Entries: ${stats.size} / ${stats.maxSize} bytes`);
+console.log(`Calculated size: ${stats.calculatedSize} bytes`);
+console.log(`Hits: ${stats.hits}, Misses: ${stats.misses}`);
+console.log(`Hit ratio: ${(stats.hitRatio * 100).toFixed(1)}%`);
+console.log(`TTL: ${stats.ttl}ms`);
+
+// Reset counters for periodic monitoring
+cache.resetStats();
+```
+
+### Environment Configuration
+
+Configure default cache behavior via environment variables:
+
+```bash
+# Cache defaults (used when options not provided)
+CACHE_DEFAULT_MAX_SIZE_MB=50        # Default: 50MB
+CACHE_DEFAULT_TTL_MS=900000         # Default: 15 minutes (900000ms)
+CACHE_DEBUG=true                    # Enable debug logging
+```
+
+Priority order (highest to lowest):
+1. User-provided options (in constructor)
+2. Environment variables
+3. Hardcoded defaults (50MB, 15 minutes)
+
+### GitHub API Cache Example
+
+The GitHub API cache demonstrates real-world usage:
+
+```typescript
+import { githubApiCache, cachedGithubApiCall, invalidateRepoCache } from './utils/github/github-cache';
+
+// Automatic caching for GET requests
+async function fetchRepo(owner: string, repo: string) {
+  return await cachedGithubApiCall(
+    "GET",
+    `repos/${owner}/${repo}`,
+    { owner, repo },
+    async () => await octokit.request(`GET /repos/${owner}/${repo}`)
+  );
+}
+
+// Invalidate cache after mutations
+async function createIssue(owner: string, repo: string, title: string) {
+  const result = await octokit.request(`POST /repos/${owner}/${repo}/issues`, { title });
+  invalidateRepoCache(owner, repo); // Clear stale cache
+  return result;
+}
+
+// Monitor cache effectiveness
+const stats = githubApiCache.getStats();
+console.log(`GitHub API cache hit ratio: ${(stats.hitRatio * 100).toFixed(1)}%`);
+```
+
+### Best Practices
+
+1. **Cache Size**: Set appropriate `maxSize` based on available memory and data volume
+2. **TTL**: Use shorter TTLs (5-15 minutes) for rapidly changing data
+3. **Invalidation**: Always invalidate cache after mutations (POST/PUT/DELETE)
+4. **Parameters**: Include all parameters that affect the result in the cache key
+5. **Monitoring**: Regularly check `getStats()` to ensure cache is effective
+6. **Debug**: Enable debug logging during development to understand cache behavior
+
+### Testing
+
+The cache utility includes comprehensive tests:
+
+```bash
+# Run cache tests
+bun test src/utils/cache/__tests__/lru-cache.test.ts
+```
+
 ## New Environment Variables
 
 ```bash
@@ -309,6 +514,11 @@ SEMANTIC_SEARCH_ENABLED=true
 # Skills
 SKILLS_ENABLED=true
 SKILLS_PATH=.agents/skills
+
+# Cache Utility
+CACHE_DEFAULT_MAX_SIZE_MB=50
+CACHE_DEFAULT_TTL_MS=900000
+CACHE_DEBUG=true
 
 # Telemetry
 OTEL_ENABLED=true

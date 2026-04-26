@@ -621,6 +621,29 @@ app.get("/metrics", async (c) => {
 });
 
 /**
+ * Tool usage analytics endpoint
+ * GET /analytics/tools
+ */
+app.get("/analytics/tools", async (c) => {
+  const { getGlobalToolMetrics } = await import("./utils/telemetry");
+
+  try {
+    const tools = getGlobalToolMetrics();
+
+    return c.json({
+      tools,
+      timestamp: Date.now(),
+    });
+  } catch (error) {
+    log.error({ error }, "[webapp] /analytics/tools error");
+    return c.json(
+      { error: error instanceof Error ? error.message : "Unknown error" },
+      500,
+    );
+  }
+});
+
+/**
  * Trace dashboard for a specific thread (HTML)
  * GET /dashboard/thread/:threadId
  */
