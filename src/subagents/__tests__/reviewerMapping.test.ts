@@ -59,7 +59,7 @@ describe("getReviewersForFile", () => {
     ]);
   });
 
-  it("auth/login files → ['code-reviewer', 'security-reviewer']", () => {
+  it("auth/login files → ['code-reviewer', 'typescript-reviewer', 'security-reviewer']", () => {
     expect(getReviewersForFile("auth/login.js")).toEqual([
       "code-reviewer",
       "security-reviewer",
@@ -70,6 +70,7 @@ describe("getReviewersForFile", () => {
     ]);
     expect(getReviewersForFile("login/index.ts")).toEqual([
       "code-reviewer",
+      "typescript-reviewer",
       "security-reviewer",
     ]);
   });
@@ -82,9 +83,10 @@ describe("getReviewersForFile", () => {
     ]);
   });
 
-  it("API files → ['code-reviewer', 'security-reviewer']", () => {
+  it("API files → ['code-reviewer', 'typescript-reviewer', 'security-reviewer']", () => {
     expect(getReviewersForFile("api/users.ts")).toEqual([
       "code-reviewer",
+      "typescript-reviewer",
       "security-reviewer",
     ]);
     expect(getReviewersForFile("api/v1/products.js")).toEqual([
@@ -119,6 +121,7 @@ describe("getReviewersForFiles", () => {
     expect(getReviewersForFiles(files)).toEqual([
       "code-reviewer",
       "go-reviewer",
+      "typescript-reviewer",
       "security-reviewer",
     ]);
   });

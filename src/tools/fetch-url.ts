@@ -317,9 +317,11 @@ export async function fetchUrl(
     const { address } = await lookupAsync(parsedUrl.hostname);
 
     // Normalize IPv4-mapped IPv6 addresses for accurate checking
-    const normalizedAddress = address.toLowerCase().startsWith("::ffff:")
-      ? address.substring(7)
-      : address.toLowerCase();
+    let normalizedAddress = address.toLowerCase();
+    normalizedAddress = normalizedAddress.replace(
+      /^((?:0+:)+|(?:0+:)*:+(?:0+:)*)ffff:/,
+      "",
+    );
 
     // Check for private / loopback IP addresses
     if (

@@ -1,0 +1,61 @@
+# .blueprints/examples/conditional-transitions.yaml
+# Example demonstrating conditional transitions (on.pass/on.fail) for routing
+# based on deterministic node results (success/failure).
+#
+# Key Concepts:
+# - Deterministic nodes use 'on.pass' and 'on.fail' to route differently
+# - 'on.pass' lists states to transition to on success
+# - 'on.fail' lists states to transition to on failure
+# - Enables retry loops, fallback paths, and error handling
+#
+# Common Pattern: Verification Loop
+# 1. Agent performs work
+# 2. Deterministic node verifies results
+# 3. On pass → continue to next step
+# 4. On fail → return to agent for fixes (creating a loop)
+id: "conditional-transitions"
+name: "Conditional Transitions Example"
+description: "Demonstrates pass/fail routing with on.pass and on.fail for conditional workflow control"
+triggerKeywords: ["conditional", "example", "transitions"]
+priority: 50
+initialState: "implement"
+states:
+  implement:
+    type: "agent"
+    config:
+      models: ["claude-sonnet-4-6"]
+      tools: ["read", "write", "edit"]
+      systemPrompt: "Implement the requested feature or fix."
+    next: ["verify"]
+  verify:
+    type: "deterministic"
+    action: "run_tests"
+    on:
+      pass: ["deploy"]     # Tests pass → proceed to deployment
+      fail: ["implement"]  # Tests fail → go back to implement (retry loop)
+  deploy:
+    type: "deterministic"
+    action: "deploy_to_production"
+    on:
+      pass: ["notify_success"]  # Deployment succeeded
+      fail: ["rollback"]         # Deployment failed → rollback
+  rollback:
+    type: "deterministic"
+    action: "rollback_deployment"
+    next: ["notify_failure"]
+  notify_success:
+    type: "agent"
+    config:
+      models: ["haiku"]
+      tools: ["write"]
+      systemPrompt: "Send success notification to the team."
+    next: ["done"]
+  notify_failure:
+    type: "agent"
+    config:
+      models: ["haiku"]
+      tools: ["write"]
+      systemPrompt: "Send failure notification with error details."
+    next: ["done"]
+  done:
+    type: "terminal"

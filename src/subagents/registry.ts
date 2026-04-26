@@ -13,6 +13,9 @@ import { databaseReviewerSystemPrompt } from "./prompts/databaseReviewer";
 import { securityReviewerSystemPrompt } from "./prompts/securityReviewer";
 import { goReviewerSystemPrompt } from "./prompts/goReviewer";
 import { pythonReviewerSystemPrompt } from "./prompts/pythonReviewer";
+import { typescriptReviewerSystemPrompt } from "./prompts/typescriptReviewer";
+import { rustReviewerSystemPrompt } from "./prompts/rustReviewer";
+import { javaReviewerSystemPrompt } from "./prompts/javaReviewer";
 
 export const builtInSubagents: SubAgent[] = [
   {
@@ -78,5 +81,29 @@ export const builtInSubagents: SubAgent[] = [
     systemPrompt: pythonReviewerSystemPrompt,
     tools: reviewerTools,
     model: process.env.PYTHON_REVIEWER_MODEL || "sonnet",
+  },
+  {
+    name: "typescript-reviewer",
+    description:
+      "Expert TypeScript code reviewer specializing in type safety, modern TypeScript patterns, generics, utility types, and best practices. Use for all TypeScript code changes.",
+    systemPrompt: typescriptReviewerSystemPrompt,
+    tools: reviewerTools,
+    model: process.env.TYPESCRIPT_REVIEWER_MODEL || "sonnet",
+  },
+  {
+    name: "rust-reviewer",
+    description:
+      "Expert Rust code reviewer specializing in ownership, borrowing, lifetimes, unsafe code, error handling, and Rust idioms. Use for all Rust code changes.",
+    systemPrompt: rustReviewerSystemPrompt,
+    tools: reviewerTools,
+    model: process.env.RUST_REVIEWER_MODEL || "sonnet",
+  },
+  {
+    name: "java-reviewer",
+    description:
+      "Expert Java code reviewer specializing in object-oriented design, streams, concurrency, JVM performance, and modern Java (8+) features. Use for all Java code changes.",
+    systemPrompt: javaReviewerSystemPrompt,
+    tools: reviewerTools,
+    model: process.env.JAVA_REVIEWER_MODEL || "sonnet",
   },
 ];

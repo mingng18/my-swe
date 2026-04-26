@@ -105,7 +105,9 @@ export interface TokenBudgetConfig {
  * Main compaction configuration.
  */
 export interface CompactionConfig {
-  /** When to trigger compaction (default: 85% of context window) */
+  /** When to trigger compaction cascade (default: 70% of context window) */
+  cascadeTrigger?: TriggerFormat;
+  /** When to trigger LLM summarization (default: 85% of context window) */
   trigger?: TriggerFormat | TriggerFormat[];
   /** How many messages to keep after compaction (default: 10) */
   keep?: TriggerFormat;
@@ -131,6 +133,7 @@ export interface CompactionConfig {
  * Default configuration values matching Claude Code's production settings.
  */
 export const DEFAULT_COMPACTION_CONFIG: Required<CompactionConfig> = {
+  cascadeTrigger: { type: "fraction", value: 0.7 },
   trigger: { type: "fraction", value: 0.85 },
   keep: { type: "messages", value: 10 },
   maxConsecutiveFailures: 3,
