@@ -4,7 +4,7 @@ import type { SSEEvent } from "./types";
 
 export interface AdaptedMessage {
   id: string;
-  role: "user" | "assistant" | "tool" | "system";
+  role: "user" | "assistant" | "system";
   content: string;
   timestamp?: number;
   metadata?: {
@@ -14,6 +14,8 @@ export interface AdaptedMessage {
     duration?: number;
     model?: string;
     tokens?: number;
+    isToolCall?: boolean;
+    isToolResult?: boolean;
   };
 }
 
@@ -57,11 +59,12 @@ export function adaptEventToMessage(event: SSEEvent): AdaptedMessage | null {
     case "tool_call":
       return {
         ...baseMessage,
-        role: "tool",
+        role: "assistant",
         content: `🔧 Calling ${event.tool}`,
         metadata: {
           tool: event.tool,
           args: event.args,
+          isToolCall: true,
         },
       };
 
@@ -73,12 +76,13 @@ export function adaptEventToMessage(event: SSEEvent): AdaptedMessage | null {
 
       return {
         ...baseMessage,
-        role: "tool",
+        role: "assistant",
         content: `✓ ${event.tool} → ${resultPreview}`,
         metadata: {
           tool: event.tool,
           result: event.result,
           duration: event.duration,
+          isToolResult: true,
         },
       };
 
