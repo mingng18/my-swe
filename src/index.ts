@@ -4,7 +4,11 @@ import { serve } from "bun";
 
 import app from "./webapp";
 import { initAgentProviderAtStartup } from "./harness";
-import { loadTelegramConfig, validateStartupConfig } from "./utils/config";
+import {
+  loadTelegramBackoffConfig,
+  loadTelegramConfig,
+  validateStartupConfig,
+} from "./utils/config";
 import { runCodeagentTurn } from "./server";
 import { getEmailForIdentity } from "./utils/identity";
 import { isDuplicateMessage } from "./utils/telegram";
@@ -72,10 +76,11 @@ async function processQueue(threadId: string): Promise<void> {
 async function processMessage(
   threadId: string,
   enrichedText: string,
+  userId?: string,
 ): Promise<string> {
   activeThreads.add(threadId);
   try {
-    const reply = await runCodeagentTurn(enrichedText, threadId);
+    const reply = await runCodeagentTurn(enrichedText, threadId, userId, "telegram");
     return reply;
   } finally {
     activeThreads.delete(threadId);
@@ -105,6 +110,7 @@ async function handleTelegramMessage(msg: any, telegramBotToken: string) {
 
   // Extract the user identity
   const username = msg.from?.username || "unknown_user";
+  const userId = msg.from?.id?.toString();
   const email =
     getEmailForIdentity("telegram", username) ||
     getEmailForIdentity("github", username) ||
@@ -136,7 +142,7 @@ async function handleTelegramMessage(msg: any, telegramBotToken: string) {
   }
 
   // Process the message and send reply
-  const reply = await processMessage(threadId, enrichedText);
+  const reply = await processMessage(threadId, enrichedText, userId);
 
   // Send reply back to Telegram
   await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
@@ -159,7 +165,9 @@ async function handleTelegramMessage(msg: any, telegramBotToken: string) {
 // Telegram polling for local development
 async function startTelegramPolling() {
   const { telegramBotToken } = loadTelegramConfig();
+  const { baseDelayMs, maxDelayMs } = loadTelegramBackoffConfig();
   let offset = 0;
+  let consecutiveErrors = 0;
 
   logger.info("[codeagent] starting Telegram polling mode (for local dev)");
 
@@ -189,10 +197,29 @@ async function startTelegramPolling() {
           }
         }
       }
+
+      // Reset error counter on successful request
+      consecutiveErrors = 0;
     } catch (error) {
-      logger.error({ error }, "[codeagent][telegram] polling error");
-      // Wait before retrying to avoid rapid error loops
-      await new Promise((resolve) => setTimeout(resolve, 5000));
+      consecutiveErrors++;
+
+      const isError = error instanceof Error;
+      const errorMsg = isError ? error.message : String(error);
+      const delayMs = Math.min(
+        baseDelayMs * Math.pow(2, consecutiveErrors - 1),
+        maxDelayMs,
+      );
+
+      logger.error(
+        {
+          error: errorMsg,
+          attempt: consecutiveErrors,
+          delayMs,
+        },
+        "[codeagent][telegram] polling error - retrying with exponential backoff",
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
 }

@@ -9,6 +9,8 @@ export interface AgentResponse {
 
 export interface AgentInvokeOptions {
   threadId?: string;
+  userId?: string;
+  transport?: "telegram" | "http" | "github";
 }
 
 export interface AgentHarness {

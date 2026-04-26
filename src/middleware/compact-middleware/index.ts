@@ -18,7 +18,7 @@ import type { BaseMessage } from "@langchain/core/messages";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { createMiddleware } from "langchain";
 import { runCompactionCascade, createCircuitBreakerState } from "./decision";
-import { countMessagesTokens, getContextWindowSize } from "./tokens";
+import { countMessagesTokens, getContextWindowSize, calculateTokenThreshold } from "./tokens";
 import type {
   CompactionConfig,
   CompactionMetadata,
@@ -28,6 +28,25 @@ import { DEFAULT_COMPACTION_CONFIG } from "./config";
 import { createLogger } from "../../utils/logger";
 
 const logger = createLogger("compact-middleware");
+
+/**
+ * Serialize error for logging (handles both Error and plain objects).
+ */
+function serializeError(error: unknown): Record<string, unknown> {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    };
+  }
+
+  if (error && typeof error === "object") {
+    return error as Record<string, unknown>;
+  }
+
+  return { error: String(error) };
+}
 
 /**
  * Per-thread state for compaction.
@@ -113,6 +132,19 @@ function extractModelName(request: any): string {
 }
 
 /**
+ * Check if the last message is from a user (indicating a new turn).
+ */
+function isNewTurn(messages: BaseMessage[]): boolean {
+  if (messages.length === 0) return false;
+
+  const lastMessage = messages[messages.length - 1];
+  const type = lastMessage.getType();
+
+  // Check if it's a human/user message
+  return type === "human" || type === "user";
+}
+
+/**
  * CompactionMiddleware options.
  */
 export interface CompactionMiddlewareOptions {
@@ -171,6 +203,7 @@ export function createCompactionMiddleware(
   logger.info(
     {
       trigger: config.trigger,
+      cascadeTrigger: config.cascadeTrigger,
       keep: config.keep,
       maxConsecutiveFailures: config.maxConsecutiveFailures,
     },
@@ -202,14 +235,19 @@ export function createCompactionMiddleware(
       const contextSize = getContextWindowSize(effectiveModelName);
       const usageRatio = currentTokens / contextSize;
 
+      const cascadeThresholdTokens = calculateTokenThreshold(
+        config.cascadeTrigger || DEFAULT_COMPACTION_CONFIG.cascadeTrigger,
+        effectiveModelName,
+      );
+
       // Run cascade if:
-      // 1. Messages increased (new turn), AND
+      // 1. Last message is from user (new turn started), AND
       // 2. Either:
-      //    a. Above usage threshold, OR
+      //    a. Above cascade threshold, OR
       //    b. We haven't checked in a while (every 10 messages)
       const shouldRun =
-        currentMessageCount > state.lastMessageCount &&
-        (usageRatio > 0.5 ||
+        isNewTurn(messages) &&
+        (currentTokens >= cascadeThresholdTokens ||
           currentMessageCount - state.lastMessageCount >= 10);
 
       let processedMessages = messages;
@@ -248,7 +286,10 @@ export function createCompactionMiddleware(
           );
         } catch (error) {
           logger.error(
-            { error, threadId },
+            {
+              error: serializeError(error),
+              threadId,
+            },
             "[compact-middleware] Compaction failed, proceeding with original messages",
           );
           // Continue with original messages on error

@@ -19,8 +19,8 @@ describe("subagents integration", () => {
     expect(agent).toBeDefined();
   });
 
-  it("should have exactly 8 built-in subagents", () => {
-    expect(builtInSubagents.length).toBe(8);
+  it("should have exactly 11 built-in subagents", () => {
+    expect(builtInSubagents.length).toBe(11);
     const subagentNames = builtInSubagents.map((agent) => agent.name);
     expect(subagentNames).toEqual([
       "explore-agent",
@@ -31,6 +31,9 @@ describe("subagents integration", () => {
       "security-reviewer",
       "go-reviewer",
       "python-reviewer",
+      "typescript-reviewer",
+      "rust-reviewer",
+      "java-reviewer",
     ]);
   });
 

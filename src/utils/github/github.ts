@@ -55,6 +55,18 @@ interface GitHubRepoResponse {
   default_branch?: string;
 }
 
+interface GitHubIssueResponse {
+  html_url?: string;
+  number?: number;
+  message?: string;
+  errors?: Array<{
+    resource?: string;
+    field?: string;
+    code?: string;
+    message?: string;
+  }>;
+}
+
 /**
  * Run a git command in the sandbox repo directory.
  * @param backend - The sandbox backend
@@ -889,5 +901,82 @@ export async function mergeGithubPr(
   } catch (error: any) {
     logger.error(`[github] Failed to merge PR #${prNumber}:`, error);
     throw error;
+  }
+}
+
+/**
+ * Create a GitHub issue via the API.
+ * @param repoOwner - Repository owner (e.g., "langchain-ai")
+ * @param repoName - Repository name (e.g., "deepagents")
+ * @param githubToken - GitHub access token
+ * @param title - Issue title
+ * @param body - Issue description
+ * @returns Tuple of [issueUrl, issueNumber] - values are null if failed
+ */
+export async function createGithubIssue(
+  repoOwner: string,
+  repoName: string,
+  githubToken: string,
+  title: string,
+  body: string,
+): Promise<[string | null, number | null]> {
+  const octokit = new Octokit({ auth: githubToken });
+
+  logger.info(
+    {
+      repo: `${repoOwner}/${repoName}`,
+      title,
+    },
+    "[github] Creating issue",
+  );
+
+  try {
+    const { data: issue } = await octokit.rest.issues.create({
+      owner: repoOwner,
+      repo: repoName,
+      title,
+      body,
+    });
+
+    const issueUrl = issue.html_url ?? null;
+    const issueNumber = issue.number ?? null;
+
+    logger.info(
+      {
+        issueUrl,
+        issueNumber,
+        title: issue.title,
+      },
+      "[github] Issue created successfully",
+    );
+
+    // Invalidate repo cache for this repo after issue creation
+    invalidateRepoCache(repoOwner, repoName);
+
+    return [issueUrl, issueNumber];
+  } catch (error: unknown) {
+    const octokitError = error as {
+      status?: number;
+      message?: string;
+      response?: unknown;
+    };
+
+    logger.error(
+      {
+        repo: `${repoOwner}/${repoName}`,
+        title,
+        status: octokitError.status,
+        message: octokitError.message,
+        response: (octokitError.response as any) ?? undefined,
+      },
+      "[github] GitHub API error while creating issue",
+    );
+
+    const statusMsg = octokitError.status
+      ? `status=${octokitError.status}`
+      : "status=unknown";
+    throw new Error(
+      `GitHub issue creation failed for ${repoOwner}/${repoName}. ${statusMsg}. ${octokitError.message ?? String(error)}`,
+    );
   }
 }

@@ -17,6 +17,18 @@ export const REVIEWER_MAPPINGS: ReviewerMapping[] = [
     reviewers: ["code-reviewer", "python-reviewer"],
   },
   {
+    patterns: ["\\.ts$", "\\.tsx$"],
+    reviewers: ["code-reviewer", "typescript-reviewer"],
+  },
+  {
+    patterns: ["\\.rs$"],
+    reviewers: ["code-reviewer", "rust-reviewer"],
+  },
+  {
+    patterns: ["\\.java$"],
+    reviewers: ["code-reviewer", "java-reviewer"],
+  },
+  {
     patterns: ["\\.sql$", "migration", "schema"],
     reviewers: ["code-reviewer", "database-reviewer"],
   },

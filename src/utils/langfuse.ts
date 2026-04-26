@@ -115,6 +115,52 @@ function createNoOpClient(): Langfuse {
 }
 
 /**
+ * Patterns for detecting sensitive data that should be masked in traces.
+ */
+const SENSITIVE_PATTERNS = [
+  // Bearer tokens (common in Authorization headers)
+  /Bearer\s+[A-Za-z0-9\-._~+/]+/gi,
+  // OpenAI-style API keys (sk- prefix)
+  /sk-[A-Za-z0-9]{32,}/g,
+  // Langfuse public keys (pk- prefix)
+  /pk-[A-Za-z0-9]{32,}/g,
+  // Generic api_key patterns
+  /api[_-]?key["']?\s*[:=]\s*["']?[A-Za-z0-9]{20,}/gi,
+  // Generic token patterns
+  /token["']?\s*[:=]\s*["']?[A-Za-z0-9]{20,}/gi,
+  // Password fields
+  /password["']?\s*[:=]\s*["']?[^\s"']{8,}/gi,
+];
+
+/**
+ * Mask sensitive data from text before sending to Langfuse.
+ *
+ * Replaces detected sensitive patterns with "***REDACTED***" to prevent
+ * API keys, tokens, and passwords from being logged in observability systems.
+ *
+ * @param text - The text to sanitize
+ * @returns Sanitized text with sensitive data masked
+ *
+ * @example
+ * ```ts
+ * const input = "Authorization: Bearer sk-123456...";
+ * const masked = maskSensitiveData(input);
+ * // Returns: "Authorization: Bearer ***REDACTED***"
+ * ```
+ */
+export function maskSensitiveData(text: string): string {
+  if (!text) {
+    return text;
+  }
+
+  let masked = text;
+  for (const pattern of SENSITIVE_PATTERNS) {
+    masked = masked.replace(pattern, "***REDACTED***");
+  }
+  return masked;
+}
+
+/**
  * Create a trace with session information
  *
  * @param name - Trace name (use descriptive names like "chat-response", "doc-summary")

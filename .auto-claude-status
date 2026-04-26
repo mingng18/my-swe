@@ -1,6 +1,6 @@
 {
   "active": true,
-  "spec": "006-implement-periodic-cleanup-for-unbounded-thread-sc",
+  "spec": "002-add-typescript-rust-and-java-code-reviewer-subagen",
   "state": "building",
   "subtasks": {
     "completed": 5,
@@ -9,9 +9,9 @@
     "failed": 0
   },
   "phase": {
-    "current": "Thread Cleanup Implementation",
+    "current": "Update Tests",
     "id": null,
-    "total": 7
+    "total": 2
   },
   "workers": {
     "active": 0,
@@ -19,7 +19,7 @@
   },
   "session": {
     "number": 7,
-    "started_at": "2026-04-25T10:10:50.909630"
+    "started_at": "2026-04-22T19:39:04.657469"
   },
-  "last_update": "2026-04-25T10:21:52.671048"
+  "last_update": "2026-04-22T19:48:13.226053"
 }

@@ -1,0 +1,117 @@
+# .blueprints/examples/multi-model-fallback.yaml
+#
+# This blueprint demonstrates advanced model and tool configuration:
+# - Model fallback arrays: Try models in order until one succeeds
+# - Tool allowlisting: Restrict which tools each state can access
+# - Progressive complexity: Start with fast/cheap models, escalate as needed
+#
+# Use case: Tasks that benefit from progressive model escalation
+# - Quick exploration with fast models (haiku)
+# - Fallback to capable models if needed (sonnet)
+# - Final verification with best available models (claude-sonnet-4-6)
+
+id: "multi-model-fallback"
+name: "Multi-Model Fallback"
+description: "Demonstrates model fallback arrays and tool allowlisting"
+triggerKeywords: ["fallback", "multi-model", "escalate"]
+priority: 50
+initialState: "quick_check"
+states:
+  # First state: Use fast model with minimal tools for quick assessment
+  quick_check:
+    type: "agent"
+    config:
+      # Model fallback: Try haiku first, fall back to sonnet if it fails
+      models: ["haiku", "sonnet"]
+      # Tool allowlisting: Only allow read-only tools for assessment
+      tools: ["read", "code_search", "semantic_search"]
+      systemPrompt: |
+        Quickly assess the task complexity:
+        - If simple (straightforward fix, <3 files): route to 'simple_fix'
+        - If complex (requires analysis, >3 files): route to 'deep_analysis'
+        - If unclear: request clarification
+    next: ["simple_fix", "deep_analysis", "done"]
+
+  # Simple path: Fast model with limited tools for straightforward tasks
+  simple_fix:
+    type: "agent"
+    config:
+      # Try haiku for speed, fall back to sonnet if needed
+      models: ["haiku", "sonnet"]
+      # Allowlisting: Only basic editing tools
+      tools: ["edit", "read", "code_search"]
+      systemPrompt: |
+        Implement the straightforward fix:
+        1. Read the relevant files
+        2. Make the necessary changes
+        3. Verify the fix compiles
+        Keep changes minimal and focused.
+    next: ["quick_verify"]
+
+  # Complex path: Escalate to more capable models with broader tools
+  deep_analysis:
+    type: "agent"
+    config:
+      # Start with capable model, have best model as fallback
+      models: ["sonnet", "claude-sonnet-4-6"]
+      # Allowlisting: Broader tool access for complex tasks
+      tools: [
+        "read",
+        "code_search",
+        "semantic_search",
+        "grep",
+        "edit",
+        "write",
+        "activate_skill"
+      ]
+      systemPrompt: |
+        Perform deep analysis:
+        1. Understand the full scope and implications
+        2. Identify potential edge cases
+        3. Plan the implementation strategy
+        4. Execute with proper error handling
+        Take time to think through the problem thoroughly.
+    next: ["comprehensive_verify"]
+
+  # Quick verification: Fast model for simple tasks
+  quick_verify:
+    type: "agent"
+    config:
+      # Single fast model for verification
+      models: ["haiku"]
+      # Allowlisting: Verification tools only
+      tools: ["read", "code_search", "semantic_search"]
+      systemPrompt: |
+        Verify the simple fix:
+        - Does the code compile?
+        - Are there obvious syntax errors?
+        - Does it match the requirements?
+        Report issues or route to 'done'.
+    next: ["done", "simple_fix"]
+
+  # Comprehensive verification: Best model for complex tasks
+  comprehensive_verify:
+    type: "agent"
+    config:
+      # Use best model for thorough verification
+      models: ["claude-sonnet-4-6", "sonnet"]
+      # Allowlisting: All available verification tools
+      tools: [
+        "read",
+        "code_search",
+        "semantic_search",
+        "grep",
+        "artifact_query"
+      ]
+      systemPrompt: |
+        Comprehensively verify the complex solution:
+        1. Code quality and maintainability
+        2. Error handling and edge cases
+        3. Performance considerations
+        4. Security implications
+        5. Test coverage if applicable
+        Provide detailed feedback or route to 'done'.
+    next: ["done", "deep_analysis"]
+
+  done:
+    type: "terminal"
