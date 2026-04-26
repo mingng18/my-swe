@@ -1,15 +1,15 @@
 {
   "active": true,
   "spec": "012-add-telegram-bot-typing-indicators",
-  "state": "planning",
+  "state": "building",
   "subtasks": {
-    "completed": 0,
-    "total": 0,
+    "completed": 2,
+    "total": 9,
     "in_progress": 1,
     "failed": 0
   },
   "phase": {
-    "current": "Typing Indicator Utilities",
+    "current": "Add Typing Indicators to Polling Mode",
     "id": null,
     "total": 2
   },
@@ -18,8 +18,8 @@
     "max": 1
   },
   "session": {
-    "number": 2,
+    "number": 4,
     "started_at": "2026-04-26T14:37:21.989889"
   },
-  "last_update": "2026-04-26T14:40:04.400055"
+  "last_update": "2026-04-26T14:41:46.023722"
 }

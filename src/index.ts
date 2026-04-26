@@ -89,6 +89,32 @@ async function processMessage(
 
 const PORT = Number.parseInt(process.env.PORT || "7860", 10);
 
+/**
+ * Send a chat action to show the bot is working (e.g., typing).
+ */
+async function sendChatAction(
+  chatId: number,
+  action: string,
+  telegramBotToken: string,
+): Promise<void> {
+  try {
+    await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendChatAction`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        action: action,
+      }),
+    });
+  } catch (error) {
+    // Log but don't fail - typing indicator is optional
+    logger.warn(
+      { error, chatId, action },
+      "[codeagent][telegram] failed to send chat action",
+    );
+  }
+}
+
 async function handleTelegramMessage(msg: any, telegramBotToken: string) {
   if (!("text" in msg) || !msg.text) {
     return;
@@ -140,6 +166,9 @@ async function handleTelegramMessage(msg: any, telegramBotToken: string) {
     });
     return;
   }
+
+  // Show typing indicator while processing
+  await sendChatAction(msg.chat.id, "typing", telegramBotToken);
 
   // Process the message and send reply
   const reply = await processMessage(threadId, enrichedText, userId);
