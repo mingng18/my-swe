@@ -3,7 +3,7 @@
   "spec": "012-add-telegram-bot-typing-indicators",
   "state": "building",
   "subtasks": {
-    "completed": 2,
+    "completed": 3,
     "total": 9,
     "in_progress": 1,
     "failed": 0
@@ -18,8 +18,8 @@
     "max": 1
   },
   "session": {
-    "number": 4,
+    "number": 5,
     "started_at": "2026-04-26T14:37:21.989889"
   },
-  "last_update": "2026-04-26T14:41:46.023722"
+  "last_update": "2026-04-26T14:42:33.955311"
 }
