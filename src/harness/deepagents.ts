@@ -1422,17 +1422,10 @@ export async function initDeepAgentsAtStartup(): Promise<void> {
     hasLoadedPersistedRepos = true;
   }
 
-  // Initialize snapshot store for fast sandbox initialization
-  const { initializeSnapshotStore } = await import("../sandbox");
-  try {
-    await initializeSnapshotStore();
-    logger.info("[deepagents] Snapshot store initialized");
-  } catch (err) {
-    logger.warn(
-      { error: err },
-      "[deepagents] Failed to initialize snapshot store",
-    );
-  }
+  // Snapshot store now lazy-loads on first access (no need to initialize at startup)
+  logger.info(
+    "[deepagents] Snapshot store configured for lazy-loading (initializes on first access)",
+  );
 
   await getAgentHarness();
 }
