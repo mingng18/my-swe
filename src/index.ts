@@ -17,7 +17,13 @@ import { isDuplicateMessage } from "./utils/telegram";
 import { getMemoryDaemon } from "./memory/daemon";
 
 // Message queue for concurrent requests
-const messageQueue = new Map<string, string[]>();
+interface QueuedMessage {
+  enrichedText: string;
+  chatId: number;
+  telegramBotToken: string;
+  userId?: string;
+}
+const messageQueue = new Map<string, QueuedMessage[]>();
 const activeThreads = new Set<string>();
 
 const logger = createLogger("index");
@@ -43,11 +49,22 @@ function isThreadActive(threadId: string): boolean {
 /**
  * Enqueue a message for processing when the thread becomes available.
  */
-function enqueueMessage(threadId: string, message: string): void {
+function enqueueMessage(
+  threadId: string,
+  enrichedText: string,
+  chatId: number,
+  telegramBotToken: string,
+  userId?: string,
+): void {
   if (!messageQueue.has(threadId)) {
     messageQueue.set(threadId, []);
   }
-  messageQueue.get(threadId)!.push(message);
+  messageQueue.get(threadId)!.push({
+    enrichedText,
+    chatId,
+    telegramBotToken,
+    userId,
+  });
 }
 
 /**
@@ -62,7 +79,13 @@ async function processQueue(threadId: string): Promise<void> {
     messageQueue.delete(threadId);
   }
 
-  await processMessage(threadId, message);
+  await processMessage(
+    threadId,
+    message.enrichedText,
+    message.chatId,
+    message.telegramBotToken,
+    message.userId,
+  );
 
   // Continue processing if there are more messages
   if (messageQueue.has(threadId) && messageQueue.get(threadId)!.length > 0) {
@@ -76,10 +99,15 @@ async function processQueue(threadId: string): Promise<void> {
 async function processMessage(
   threadId: string,
   enrichedText: string,
+  chatId: number,
+  telegramBotToken: string,
   userId?: string,
 ): Promise<string> {
   activeThreads.add(threadId);
   try {
+    // Show typing indicator while processing
+    await sendChatAction(chatId, "typing", telegramBotToken);
+
     const reply = await runCodeagentTurn(enrichedText, threadId, userId, "telegram");
     return reply;
   } finally {
@@ -154,7 +182,7 @@ async function handleTelegramMessage(msg: any, telegramBotToken: string) {
       { threadId, chatId: msg.chat.id },
       "[codeagent][telegram] thread busy, queuing message",
     );
-    enqueueMessage(threadId, enrichedText);
+    enqueueMessage(threadId, enrichedText, msg.chat.id, telegramBotToken, userId);
     // Send acknowledgment
     await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
       method: "POST",
@@ -167,11 +195,8 @@ async function handleTelegramMessage(msg: any, telegramBotToken: string) {
     return;
   }
 
-  // Show typing indicator while processing
-  await sendChatAction(msg.chat.id, "typing", telegramBotToken);
-
   // Process the message and send reply
-  const reply = await processMessage(threadId, enrichedText, userId);
+  const reply = await processMessage(threadId, enrichedText, msg.chat.id, telegramBotToken, userId);
 
   // Send reply back to Telegram
   await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
