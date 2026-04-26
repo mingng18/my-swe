@@ -1,4 +1,5 @@
 import { tool } from "@langchain/core/tools";
+import { threadRepoMap } from "../harness/thread-manager";
 import { z } from "zod";
 import { getSandboxBackendSync } from "../utils/sandboxState";
 import { runGit } from "../utils/github/github";
@@ -46,8 +47,12 @@ export const runReviewersTool = tool(
       });
     }
 
-    // Get workspace directory from sandbox
-    const workspaceDir = sandbox?.getWorkspaceDir?.();
+    // Get workspace directory from threadRepoMap
+    const repoConfig = threadRepoMap.get(threadId) as
+      | { owner?: string; name?: string; workspaceDir?: string }
+      | undefined;
+    const workspaceDir = repoConfig?.workspaceDir;
+    
     if (!workspaceDir) {
       return JSON.stringify({
         error: "Unable to determine workspace directory",
@@ -72,18 +77,19 @@ export const runReviewersTool = tool(
           gitCommand = "diff --name-only --cached";
       }
 
-      const result = await runGit(sandbox, workspaceDir, gitCommand);
-
-      if (result.exitCode !== 0) {
+      let gitOutput: string;
+      try {
+        gitOutput = await runGit(sandbox, workspaceDir, gitCommand);
+      } catch (err: any) {
         return JSON.stringify({
-          error: `Failed to get ${scope} files: ${result.error || result.output}`,
+          error: `Failed to get ${scope} files: ${err.message}`,
         });
       }
 
-      const files = result.output
+      const files = gitOutput
         .split("\n")
         .filter(Boolean)
-        .map((file) => file.trim());
+        .map((file: string) => file.trim());
 
       if (files.length === 0) {
         return JSON.stringify({
@@ -128,17 +134,19 @@ export const runReviewersTool = tool(
             name: reviewerName,
             systemPrompt: reviewerConfig.systemPrompt,
             tools: reviewerConfig.tools || [],
-            backend: sandbox,
+            backend: sandbox as any,
           });
 
           // Run the review
           const result = await agent.invoke({
-            input: `Review these files for quality, security, and maintainability:\n\n${files.join("\n")}`,
+            messages: [{ role: "user", content: `Review these files for quality, security, and maintainability:\n\n${files.join("\n")}` }],
             configurable: { thread_id: threadId },
           });
 
           // Parse the output
-          const issues = parseReviewerOutput(result.reply);
+          const lastMsg = result.messages[result.messages.length - 1];
+          const reply = typeof lastMsg?.content === "string" ? lastMsg.content : "";
+          const issues = parseReviewerOutput(reply);
           allIssues.push(...issues);
 
           if (hasCriticalIssues(issues)) {

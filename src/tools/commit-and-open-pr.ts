@@ -28,6 +28,7 @@ import {
   formatIssues,
 } from "../subagents/reviewerParser";
 import { createDeepAgent } from "deepagents";
+import { withErrorHandling } from "./tool-wrapper";
 
 const logger = createLogger("commit-and-open-pr-tool");
 
@@ -84,7 +85,7 @@ async function runPreCommitReview(
       const issues = parseReviewerOutput(String(output));
       allIssues.push(...issues);
     } catch (err) {
-      logger.warn(`[pre-commit] Reviewer ${reviewerName} failed:`, err);
+      logger.warn({ err }, `[pre-commit] Reviewer ${reviewerName} failed`);
     }
   }
 
@@ -183,7 +184,8 @@ Returns:
     - pr_existing: Whether a PR already existed for this branch
  **/
 export const commitAndOpenPrTool = tool(
-  async ({ title, body, commit_message, force }, config) => {
+  withErrorHandling("commit_and_open_pr", async (args: any, config: any) => {
+    const { title, body, commit_message, force } = args;
     const threadId = config?.configurable?.thread_id as string | undefined;
     if (!threadId)
       return JSON.stringify({
@@ -389,7 +391,7 @@ export const commitAndOpenPrTool = tool(
         pr_url: null,
       });
     }
-  },
+  }),
   {
     name: "commit_and_open_pr",
     description: "Commit all current changes and open a GitHub Pull Request.",

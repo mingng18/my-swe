@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 import { LRUCache } from "lru-cache";
 import { isPreapprovedHost } from "../utils/preapproved-domains";
 import { checkDomainBlocklist } from "../utils/domain-blocklist";
+import { Agent, fetch as undiciFetch } from "undici";
 
 const lookupAsync = promisify(dns.lookup);
 
@@ -154,8 +155,9 @@ function validateURL(url: string): { valid: boolean; error?: string } {
 async function fetchWithPermittedRedirects(
   url: string,
   signal: AbortSignal,
+  dispatcher: Agent | undefined,
   depth = 0,
-): Promise<{ response: Response; finalUrl: string } | FetchUrlRedirectResult> {
+): Promise<{ response: any; finalUrl: string } | FetchUrlRedirectResult> {
   if (depth > MAX_REDIRECTS) {
     return {
       redirect_detected: true,
@@ -174,13 +176,14 @@ async function fetchWithPermittedRedirects(
   signal.addEventListener("abort", () => controller.abort());
 
   try {
-    const response = await fetch(url, {
+    const response = await undiciFetch(url, {
       signal: controller.signal,
       redirect: "manual", // Handle redirects manually
+      dispatcher,
       headers: {
         "User-Agent": "Mozilla/5.0 (compatible; DeepAgents/1.0)",
       },
-    });
+    } as any);
 
     clearTimeout(timeoutId);
 
@@ -209,7 +212,7 @@ async function fetchWithPermittedRedirects(
 
       if (isPermittedRedirect(url, redirectUrl)) {
         // Follow the permitted redirect recursively
-        return fetchWithPermittedRedirects(redirectUrl, signal, depth + 1);
+        return fetchWithPermittedRedirects(redirectUrl, signal, dispatcher, depth + 1);
       } else {
         // Return redirect info for user to decide
         return {
@@ -286,6 +289,8 @@ export async function fetchUrl(
   }
 
   let parsedUrl: URL;
+  let safeAgent: Agent | undefined;
+  
   try {
     parsedUrl = new URL(url);
 
@@ -339,6 +344,16 @@ export async function fetchUrl(
     ) {
       throw new Error("Local and private addresses are not allowed");
     }
+    
+    safeAgent = new Agent({
+        connect: {
+          lookup: (hostname, options, callback) => {
+            const family = normalizedAddress.includes(":") ? 6 : 4;
+            callback(null, [{ address: normalizedAddress, family }]);
+          },
+        },
+      });
+
   } catch (err) {
     return {
       error: `Fetch URL error: ${err instanceof Error ? err.message : String(err)}`,
@@ -354,6 +369,7 @@ export async function fetchUrl(
     const fetchResult = await fetchWithPermittedRedirects(
       url,
       controller.signal,
+      safeAgent
     );
 
     // Handle redirect case

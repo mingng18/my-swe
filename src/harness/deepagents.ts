@@ -1,4 +1,5 @@
 import { createLogger } from "../utils/logger";
+import { threadManager, threadRepoMap } from "./thread-manager";
 import { loadLlmConfig, loadModelConfig } from "../utils/config";
 import { createChatModel } from "../utils/model-factory";
 import { createDeepAgent, FilesystemBackend, type DeepAgent } from "deepagents";
@@ -71,446 +72,11 @@ const logger = createLogger("deepagents");
 // Thread Cleanup Configuration
 // ============================================================================
 
-/**
- * Time in milliseconds after which thread map entries are cleaned up.
- * Default: 1 hour (3600000 ms)
- * Can be overridden via THREAD_TTL_MS environment variable.
- */
-const THREAD_TTL_MS = Number.parseInt(
-  process.env.THREAD_TTL_MS || "3600000",
-  10,
-);
-
-/**
- * Create middleware that tracks and limits tool invocations per thread.
- *
- * This middleware intercepts tool calls before execution to:
- * 1. Track each tool invocation for analytics and debugging
- * 2. Enforce per-tool invocation limits to prevent runaway loops
- * 3. Detect and block duplicate calls within a debounce window
- * 4. Provide actionable error messages to guide the agent
- *
- * When a tool call is blocked, an error message is injected that guides
- * the agent toward alternative approaches.
- */
-function createToolInvocationLimitsMiddleware() {
-  return createMiddleware({
-    name: "toolInvocationLimitsMiddleware",
-
-    wrapModelCall: async (request: any, handler: any) => {
-      const messages = request.messages as Array<Record<string, unknown>>;
-      const configurable = request.configurable as
-        | Record<string, unknown>
-        | undefined;
-      const threadId = (configurable?.thread_id as string) || "default-session";
-
-      // Extract tool calls from the last AI message
-      const lastMsg =
-        messages.length > 0 ? messages[messages.length - 1] : undefined;
-      const toolCalls = lastMsg?.tool_calls as
-        | Array<{ name?: string; args?: Record<string, unknown>; id?: string }>
-        | undefined;
-
-      if (!toolCalls || toolCalls.length === 0) {
-        // No tool calls in this request, proceed normally
-        return handler(request);
-      }
-
-      // Check each tool call against invocation limits
-      const blockedToolCalls: Array<{
-        index: number;
-        name: string;
-        blockReason: string;
-      }> = [];
-
-      for (let i = 0; i < toolCalls.length; i++) {
-        const tc = toolCalls[i];
-        const toolName = tc.name || "unknown";
-        const args = (tc.args || {}) as Record<string, unknown>;
-
-        // Check if this tool call should be blocked
-        const blockCheck = toolInvocationTracker.shouldBlockToolCall(
-          threadId,
-          toolName,
-          args,
-        );
-
-        if (blockCheck.block) {
-          blockedToolCalls.push({
-            index: i,
-            name: toolName,
-            blockReason: blockCheck.reason || "Tool invocation limit exceeded",
-          });
-
-          logger.warn(
-            {
-              threadId,
-              toolName,
-              args,
-              count: blockCheck.count,
-              reason: blockCheck.reason,
-            },
-            "[tool-invocation-limits] Tool call blocked",
-          );
-        } else {
-          // Track the tool call for future limit checking
-          toolInvocationTracker.trackToolCall(threadId, toolName, args);
-
-          logger.debug(
-            {
-              threadId,
-              toolName,
-              args,
-              count: blockCheck.count,
-            },
-            "[tool-invocation-limits] Tool call tracked",
-          );
-        }
-      }
-
-      // If any tool calls were blocked, inject error messages
-      if (blockedToolCalls.length > 0) {
-        const blockMessages = blockedToolCalls.map(
-          (blocked) => `[BLOCKED] ${blocked.name}: ${blocked.blockReason}`,
-        );
-
-        const errorMessage = {
-          role: "user" as const,
-          content: `The following tool calls were blocked due to invocation limits:\n\n${blockMessages.map((msg) => `- ${msg}`).join("\n")}\n\nPlease try a different approach or tool.`,
-        };
-
-        logger.warn(
-          {
-            threadId,
-            blockedCount: blockedToolCalls.length,
-            blockedTools: blockedToolCalls.map((b) => ({
-              name: b.name,
-              reason: b.blockReason,
-            })),
-          },
-          "[tool-invocation-limits] Injecting block error message to agent",
-        );
-
-        // Return early with error message, preventing tool execution
-        return handler({
-          ...request,
-          messages: [...messages, errorMessage],
-        });
-      }
-
-      // No tool calls were blocked, proceed normally
-      return handler(request);
-    },
-  });
-}
-
-const threadAgentMap = new Map<
-  string,
-  { agent: DeepAgent; lastAccessed: number }
->();
-const threadSandboxMap = new Map<
-  string,
-  {
-    backend: SandboxService;
-    profile: SandboxProfile;
-    repo: { owner: string; name: string; workspaceDir: string };
-    lastAccessed: number;
-  }
->();
-
-// Export for use in other modules (e.g., PR context checking)
-export { threadRepoMap };
-
-// Check if sandbox mode is enabled via environment variable
-const useSandbox = process.env.USE_SANDBOX === "true";
-// For complex SWE tasks, we need a much higher recursion limit
-// Default to 2000 steps (configurable via AGENT_RECURSION_LIMIT env var)
-const AGENT_RECURSION_LIMIT = Number.parseInt(
-  process.env.AGENT_RECURSION_LIMIT || "2000",
-  10,
-);
-let hasLoadedPersistedRepos = false;
-
-// Helper functions for managing lastAccessed timestamps
-function updateThreadAgentAccess(
-  map: Map<string, { agent: DeepAgent; lastAccessed: number }>,
-  threadId: string,
-): void {
-  const entry = map.get(threadId);
-  if (entry) {
-    entry.lastAccessed = Date.now();
-  }
-}
-
-function setThreadAgent(
-  map: Map<string, { agent: DeepAgent; lastAccessed: number }>,
-  threadId: string,
-  agent: DeepAgent,
-): void {
-  map.set(threadId, { agent, lastAccessed: Date.now() });
-}
-
-function updateThreadSandboxAccess(
-  map: Map<
-    string,
-    {
-      backend: SandboxService;
-      profile: SandboxProfile;
-      repo: { owner: string; name: string; workspaceDir: string };
-      lastAccessed: number;
-    }
-  >,
-  threadId: string,
-): void {
-  const entry = map.get(threadId);
-  if (entry) {
-    entry.lastAccessed = Date.now();
-  }
-}
-
-function setThreadSandbox(
-  map: Map<
-    string,
-    {
-      backend: SandboxService;
-      profile: SandboxProfile;
-      repo: { owner: string; name: string; workspaceDir: string };
-      lastAccessed: number;
-    }
-  >,
-  threadId: string,
-  value: {
-    backend: SandboxService;
-    profile: SandboxProfile;
-    repo: { owner: string; name: string; workspaceDir: string; lastAccessed?: number };
-  },
-): void {
-  const { lastAccessed: _, ...repoWithoutLastAccessed } = value.repo;
-  map.set(threadId, {
-    ...value,
-    repo: repoWithoutLastAccessed,
-    lastAccessed: Date.now(),
-  });
-}
-
-function updateThreadRepoAccess(
-  map: Map<
-    string,
-    { owner: string; name: string; workspaceDir: string; lastAccessed: number }
-  >,
-  threadId: string,
-): void {
-  const entry = map.get(threadId);
-  if (entry) {
-    entry.lastAccessed = Date.now();
-  }
-}
-
-function setThreadRepo(
-  map: Map<
-    string,
-    { owner: string; name: string; workspaceDir: string; lastAccessed: number }
-  >,
-  threadId: string,
-  repo: { owner: string; name: string; workspaceDir: string },
-): void {
-  map.set(threadId, { ...repo, lastAccessed: Date.now() });
-}
-
-// ============================================================================
-// Thread Cleanup Functions
-// ============================================================================
-
-/**
- * Remove agent entries from threadAgentMap that are older than THREAD_TTL_MS.
- * This prevents unbounded memory growth from abandoned threads.
- */
-function cleanupOldEntriesFromThreadAgentMap(ttlMs: number = THREAD_TTL_MS): void {
-  const now = Date.now();
-  const threadsToDelete: string[] = [];
-
-  for (const [threadId, entry] of threadAgentMap.entries()) {
-    const age = now - entry.lastAccessed;
-    if (age > ttlMs) {
-      threadsToDelete.push(threadId);
-    }
-  }
-
-  for (const threadId of threadsToDelete) {
-    threadAgentMap.delete(threadId);
-    logger.debug(
-      { threadId },
-      "[deepagents] Cleaned up old agent entry",
-    );
-  }
-
-  if (threadsToDelete.length > 0) {
-    logger.info(
-      { count: threadsToDelete.length },
-      "[deepagents] Cleaned up old agent entries",
-    );
-  }
-}
-
-/**
- * Remove sandbox entries from threadSandboxMap that are older than THREAD_TTL_MS.
- * Properly releases sandboxes back to the pool and disposes backends.
- */
-async function cleanupOldEntriesFromThreadSandboxMap(ttlMs: number = THREAD_TTL_MS): Promise<void> {
-  const now = Date.now();
-  const threadsToDelete: Array<{
-    threadId: string;
-    entry: {
-      backend: SandboxService;
-      profile: SandboxProfile;
-      repo: { owner: string; name: string; workspaceDir: string };
-      lastAccessed: number;
-    };
-  }> = [];
-
-  for (const [threadId, entry] of threadSandboxMap.entries()) {
-    const age = now - entry.lastAccessed;
-    if (age > ttlMs) {
-      threadsToDelete.push({ threadId, entry });
-    }
-  }
-
-  // Release sandboxes back to the pool and dispose backends in parallel
-  await Promise.all(
-    threadsToDelete.map(async ({ threadId, entry }) => {
-      try {
-        await releaseRepoSandbox({
-          apiKey: process.env.DAYTONA_API_KEY || "",
-          apiUrl: process.env.DAYTONA_API_URL,
-          target: process.env.DAYTONA_TARGET,
-          sandboxId: entry.backend.id,
-          profile: entry.profile,
-          repoOwner: entry.repo.owner,
-          repoName: entry.repo.name,
-        });
-      } catch (err) {
-        logger.warn(
-          { error: err, threadId },
-          "[deepagents] Failed to release old sandbox",
-        );
-      }
-      try {
-        await entry.backend.cleanup();
-      } catch (err) {
-        logger.warn(
-          { error: err, threadId },
-          "[deepagents] Failed to cleanup old backend",
-        );
-      }
-      clearSandboxBackend(threadId);
-      // Clean up tool invocation tracking for this thread
-      toolInvocationTracker.clearThread(threadId);
-      // Remove from map
-      threadSandboxMap.delete(threadId);
-      logger.debug(
-        { threadId, ageMs: now - entry.lastAccessed },
-        "[deepagents] Cleaned up old sandbox entry",
-      );
-    }),
-  );
-
-  if (threadsToDelete.length > 0) {
-    logger.info(
-      { count: threadsToDelete.length },
-      "[deepagents] Cleaned up old sandbox entries",
-    );
-  }
-}
-
-/**
- * Remove repo entries from threadRepoMap that are older than THREAD_TTL_MS.
- * Also removes persisted thread metadata for cleaned entries.
- */
-async function cleanupOldEntriesFromThreadRepoMap(ttlMs: number = THREAD_TTL_MS): Promise<void> {
-  const now = Date.now();
-  const threadsToDelete: string[] = [];
-
-  for (const [threadId, entry] of threadRepoMap.entries()) {
-    const age = now - entry.lastAccessed;
-    if (age > ttlMs) {
-      threadsToDelete.push(threadId);
-    }
-  }
-
-  for (const threadId of threadsToDelete) {
-    // Remove persisted thread metadata
-    try {
-      await removePersistedThreadRepo(threadId);
-    } catch (err) {
-      logger.warn(
-        { error: err, threadId },
-        "[deepagents] Failed to remove persisted thread repo",
-      );
-    }
-    // Remove from map
-    threadRepoMap.delete(threadId);
-    logger.debug(
-      { threadId },
-      "[deepagents] Cleaned up old repo entry",
-    );
-  }
-
-  if (threadsToDelete.length > 0) {
-    logger.info(
-      { count: threadsToDelete.length },
-      "[deepagents] Cleaned up old repo entries",
-    );
-  }
-}
-
-/**
- * Master cleanup function that removes old entries from all thread maps.
- * This should be called periodically or before accessing thread maps.
- *
- * This function:
- * 1. Removes old agent entries from threadAgentMap
- * 2. Releases old sandboxes from threadSandboxMap
- * 3. Removes old repo entries from threadRepoMap
- *
- * The cleanup is time-based (TTL) and prevents unbounded memory growth
- * from abandoned threads.
- *
- * @param ttlMs - Time-to-live in milliseconds (defaults to THREAD_TTL_MS)
- * @returns The total number of entries cleaned across all maps
- */
-export async function cleanupThreadMaps(ttlMs: number = THREAD_TTL_MS): Promise<number> {
-  const startTime = Date.now();
-
-  // Count entries before cleanup
-  const beforeAgentCount = threadAgentMap.size;
-  const beforeSandboxCount = threadSandboxMap.size;
-  const beforeRepoCount = threadRepoMap.size;
-
-  // Clean up agent entries (synchronous)
-  cleanupOldEntriesFromThreadAgentMap(ttlMs);
-
-  // Clean up sandbox entries (asynchronous - releases resources)
-  await cleanupOldEntriesFromThreadSandboxMap(ttlMs);
-
-  // Clean up repo entries (asynchronous - removes persisted metadata)
-  await cleanupOldEntriesFromThreadRepoMap(ttlMs);
-
-  // Calculate total cleaned
-  const totalCleaned =
-    beforeAgentCount +
-    beforeSandboxCount +
-    beforeRepoCount -
-    (threadAgentMap.size + threadSandboxMap.size + threadRepoMap.size);
-
-  const duration = Date.now() - startTime;
-  if (duration > 100) {
-    logger.debug(
-      { durationMs: duration, cleaned: totalCleaned },
-      "[deepagents] Thread maps cleanup completed",
-    );
-  }
-
-  return totalCleaned;
+export async function cleanupThreadMaps(ttlMs: number = 3600000): Promise<number> {
+  const before = threadManager.threadAgentMap.size + threadManager.threadSandboxMap.size + threadManager.threadRepoMap.size;
+  threadManager.purgeStale();
+  const after = threadManager.threadAgentMap.size + threadManager.threadSandboxMap.size + threadManager.threadRepoMap.size;
+  return before - after;
 }
 
 async function createAgentInstance(args: {
@@ -958,10 +524,7 @@ function extractRepoFromInput(
 // Keep track of last specified repository per thread.
 // This solves the problem of "configurable" values being lost across turns
 // if the user doesn't re-type `--repo foo/bar`.
-const threadRepoMap = new Map<
-  string,
-  { owner: string; name: string; workspaceDir: string; lastAccessed: number }
->();
+
 
 function getSandboxProfileFromEnv(): SandboxProfile {
   const p = (process.env.SANDBOX_PROFILE || "typescript").trim().toLowerCase();
@@ -1047,6 +610,79 @@ async function acquireDaytonaSandboxForThreadRepo(args: {
   return { backend, workspaceDir };
 }
 
+async function resolveSandboxContext(
+  threadId: string,
+  parsedRepo: { owner: string; name: string },
+  profile: string,
+) {
+  const cloneStart = Date.now();
+  const provider = process.env.SANDBOX_PROVIDER || "opensandbox";
+  let backend;
+  let workspaceDir;
+
+  if (provider === "daytona") {
+    const result = await acquireDaytonaSandboxForThreadRepo({
+      threadId,
+      repoOwner: parsedRepo.owner,
+      repoName: parsedRepo.name,
+      profile,
+    });
+    backend = result.backend;
+    workspaceDir = result.workspaceDir;
+  } else {
+    backend = await createSandboxServiceWithConfig({
+      provider: "opensandbox",
+      opensandbox: {
+        domain: process.env.OPENSANDBOX_DOMAIN,
+        apiKey: process.env.OPENSANDBOX_API_KEY || "",
+        image: process.env.OPENSANDBOX_IMAGE,
+        timeoutSeconds: process.env.OPENSANDBOX_TIMEOUT
+          ? parseInt(process.env.OPENSANDBOX_TIMEOUT, 10)
+          : undefined,
+        cpu: process.env.OPENSANDBOX_CPU,
+        memory: process.env.OPENSANDBOX_MEMORY,
+      },
+    });
+    workspaceDir = await backend.cloneRepo(
+      parsedRepo.owner,
+      parsedRepo.name,
+      process.env.GITHUB_TOKEN,
+    );
+  }
+
+  logger.info(`[deepagents] Repo acquire+clone took ${Date.now() - cloneStart}ms`);
+
+  const activeRepo = { ...parsedRepo, workspaceDir, lastAccessed: Date.now() };
+  threadManager.setRepo(threadId, activeRepo);
+  const { lastAccessed, ...repoForPersistence } = threadManager.getRepo(threadId) || { owner: parsedRepo.owner, name: parsedRepo.name, workspaceDir };
+  
+  await persistThreadRepo(threadId, {
+    ...repoForPersistence,
+    sandbox: {
+      sandboxId: backend.id,
+      profile,
+    },
+  });
+
+  threadManager.setSandbox(threadId, {
+    backend,
+    profile,
+    repo: activeRepo,
+  } as any);
+  
+  setSandboxBackend(threadId, backend);
+
+  // Pre-install dependencies for agent context
+  try {
+    logger.info("[deepagents] Pre-installing dependencies for agent context...");
+    await installDependencies(backend, workspaceDir);
+  } catch (depErr) {
+    logger.warn({ err: depErr }, "[deepagents] Pre-install dependencies failed (non-fatal)");
+  }
+
+  return { activeRepo, backend, workspaceDir };
+}
+
 export class DeepAgentWrapper implements AgentHarness {
   constructor() {}
 
@@ -1054,7 +690,7 @@ export class DeepAgentWrapper implements AgentHarness {
     if (!hasLoadedPersistedRepos) {
       const persisted = await loadPersistedThreadRepos();
       for (const [id, repo] of persisted.entries()) {
-        setThreadRepo(threadRepoMap, id, repo);
+        threadManager.setRepo( id,  repo);
       }
       hasLoadedPersistedRepos = true;
     }
@@ -1062,15 +698,15 @@ export class DeepAgentWrapper implements AgentHarness {
     const parsedRepo = extractRepoFromInput(input);
     let activeRepo:
       | { owner: string; name: string; workspaceDir: string; lastAccessed: number }
-      | undefined = threadRepoMap.get(threadId);
+      | undefined = threadManager.getRepo(threadId);
     if (activeRepo) {
-      updateThreadRepoAccess(threadRepoMap, threadId);
+      
     }
     const profile = getSandboxProfileFromEnv();
 
-    const sandboxEntry = threadSandboxMap.get(threadId);
+    const sandboxEntry = threadManager.getSandbox(threadId);
     if (sandboxEntry) {
-      updateThreadSandboxAccess(threadSandboxMap, threadId);
+      
     }
     const hasBackendForThread = Boolean(sandboxEntry?.backend);
 
@@ -1091,9 +727,9 @@ export class DeepAgentWrapper implements AgentHarness {
         (useSandbox && !hasBackendForThread))
     ) {
       // If we already held a sandbox for this thread, release it back to the pool.
-      const prior = threadSandboxMap.get(threadId);
+      const prior = threadManager.getSandbox(threadId);
       if (prior) {
-        updateThreadSandboxAccess(threadSandboxMap, threadId);
+        
         try {
           await releaseRepoSandbox({
             apiKey: process.env.DAYTONA_API_KEY || "",
@@ -1118,8 +754,8 @@ export class DeepAgentWrapper implements AgentHarness {
             "[deepagents] Failed to cleanup prior backend",
           );
         }
-        threadSandboxMap.delete(threadId);
-        threadAgentMap.delete(threadId);
+        threadManager.threadSandboxMap.delete(threadId);
+        threadManager.threadAgentMap.delete(threadId);
         clearSandboxBackend(threadId);
         // Clean up tool invocation tracking for this thread
         toolInvocationTracker.clearThread(threadId);
@@ -1127,118 +763,16 @@ export class DeepAgentWrapper implements AgentHarness {
       }
 
       if (useSandbox) {
-        const provider = process.env.SANDBOX_PROVIDER || "opensandbox";
-        const cloneStart = Date.now();
-
-        if (provider === "daytona") {
-          const { backend, workspaceDir } =
-            await acquireDaytonaSandboxForThreadRepo({
-              threadId,
-              repoOwner: parsedRepo.owner,
-              repoName: parsedRepo.name,
-              profile,
-            });
-          logger.info(
-            `[deepagents] Repo acquire+clone took ${Date.now() - cloneStart}ms`,
-          );
-
-          activeRepo = { ...parsedRepo, workspaceDir, lastAccessed: Date.now() };
-          setThreadRepo(threadRepoMap, threadId, activeRepo);
-          const { lastAccessed, ...repoForPersistence } = threadRepoMap.get(
-            threadId,
-          ) || { owner: parsedRepo.owner, name: parsedRepo.name, workspaceDir };
-          await persistThreadRepo(threadId, {
-            ...repoForPersistence,
-            sandbox: {
-              sandboxId: backend.id,
-              profile,
-            },
-          });
-
-          setThreadSandbox(threadSandboxMap, threadId, {
-            backend,
-            profile,
-            repo: activeRepo,
-          });
-          setSandboxBackend(threadId, backend);
-
-          // Pre-install dependencies for agent context
-          try {
-            logger.info(
-              "[deepagents] Pre-installing dependencies for agent context...",
-            );
-            await installDependencies(backend, workspaceDir);
-          } catch (depErr) {
-            logger.warn(
-              { err: depErr },
-              "[deepagents] Pre-install dependencies failed (non-fatal)",
-            );
-          }
-        } else {
-          const backend = await createSandboxServiceWithConfig({
-            provider: "opensandbox",
-            opensandbox: {
-              domain: process.env.OPENSANDBOX_DOMAIN,
-              apiKey: process.env.OPENSANDBOX_API_KEY || "",
-              image: process.env.OPENSANDBOX_IMAGE,
-              timeoutSeconds: process.env.OPENSANDBOX_TIMEOUT
-                ? parseInt(process.env.OPENSANDBOX_TIMEOUT, 10)
-                : undefined,
-              cpu: process.env.OPENSANDBOX_CPU,
-              memory: process.env.OPENSANDBOX_MEMORY,
-            },
-          });
-          const workspaceDir = await backend.cloneRepo(
-            parsedRepo.owner,
-            parsedRepo.name,
-            process.env.GITHUB_TOKEN,
-          );
-
-          logger.info(
-            `[deepagents] OpenSandbox repo acquire+clone took ${Date.now() - cloneStart}ms`,
-          );
-
-          activeRepo = { ...parsedRepo, workspaceDir, lastAccessed: Date.now() };
-          setThreadRepo(threadRepoMap, threadId, activeRepo);
-          const { lastAccessed, ...repoForPersistence } = threadRepoMap.get(
-            threadId,
-          ) || { owner: parsedRepo.owner, name: parsedRepo.name, workspaceDir };
-          await persistThreadRepo(threadId, {
-            ...repoForPersistence,
-            sandbox: {
-              sandboxId: backend.id,
-              profile,
-            },
-          });
-
-          setThreadSandbox(threadSandboxMap, threadId, {
-            backend,
-            profile,
-            repo: activeRepo,
-          });
-          setSandboxBackend(threadId, backend);
-
-          // Pre-install dependencies for agent context
-          try {
-            logger.info(
-              "[deepagents] Pre-installing dependencies for agent context...",
-            );
-            await installDependencies(backend, workspaceDir);
-          } catch (depErr) {
-            logger.warn(
-              { err: depErr },
-              "[deepagents] Pre-install dependencies failed (non-fatal)",
-            );
-          }
-        }
+        const context = await resolveSandboxContext(threadId, parsedRepo, profile);
+        activeRepo = context.activeRepo;
       } else {
         activeRepo = {
           ...parsedRepo,
           workspaceDir: `/workspace/${parsedRepo.name}`,
           lastAccessed: Date.now(),
         };
-        setThreadRepo(threadRepoMap, threadId, activeRepo);
-        const { lastAccessed, ...repoForPersistence } = threadRepoMap.get(
+        threadManager.setRepo( threadId,  activeRepo);
+        const { lastAccessed, ...repoForPersistence } = threadManager.getRepo(
           threadId,
         ) || { owner: parsedRepo.owner, name: parsedRepo.name, workspaceDir: activeRepo.workspaceDir };
         await persistThreadRepo(threadId, repoForPersistence);
@@ -1259,14 +793,14 @@ export class DeepAgentWrapper implements AgentHarness {
     configurable.tools = currentTools;
 
     // Get or create a DeepAgent instance for this thread.
-    let agentEntry = threadAgentMap.get(threadId);
+    let agentEntry = threadManager.getAgent(threadId);
     if (agentEntry) {
-      updateThreadAgentAccess(threadAgentMap, threadId);
+      
     }
     let agent = agentEntry?.agent;
     if (!agent) {
       if (useSandbox) {
-        const backend = threadSandboxMap.get(threadId)?.backend;
+        const backend = threadManager.getSandbox(threadId)?.backend;
         if (!backend) {
           throw new Error(
             "Sandbox mode is enabled but no sandbox backend is available. Provide --repo or configure a default sandbox.",
@@ -1288,7 +822,7 @@ export class DeepAgentWrapper implements AgentHarness {
         agent = await createAgentInstance({});
       }
 
-      setThreadAgent(threadAgentMap, threadId, agent);
+      threadManager.setAgent( threadId,  agent);
       logger.info({ threadId }, `[deepagents] Agent initialized for thread`);
     }
     return { agent, configurable, activeRepo };
@@ -1302,9 +836,9 @@ export class DeepAgentWrapper implements AgentHarness {
     try {
       const threadId = options?.threadId || "default-session";
       let { agent, configurable } = await this.prepareAgent(input, threadId);
-      const activeRepo = threadRepoMap.get(threadId);
+      const activeRepo = threadManager.getRepo(threadId);
       if (activeRepo) {
-        updateThreadRepoAccess(threadRepoMap, threadId);
+        
       }
 
       // Mark thread as accessed in cleanup scheduler
@@ -1384,9 +918,9 @@ If you need to make additional changes, continue working and they'll be added to
 
       // Clean repository state before agent run if using sandbox
       // This prevents the agent from being confused by leftover changes from previous runs
-      const sandboxEntry = threadSandboxMap.get(threadId);
+      const sandboxEntry = threadManager.getSandbox(threadId);
       if (sandboxEntry) {
-        updateThreadSandboxAccess(threadSandboxMap, threadId);
+        
       }
 
       // Mark thread as accessed in cleanup scheduler
@@ -1631,7 +1165,7 @@ If you need to make additional changes, continue working and they'll be added to
         try {
           const { runVerificationPipeline } =
             await import("../nodes/deterministic");
-          const sandboxEntry = threadSandboxMap.get(threadId);
+          const sandboxEntry = threadManager.getSandbox(threadId);
 
           if (sandboxEntry?.backend) {
             logger.info(
@@ -1680,7 +1214,7 @@ If you need to make additional changes, continue working and they'll be added to
       if (activeRepo) {
         try {
           const expectedSandbox = useSandbox
-            ? threadSandboxMap.get(threadId)?.backend
+            ? threadManager.getSandbox(threadId)?.backend
             : undefined;
           await openPrIfNeeded(
             { messages },
@@ -1748,9 +1282,9 @@ If you need to make additional changes, continue working and they'll be added to
   }
 
   async getState(threadId: string): Promise<any> {
-    const agentEntry = threadAgentMap.get(threadId);
+    const agentEntry = threadManager.getAgent(threadId);
     if (!agentEntry) return null;
-    updateThreadAgentAccess(threadAgentMap, threadId);
+    
 
     // Mark thread as accessed in cleanup scheduler
     const scheduler = await import("../utils/thread-cleanup-scheduler").then(m => m.getThreadCleanupScheduler());
@@ -1777,7 +1311,7 @@ export async function initDeepAgentsAtStartup(): Promise<void> {
   if (!hasLoadedPersistedRepos) {
     const persisted = await loadPersistedThreadRepos();
     for (const [id, repo] of persisted.entries()) {
-      setThreadRepo(threadRepoMap, id, repo);
+      threadManager.setRepo( id,  repo);
     }
     hasLoadedPersistedRepos = true;
   }
@@ -1865,9 +1399,9 @@ export async function cleanupDeepAgents(): Promise<void> {
       toolInvocationTracker.clearThread(threadId);
     }),
   );
-  threadSandboxMap.clear();
-  threadAgentMap.clear();
-  threadRepoMap.clear();
+  threadManager.threadSandboxMap.clear();
+  threadManager.threadAgentMap.clear();
+  threadManager.threadRepoMap.clear();
 
   // Shutdown Langfuse to flush any pending traces
   if (isLangfuseEnabled()) {
@@ -1884,9 +1418,9 @@ export function resetDeepAgentsStateForTesting(): void {
   stopThreadCleanupScheduler();
 
   hasLoadedPersistedRepos = false;
-  threadRepoMap.clear();
-  threadSandboxMap.clear();
-  threadAgentMap.clear();
+  threadManager.threadRepoMap.clear();
+  threadManager.threadSandboxMap.clear();
+  threadManager.threadAgentMap.clear();
 }
 
 export function getThreadRepoMapForTesting() {

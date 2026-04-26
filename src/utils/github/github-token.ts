@@ -6,7 +6,7 @@
  */
 
 import { Client } from "@langchain/langgraph-sdk";
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, scryptSync, randomBytes } from "node:crypto";
 
 const logger = console;
 
@@ -17,7 +17,7 @@ const IV_LENGTH = 12;
 function getEncryptionKey(): Buffer | null {
   const raw = process.env[TOKEN_KEY_ENV]?.trim();
   if (!raw) return null;
-  return createHash("sha256").update(raw).digest();
+  return scryptSync(raw, "bullhorse-token-salt", 32);
 }
 
 /**

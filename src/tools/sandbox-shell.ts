@@ -48,6 +48,35 @@ export const sandboxShellTool = tool(
     const workspaceDir = config?.configurable?.repo?.workspaceDir as
       | string
       | undefined;
+      
+    // Validate command against dangerous patterns
+    const dangerousPatterns = [
+      /\brm\s+-r[fF]?\s+\//, // rm -rf /
+      /\bmkfs\b/, // mkfs
+      /\bdd\s+if=/, // dd if=
+      /\b>(\s*)\/dev\/[sh]d[a-z]/, // > /dev/sda
+      /\b:(\s*)\(\)(\s*)\{(\s*):\|\:&(\s*)\};:/, // fork bomb
+    ];
+
+    for (const pattern of dangerousPatterns) {
+      if (pattern.test(command)) {
+        throw new Error(`Command execution rejected: matches dangerous pattern.`);
+      }
+    }
+
+    // Basic allowlist of commands
+    const allowedPrefixes = [
+      "ls", "cat", "echo", "grep", "find", "mkdir", "rm", "mv", "cp", "touch",
+      "git", "bun", "npm", "npx", "yarn", "node", "python", "python3", "pip",
+      "pwd", "cd", "test", "chmod", "curl", "wget", "tar", "unzip", "zip", "tsc",
+      "make", "sh", "bash"
+    ];
+    
+    const firstWord = command.trim().split(/\s+/)[0];
+    if (!allowedPrefixes.includes(firstWord) && !firstWord.startsWith("./") && !firstWord.startsWith("/")) {
+       throw new Error(`Command execution rejected: '${firstWord}' is not in the allowlist.`);
+    }
+
     const fullCommand = workspaceDir
       ? `cd ${shellEscapeSingleQuotes(workspaceDir)} && ${command}`
       : command;

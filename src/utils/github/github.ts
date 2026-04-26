@@ -403,29 +403,19 @@ export async function gitPush(
     throw new Error("Could not get git remote URL");
   }
 
-  // Construct authenticated URL by embedding token
-  const authUrl = remoteUrl.replace(
-    "https://github.com/",
-    `https://x-access-token:${githubToken}@github.com/`,
-  );
-
-  // Log sanitized URL (without token) for debugging
-  logger.debug(
-    { sanitizedAuthUrl: sanitizeAuthUrl(authUrl) },
-    "[github] Using authenticated git remote",
-  );
+  const credPath = `/tmp/git-creds-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
   try {
-    // Temporarily set remote to authenticated URL
+    // Use credential store file instead of embedding token in remote URL
     await backend.execute(
-      `cd ${shellEscapeSingleQuotes(repoDir)} && git remote set-url origin ${authUrl}`,
+      `echo "https://x-access-token:${githubToken}@github.com" > ${credPath} && chmod 600 ${credPath}`
     );
 
-    // Push using the authenticated remote
+    // Push using the credential helper
     const result = await runGit(
       backend,
       repoDir,
-      `git push origin ${shellEscapeSingleQuotes(branch)}`,
+      `git -c credential.helper="store --file=${credPath}" push origin ${shellEscapeSingleQuotes(branch)}`,
     );
 
     return result;
@@ -434,18 +424,14 @@ export async function gitPush(
     const safeMsg = sanitizeTokenFromString(rawMsg, githubToken);
     throw new Error(safeMsg);
   } finally {
-    // Restore original remote URL
-    if (remoteUrl) {
-      try {
-        await backend.execute(
-          `cd ${shellEscapeSingleQuotes(repoDir)} && git remote set-url origin ${remoteUrl}`,
-        );
-      } catch (restoreError) {
-        logger.error(
-          "[github] Failed to restore original remote URL",
-          restoreError,
-        );
-      }
+    // Clean up the credential file
+    try {
+      await backend.execute(`rm -f ${credPath}`);
+    } catch (cleanupError) {
+      logger.error(
+        "[github] Failed to clean up git credentials file",
+        cleanupError,
+      );
     }
   }
 }
@@ -733,15 +719,17 @@ export async function findExistingPr(
 
       const { data: pulls } = await cachedGithubApiCall(
         "GET",
-        "pulls.list",
-        { owner: baseRepoOwner, repo: baseRepoName, state, per_page: 50 },
-        () =>
-          octokit.rest.pulls.list({
+        "pulls.list.all",
+        { owner: baseRepoOwner, repo: baseRepoName, state, per_page: 100 },
+        async () => {
+          const results = await octokit.paginate(octokit.rest.pulls.list, {
             owner: baseRepoOwner,
             repo: baseRepoName,
             state,
-            per_page: 50,
-          }),
+            per_page: 100,
+          });
+          return { data: results };
+        }
       );
 
       logger.debug(
@@ -789,7 +777,7 @@ export async function findExistingPr(
 
   const pr = openPr || allPr;
   if (pr) {
-    return [pr.html_url ?? null, pr.number ?? null];
+    return pr as [string | null, number | null];
   }
 
   logger.info(
@@ -857,15 +845,17 @@ export async function listGithubPrs(
     const octokit = new Octokit({ auth: githubToken });
     const { data: pulls } = await cachedGithubApiCall(
       "GET",
-      "pulls.list",
-      { owner: repoOwner, repo: repoName, state, per_page: 50 },
-      () =>
-        octokit.rest.pulls.list({
+      "pulls.list.all",
+      { owner: repoOwner, repo: repoName, state, per_page: 100 },
+      async () => {
+        const results = await octokit.paginate(octokit.rest.pulls.list, {
           owner: repoOwner,
           repo: repoName,
           state,
-          per_page: 50,
-        }),
+          per_page: 100,
+        });
+        return { data: results };
+      }
     );
     return pulls;
   } catch (error) {

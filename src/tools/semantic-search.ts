@@ -353,7 +353,7 @@ export const semanticSearchTool = tool(
     for (let i = 0; i < maxFilesToProcess; i += batchSize) {
       const batch = files.slice(i, i + batchSize);
 
-      for (const file of batch) {
+      const batchPromises = batch.map(async (file) => {
         try {
           // Check cache for document vectors
           let cachedVectors = semanticSearchCache.getDocumentVectors(file);
@@ -431,9 +431,10 @@ export const semanticSearchTool = tool(
           }
         } catch (err) {
           // Skip files that can't be read
-          continue;
         }
-      }
+      });
+      
+      await Promise.all(batchPromises);
     }
 
     // Sort by score and limit results

@@ -1,14 +1,46 @@
-import { createHash } from "crypto";
+import { createHash, timingSafeEqual } from "crypto";
 import { createLogger } from "./utils/logger";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger as httpLogger } from "hono/logger";
 
 import { runCodeagentTurn } from "./server";
-import { isDuplicateMessage, sendChatAction, formatTelegramMarkdownV2 } from "./utils/telegram";
+import { isDuplicateMessage, sendChatAction } from "./utils/telegram";
+import { secureHeaders } from "hono/secure-headers";
+import { LRUCache } from "lru-cache";
 
-// Message queue for concurrent requests (shared across all transports)
-const messageQueue = new Map<string, string[]>();
+// Security headers
+// (Moved below app declaration)
+
+// In-memory rate limiter
+const rateLimitCache = new LRUCache<string, number>({
+  max: 5000,
+  ttl: 60 * 1000, // 1 minute window
+});
+
+const rateLimiter = (limitPerMinute: number) => async (c: any, next: any) => {
+  const ip =
+    c.req.header("x-forwarded-for") || c.req.header("x-real-ip") || "unknown";
+  const path = c.req.path;
+  const key = `${ip}:${path}`;
+
+  const count = rateLimitCache.get(key) || 0;
+  if (count >= limitPerMinute) {
+    log.warn({ ip, path }, "[webapp] Rate limit exceeded");
+    return c.json({ error: "Too Many Requests" }, 429);
+  }
+  rateLimitCache.set(key, count + 1);
+  await next();
+};
+
+// (Rate limiter applied below app declaration)
+
+// Message queue for concurrent requests
+interface QueueItem {
+  chatId: number;
+  text: string;
+}
+const messageQueue = new Map<string, QueueItem[]>();
 const activeThreads = new Set<string>();
 
 /**
@@ -31,24 +63,75 @@ function isThreadActive(threadId: string): boolean {
 /**
  * Enqueue a message for processing when the thread becomes available.
  */
-function enqueueMessage(threadId: string, message: string): void {
+function enqueueMessage(threadId: string, chatId: number, text: string): void {
   if (!messageQueue.has(threadId)) {
     messageQueue.set(threadId, []);
   }
-  messageQueue.get(threadId)!.push(message);
+  messageQueue.get(threadId)!.push({ chatId, text });
+
+  if (!activeThreads.has(threadId)) {
+    processThreadQueue(threadId).catch((err) => {
+      log.error({ err, threadId }, "[webapp] Error in processThreadQueue");
+    });
+  }
 }
 
 /**
- * Process a single message for a thread.
+ * Process the queue for a specific thread sequentially.
  */
-async function processMessage(
-  threadId: string,
-  enrichedText: string,
-): Promise<string> {
+async function processThreadQueue(threadId: string): Promise<void> {
+  if (activeThreads.has(threadId)) return;
   activeThreads.add(threadId);
+
   try {
-    const reply = await runCodeagentTurn(enrichedText, threadId, undefined, "telegram");
-    return reply;
+    const { telegramBotToken } = loadTelegramConfig();
+    const queue = messageQueue.get(threadId);
+
+    while (queue && queue.length > 0) {
+      const item = queue.shift();
+      if (!item) continue;
+
+      try {
+        const reply = await runCodeagentTurn(
+          item.text,
+          threadId,
+          undefined,
+          "telegram",
+        );
+
+        if (telegramBotToken) {
+          await fetch(
+            `https://api.telegram.org/bot${telegramBotToken}/sendMessage`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                chat_id: item.chatId,
+                text: reply,
+              }),
+            },
+          );
+        }
+      } catch (err) {
+        log.error(
+          { err, threadId },
+          "[webapp] Error processing message in queue",
+        );
+        if (telegramBotToken) {
+          await fetch(
+            `https://api.telegram.org/bot${telegramBotToken}/sendMessage`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                chat_id: item.chatId,
+                text: "Sorry, I encountered an error.",
+              }),
+            },
+          );
+        }
+      }
+    }
   } finally {
     activeThreads.delete(threadId);
   }
@@ -73,7 +156,13 @@ const log = createLogger("webapp");
 const app = new Hono();
 
 // Middleware
+app.use("*", secureHeaders());
 app.use("*", httpLogger());
+
+// Apply rate limits to public webhooks and expensive endpoints
+app.use("/webhook/*", rateLimiter(60));
+app.use("/run", rateLimiter(20));
+app.use("/v1/chat/completions", rateLimiter(20));
 app.use(
   "*",
   cors({
@@ -82,6 +171,37 @@ app.use(
     allowHeaders: ["Content-Type", "Authorization", "X-User-Id"],
   }),
 );
+
+// Authentication Middleware
+app.use(async (c, next) => {
+  const path = c.req.path;
+  // Skip auth for public endpoints like webhooks and health checks
+  if (path.startsWith("/webhook/") || path === "/health" || path === "/info") {
+    return next();
+  }
+  const secret = process.env.API_SECRET_KEY;
+  if (secret) {
+    const authHeader = c.req.header("Authorization");
+    const token = authHeader
+      ? authHeader.replace(/^Bearer\s+/i, "")
+      : c.req.query("token");
+
+    if (!token) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+
+    const tokenBuffer = Buffer.from(token);
+    const secretBuffer = Buffer.from(secret);
+
+    if (
+      tokenBuffer.length !== secretBuffer.length ||
+      !timingSafeEqual(tokenBuffer, secretBuffer)
+    ) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+  }
+  await next();
+});
 
 /**
  * Health check endpoint
@@ -254,7 +374,7 @@ app.post("/webhook/telegram", async (c) => {
             { threadId, chatId: msg.chat.id },
             "[webapp][telegram] thread busy, queuing message",
           );
-          enqueueMessage(threadId, msg.text);
+          enqueueMessage(threadId, msg.chat.id, msg.text);
           // Send acknowledgment
           await fetch(
             `https://api.telegram.org/bot${telegramBotToken}/sendMessage`,
@@ -274,29 +394,10 @@ app.post("/webhook/telegram", async (c) => {
         // Send typing indicator to show we're processing
         await sendChatAction(telegramBotToken, msg.chat.id, "typing");
 
-        // Process the message
-        const reply = await processMessage(threadId, msg.text);
+        // Enqueue and start processing (non-blocking)
+        enqueueMessage(threadId, msg.chat.id, msg.text);
 
-        // Format reply for Telegram MarkdownV2 (only when parseMode is MarkdownV2)
-        const formattedReply = telegramParseMode === "MarkdownV2"
-          ? formatTelegramMarkdownV2(reply)
-          : reply;
-
-        // Send reply back to Telegram
-        await fetch(
-          `https://api.telegram.org/bot${telegramBotToken}/sendMessage`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              chat_id: msg.chat.id,
-              text: formattedReply,
-              parse_mode: telegramParseMode,
-            }),
-          },
-        );
-
-        return c.json({ ok: true, message: "Message processed" });
+        return c.json({ ok: true, message: "Message processing started" });
       }
     }
 
@@ -437,7 +538,12 @@ app.post("/webhook/github", async (c) => {
 
             const finalMessage = `[System Context: Webhook event ${githubEvent} from GitHub user @${githubLogin} (Email: ${email})]\n\n${prompt}`;
 
-            await runCodeagentTurn(finalMessage, undefined, undefined, "github");
+            await runCodeagentTurn(
+              finalMessage,
+              undefined,
+              undefined,
+              "github",
+            );
           } catch (err) {
             log.error(
               { err },
@@ -475,7 +581,12 @@ app.post("/webhook/github", async (c) => {
             void (async () => {
               try {
                 const prompt = `New issue opened in ${repoOwner}/${repoName}#${issueNumber}:\nTitle: ${issueTitle}\n\n${issueBody}\n\nPlease analyze this issue and provide a helpful response.`;
-                const reply = await runCodeagentTurn(prompt, undefined, undefined, "github");
+                const reply = await runCodeagentTurn(
+                  prompt,
+                  undefined,
+                  undefined,
+                  "github",
+                );
 
                 const token =
                   getGithubToken() || (await getGithubAppInstallationToken());

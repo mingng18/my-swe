@@ -1,7 +1,22 @@
 import { randomUUID, createHash } from "node:crypto";
+import { Agent, fetch as undiciFetch } from "undici";
 import { createLogger } from "../utils/logger";
 
 const logger = createLogger("repo-memory");
+
+// Keep-alive agent for Supabase connection pooling
+const supabaseAgent = new Agent({
+  keepAliveTimeout: 60000,
+  keepAliveMaxTimeout: 60000,
+  connections: 50,
+});
+
+async function supabaseFetch(url: string | URL, init: RequestInit) {
+  return undiciFetch(url, {
+    ...init,
+    dispatcher: supabaseAgent,
+  } as any);
+}
 
 type SandboxProfile = "typescript" | "javascript" | "python" | "java" | "polyglot";
 
@@ -109,7 +124,7 @@ async function supabaseSelectSingle(table: string, eq: Record<string, string>, s
     .join("&");
 
   const url = `${urlBase}/rest/v1/${table}?${conditions}&select=${encodeURIComponent(select)}&limit=1`;
-  const res = await fetch(url, {
+  const res = await supabaseFetch(url, {
     method: "GET",
     headers: {
       apikey: key,
@@ -134,7 +149,7 @@ async function supabaseUpsertSingle(table: string, row: SupabaseRow): Promise<Su
   if (!urlBase || !key) return null;
 
   const url = `${urlBase}/rest/v1/${table}`;
-  const res = await fetch(url, {
+  const res = await supabaseFetch(url, {
     method: "POST",
     headers: {
       apikey: key,
@@ -162,7 +177,7 @@ async function supabaseRpc(rpcName: string, payload: Record<string, unknown>): P
   if (!urlBase || !key) return false;
 
   const url = `${urlBase}/rest/v1/rpc/${rpcName}`;
-  const res = await fetch(url, {
+  const res = await supabaseFetch(url, {
     method: "POST",
     headers: {
       apikey: key,
@@ -190,7 +205,7 @@ async function supabaseInsertMany(table: string, rows: SupabaseRow[]): Promise<v
   if (rows.length === 0) return;
 
   const url = `${urlBase}/rest/v1/${table}`;
-  const res = await fetch(url, {
+  const res = await supabaseFetch(url, {
     method: "POST",
     headers: {
       apikey: key,
@@ -378,7 +393,7 @@ export async function writeRepoMemoryAfterAgentTurn(turn: RepoMemoryTurnResult):
     if (existingRun?.id && typeof existingRun.id === "string") {
       resolvedAgentRunId = existingRun.id;
       // Update status/finished timestamps. If columns don't exist, this will be ignored.
-      await fetch(`${urlBase}/rest/v1/agent_run?id=eq.${encodeURIComponent(resolvedAgentRunId)}`, {
+      await supabaseFetch(`${urlBase}/rest/v1/agent_run?id=eq.${encodeURIComponent(resolvedAgentRunId)}`, {
         method: "PATCH",
         headers: {
           apikey: process.env.SUPABASE_SERVICE_ROLE_KEY!.trim(),

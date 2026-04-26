@@ -21,9 +21,17 @@ import path from "path";
  * Tool to read file contents from the sandbox
  */
 export const readSandboxFileTool = tool(
-  async ({ filePath, startLine, endLine }: { filePath: string; startLine?: number; endLine?: number }) => {
+  async (
+    { filePath, startLine, endLine }: { filePath: string; startLine?: number; endLine?: number },
+    config
+  ) => {
     try {
-      const content = await fs.readFile(filePath, "utf-8");
+      const backend = getSandboxBackendFromConfig(config);
+      if (!backend) {
+        throw new Error("Sandbox backend not initialized. Make sure USE_SANDBOX=true is set.");
+      }
+      
+      const content = await backend.read(filePath);
 
       if (startLine !== undefined && endLine !== undefined) {
         const lines = content.split('\n');
@@ -54,11 +62,17 @@ export const readSandboxFileTool = tool(
  * Tool to write contents to a file in the sandbox
  */
 export const writeSandboxFileTool = tool(
-  async ({ filePath, content }: { filePath: string; content: string }) => {
+  async ({ filePath, content }: { filePath: string; content: string }, config) => {
     try {
+      const backend = getSandboxBackendFromConfig(config);
+      if (!backend) {
+        throw new Error("Sandbox backend not initialized. Make sure USE_SANDBOX=true is set.");
+      }
+      
       // Ensure directory exists
-      await fs.mkdir(path.dirname(filePath), { recursive: true });
-      await fs.writeFile(filePath, content, "utf-8");
+      await backend.execute(`mkdir -p $(dirname ${shellEscapeSingleQuotes(filePath)})`);
+      await backend.write(filePath, content);
+      
       return `Successfully wrote to ${filePath}`;
     } catch (err: any) {
       logger.error({ error: err }, "[sandbox-write] Failed to write file");
@@ -79,12 +93,17 @@ export const writeSandboxFileTool = tool(
  * Tool to list files in a directory in the sandbox
  */
 export const listSandboxFilesTool = tool(
-  async ({ dirPath }: { dirPath: string }) => {
+  async ({ dirPath }: { dirPath: string }, config) => {
     try {
-      const entries = await fs.readdir(dirPath, { withFileTypes: true });
+      const backend = getSandboxBackendFromConfig(config);
+      if (!backend) {
+        throw new Error("Sandbox backend not initialized. Make sure USE_SANDBOX=true is set.");
+      }
+      
+      const entries = await backend.lsInfo(dirPath);
       const result = entries.map(entry => ({
-        name: entry.name,
-        isDirectory: entry.isDirectory()
+        name: entry.path,
+        isDirectory: entry.is_dir
       }));
       return JSON.stringify(result, null, 2);
     } catch (err: any) {
