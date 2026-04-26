@@ -3,7 +3,7 @@
   "spec": "013-add-markdown-formatting-to-telegram-responses",
   "state": "building",
   "subtasks": {
-    "completed": 2,
+    "completed": 3,
     "total": 7,
     "in_progress": 1,
     "failed": 0
@@ -18,8 +18,8 @@
     "max": 1
   },
   "session": {
-    "number": 15,
+    "number": 16,
     "started_at": "2026-04-26T14:35:24.778644"
   },
-  "last_update": "2026-04-26T15:23:38.339166"
+  "last_update": "2026-04-26T15:24:45.527364"
 }
