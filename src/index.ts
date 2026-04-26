@@ -76,10 +76,11 @@ async function processQueue(threadId: string): Promise<void> {
 async function processMessage(
   threadId: string,
   enrichedText: string,
+  userId?: string,
 ): Promise<string> {
   activeThreads.add(threadId);
   try {
-    const reply = await runCodeagentTurn(enrichedText, threadId);
+    const reply = await runCodeagentTurn(enrichedText, threadId, userId, "telegram");
     return reply;
   } finally {
     activeThreads.delete(threadId);
@@ -109,6 +110,7 @@ async function handleTelegramMessage(msg: any, telegramBotToken: string) {
 
   // Extract the user identity
   const username = msg.from?.username || "unknown_user";
+  const userId = msg.from?.id?.toString();
   const email =
     getEmailForIdentity("telegram", username) ||
     getEmailForIdentity("github", username) ||
@@ -140,7 +142,7 @@ async function handleTelegramMessage(msg: any, telegramBotToken: string) {
   }
 
   // Process the message and send reply
-  const reply = await processMessage(threadId, enrichedText);
+  const reply = await processMessage(threadId, enrichedText, userId);
 
   // Send reply back to Telegram
   await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {

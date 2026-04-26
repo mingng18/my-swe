@@ -25,6 +25,13 @@ Server runs on `http://127.0.0.1:7860`
 
 - Reference: [`docs/architecture-summary.md`](docs/architecture-summary.md)
 
+## Blueprint System
+
+Bullhorse uses a blueprint system for defining state machine workflows that intermix agent nodes and deterministic nodes, inspired by [Stripe Minions](https://stripe.com/blog/minions).
+
+- **Documentation**: [`docs/blueprints.md`](docs/blueprints.md) for comprehensive guide, API reference, and examples
+- **Usage**: See [`src/blueprints/README.md`](src/blueprints/README.md) for quick start
+
 ## Project Structure
 
 ```text

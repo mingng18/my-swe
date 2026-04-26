@@ -7,7 +7,9 @@ import {
   flushLangfuse,
   shutdownLangfuse,
   createTrace,
+  maskSensitiveData,
 } from "../utils/langfuse";
+import { CallbackHandler as LangfuseLangChain } from "langfuse-langchain";
 import { MemorySaver } from "@langchain/langgraph";
 import {
   modelRetryMiddleware,
@@ -198,8 +200,10 @@ export { threadRepoMap };
 
 // Check if sandbox mode is enabled via environment variable
 const useSandbox = process.env.USE_SANDBOX === "true";
+// For complex SWE tasks, we need a much higher recursion limit
+// Default to 2000 steps (configurable via AGENT_RECURSION_LIMIT env var)
 const AGENT_RECURSION_LIMIT = Number.parseInt(
-  process.env.AGENT_RECURSION_LIMIT || "500",
+  process.env.AGENT_RECURSION_LIMIT || "2000",
   10,
 );
 let hasLoadedPersistedRepos = false;
@@ -237,7 +241,32 @@ async function createAgentInstance(args: {
       model: chatModel,
       modelName: modelConfig.model || "gpt-4o",
       config: {
-        // Use environment variables or defaults
+        // Cascade trigger (when to start compaction at all)
+        cascadeTrigger: process.env.COMPACTION_CASCADE_TRIGGER_FRACTION
+          ? {
+              type: "fraction",
+              value: Math.max(
+                0,
+                Math.min(
+                  1,
+                  (() => {
+                    const parsed = Number.parseFloat(
+                      process.env.COMPACTION_CASCADE_TRIGGER_FRACTION || "",
+                    );
+                    if (Number.isNaN(parsed)) {
+                      logger.warn(
+                        { envValue: process.env.COMPACTION_CASCADE_TRIGGER_FRACTION },
+                        "[deepagents] Invalid COMPACTION_CASCADE_TRIGGER_FRACTION, using default 0.7",
+                      );
+                      return 0.7;
+                    }
+                    return parsed;
+                  })(),
+                ),
+              ),
+            }
+          : { type: "fraction", value: 0.7 },
+        // Summarize trigger (when to use expensive LLM summarization)
         trigger: process.env.COMPACTION_TRIGGER_FRACTION
           ? {
               type: "fraction",
@@ -326,6 +355,12 @@ async function createAgentInstance(args: {
     tools,
     middleware,
   };
+
+  // Add LangChain callback for automatic tracing
+  if (isLangfuseEnabled()) {
+    config.callbacks = [new LangfuseLangChain()];
+    logger.debug("[deepagents] Langfuse LangChain callback registered");
+  }
 
   if (args.backend) {
     config.backend = args.backend;
@@ -1060,7 +1095,7 @@ If you need to make additional changes, continue working and they'll be added to
 
       // Create Langfuse trace for this agent turn (manual instrumentation)
       const langfuseTrace = isLangfuseEnabled()
-        ? createTrace("agent-turn", threadId)
+        ? createTrace("agent-turn", threadId, options?.userId)
         : null;
 
       let invokeProgressTicker: ReturnType<typeof setInterval> | undefined;
@@ -1083,7 +1118,15 @@ If you need to make additional changes, continue working and they'll be added to
 
         // Update trace with input
         if (langfuseTrace) {
-          langfuseTrace.update({ input: modifiedInput });
+          langfuseTrace.update({
+            input: maskSensitiveData(modifiedInput),
+            metadata: {
+              transport: options?.transport || "api",
+              blueprintId: blueprintSelection.blueprint.id,
+              blueprintName: blueprintSelection.blueprint.name,
+              repo: activeRepo ? `${activeRepo.owner}/${activeRepo.name}` : undefined,
+            },
+          });
         }
 
         result = traceTerminal
@@ -1207,10 +1250,11 @@ If you need to make additional changes, continue working and they'll be added to
       // Update Langfuse trace with output
       if (langfuseTrace) {
         langfuseTrace.update({
-          output: responseText,
+          output: maskSensitiveData(responseText),
           metadata: {
             totalMessages: messages.length,
             responseLength: responseText.length,
+            totalDurationMs: Date.now() - startTime,
           },
         });
       }
@@ -1378,17 +1422,10 @@ export async function initDeepAgentsAtStartup(): Promise<void> {
     hasLoadedPersistedRepos = true;
   }
 
-  // Initialize snapshot store for fast sandbox initialization
-  const { initializeSnapshotStore } = await import("../sandbox");
-  try {
-    await initializeSnapshotStore();
-    logger.info("[deepagents] Snapshot store initialized");
-  } catch (err) {
-    logger.warn(
-      { error: err },
-      "[deepagents] Failed to initialize snapshot store",
-    );
-  }
+  // Snapshot store now lazy-loads on first access (no need to initialize at startup)
+  logger.info(
+    "[deepagents] Snapshot store configured for lazy-loading (initializes on first access)",
+  );
 
   await getAgentHarness();
 }

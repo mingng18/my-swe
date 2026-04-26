@@ -1,25 +1,25 @@
 {
   "active": true,
-  "spec": "004-implement-exponential-backoff-in-telegram-polling-",
+  "spec": "002-add-typescript-rust-and-java-code-reviewer-subagen",
   "state": "building",
   "subtasks": {
-    "completed": 3,
-    "total": 6,
+    "completed": 5,
+    "total": 7,
     "in_progress": 1,
     "failed": 0
   },
   "phase": {
-    "current": "Add Tests",
+    "current": "Update Tests",
     "id": null,
-    "total": 1
+    "total": 2
   },
   "workers": {
     "active": 0,
     "max": 1
   },
   "session": {
-    "number": 5,
-    "started_at": "2026-04-22T08:34:27.145480"
+    "number": 7,
+    "started_at": "2026-04-22T19:39:04.657469"
   },
-  "last_update": "2026-04-22T08:42:04.612947"
+  "last_update": "2026-04-22T19:48:13.226053"
 }
