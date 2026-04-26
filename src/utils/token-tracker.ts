@@ -66,9 +66,10 @@ function getModelPricing(model: string): { input: number; output: number } {
   }
 
   // Check for prefix match (e.g., "openrouter/*")
-  for (const [key, pricing] of Object.entries(MODEL_PRICING)) {
+  // ⚡ Bolt: Replace Object.entries with for...in to avoid intermediate array allocations
+  for (const key in MODEL_PRICING) {
     if (model.startsWith(key)) {
-      return pricing;
+      return MODEL_PRICING[key];
     }
   }
 

@@ -134,9 +134,11 @@ function stripUnsupportedGeminiProps(obj: unknown): unknown {
   }
   if (obj !== null && typeof obj === "object") {
     const cleaned: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+    // ⚡ Bolt: Replace Object.entries with for...in to avoid intermediate array allocations
+    for (const key in obj as Record<string, unknown>) {
+      if (!Object.prototype.hasOwnProperty.call(obj, key)) continue;
       if (GEMINI_UNSUPPORTED_KEYWORDS.has(key)) continue;
-      cleaned[key] = stripUnsupportedGeminiProps(value);
+      cleaned[key] = stripUnsupportedGeminiProps((obj as Record<string, unknown>)[key]);
     }
 
     // Fix `required` array: only keep entries that match keys in `properties`.
