@@ -157,6 +157,8 @@ System prompt here...
 
 Bullhorse uses a blueprint system inspired by [Stripe Minions](https://stripe.com/blog/minions). Blueprints define state machine workflows that intermix agent nodes and deterministic nodes.
 
+**📚 For comprehensive documentation, including API reference, examples, and advanced usage, see [docs/blueprints.md](docs/blueprints.md).**
+
 ### Usage
 
 ```typescript
