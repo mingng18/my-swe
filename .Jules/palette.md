@@ -10,3 +10,6 @@
 ## 2026-04-14 - Semantic HTML Replacements
 **Learning:** Native semantic HTML tags (`<header>`, `<main>`, `<footer>`, `<nav>`) provide implicit ARIA landmark roles, offering a lightweight and robust way to improve accessibility for screen readers in vanilla web interfaces compared to using generic `<div>` wrappers.
 **Action:** Always prefer native semantic HTML elements over standard `<div>` tags when structuring the layout for web interfaces in the repository, especially in the `.agents/skills/` directories.
+## 2025-02-14 - Keyboard Shortcut Discovery
+**Learning:** Combining explicit keyboard hints (<kbd>Tab</kbd>) with semantic roles (like <footer aria-live="polite">) creates a highly discoverable and accessible experience for companion web frames without cluttering the visual UI.
+**Action:** Consistently pair visual shortcut hints (<kbd>) with ARIA live regions when instructing users on keyboard-driven navigation in isolated frame views.
