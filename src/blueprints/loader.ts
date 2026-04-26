@@ -5,8 +5,13 @@ import * as path from "path";
 import type { Blueprint } from "./types";
 
 export class BlueprintValidationError extends Error {
-  constructor(public blueprintId: string, public errors: string[]) {
-    super(`Blueprint validation failed for '${blueprintId}': ${errors.join(", ")}`);
+  constructor(
+    public blueprintId: string,
+    public errors: string[],
+  ) {
+    super(
+      `Blueprint validation failed for '${blueprintId}': ${errors.join(", ")}`,
+    );
     this.name = "BlueprintValidationError";
   }
 }
@@ -36,14 +41,19 @@ export class BlueprintLoader {
     const blueprints: Blueprint[] = [];
     try {
       const files = await fs.readdir(dir);
-      const yamlFiles = files.filter((f) => f.endsWith(".yaml") || f.endsWith(".yml"));
-      for (const file of yamlFiles) {
+      const yamlFiles = files.filter(
+        (f) => f.endsWith(".yaml") || f.endsWith(".yml"),
+      );
+      // ⚡ Bolt: Use Promise.all for concurrent file reads
+      const readPromises = yamlFiles.map(async (file) => {
         const filePath = path.join(dir, file);
         const content = await fs.readFile(filePath, "utf-8");
         const blueprint = this.parse(content, filePath);
         if (this.options.validate) this.validate(blueprint);
-        blueprints.push(blueprint);
-      }
+        return blueprint;
+      });
+      const loadedBlueprints = await Promise.all(readPromises);
+      blueprints.push(...loadedBlueprints);
     } catch (error: any) {
       if (error.code === "ENOENT") return [];
       throw error;
@@ -56,12 +66,16 @@ export class BlueprintLoader {
     try {
       const parsed = yaml.load(content) as Blueprint;
       if (!this.isBlueprint(parsed)) {
-        throw new BlueprintValidationError(filePath || "unknown", ["Invalid blueprint structure"]);
+        throw new BlueprintValidationError(filePath || "unknown", [
+          "Invalid blueprint structure",
+        ]);
       }
       return parsed;
     } catch (error: any) {
       if (error instanceof BlueprintValidationError) throw error;
-      throw new BlueprintValidationError(filePath || "unknown", [error.message]);
+      throw new BlueprintValidationError(filePath || "unknown", [
+        error.message,
+      ]);
     }
   }
 
@@ -70,15 +84,18 @@ export class BlueprintLoader {
     if (!blueprint.id) errors.push("Missing 'id'");
     if (!blueprint.name) errors.push("Missing 'name'");
     if (!blueprint.description) errors.push("Missing 'description'");
-    if (!Array.isArray(blueprint.triggerKeywords)) errors.push("Missing 'triggerKeywords'");
-    if (typeof blueprint.priority !== "number") errors.push("Missing 'priority'");
+    if (!Array.isArray(blueprint.triggerKeywords))
+      errors.push("Missing 'triggerKeywords'");
+    if (typeof blueprint.priority !== "number")
+      errors.push("Missing 'priority'");
     if (!blueprint.initialState) errors.push("Missing 'initialState'");
     if (!blueprint.states) errors.push("Missing 'states'");
     if (blueprint.states) {
       for (const [stateId, state] of Object.entries(blueprint.states)) {
         if (!state.type) errors.push(`State '${stateId}': missing 'type'`);
         if (state.type === "agent") {
-          if (!state.config) errors.push(`State '${stateId}': missing 'config'`);
+          if (!state.config)
+            errors.push(`State '${stateId}': missing 'config'`);
           if (!state.next) errors.push(`State '${stateId}': missing 'next'`);
         }
         if (state.type === "deterministic" && !state.action) {
