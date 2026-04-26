@@ -24,6 +24,30 @@ export function isDuplicateMessage(chatId: number, messageId: number): boolean {
 }
 
 /**
+ * Format a string as a code block for Telegram MarkdownV2.
+ *
+ * Wraps the provided code in triple backticks with proper formatting.
+ *
+ * @param code - The code to format
+ * @returns Code wrapped in triple backticks
+ *
+ * @example
+ * ```ts
+ * formatCodeBlock('console.log("test")')
+ * // Returns: "```\nconsole.log(\"test\")\n```"
+ * ```
+ */
+export function formatCodeBlock(code: string): string {
+  if (!code) {
+    return "";
+  }
+
+  // Remove leading/trailing whitespace and wrap in code block markers
+  const trimmedCode = code.trim();
+  return `\`\`\`\n${trimmedCode}\n\`\`\``;
+}
+
+/**
  * Escape a string for use in Telegram MarkdownV2 format.
  *
  * This function escapes special characters that have meaning in MarkdownV2,
