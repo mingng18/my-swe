@@ -6,14 +6,15 @@ The Bullhorse blueprint system is a state machine workflow framework inspired by
 
 1. [Overview](#1-overview) - System architecture and design philosophy
 2. [Core Concepts](#2-core-concepts) - Blueprint structure and types
-3. [Loading Blueprints](#3-loading-blueprints) - Loading and validation
-4. [Selection Logic](#4-selection-logic) - Automatic blueprint selection
-5. [Compilation](#5-compilation) - Converting blueprints to LangGraph
-6. [Built-in Actions](#6-built-in-actions) - Deterministic node implementations
-7. [Custom Actions](#7-custom-actions) - Creating and registering actions
-8. [Creating Blueprints](#8-creating-blueprints) - Writing custom blueprints
-9. [Default Blueprints](#9-default-blueprints) - Included blueprint examples
-10. [API Reference](#10-api-reference) - Complete API documentation
+3. [YAML Format Reference](#3-yaml-format-reference) - Complete field documentation
+4. [Loading Blueprints](#4-loading-blueprints) - Loading and validation
+5. [Selection Logic](#5-selection-logic) - Automatic blueprint selection
+6. [Compilation](#6-compilation) - Converting blueprints to LangGraph
+7. [Built-in Actions](#7-built-in-actions) - Deterministic node implementations
+8. [Custom Actions](#8-custom-actions) - Creating and registering actions
+9. [Creating Blueprints](#9-creating-blueprints) - Writing custom blueprints
+10. [Default Blueprints](#10-default-blueprints) - Included blueprint examples
+11. [API Reference](#11-api-reference) - Complete API documentation
 
 ---
 
@@ -177,7 +178,505 @@ verify:
 
 ---
 
-## 3. Loading Blueprints
+## 3. YAML Format Reference
+
+This section provides a comprehensive reference for all fields and properties available in blueprint YAML files.
+
+### Root-Level Properties
+
+| Property | Type | Required | Description | Example |
+|----------|------|----------|-------------|---------|
+| `id` | `string` | Yes | Unique identifier for the blueprint. Must match pattern `^[a-z0-9-]+$` (lowercase letters, numbers, hyphens only). | `bug-fix` |
+| `name` | `string` | Yes | Human-readable display name for the blueprint. | `Bug Fix Blueprint` |
+| `description` | `string` | Yes | Detailed description of what the blueprint does and when to use it. | `Fixes bugs with verification loop` |
+| `triggerKeywords` | `string[]` | Yes | Array of keywords that trigger automatic selection of this blueprint. Case-insensitive matching. | `["fix", "bug", "error"]` |
+| `priority` | `number` | Yes | Selection priority (higher values selected first). Must be ≥ 0. | `100` |
+| `initialState` | `string` | Yes | The ID of the starting state in the workflow. Must exist in the `states` object. | `explore` |
+| `states` | `object` | Yes | Object defining all workflow states. Keys are state IDs, values are state configurations. | See below |
+
+#### Root-Level Examples
+
+```yaml
+id: "bug-fix"
+name: "Bug Fix Blueprint"
+description: "Debugging workflow with automated verification"
+triggerKeywords: ["fix", "bug", "error", "broken"]
+priority: 100
+initialState: "explore"
+states:
+  # ... state definitions
+```
+
+### State Types
+
+Every state in the `states` object must have a `type` property. The following types are supported:
+
+| Type | Value | Required Properties | Description |
+|------|-------|---------------------|-------------|
+| Agent | `"agent"` | `type`, `config`, `next` | LLM-powered reasoning node |
+| Deterministic | `"deterministic"` | `type`, `action` | Shell command/action execution |
+| Terminal | `"terminal"` | `type` | End of workflow |
+
+### Agent State Configuration
+
+An agent state uses LLM reasoning to perform tasks. It requires the following properties:
+
+#### Agent State Properties
+
+| Property | Type | Required | Description | Example |
+|----------|------|----------|-------------|---------|
+| `type` | `string` | Yes | Must be `"agent"` | `agent` |
+| `config` | `object` | Yes | Agent configuration object | See below |
+| `next` | `string[]` | Yes | Array of possible next state IDs. The agent dynamically chooses from these options. | `["verify", "review"]` |
+
+#### Agent Config Properties
+
+The `config` object configures the agent's behavior:
+
+| Property | Type | Required | Description | Example |
+|----------|------|----------|-------------|---------|
+| `name` | `string` | No | Optional display name for this agent state. Defaults to state ID. | `planner` |
+| `models` | `string[]` | Yes | Array of model identifiers to use, in priority order. The system tries each model in sequence until one succeeds. | `["sonnet", "haiku"]` |
+| `tools` | `string[]` | Yes | Array of tool names that the agent is allowed to use. | `["read", "write", "edit"]` |
+| `systemPrompt` | `string` | No | Custom system prompt for this agent state. Overrides default prompts. | `"You are a code reviewer..."` |
+
+#### Model Identifiers
+
+Available model identifiers:
+
+| Model ID | Speed | Cost | Quality | Best Use Case |
+|----------|-------|------|---------|---------------|
+| `haiku` | Fast | Low | Good | Exploration, simple tasks, documentation |
+| `sonnet` | Medium | Medium | High | Most code work, bug fixes, refactoring |
+| `claude-sonnet-4-6` | Slower | Higher | Best | Planning, architecture, complex reasoning |
+
+#### Tool Names
+
+Available tools for agent states:
+
+| Tool Name | Description |
+|-----------|-------------|
+| `read` | Read file contents |
+| `write` | Write new files |
+| `edit` | Edit existing files |
+| `code_search` | Search code by pattern |
+| `grep` | Search text in files |
+| `semantic_search` | Search by meaning |
+| `bash` | Execute shell commands |
+
+#### Agent State Examples
+
+**Basic Agent State:**
+
+```yaml
+implement:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["read", "write", "edit"]
+  next: ["verify"]
+```
+
+**Agent State with Multiple Model Fallbacks:**
+
+```yaml
+analyze:
+  type: "agent"
+  config:
+    name: "code_analyzer"
+    models: ["claude-sonnet-4-6", "sonnet", "haiku"]
+    tools: ["read", "grep", "code_search"]
+    systemPrompt: "Analyze the code structure and identify issues."
+  next: ["report"]
+```
+
+**Agent State with Dynamic Next State Selection:**
+
+```yaml
+assess:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["read", "semantic_search"]
+    systemPrompt: "Assess the problem and choose the appropriate solution path."
+  next: ["simple_fix", "complex_refactor", "manual_review"]
+  # Agent will choose from these three options based on the situation
+```
+
+### Deterministic State Configuration
+
+A deterministic state executes a predefined action (shell command, validation, etc.) based on the result.
+
+#### Deterministic State Properties
+
+| Property | Type | Required | Description | Example |
+|----------|------|----------|-------------|---------|
+| `type` | `string` | Yes | Must be `"deterministic"` | `deterministic` |
+| `action` | `string` | Yes | Name of the action to execute. Must be registered in the action registry. | `run_tests` |
+| `on` | `object` | No | Conditional transitions based on action result | See below |
+| `on.pass` | `string[]` | No | Next state IDs if action succeeds (exit code 0). Defaults to `["__end__"]` | `["deploy"]` |
+| `on.fail` | `string[]` | No | Next state IDs if action fails (non-zero exit code). Defaults to `["__end__"]` | `["fix"]` |
+
+#### Built-in Actions
+
+| Action Name | Description | Environment Variables |
+|-------------|-------------|----------------------|
+| `run_linters` | Run configured linters | `LINTER_COMMAND` (default: `bunx tsc --noEmit`) |
+| `run_tests` | Execute test suite | `TEST_COMMAND` (default: `bun test`) |
+| `run_typecheck` | Run TypeScript type checking | (none) |
+| `create_pr` | Create pull request | (none) |
+
+#### Deterministic State Examples
+
+**Basic Deterministic State:**
+
+```yaml
+verify:
+  type: "deterministic"
+  action: "run_tests"
+  on:
+    pass: ["deploy"]
+    fail: ["fix"]
+```
+
+**Deterministic State with Only Success Path:**
+
+```yaml
+lint:
+  type: "deterministic"
+  action: "run_linters"
+  on:
+    pass: ["test"]
+    # fail defaults to ["__end__"]
+```
+
+**Deterministic State for Always-Passing Action:**
+
+```yaml
+notify:
+  type: "deterministic"
+  action: "create_pr"
+  # create_pr always passes, so no 'on' needed
+```
+
+### Terminal State Configuration
+
+A terminal state ends the workflow execution.
+
+#### Terminal State Properties
+
+| Property | Type | Required | Description | Example |
+|----------|------|----------|-------------|---------|
+| `type` | `string` | Yes | Must be `"terminal"` | `terminal` |
+
+#### Terminal State Examples
+
+```yaml
+done:
+  type: "terminal"
+
+success:
+  type: "terminal"
+
+failed:
+  type: "terminal"
+```
+
+### State Transitions
+
+#### Agent State Transitions
+
+Agent states use simple transitions where the agent dynamically chooses from multiple possible next states:
+
+```yaml
+agent_state:
+  type: "agent"
+  config:
+    models: ["sonnet"]
+    tools: ["read", "write"]
+  next: ["option_a", "option_b", "option_c"]
+  # Agent uses LLM reasoning to choose which state to transition to
+```
+
+#### Deterministic State Transitions
+
+Deterministic states use conditional transitions based on the action's exit code:
+
+```yaml
+check_result:
+  type: "deterministic"
+  action: "run_tests"
+  on:
+    pass: ["deploy"]     # Exit code 0
+    fail: ["fix_tests"]  # Non-zero exit code
+```
+
+**Transition Rules:**
+
+| Condition | Transition |
+|-----------|------------|
+| Action succeeds (exit code 0) | Follow `on.pass` transitions |
+| Action fails (non-zero exit code) | Follow `on.fail` transitions |
+| No `on.pass` defined | Transition to `["__end__"]` on success |
+| No `on.fail` defined | Transition to `["__end__"]` on failure |
+| Both `on.pass` and `on.fail` undefined | Transition to `["__end__"]` (implicit terminal) |
+
+### Complete Blueprint Example
+
+```yaml
+# Root-level properties
+id: "bug-fix"
+name: "Bug Fix Workflow"
+description: "Fix bugs with automated testing and verification"
+triggerKeywords: ["fix", "bug", "error"]
+priority: 100
+initialState: "explore"
+
+# State definitions
+states:
+  # Agent state with single model
+  explore:
+    type: "agent"
+    config:
+      name: "code_explorer"
+      models: ["haiku"]
+      tools: ["read", "code_search", "grep"]
+      systemPrompt: "Explore the codebase to understand the bug."
+    next: ["plan"]
+
+  # Agent state with model fallbacks
+  plan:
+    type: "agent"
+    config:
+      models: ["sonnet", "haiku"]
+      tools: ["read", "write"]
+    next: ["implement"]
+
+  # Agent state with dynamic branching
+  implement:
+    type: "agent"
+    config:
+      models: ["sonnet"]
+      tools: ["write", "edit"]
+    next: ["lint", "skip_verification"]
+
+  # Deterministic state with both transitions
+  lint:
+    type: "deterministic"
+    action: "run_linters"
+    on:
+      pass: ["test"]
+      fail: ["fix_lint"]
+
+  # Deterministic state with only pass transition
+  test:
+    type: "deterministic"
+    action: "run_tests"
+    on:
+      pass: ["done"]
+      fail: ["fix_test"]
+
+  # Agent state for fixing issues
+  fix_lint:
+    type: "agent"
+    config:
+      models: ["haiku"]
+      tools: ["edit"]
+    next: ["lint"]
+
+  # Terminal state
+  done:
+    type: "terminal"
+```
+
+### Validation Rules
+
+The blueprint loader enforces the following validation rules:
+
+#### Root-Level Validation
+
+| Rule | Error Message |
+|------|---------------|
+| `id` must be present | `"id" is required` |
+| `id` must match pattern `^[a-z0-9-]+$` | `"id" must contain only lowercase letters, numbers, and hyphens` |
+| `name` must be present | `"name" is required` |
+| `description` must be present | `"description" is required` |
+| `triggerKeywords` must be present and non-empty | `"triggerKeywords" is required` |
+| `priority` must be present and ≥ 0 | `"priority" is required` |
+| `initialState` must be present | `"initialState" is required` |
+| `initialState` must exist in `states` | `Initial state "X" not found in states` |
+| `states` must be present and non-empty | `"states" is required` |
+
+#### State-Level Validation
+
+| Rule | Error Message |
+|------|---------------|
+| Every state must have `type` | `"type" is required for state "X"` |
+| `type` must be `"agent"`, `"deterministic"`, or `"terminal"` | `Invalid state type "X"` |
+| Agent states must have `config` | `"config" is required for agent state "X"` |
+| Agent states must have `next` | `"next" is required for agent state "X"` |
+| Agent `config` must have `models` | `"models" is required for agent config` |
+| Agent `config.models` must be non-empty | `Agent "models" array cannot be empty` |
+| Agent `config` must have `tools` | `"tools" is required for agent config` |
+| Deterministic states must have `action` | `"action" is required for deterministic state "X"` |
+| Terminal states cannot have other properties | `Terminal state "X" cannot have additional properties` |
+
+### Common Patterns
+
+#### Pattern 1: Verification Loop
+
+```yaml
+states:
+  implement:
+    type: "agent"
+    config:
+      models: ["sonnet"]
+      tools: ["write", "edit"]
+    next: ["verify"]
+
+  verify:
+    type: "deterministic"
+    action: "run_tests"
+    on:
+      pass: ["done"]
+      fail: ["fix"]
+
+  fix:
+    type: "agent"
+    config:
+      models: ["sonnet"]
+      tools: ["edit"]
+    next: ["verify"]
+
+  done:
+    type: "terminal"
+```
+
+#### Pattern 2: Multi-Model Pipeline
+
+```yaml
+states:
+  explore:
+    type: "agent"
+    config:
+      models: ["haiku"]  # Fast exploration
+      tools: ["read", "grep"]
+    next: ["analyze"]
+
+  analyze:
+    type: "agent"
+    config:
+      models: ["claude-sonnet-4-6"]  # Deep analysis
+      tools: ["read", "semantic_search"]
+    next: ["implement"]
+
+  implement:
+    type: "agent"
+    config:
+      models: ["sonnet", "haiku"]  # Fallback to cheaper model
+      tools: ["write", "edit"]
+    next: ["done"]
+```
+
+#### Pattern 3: Dynamic Branching
+
+```yaml
+states:
+  assess:
+    type: "agent"
+    config:
+      models: ["sonnet"]
+      tools: ["read", "semantic_search"]
+      systemPrompt: "Assess the complexity and choose the appropriate approach."
+    next: ["simple_fix", "complex_refactor"]
+
+  simple_fix:
+    type: "agent"
+    config:
+      models: ["haiku"]
+      tools: ["edit"]
+    next: ["verify"]
+
+  complex_refactor:
+    type: "agent"
+    config:
+      models: ["claude-sonnet-4-6"]
+      tools: ["write", "read"]
+    next: ["verify"]
+```
+
+### Type Reference
+
+This is the complete TypeScript type definition for blueprints:
+
+```typescript
+interface Blueprint {
+  /** Unique identifier (lowercase, numbers, hyphens only) */
+  id: string;
+  
+  /** Human-readable display name */
+  name: string;
+  
+  /** Detailed description */
+  description: string;
+  
+  /** Keywords that trigger selection */
+  triggerKeywords: string[];
+  
+  /** Selection priority (higher = selected first) */
+  priority: number;
+  
+  /** Starting state ID */
+  initialState: string;
+  
+  /** All workflow states */
+  states: Record<string, State>;
+}
+
+type State = AgentState | DeterministicState | TerminalState;
+
+interface AgentState {
+  type: "agent";
+  config: AgentConfig;
+  next: string[];  // Agent chooses from these options
+}
+
+interface AgentConfig {
+  /** Optional display name */
+  name?: string;
+  
+  /** Models to try in order (fallback chain) */
+  models: string[];
+  
+  /** Allowed tools */
+  tools: string[];
+  
+  /** Optional system prompt override */
+  systemPrompt?: string;
+}
+
+interface DeterministicState {
+  type: "deterministic";
+  action: string;  // Action name from registry
+  on?: ConditionalTransition;
+}
+
+interface ConditionalTransition {
+  /** Next states on success (exit code 0) */
+  pass?: string[];
+  
+  /** Next states on failure (non-zero exit code) */
+  fail?: string[];
+}
+
+interface TerminalState {
+  type: "terminal";
+}
+```
+
+---
+
+## 4. Loading Blueprints
 
 ### BlueprintLoader
 
@@ -243,7 +742,7 @@ The loader validates:
 
 ---
 
-## 4. Selection Logic
+## 5. Selection Logic
 
 ### selectBlueprint
 
@@ -333,7 +832,7 @@ const selection = selectBlueprint("Update the README", blueprints);
 
 ---
 
-## 5. Compilation
+## 6. Compilation
 
 ### BlueprintCompiler
 
@@ -451,7 +950,7 @@ graph.addConditionalEdges(
 
 ---
 
-## 6. Built-in Actions
+## 7. Built-in Actions
 
 ### Action Registry
 
@@ -598,7 +1097,7 @@ parseCommandArgs('echo "Hello \'world\'"');
 
 ---
 
-## 7. Custom Actions
+## 8. Custom Actions
 
 ### Creating Custom Actions
 
@@ -736,7 +1235,7 @@ const safeAction: DeterministicAction = {
 
 ---
 
-## 8. Creating Blueprints
+## 9. Creating Blueprints
 
 ### Minimal Blueprint Template
 
@@ -959,7 +1458,7 @@ triggerKeywords: []
 
 ---
 
-## 9. Default Blueprints
+## 10. Default Blueprints
 
 ### Included Blueprints
 
@@ -1092,7 +1591,7 @@ implement (sonnet) → done
 
 ---
 
-## 10. API Reference
+## 11. API Reference
 
 ### Loading API
 
