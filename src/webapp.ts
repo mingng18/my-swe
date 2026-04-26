@@ -740,29 +740,6 @@ app.get("/metrics", async (c) => {
 app.get("/stream", async (c) => {
   const threadId = c.req.query("threadId") || "default-session";
 
-  // Verify authentication if enabled
-  const secret = process.env.API_SECRET_KEY;
-  if (secret) {
-    const authHeader = c.req.header("Authorization");
-    const token = authHeader
-      ? authHeader.replace(/^Bearer\s+/i, "")
-      : c.req.query("token");
-
-    if (!token) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const tokenBuffer = Buffer.from(token);
-    const secretBuffer = Buffer.from(secret);
-
-    if (
-      tokenBuffer.length !== secretBuffer.length ||
-      !timingSafeEqual(tokenBuffer, secretBuffer)
-    ) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-  }
-
   // Create SSE stream
   const stream = streamRegistry.createStream(threadId);
 
