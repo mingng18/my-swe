@@ -3,23 +3,23 @@
   "spec": "010-add-generic-caching-utility-layer",
   "state": "building",
   "subtasks": {
-    "completed": 1,
+    "completed": 4,
     "total": 12,
     "in_progress": 1,
     "failed": 0
   },
   "phase": {
-    "current": "Add Generic Cache Utility",
+    "current": "Migrate GitHub Cache to Generic Utility",
     "id": null,
-    "total": 4
+    "total": 2
   },
   "workers": {
     "active": 0,
     "max": 1
   },
   "session": {
-    "number": 3,
+    "number": 14,
     "started_at": "2026-04-26T14:37:05.839367"
   },
-  "last_update": "2026-04-26T14:44:07.000364"
+  "last_update": "2026-04-26T15:22:33.608352"
 }
