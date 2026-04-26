@@ -358,6 +358,78 @@ export function getThreadMetrics(threadId: string): {
 }
 
 /**
+ * Get aggregated tool metrics across all threads.
+ */
+export function getGlobalToolMetrics(): Record<
+  string,
+  {
+    count: number;
+    successRate: number;
+    avgDuration: number;
+    avgOutputSize: number;
+  }
+> {
+  const allMetrics = inMemoryTelemetry.getMetrics();
+  const toolMetrics = allMetrics.filter((m) => m.name.startsWith("tool."));
+
+  // First pass: collect data
+  const toolData: Record<
+    string,
+    {
+      totalDuration: number;
+      successCount: number;
+      totalCount: number;
+      totalOutputSize: number;
+    }
+  > = {};
+
+  for (const metric of toolMetrics) {
+    const tool = metric.attributes.tool as string;
+    if (!tool) continue;
+
+    if (!toolData[tool]) {
+      toolData[tool] = {
+        totalDuration: 0,
+        successCount: 0,
+        totalCount: 0,
+        totalOutputSize: 0,
+      };
+    }
+
+    if (metric.name === "tool.duration_ms") {
+      toolData[tool].totalDuration += metric.value;
+      toolData[tool].totalCount++;
+    }
+    if (metric.name === "tool.success") {
+      toolData[tool].totalCount++;
+      if (metric.value === 1) {
+        toolData[tool].successCount++;
+      }
+    }
+    if (metric.name === "tool.output_size") {
+      toolData[tool].totalOutputSize += metric.value;
+    }
+  }
+
+  // Second pass: compute averages
+  const tools: Record<
+    string,
+    { count: number; successRate: number; avgDuration: number; avgOutputSize: number }
+  > = {};
+
+  for (const [tool, data] of Object.entries(toolData)) {
+    tools[tool] = {
+      count: data.totalCount,
+      successRate: data.totalCount > 0 ? data.successCount / data.totalCount : 0,
+      avgDuration: data.totalCount > 0 ? data.totalDuration / data.totalCount : 0,
+      avgOutputSize: data.totalCount > 0 ? data.totalOutputSize / data.totalCount : 0,
+    };
+  }
+
+  return tools;
+}
+
+/**
  * Clear telemetry data for a thread.
  */
 export function clearThreadTelemetry(threadId: string): void {

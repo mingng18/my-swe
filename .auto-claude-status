@@ -1,15 +1,15 @@
 {
   "active": true,
-  "spec": "010-add-generic-caching-utility-layer",
-  "state": "building",
+  "spec": "011-add-tool-usage-analytics-dashboard-endpoint",
+  "state": "planning",
   "subtasks": {
-    "completed": 10,
-    "total": 12,
+    "completed": 0,
+    "total": 0,
     "in_progress": 1,
     "failed": 0
   },
   "phase": {
-    "current": "Cleanup and Integration",
+    "current": "Implementation",
     "id": null,
     "total": 4
   },
@@ -18,8 +18,8 @@
     "max": 1
   },
   "session": {
-    "number": 20,
-    "started_at": "2026-04-26T14:37:05.839367"
+    "number": 2,
+    "started_at": "2026-04-26T15:35:09.480799"
   },
-  "last_update": "2026-04-26T15:37:03.864357"
+  "last_update": "2026-04-26T15:36:35.794061"
 }
