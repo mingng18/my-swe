@@ -53,15 +53,20 @@ export const useThreadStore = create<ThreadStore>((set, get) => ({
     }),
 
   updateThread: (threadId, updates) =>
-    set((state) => ({
-      threads: {
-        ...state.threads,
-        [threadId]: {
-          ...state.threads[threadId],
-          ...updates,
+    set((state) => {
+      const thread = state.threads[threadId];
+      if (!thread) return state;
+
+      return {
+        threads: {
+          ...state.threads,
+          [threadId]: {
+            ...thread,
+            ...updates,
+          },
         },
-      },
-    })),
+      };
+    }),
 
   addEvent: (threadId, event) =>
     set((state) => {
