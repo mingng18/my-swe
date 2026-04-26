@@ -1939,7 +1939,7 @@ deploy:
 
 ### Action Registry
 
-The `ActionRegistry` manages deterministic actions that can be used in blueprint states.
+The `ActionRegistry` class manages deterministic actions that can be used in blueprint states. It provides a centralized registry pattern for registering, retrieving, and listing actions.
 
 ```typescript
 import { actionRegistry, registerBuiltinActions } from './blueprints';
@@ -1959,6 +1959,413 @@ if (actionRegistry.has('run_linters')) {
 // Get action by name
 const action = actionRegistry.get('run_tests');
 // Returns: DeterministicAction | undefined
+```
+
+#### ActionRegistry Class
+
+The `ActionRegistry` class provides the following methods:
+
+| Method | Parameters | Returns | Description |
+|--------|-----------|---------|-------------|
+| `register(action)` | `DeterministicAction` | `void` | Register an action in the registry. Throws if action with same name exists. |
+| `get(name)` | `string` | `DeterministicAction \| undefined` | Retrieve an action by name. |
+| `has(name)` | `string` | `boolean` | Check if an action is registered. |
+| `list()` | - | `DeterministicAction[]` | List all registered actions. |
+
+#### How Action Registration Works
+
+The action registry uses a `Map<string, DeterministicAction>` internally to store actions:
+
+```typescript
+// From src/blueprints/actions.ts
+export class ActionRegistry {
+  private actions = new Map<string, DeterministicAction>();
+
+  register(action: DeterministicAction): void {
+    if (this.actions.has(action.name)) {
+      throw new Error(`Action "${action.name}" is already registered`);
+    }
+    this.actions.set(action.name, action);
+  }
+
+  get(name: string): DeterministicAction | undefined {
+    return this.actions.get(name);
+  }
+
+  list(): DeterministicAction[] {
+    return Array.from(this.actions.values());
+  }
+
+  has(name: string): boolean {
+    return this.actions.has(name);
+  }
+}
+```
+
+**Key Features:**
+
+- **Duplicate prevention**: Registering an action with an existing name throws an error
+- **Type safety**: Uses TypeScript types for compile-time and runtime safety
+- **Encapsulation**: Private `actions` Map prevents direct modification
+- **Immutability**: Actions cannot be modified once registered
+
+#### Registry Lifecycle
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                   Action Registry Lifecycle                  │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  1. Application Startup                                    │
+│     │                                                       │
+│     ├─► Create ActionRegistry instance                     │
+│     │   const registry = new ActionRegistry();             │
+│     │                                                       │
+│     ├─► Register built-in actions                          │
+│     │   registerBuiltinActions();                          │
+│     │                                                       │
+│     └─► Register custom actions (optional)                 │
+│         registry.register(customAction);                   │
+│                                                             │
+│  2. Blueprint Compilation                                  │
+│     │                                                       │
+│     ├─► Pass registry to compiler                         │
+│     │   const compiler = new BlueprintCompiler(registry);  │
+│     │                                                       │
+│     └─► Compiler resolves action names to implementations  │
+│         const action = registry.get(state.action);         │
+│                                                             │
+│  3. Blueprint Execution                                    │
+│     │                                                       │
+│     ├─► Deterministic state executes                      │
+│     │   const result = await action.execute(state);        │
+│     │                                                       │
+│     └─► Result determines next state                      │
+│         pass → on.pass states                              │
+│         fail → on.fail states                              │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Global Registry Instance
+
+The system exports a global registry instance for convenience:
+
+```typescript
+// Global registry instance (singleton pattern)
+export const actionRegistry = new ActionRegistry();
+
+// Built-in actions are registered to this global instance
+export function registerBuiltinActions(): void {
+  actionRegistry.register(runLintersAction);
+  actionRegistry.register(runTestsAction);
+  actionRegistry.register(runTypecheckAction);
+  actionRegistry.register(createPrAction);
+}
+```
+
+**Usage Patterns:**
+
+```typescript
+// Pattern 1: Use global registry (recommended for most cases)
+import { actionRegistry, registerBuiltinActions } from './blueprints';
+
+registerBuiltinActions();
+actionRegistry.register(myCustomAction);
+
+// Pattern 2: Create isolated registry (for testing or isolation)
+import { ActionRegistry } from './blueprints';
+
+const myRegistry = new ActionRegistry();
+myRegistry.register(myCustomAction);
+const compiler = new BlueprintCompiler(myRegistry);
+```
+
+#### Registering Custom Actions
+
+To register a custom deterministic action:
+
+**Step 1: Define the action**
+
+```typescript
+import type { DeterministicAction, ActionResult, BlueprintState } from './blueprints';
+
+const formatCodeAction: DeterministicAction = {
+  name: "format_code",
+  description: "Format code with prettier",
+  execute: async (_state: BlueprintState): Promise<ActionResult> => {
+    try {
+      const { execFile } = await import('child_process');
+      const { promisify } = await import('util');
+      const execFileAsync = promisify(execFile);
+
+      const { stdout, stderr } = await execFileAsync('npx', ['prettier', '--write', '.']);
+      return { success: true, output: stdout || "Code formatted" };
+    } catch (error) {
+      const err = error as { stderr?: string; message?: string };
+      return {
+        success: false,
+        error: err.stderr || err.message || "Formatting failed",
+      };
+    }
+  },
+};
+```
+
+**Step 2: Register the action**
+
+```typescript
+import { actionRegistry } from './blueprints';
+
+// Option A: Register directly to global registry
+actionRegistry.register(formatCodeAction);
+
+// Option B: Register during initialization
+function initializeActions(): void {
+  registerBuiltinActions();      // Register built-in actions
+  actionRegistry.register(formatCodeAction);  // Then register custom actions
+}
+```
+
+**Step 3: Use in blueprint YAML**
+
+```yaml
+states:
+  format:
+    type: "deterministic"
+    action: "format_code"
+    on:
+      pass: ["commit"]
+      fail: ["fix_format"]
+```
+
+#### Action Registration Best Practices
+
+**1. Register Early**
+
+Register actions before compiling blueprints:
+
+```typescript
+// ✅ Good - Register before compilation
+async function main() {
+  registerBuiltinActions();
+  actionRegistry.register(myCustomAction);
+
+  const blueprints = await loadBlueprints();
+  const graph = compileBlueprint(blueprints[0], actionRegistry);
+}
+
+// ❌ Bad - Register after compilation
+async function main() {
+  const blueprints = await loadBlueprints();
+  const graph = compileBlueprint(blueprints[0], actionRegistry);
+
+  // Too late! Blueprint already compiled
+  actionRegistry.register(myCustomAction);
+}
+```
+
+**2. Group Related Actions**
+
+Organize action registration by functionality:
+
+```typescript
+// actions/git.ts
+export const gitActions: DeterministicAction[] = [
+  { name: "git_status", ... },
+  { name: "git_commit", ... },
+  { name: "git_push", ... },
+];
+
+// actions/test.ts
+export const testActions: DeterministicAction[] = [
+  { name: "run_unit_tests", ... },
+  { name: "run_integration_tests", ... },
+  { name: "run_e2e_tests", ... },
+];
+
+// Register in batches
+import { actionRegistry } from './blueprints';
+import { gitActions } from './actions/git';
+import { testActions } from './actions/test';
+
+function registerCustomActions(): void {
+  gitActions.forEach(action => actionRegistry.register(action));
+  testActions.forEach(action => actionRegistry.register(action));
+}
+```
+
+**3. Handle Duplicate Names**
+
+Check for existing actions before registering:
+
+```typescript
+function registerCustomAction(action: DeterministicAction): void {
+  if (actionRegistry.has(action.name)) {
+    console.warn(`Action "${action.name}" already registered, skipping`);
+    return;
+  }
+  actionRegistry.register(action);
+}
+
+// Or override built-in actions (not recommended)
+function overrideAction(action: DeterministicAction): void {
+  if (actionRegistry.has(action.name)) {
+    console.warn(`Overriding built-in action: ${action.name}`);
+    // Note: The built-in register() throws on duplicates
+    // You'd need to create a new registry to override
+  }
+  actionRegistry.register(action);
+}
+```
+
+**4. Provide Descriptive Names and Descriptions**
+
+```typescript
+// ✅ Good - Clear and descriptive
+const runTypeCheckAction: DeterministicAction = {
+  name: "run_typecheck",
+  description: "Run TypeScript type checking",
+  execute: async (_state) => { ... },
+};
+
+// ❌ Bad - Vague
+const action1: DeterministicAction = {
+  name: "do_something",
+  description: "Does stuff",
+  execute: async (_state) => { ... },
+};
+```
+
+**5. Access Blueprint State When Needed**
+
+```typescript
+const contextualAction: DeterministicAction = {
+  name: "contextual_action",
+  description: "Action that uses blueprint state",
+  execute: async (state: BlueprintState): Promise<ActionResult> => {
+    // Access original task input
+    const task = state.input;
+
+    // Access current state ID
+    const currentStateId = state.currentState;
+
+    // Access previous action result
+    const lastResult = state.lastResult;
+
+    // Access error if present
+    const error = state.error;
+
+    // Use context to make decisions
+    if (lastResult?.success) {
+      return { success: true, output: "Continuing from success" };
+    } else {
+      return { success: false, error: "Cannot continue" };
+    }
+  },
+};
+```
+
+#### Registry in Compilation
+
+The `BlueprintCompiler` uses the action registry during compilation:
+
+```typescript
+// From src/blueprints/compiler.ts
+class BlueprintCompiler {
+  constructor(private actionRegistry: ActionRegistry) {}
+
+  compile(blueprint: Blueprint): CompiledStateGraph {
+    // ...
+
+    // For each deterministic state, verify action exists
+    for (const [stateId, state] of Object.entries(blueprint.states)) {
+      if (state.type === "deterministic") {
+        const action = this.actionRegistry.get(state.action);
+        if (!action) {
+          throw new BlueprintCompilerError(
+            "unknown_action",
+            `Action not found: ${state.action}`
+          );
+        }
+      }
+    }
+
+    // ...
+  }
+}
+```
+
+**Compilation validation:**
+
+| Check | Error | Description |
+|-------|-------|-------------|
+| Action exists | `Action not found: {name}` | Action name not in registry |
+| Action registered | `Action "{name}" is already registered` | Duplicate registration |
+
+#### Testing Custom Actions
+
+```typescript
+import { ActionRegistry } from './blueprints';
+import type { DeterministicAction, ActionResult, BlueprintState } from './blueprints';
+
+describe('Custom Action', () => {
+  let registry: ActionRegistry;
+
+  beforeEach(() => {
+    // Create fresh registry for each test
+    registry = new ActionRegistry();
+  });
+
+  it('should register custom action', () => {
+    const action: DeterministicAction = {
+      name: "test_action",
+      description: "Test action",
+      execute: async () => ({ success: true }),
+    };
+
+    registry.register(action);
+    expect(registry.has('test_action')).toBe(true);
+  });
+
+  it('should execute action with state', async () => {
+    const action: DeterministicAction = {
+      name: "stateful_action",
+      description: "Action that uses state",
+      execute: async (state: BlueprintState) => {
+        return {
+          success: true,
+          output: `Task: ${state.input}`,
+        };
+      },
+    };
+
+    registry.register(action);
+    const registeredAction = registry.get('stateful_action');
+
+    const result = await registeredAction!.execute({
+      input: "Test task",
+      currentState: "start",
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.output).toBe("Task: Test task");
+  });
+
+  it('should throw on duplicate registration', () => {
+    const action: DeterministicAction = {
+      name: "duplicate",
+      description: "Test",
+      execute: async () => ({ success: true }),
+    };
+
+    registry.register(action);
+
+    expect(() => {
+      registry.register(action);
+    }).toThrow('Action "duplicate" is already registered');
+  });
+});
 ```
 
 ### Built-in Actions
