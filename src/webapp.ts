@@ -5,6 +5,7 @@ import { cors } from "hono/cors";
 import { logger as httpLogger } from "hono/logger";
 
 import { runCodeagentTurn } from "./server";
+import { streamRegistry, type SSEEvent } from "./stream";
 import { isDuplicateMessage, sendChatAction } from "./utils/telegram";
 import { secureHeaders } from "hono/secure-headers";
 import { LRUCache } from "lru-cache";
@@ -730,6 +731,50 @@ app.get("/metrics", async (c) => {
       500,
     );
   }
+});
+
+/**
+ * SSE stream endpoint for real-time agent execution events
+ * GET /stream?threadId=:threadId
+ */
+app.get("/stream", async (c) => {
+  const threadId = c.req.query("threadId") || "default-session";
+
+  // Verify authentication if enabled
+  const secret = process.env.API_SECRET_KEY;
+  if (secret) {
+    const authHeader = c.req.header("Authorization");
+    const token = authHeader
+      ? authHeader.replace(/^Bearer\s+/i, "")
+      : c.req.query("token");
+
+    if (!token) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+
+    const tokenBuffer = Buffer.from(token);
+    const secretBuffer = Buffer.from(secret);
+
+    if (
+      tokenBuffer.length !== secretBuffer.length ||
+      !timingSafeEqual(tokenBuffer, secretBuffer)
+    ) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+  }
+
+  // Create SSE stream
+  const stream = streamRegistry.createStream(threadId);
+
+  // Set SSE headers
+  return c.body(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no", // Disable nginx buffering
+    },
+  });
 });
 
 /**
