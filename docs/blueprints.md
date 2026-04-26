@@ -17,6 +17,7 @@ The Bullhorse blueprint system is a state machine workflow framework inspired by
 11. [Default Blueprints](#11-default-blueprints) - Included blueprint examples
 12. [API Reference](#12-api-reference) - Complete API documentation
 13. [Agent Configuration](#13-agent-configuration) - Models, tools, and system prompts
+14. [Debugging](#14-debugging) - Troubleshooting common issues
 
 ---
 
@@ -4787,6 +4788,584 @@ When using the blueprint system, verify:
 - [ ] Thread ID is provided for conversation continuity
 - [ ] Error handling is in place
 - [ ] Results are properly logged
+
+---
+
+## 14. Debugging
+
+This section covers common issues, error messages, and troubleshooting techniques when working with the blueprint system.
+
+### 14.1 Common Issues by Category
+
+#### YAML Syntax Errors
+
+**Symptom:** Blueprint fails to load or parse
+
+**Common Causes:**
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `YAMLException: bad indentation` | Inconsistent spacing (mixing tabs/spaces) | Use 2 spaces for indentation consistently |
+| `YAMLException: unexpected character` | Invalid YAML syntax | Validate YAML using [YAML Lint](https://www.yamllint.com/) |
+| `duplicate key` | Repeated property name in the same object | Ensure all keys in `states` object are unique |
+| `expected <mapping>, but found <sequence>` | Array where object expected (or vice versa) | Check array syntax uses `-` prefix |
+
+**Example Fix:**
+
+```yaml
+# ❌ WRONG - Mixed tabs and spaces
+states:
+  implement:
+  	type: agent   # Tab character used
+
+# ✅ CORRECT - Consistent spaces
+states:
+  implement:
+    type: agent   # 2 spaces for indentation
+```
+
+#### Validation Errors
+
+**Symptom:** `BlueprintValidationError` thrown during loading
+
+**Common Validation Failures:**
+
+| Validation Check | Error Message | Fix |
+|------------------|---------------|-----|
+| Missing ID | `Missing 'id'` | Add unique `id` property |
+| Missing Name | `Missing 'name'` | Add human-readable `name` |
+| Missing Description | `Missing 'description'` | Add description of blueprint purpose |
+| Invalid Trigger Keywords | `Missing 'triggerKeywords'` | Add array of keywords |
+| Invalid Priority | `Missing 'priority'` | Add numeric priority (≥ 0) |
+| Missing Initial State | `Missing 'initialState'` | Add entry point state ID |
+| Missing States | `Missing 'states'` | Add states object |
+| Invalid State Type | `State 'X': missing 'type'` | Add `type` property to state |
+| Missing Agent Config | `State 'X': missing 'config'` | Add `config` object to agent states |
+| Missing Agent Next | `State 'X': missing 'next'` | Add `next` array to agent states |
+| Missing Deterministic Action | `State 'X': missing 'action'` | Add `action` name to deterministic states |
+| Initial State Not Found | `Initial state 'X' not found` | Ensure `initialState` exists in `states` |
+
+**Example Validation Error:**
+
+```typescript
+// Error output
+BlueprintValidationError: Blueprint validation failed for 'bug-fix': 
+  Missing 'triggerKeywords', Missing 'priority', State 'fix': missing 'next'
+
+// Fix - Add missing fields
+id: bug-fix
+name: Bug Fix
+description: Fix bugs with verification
+triggerKeywords: ["fix", "bug"]  // ✅ Added
+priority: 100                    // ✅ Added
+initialState: analyze
+states:
+  fix:
+    type: agent
+    config:
+      models: ["sonnet"]
+    next: ["verify"]              // ✅ Added
+```
+
+#### Compilation Errors
+
+**Symptom:** `BlueprintCompilerError` thrown during graph compilation
+
+**Common Compilation Failures:**
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `Unknown state type: X` | Invalid `type` value in state | Use `agent`, `deterministic`, or `terminal` |
+| `Action not found: X` | Referenced action not registered | Register action before compilation |
+| `State 'X' not found in blueprint` | Invalid `next` state reference | Ensure referenced state exists |
+| `Circular dependency detected` | States reference each other in a loop | Break the cycle or use retry loops intentionally |
+
+**Example Compilation Error:**
+
+```typescript
+// Error output
+BlueprintCompilerError: Failed to compile blueprint 'feature': 
+  Action not found: run_custom_tests
+
+// Fix - Register the action
+import { ActionRegistry } from './blueprints';
+
+const registry = new ActionRegistry();
+registry.register('run_custom_tests', async (state) => {
+  // Custom test execution logic
+  return { success: true, output: 'Tests passed' };
+});
+
+// Now compile with the registry
+const compiler = new BlueprintCompiler(registry);
+```
+
+#### Selection Issues
+
+**Symptom:** Wrong blueprint selected or no blueprint selected
+
+**Common Selection Problems:**
+
+| Issue | Cause | Fix |
+|-------|-------|-----|
+| Default blueprint always selected | Trigger keywords don't match task | Check keyword spelling and task description |
+| Low confidence score | Few matching keywords | Add more relevant trigger keywords |
+| Multiple blueprints with same priority | Priority tie | Use unique priority values |
+| Case sensitivity matters | Keyword case doesn't match | Keywords are case-insensitive, but check for special characters |
+
+**Debug Selection Logic:**
+
+```typescript
+import { selectBlueprint } from './blueprints';
+
+function debugSelection(task: string, blueprints: Blueprint[]) {
+  console.log(`\n🔍 Debugging blueprint selection for: "${task}"`);
+  console.log(`Available blueprints: ${blueprints.length}`);
+
+  const selection = selectBlueprint(task, blueprints);
+
+  console.log(`Selected: ${selection.blueprint.id}`);
+  console.log(`Confidence: ${(selection.confidence * 100).toFixed(1)}%`);
+  console.log(`Matched keywords: ${selection.matchedKeywords.join(', ')}`);
+  console.log(`All keywords: ${selection.blueprint.triggerKeywords.join(', ')}`);
+
+  return selection;
+}
+
+// Usage
+await debugSelection("fix the login bug", blueprints);
+```
+
+#### Runtime Execution Issues
+
+**Symptom:** Blueprint executes but produces unexpected results
+
+**Common Runtime Issues:**
+
+| Issue | Cause | Fix |
+|-------|-------|-----|
+| Agent not using specified tools | Tool not registered with agent | Ensure tools are passed to agent harness |
+| Deterministic action fails silently | Action doesn't return proper result | Return `{ success: boolean, output: string }` |
+| State transition not happening | Missing `next` or `on` configuration | Add transition logic to state |
+| Wrong state executed | Conditional edge logic incorrect | Check conditional edge function |
+| Loop never terminates | Missing terminal state or exit condition | Ensure workflow can reach `__end__` |
+
+### 14.2 Debugging Techniques
+
+#### Enable Verbose Logging
+
+```typescript
+import { loadBlueprints, selectBlueprint, compileBlueprint } from './blueprints';
+
+async function debugBlueprintWorkflow(task: string) {
+  console.log('\n🔧 DEBUG MODE: Blueprint Workflow');
+  console.log(`Task: "${task}"\n`);
+
+  // 1. Debug loading
+  console.log('📂 Loading blueprints...');
+  const blueprints = await loadBlueprints();
+  console.log(`Loaded ${blueprints.length} blueprints:`);
+  blueprints.forEach(bp => {
+    console.log(`  - ${bp.id} (priority: ${bp.priority})`);
+    console.log(`    Keywords: ${bp.triggerKeywords.join(', ')}`);
+  });
+
+  // 2. Debug selection
+  console.log('\n🎯 Selecting blueprint...');
+  const selection = selectBlueprint(task, blueprints);
+  console.log(`Selected: ${selection.blueprint.id}`);
+  console.log(`Confidence: ${(selection.confidence * 100).toFixed(1)}%`);
+  console.log(`Matched keywords: ${selection.matchedKeywords.join(', ')}`);
+
+  // 3. Debug state graph
+  console.log('\n🕸️  State Graph:');
+  console.log(`Initial state: ${selection.blueprint.initialState}`);
+  console.log('States:');
+  Object.entries(selection.blueprint.states).forEach(([id, state]) => {
+    console.log(`  ${id}:`);
+    console.log(`    type: ${state.type}`);
+    if (state.type === 'agent') {
+      console.log(`    next: ${state.next.join(', ')}`);
+    } else if (state.type === 'deterministic') {
+      console.log(`    action: ${state.action}`);
+      if (state.on) {
+        console.log(`    on.pass: ${state.on.pass?.join(', ')}`);
+        console.log(`    on.fail: ${state.on.fail?.join(', ')}`);
+      }
+    }
+  });
+
+  return selection;
+}
+```
+
+#### Validate Blueprint Structure
+
+```typescript
+import { BlueprintLoader, BlueprintValidationError } from './blueprints/loader';
+
+function validateBlueprintFile(filePath: string) {
+  const loader = new BlueprintLoader({ validate: true });
+
+  fs.readFile(filePath, 'utf8')
+    .then(content => {
+      try {
+        const blueprint = loader.parse(content, filePath);
+        console.log(`✅ Valid blueprint: ${blueprint.id}`);
+        console.log(`   Name: ${blueprint.name}`);
+        console.log(`   States: ${Object.keys(blueprint.states).length}`);
+      } catch (error) {
+        if (error instanceof BlueprintValidationError) {
+          console.error(`❌ Validation errors for ${error.blueprintId}:`);
+          error.errors.forEach(err => console.error(`   - ${err}`));
+        } else {
+          console.error(`❌ Parse error: ${error.message}`);
+        }
+      }
+    });
+}
+
+// Usage
+validateBlueprintFile('.blueprints/bug-fix.yaml');
+```
+
+#### Trace State Transitions
+
+```typescript
+import { StateGraph } from '@langchain/langgraph';
+
+function compileWithTracing(blueprint: Blueprint, actionRegistry: ActionRegistry) {
+  const compiler = new BlueprintCompiler(actionRegistry);
+  const graph = compiler.compile(blueprint);
+
+  // Wrap invoke to trace execution
+  const originalInvoke = graph.invoke.bind(graph);
+
+  graph.invoke = async function(input, config) {
+    console.log('\n🔄 Executing blueprint:', blueprint.id);
+    console.log('Initial state:', input.currentState);
+
+    const result = await originalInvoke(input, config);
+
+    console.log('Final state:', result.currentState);
+    console.log('Last result:', result.lastResult);
+
+    return result;
+  };
+
+  return graph;
+}
+```
+
+#### Debug Conditional Transitions
+
+```typescript
+function debugConditionalEdges(blueprint: Blueprint) {
+  console.log('\n🔀 Conditional Edges Debug:');
+
+  Object.entries(blueprint.states).forEach(([stateId, state]) => {
+    if (state.type === 'deterministic' && state.on) {
+      console.log(`\nState: ${stateId}`);
+      console.log(`  Action: ${state.action}`);
+      console.log(`  On success (pass): ${state.on.pass?.join(', ') || '__end__'}`);
+      console.log(`  On failure (fail): ${state.on.fail?.join(', ') || '__end__'}`);
+      console.log(`  Fallback next: ${state.next?.join(', ') || 'none'}`);
+    }
+  });
+}
+```
+
+### 14.3 Common Error Messages
+
+#### BlueprintValidationError
+
+```
+Blueprint validation failed for 'blueprint-id': Missing 'triggerKeywords', Missing 'priority'
+```
+
+**Troubleshooting:**
+1. Check all required root-level properties are present
+2. Verify YAML syntax is valid
+3. Ensure arrays use proper YAML syntax (`[item1, item2]` or `- item1`)
+
+#### BlueprintCompilerError
+
+```
+Failed to compile blueprint 'blueprint-id': Action not found: custom_action
+```
+
+**Troubleshooting:**
+1. Verify action is registered before compilation
+2. Check action name matches exactly (case-sensitive)
+3. Ensure action registry is passed to compiler constructor
+
+```
+Failed to compile blueprint 'blueprint-id': Unknown state type: invalid_type
+```
+
+**Troubleshooting:**
+1. Use only valid state types: `agent`, `deterministic`, `terminal`
+2. Check for typos in `type` field
+3. Ensure type is a string, not a boolean or object
+
+#### Selection Errors
+
+```
+No default blueprint found
+```
+
+**Troubleshooting:**
+1. Ensure a blueprint with `id: default` exists
+2. Check that blueprints directory is not empty
+3. Verify default blueprint is not filtered out
+
+#### Runtime Errors
+
+```
+Cannot read property 'execute' of undefined
+```
+
+**Troubleshooting:**
+1. Ensure action registry contains all referenced actions
+2. Check that actions are registered before compilation
+3. Verify action implementation returns proper result object
+
+### 14.4 Debug Checklist
+
+Before requesting help, verify the following:
+
+**Blueprint File:**
+- [ ] YAML syntax is valid (use [YAML Lint](https://www.yamllint.com/))
+- [ ] All required fields present (id, name, description, triggerKeywords, priority, initialState, states)
+- [ ] State IDs referenced in `next`/`on` exist in `states` object
+- [ ] Initial state exists in states object
+- [ ] No duplicate state IDs
+- [ ] Proper indentation (2 spaces, no tabs)
+
+**Agent States:**
+- [ ] `type: agent` specified
+- [ ] `config` object present
+- [ ] `models` array non-empty
+- [ ] `tools` array valid (tools are registered)
+- [ ] `next` array non-empty
+- [ ] `next` states exist
+
+**Deterministic States:**
+- [ ] `type: deterministic` specified
+- [ ] `action` string present
+- [ ] Action registered in action registry
+- [ ] `on.pass` and/or `on.fail` arrays present OR `next` array present
+- [ ] Referenced states exist
+
+**Compilation:**
+- [ ] Action registry includes all referenced actions
+- [ ] No circular state dependencies (unless intentional)
+- [ ] Terminal state reachable from all paths
+- [ ] Graph compiles without errors
+
+**Execution:**
+- [ ] Input includes `task` and `currentState`
+- [ ] Thread ID provided for conversation continuity
+- [ ] Required environment variables set
+- [ ] File paths are accessible
+- [ ] Network resources available (if applicable)
+
+### 14.5 Debug Tools and Utilities
+
+#### Blueprint Inspector
+
+```typescript
+import { loadBlueprints, selectBlueprint, compileBlueprint } from './blueprints';
+
+async function inspectBlueprint(blueprintId: string) {
+  const blueprints = await loadBlueprints();
+  const blueprint = blueprints.find(bp => bp.id === blueprintId);
+
+  if (!blueprint) {
+    console.error(`Blueprint '${blueprintId}' not found`);
+    return;
+  }
+
+  console.log('\n📋 Blueprint Inspection:');
+  console.log(`ID: ${blueprint.id}`);
+  console.log(`Name: ${blueprint.name}`);
+  console.log(`Description: ${blueprint.description}`);
+  console.log(`Priority: ${blueprint.priority}`);
+  console.log(`Initial State: ${blueprint.initialState}`);
+  console.log(`\nTrigger Keywords:`);
+  blueprint.triggerKeywords.forEach(kw => console.log(`  - ${kw}`));
+  console.log(`\nStates (${Object.keys(blueprint.states).length}):`);
+
+  let agentCount = 0, deterministicCount = 0, terminalCount = 0;
+
+  Object.entries(blueprint.states).forEach(([id, state]) => {
+    const icon = state.type === 'agent' ? '🤖' : state.type === 'deterministic' ? '⚙️' : '🏁';
+    console.log(`  ${icon} ${id}: ${state.type}`);
+
+    if (state.type === 'agent') agentCount++;
+    else if (state.type === 'deterministic') deterministicCount++;
+    else if (state.type === 'terminal') terminalCount++;
+  });
+
+  console.log(`\nState Types: ${agentCount} agents, ${deterministicCount} deterministic, ${terminalCount} terminal`);
+}
+
+// Usage
+await inspectBlueprint('bug-fix');
+```
+
+#### State Transition Visualizer
+
+```typescript
+function visualizeTransitions(blueprint: Blueprint) {
+  console.log(`\n🕸️  State Transition Graph: ${blueprint.id}\n`);
+
+  const visited = new Set<string>();
+  const queue = [blueprint.initialState];
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    if (visited.has(current)) continue;
+    visited.add(current);
+
+    const state = blueprint.states[current];
+    if (!state) continue;
+
+    const icon = state.type === 'agent' ? '🤖' : state.type === 'deterministic' ? '⚙️' : '🏁';
+    console.log(`${icon} ${current}`);
+
+    if (state.type === 'agent' && state.next) {
+      state.next.forEach(next => {
+        console.log(`   └─► ${next}`);
+        if (!visited.has(next)) queue.push(next);
+      });
+    } else if (state.type === 'deterministic') {
+      if (state.on?.pass) {
+        state.on.pass.forEach(next => {
+          console.log(`   ✓ (pass) ──► ${next}`);
+          if (!visited.has(next)) queue.push(next);
+        });
+      }
+      if (state.on?.fail) {
+        state.on.fail.forEach(next => {
+          console.log(`   ✗ (fail) ──► ${next}`);
+          if (!visited.has(next)) queue.push(next);
+        });
+      }
+    }
+  }
+
+  console.log();
+}
+
+// Usage
+const blueprints = await loadBlueprints();
+visualizeTransitions(blueprints[0]);
+```
+
+#### Action Registry Validator
+
+```typescript
+import { ActionRegistry } from './blueprints/actions';
+
+function validateActionRegistry(blueprint: Blueprint, registry: ActionRegistry) {
+  console.log(`\n🔧 Validating Action Registry for: ${blueprint.id}\n`);
+
+  const requiredActions = new Set<string>();
+  const missingActions: string[] = [];
+
+  // Collect all required actions
+  Object.entries(blueprint.states).forEach(([stateId, state]) => {
+    if (state.type === 'deterministic' && state.action) {
+      requiredActions.add(state.action);
+    }
+  });
+
+  // Check if actions are registered
+  requiredActions.forEach(action => {
+    if (!registry.get(action)) {
+      missingActions.push(action);
+    }
+  });
+
+  console.log(`Required actions: ${requiredActions.size}`);
+  console.log(`Registered actions: ${registry.list().length}`);
+  console.log(`Missing actions: ${missingActions.length}`);
+
+  if (missingActions.length > 0) {
+    console.log('\n❌ Missing Actions:');
+    missingActions.forEach(action => {
+      console.log(`  - ${action}`);
+    });
+  } else {
+    console.log('\n✅ All required actions are registered');
+  }
+
+  return missingActions.length === 0;
+}
+
+// Usage
+const registry = new ActionRegistry();
+// Register actions...
+const isValid = validateActionRegistry(blueprint, registry);
+```
+
+### 14.6 Performance Debugging
+
+#### Monitor Execution Time
+
+```typescript
+async function executeWithTiming(graph: any, input: any) {
+  const startTime = Date.now();
+
+  console.log(`⏱️  Starting execution at ${new Date().toISOString()}`);
+
+  const result = await graph.invoke(input);
+
+  const endTime = Date.now();
+  const duration = endTime - startTime;
+
+  console.log(`⏱️  Execution completed in ${duration}ms`);
+  console.log(`⏱️  Ended at ${new Date().toISOString()}`);
+
+  return result;
+}
+```
+
+#### Detect Memory Leaks
+
+```typescript
+function logMemoryUsage(label: string) {
+  const usage = process.memoryUsage();
+  console.log(`\n📊 Memory: ${label}`);
+  console.log(`  Heap Used: ${(usage.heapUsed / 1024 / 1024).toFixed(2)} MB`);
+  console.log(`  Heap Total: ${(usage.heapTotal / 1024 / 1024).toFixed(2)} MB`);
+  console.log(`  RSS: ${(usage.rss / 1024 / 1024).toFixed(2)} MB`);
+}
+
+// Usage
+logMemoryUsage('Before compilation');
+const graph = compiler.compile(blueprint);
+logMemoryUsage('After compilation');
+```
+
+### 14.7 Getting Help
+
+If you're still stuck after trying the above debugging techniques:
+
+1. **Check the Examples**: Review `.blueprints/examples/` for working blueprints
+2. **Review Test Files**: Check `src/blueprints/__tests__/` for usage patterns
+3. **Enable Debug Logging**: Add console.log statements to trace execution
+4. **Simplify the Blueprint**: Remove states to isolate the issue
+5. **Check LangGraph Docs**: [LangGraph documentation](https://langchain-ai.github.io/langgraph/)
+6. **Review Source Code**: Check `src/blueprints/` implementation details
+
+When asking for help, include:
+- Blueprint YAML content
+- Full error message and stack trace
+- Node.js version
+- Relevant environment variables (sanitized)
+- Steps to reproduce the issue
 
 ---
 
