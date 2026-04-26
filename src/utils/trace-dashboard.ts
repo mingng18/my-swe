@@ -294,7 +294,7 @@ function getToolCompressionSavings(metrics: any[], toolName: string): string {
       m.name === "compression.savings_ratio" && m.attributes?.tool === toolName,
   );
   if (savingsMetrics.length === 0)
-    return '<span style="color: #64748b;" aria-label="Not available">N/A</span>';
+    return '<span style="color: #64748b;" aria-label="Not available" title="Compression savings ratio not available for this tool">N/A</span>';
 
   const avgSavings =
     savingsMetrics.reduce((sum, m) => sum + (m.value || 0), 0) /
