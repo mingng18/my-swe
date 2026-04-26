@@ -190,13 +190,11 @@ app.use(async (c, next) => {
       return c.json({ error: "Unauthorized" }, 401);
     }
 
-    const tokenBuffer = Buffer.from(token);
-    const secretBuffer = Buffer.from(secret);
+    // Hash both to prevent timing side-channels via early length exit or string comparison
+    const expectedHash = createHash("sha256").update(secret).digest();
+    const providedHash = createHash("sha256").update(token).digest();
 
-    if (
-      tokenBuffer.length !== secretBuffer.length ||
-      !timingSafeEqual(tokenBuffer, secretBuffer)
-    ) {
+    if (!timingSafeEqual(expectedHash, providedHash)) {
       return c.json({ error: "Unauthorized" }, 401);
     }
   }
