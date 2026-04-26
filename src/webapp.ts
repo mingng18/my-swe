@@ -5,7 +5,7 @@ import { cors } from "hono/cors";
 import { logger as httpLogger } from "hono/logger";
 
 import { runCodeagentTurn } from "./server";
-import { isDuplicateMessage, formatTelegramMarkdownV2 } from "./utils/telegram";
+import { isDuplicateMessage, sendChatAction, formatTelegramMarkdownV2 } from "./utils/telegram";
 
 // Message queue for concurrent requests (shared across all transports)
 const messageQueue = new Map<string, string[]>();
@@ -270,6 +270,9 @@ app.post("/webhook/telegram", async (c) => {
           );
           return c.json({ ok: true, message: "Message queued" });
         }
+
+        // Send typing indicator to show we're processing
+        await sendChatAction(telegramBotToken, msg.chat.id, "typing");
 
         // Process the message
         const reply = await processMessage(threadId, msg.text);

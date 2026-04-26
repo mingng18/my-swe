@@ -1,25 +1,25 @@
 {
   "active": true,
-  "spec": "013-add-markdown-formatting-to-telegram-responses",
+  "spec": "012-add-telegram-bot-typing-indicators",
   "state": "building",
   "subtasks": {
-    "completed": 3,
-    "total": 7,
+    "completed": 8,
+    "total": 9,
     "in_progress": 1,
     "failed": 0
   },
   "phase": {
-    "current": "Configuration",
+    "current": "Testing and Verification",
     "id": null,
-    "total": 4
+    "total": 3
   },
   "workers": {
     "active": 0,
     "max": 1
   },
   "session": {
-    "number": 16,
-    "started_at": "2026-04-26T14:35:24.778644"
+    "number": 20,
+    "started_at": "2026-04-26T14:37:21.989889"
   },
-  "last_update": "2026-04-26T15:24:45.527364"
+  "last_update": "2026-04-26T15:31:46.794968"
 }
