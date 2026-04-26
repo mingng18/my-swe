@@ -4398,6 +4398,398 @@ When configuring agent states, verify:
 
 ---
 
+## 14. Usage Examples
+
+This section provides practical examples of how to use the blueprint system in your code.
+
+### 14.1 Basic Workflow
+
+The most common workflow is loading blueprints, selecting one based on a task, and executing it.
+
+```typescript
+import { loadBlueprints, selectBlueprint, compileBlueprint, actionRegistry } from './blueprints';
+
+// 1. Load all available blueprints
+const blueprints = await loadBlueprints();
+
+// 2. Select the appropriate blueprint for your task
+const task = "fix the authentication bug in the login handler";
+const selection = selectBlueprint(task, blueprints);
+
+console.log(`Selected blueprint: ${selection.blueprint.name}`);
+console.log(`Reason: ${selection.reason}`);
+
+// 3. Compile the blueprint into an executable LangGraph
+const graph = compileBlueprint(selection.blueprint, actionRegistry);
+
+// 4. Execute the graph
+const result = await graph.invoke({
+  input: task,
+  currentState: selection.blueprint.initialState
+});
+
+console.log(`Result: ${result.reply}`);
+```
+
+### 14.2 Using Convenience Utilities
+
+For common workflows, use the built-in utility functions.
+
+```typescript
+import { loadAndSelectBlueprints, executeWithBlueprint } from './blueprints';
+
+// Option 1: Load and select in one call
+const { blueprints, selection } = await loadAndSelectBlueprints(
+  "add tests for the user service"
+);
+
+console.log(`Loaded ${blueprints.length} blueprints`);
+console.log(`Selected: ${selection.blueprint.id}`);
+
+// Option 2: Execute directly (recommended)
+const graph = await executeWithBlueprint("implement the new feature");
+const result = await graph.invoke({
+  input: "implement the new feature",
+  currentState: "start"
+});
+```
+
+### 14.3 Custom Blueprint Loading
+
+Load blueprints from custom directories or with specific options.
+
+```typescript
+import { loadBlueprints } from './blueprints';
+
+// Load from custom directory
+const customBlueprints = await loadBlueprints({
+  directory: './my-blueprints',
+  watch: false  // Disable file watching
+});
+
+// Load with validation options
+const strictBlueprints = await loadBlueprints({
+  directory: './blueprints',
+  validateSchema: true,  // Enable strict validation
+  onInvalid: (error) => {
+    console.error(`Invalid blueprint: ${error.message}`);
+  }
+});
+```
+
+### 14.4 Manual Blueprint Selection
+
+Select blueprints manually for more control.
+
+```typescript
+import { getBlueprintById, listBlueprints } from './blueprints';
+
+// List all available blueprints
+const allBlueprints = listBlueprints(blueprints);
+console.log('Available blueprints:');
+for (const bp of allBlueprints) {
+  console.log(`  - ${bp.id}: ${bp.name}`);
+}
+
+// Get a specific blueprint by ID
+const blueprint = getBlueprintById('bug-fix', blueprints);
+if (blueprint) {
+  console.log(`Found blueprint: ${blueprint.name}`);
+  console.log(`Triggers: ${blueprint.triggerKeywords.join(', ')}`);
+} else {
+  console.log('Blueprint not found');
+}
+
+// Filter blueprints by keyword
+const testingBlueprints = blueprints.filter(bp =>
+  bp.triggerKeywords.includes('test')
+);
+```
+
+### 14.5 Executing with Custom Actions
+
+Register and use custom actions in your blueprints.
+
+```typescript
+import { ActionRegistry, compileBlueprint } from './blueprints';
+
+// 1. Create a custom action registry
+const customRegistry = new ActionRegistry();
+
+// 2. Register built-in actions
+registerBuiltinActions(customRegistry);
+
+// 3. Register custom actions
+customRegistry.register('run_integration_tests', async (input) => {
+  try {
+    const { execSync } = require('child_process');
+    const output = execSync('npm run test:integration', {
+      cwd: input.cwd,
+      encoding: 'utf-8'
+    });
+    return { success: true, output };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message,
+      output: error.stdout
+    };
+  }
+});
+
+// 4. Compile and execute
+const graph = compileBlueprint(blueprint, customRegistry);
+const result = await graph.invoke({ input: task });
+```
+
+### 14.6 Error Handling
+
+Properly handle errors during blueprint loading, selection, and execution.
+
+```typescript
+import {
+  loadBlueprints,
+  BlueprintValidationError,
+  BlueprintCompilerError
+} from './blueprints';
+
+// Loading with error handling
+try {
+  const blueprints = await loadBlueprints();
+  console.log(`Loaded ${blueprints.length} blueprints`);
+} catch (error) {
+  if (error instanceof BlueprintValidationError) {
+    console.error(`Validation error: ${error.message}`);
+    console.error(`Blueprint file: ${error.file}`);
+    console.error(`Errors: ${error.errors.join(', ')}`);
+  } else {
+    console.error(`Unexpected error: ${error.message}`);
+  }
+  process.exit(1);
+}
+
+// Compilation with error handling
+try {
+  const graph = compileBlueprint(blueprint, actionRegistry);
+} catch (error) {
+  if (error instanceof BlueprintCompilerError) {
+    console.error(`Compilation error: ${error.message}`);
+    console.error(`State: ${error.stateId}`);
+    console.error(`Issue: ${error.issue}`);
+  } else {
+    console.error(`Unexpected error: ${error.message}`);
+  }
+}
+
+// Execution with error handling
+try {
+  const result = await graph.invoke({ input: task });
+  if (result.error) {
+    console.error(`Execution error: ${result.error}`);
+    // Handle error state
+  } else {
+    console.log(`Success: ${result.reply}`);
+  }
+} catch (error) {
+  console.error(`Execution failed: ${error.message}`);
+  // Implement retry or fallback logic
+}
+```
+
+### 14.7 Complete Workflow Example
+
+A complete example showing a typical workflow from task to completion.
+
+```typescript
+import {
+  loadBlueprints,
+  selectBlueprint,
+  compileBlueprint,
+  actionRegistry,
+  type Blueprint
+} from './blueprints';
+
+interface ExecutionContext {
+  task: string;
+  threadId?: string;
+  cwd: string;
+}
+
+async function executeTask(context: ExecutionContext) {
+  const { task, threadId, cwd } = context;
+
+  try {
+    // Step 1: Load blueprints
+    console.log(`📋 Loading blueprints...`);
+    const blueprints = await loadBlueprints();
+    console.log(`   Loaded ${blueprints.length} blueprints`);
+
+    // Step 2: Select blueprint
+    console.log(`🎯 Selecting blueprint for task: "${task}"`);
+    const selection = selectBlueprint(task, blueprints);
+    console.log(`   Selected: ${selection.blueprint.name}`);
+    console.log(`   Reason: ${selection.reason}`);
+
+    // Step 3: Compile blueprint
+    console.log(`⚙️  Compiling blueprint...`);
+    const graph = compileBlueprint(selection.blueprint, actionRegistry);
+
+    // Step 4: Execute workflow
+    console.log(`🚀 Executing workflow...`);
+    const result = await graph.invoke({
+      input: task,
+      currentState: selection.blueprint.initialState,
+      cwd,
+      threadId
+    });
+
+    // Step 5: Handle result
+    if (result.error) {
+      console.error(`❌ Execution failed: ${result.error}`);
+      return { success: false, error: result.error };
+    } else {
+      console.log(`✅ Execution successful`);
+      console.log(`   Result: ${result.reply}`);
+      return { success: true, result: result.reply };
+    }
+
+  } catch (error) {
+    console.error(`💥 Fatal error: ${error.message}`);
+    return { success: false, error: error.message };
+  }
+}
+
+// Usage
+const result = await executeTask({
+  task: "fix the authentication bug in the login handler",
+  cwd: process.cwd(),
+  threadId: "user-123-session"
+});
+
+if (result.success) {
+  console.log('Task completed successfully');
+} else {
+  console.log(`Task failed: ${result.error}`);
+}
+```
+
+### 14.8 Testing Blueprint Workflows
+
+Test blueprint workflows without executing them.
+
+```typescript
+import { loadBlueprints, selectBlueprint, compileBlueprint } from './blueprints';
+
+async function testBlueprint(task: string) {
+  // Load and select
+  const blueprints = await loadBlueprints();
+  const selection = selectBlueprint(task, blueprints);
+
+  console.log('Blueprint Analysis:');
+  console.log(`  ID: ${selection.blueprint.id}`);
+  console.log(`  Name: ${selection.blueprint.name}`);
+  console.log(`  Description: ${selection.blueprint.description}`);
+  console.log(`  Priority: ${selection.blueprint.priority}`);
+  console.log(`  Initial State: ${selection.blueprint.initialState}`);
+  console.log(`  States: ${Object.keys(selection.blueprint.states).length}`);
+
+  // Analyze state flow
+  console.log('\nState Flow:');
+  let current = selection.blueprint.initialState;
+  const visited = new Set<string>();
+  const depth = 0;
+
+  while (current && !visited.has(current) && depth < 20) {
+    visited.add(current);
+    const state = selection.blueprint.states[current];
+    const indent = '  '.repeat(visited.size);
+
+    console.log(`${indent}${current} (${state.type})`);
+
+    if (state.type === 'terminal') {
+      break;
+    } else if (state.type === 'agent') {
+      // Agent states can have multiple next states
+      const next = Array.isArray(state.next) ? state.next[0] : state.next;
+      current = next;
+    } else if (state.type === 'deterministic') {
+      // Show conditional transitions
+      if (state.on) {
+        if (state.on.pass) console.log(`${indent}  → pass: ${state.on.pass.join(', ')}`);
+        if (state.on.fail) console.log(`${indent}  → fail: ${state.on.fail.join(', ')}`);
+      }
+      current = state.next ? state.next[0] : null;
+    }
+  }
+
+  return selection.blueprint;
+}
+
+// Usage
+await testBlueprint("fix the critical bug in production");
+```
+
+### 14.9 Integrating with Existing Agents
+
+Use blueprints with existing agent harnesses.
+
+```typescript
+import { loadAndSelectBlueprints } from './blueprints';
+import { createDeepAgent } from './harness/deepagents';
+
+async function executeWithHarness(task: string) {
+  // Load blueprint
+  const { selection } = await loadAndSelectBlueprints(task);
+
+  // Create agent harness
+  const harness = await createDeepAgent({
+    model: 'sonnet',
+    tools: ['read', 'write', 'edit', 'bash']
+  });
+
+  // Execute with blueprint context
+  const result = await harness.invoke({
+    input: task,
+    blueprint: selection.blueprint,
+    currentState: selection.blueprint.initialState
+  }, {
+    threadId: 'session-123'
+  });
+
+  return result;
+}
+```
+
+### 14.10 Usage Examples Checklist
+
+When using the blueprint system, verify:
+
+**Loading:**
+- [ ] Blueprint files exist in the specified directory
+- [ ] YAML syntax is valid
+- [ ] Required fields are present (id, name, description, etc.)
+- [ ] State references are valid
+
+**Selection:**
+- [ ] Task description is clear and specific
+- [ ] Trigger keywords match the task intent
+- [ ] Blueprint priority is appropriate
+- [ ] Fallback to default blueprint if needed
+
+**Compilation:**
+- [ ] Action registry includes all required actions
+- [ ] State transitions are properly configured
+- [ ] Initial state exists in the blueprint
+- [ ] No circular state transitions
+
+**Execution:**
+- [ ] Input includes task and current state
+- [ ] Thread ID is provided for conversation continuity
+- [ ] Error handling is in place
+- [ ] Results are properly logged
+
+---
+
 ## Additional Resources
 
 - **Examples:** `.blueprints/examples/` - Example blueprint YAML files
