@@ -12,7 +12,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ToastProvider } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle, Loader2, Send, RefreshCw, X, Bot, Zap, FileCode, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -111,8 +110,7 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
   const messages = thread ? groupLLMChunks(adaptEventsToMessages(thread.events)) : [];
 
   return (
-    <ToastProvider>
-      <div className={cn("flex flex-col h-screen bg-background", className)}>
+    <div className={cn("flex flex-col h-screen bg-background", className)}>
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b bg-card shadow-sm">
         <div className="flex items-center gap-3">
@@ -510,6 +508,5 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
         </div>
       )}
     </div>
-    </ToastProvider>
   );
 }
