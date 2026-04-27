@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useThreadStore } from "@/store/thread-store";
 import { useBullhorseStream } from "@/hooks/useBullhorseStream";
+import { useKeyboardShortcut } from "@/hooks/useKeyboardShortcut";
 import { ThreadTabs } from "@/components/ThreadTabs";
 import { TodoSidebar } from "@/components/TodoSidebar";
 import { adaptEventsToMessages, groupLLMChunks } from "@/lib/event-adapter";
@@ -12,7 +13,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ToastProvider } from "@/components/ui/toast";
-import { AlertCircle, Loader2, Send, RefreshCw, X } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { AlertCircle, Loader2, Send, RefreshCw, X, Bot, Zap, FileCode, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ThreadMonitorProps {
@@ -34,6 +36,17 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
   const [userInput, setUserInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Keyboard shortcut to focus input
+  useKeyboardShortcut({
+    key: "k",
+    metaKey: true,
+    ctrlKey: true,
+    callback: () => {
+      inputRef.current?.focus();
+    },
+  });
 
   // Connect to SSE stream for active thread
   const {
@@ -101,34 +114,45 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
     <ToastProvider>
       <div className={cn("flex flex-col h-screen bg-background", className)}>
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b bg-card">
+      <div className="flex items-center justify-between px-6 py-4 border-b bg-card shadow-sm">
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-semibold">Bullhorse Agent Monitor</h1>
+          <div className="flex items-center gap-2">
+            <Bot className="h-6 w-6 text-primary" />
+            <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+              Bullhorse Agent Monitor
+            </h1>
+          </div>
           {threadId && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2 text-sm">
               {connectionState === "connected" ? (
-                <span className="flex items-center gap-1 text-green-500">
+                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-500/10 text-green-600 dark:text-green-400 font-medium transition-all hover:bg-green-500/15">
                   <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                   Connected
                 </span>
               ) : connectionState === "connecting" ? (
-                <span className="flex items-center gap-1 text-yellow-500">
+                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 font-medium">
                   <Loader2 className="h-3 w-3 animate-spin" />
                   Connecting...
                 </span>
               ) : connectionState === "error" ? (
-                <span className="flex items-center gap-1 text-red-500">
+                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-500/10 text-red-600 dark:text-red-400 font-medium">
                   <AlertCircle className="h-3 w-3" />
                   Connection Error
                 </span>
               ) : (
-                <span className="flex items-center gap-1 text-muted-foreground">
+                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-muted-foreground font-medium">
                   <span className="w-2 h-2 rounded-full bg-muted-foreground" />
                   Disconnected
                 </span>
               )}
             </div>
           )}
+        </div>
+        <div className="flex items-center gap-2">
+          <kbd className="hidden sm:inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-muted-foreground bg-muted rounded-md border">
+            <span>⌘</span>K
+            <span className="text-[10px] opacity-60">New Run</span>
+          </kbd>
         </div>
       </div>
 
@@ -137,20 +161,39 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
 
       {/* New Agent Input (shown when no threads or explicitly requested) */}
       {!threadId && (
-        <div className="p-4 border-b bg-muted/30">
-          <div className="flex gap-2">
-            <Input
-              placeholder="Enter your task for the agent..."
-              value={userInput}
-              onChange={(e) => setUserInput(e.target.value)}
-              onKeyPress={handleKeyPress}
-              disabled={isLoading}
-              className="flex-1"
-            />
+        <div className="p-4 border-b bg-muted/30 backdrop-blur-sm">
+          <div className="flex gap-2 max-w-4xl mx-auto">
+            <div className="relative flex-1">
+              <Input
+                ref={inputRef}
+                placeholder="Enter your task for the agent... (⌘K)"
+                value={userInput}
+                onChange={(e) => setUserInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleStartAgent();
+                  }
+                }}
+                disabled={isLoading}
+                className="flex-1 pr-12 transition-all focus:ring-2 focus:ring-primary/20"
+              />
+              {userInput && (
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={() => setUserInput("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 opacity-50 hover:opacity-100 transition-opacity"
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
             <Button
               onClick={handleStartAgent}
               disabled={isLoading || !userInput.trim()}
-              className="gap-2"
+              className="gap-2 shadow-md hover:shadow-lg transition-all disabled:opacity-50"
+              size="default"
             >
               {isLoading ? (
                 <>
@@ -160,7 +203,7 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
               ) : (
                 <>
                   <Send className="h-4 w-4" />
-                  Start Agent
+                  <span className="hidden sm:inline">Start Agent</span>
                 </>
               )}
             </Button>
@@ -249,26 +292,44 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
           {/* Right Content - Timeline */}
           <div className="flex-1 flex flex-col overflow-hidden">
             {/* New Agent Input (shown when thread is active) */}
-            <div className="p-4 border-b bg-background">
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Start a new agent run..."
-                  value={userInput}
-                  onChange={(e) => setUserInput(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  disabled={isLoading}
-                  className="flex-1"
-                />
+            <div className="p-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+              <div className="flex gap-2 max-w-4xl mx-auto">
+                <div className="relative flex-1">
+                  <Input
+                    ref={inputRef}
+                    placeholder="Start a new agent run... (⌘K)"
+                    value={userInput}
+                    onChange={(e) => setUserInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleStartAgent();
+                      }
+                    }}
+                    disabled={isLoading}
+                    className="flex-1 pr-12 transition-all focus:ring-2 focus:ring-primary/20"
+                  />
+                  {userInput && (
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={() => setUserInput("")}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 opacity-50 hover:opacity-100 transition-opacity"
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
                 <Button
                   onClick={handleStartAgent}
                   disabled={isLoading || !userInput.trim()}
                   size="sm"
-                  className="gap-2"
+                  className="gap-2 shadow-md hover:shadow-lg transition-all disabled:opacity-50"
                 >
                   {isLoading ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Starting...
+                      <span className="hidden sm:inline">Starting...</span>
                     </>
                   ) : (
                     <>
@@ -284,21 +345,38 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
             <ScrollArea className="flex-1 p-4">
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center p-8">
-                  <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center mb-6 shadow-sm">
                     {thread.status === "running" ? (
-                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                      <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                    ) : connectionState === "connecting" ? (
+                      <div className="space-y-1">
+                        <Skeleton className="h-8 w-8 rounded-full" />
+                      </div>
                     ) : (
-                      <AlertCircle className="h-8 w-8 text-muted-foreground" />
+                      <Zap className="h-10 w-10 text-primary/50" />
                     )}
                   </div>
                   <h3 className="text-lg font-semibold mb-2">
-                    {thread.status === "running" ? "Waiting for events..." : "No events yet"}
+                    {thread.status === "running"
+                      ? "Agent is processing..."
+                      : connectionState === "connecting"
+                      ? "Connecting to stream..."
+                      : "Waiting for events"}
                   </h3>
                   <p className="text-sm text-muted-foreground max-w-md">
                     {thread.status === "running"
-                      ? "The agent is processing. Events will appear here as they happen."
+                      ? "The agent is working on your task. Events will appear here as they happen."
+                      : connectionState === "connecting"
+                      ? "Establishing connection to the agent stream..."
                       : "Start an agent run to see the timeline of events."}
                   </p>
+                  {connectionState === "connecting" && (
+                    <div className="mt-6 space-y-2 w-full max-w-sm">
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-3/4" />
+                      <Skeleton className="h-4 w-1/2" />
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-4 max-w-4xl mx-auto">
@@ -384,23 +462,49 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
       ) : (
         /* Empty State */
         <div className="flex-1 flex items-center justify-center p-8">
-          <Card className="max-w-md w-full p-8 text-center">
-            <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
-              <span className="text-3xl">🚀</span>
+          <Card className="max-w-lg w-full p-8 text-center shadow-lg border-2">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center mx-auto mb-6">
+              <Bot className="h-10 w-10 text-primary" />
             </div>
-            <h3 className="text-lg font-semibold mb-2">Start Your First Agent Run</h3>
+            <h3 className="text-xl font-bold mb-2">Start Your First Agent Run</h3>
             <p className="text-sm text-muted-foreground mb-6">
               Enter a task above to start the Bullhorse agent. Watch as it processes your request
-              in real-time.
+              in real-time with full transparency.
             </p>
-            <div className="space-y-2 text-left text-xs text-muted-foreground">
-              <p className="font-medium">Example tasks:</p>
-              <ul className="space-y-1 ml-4">
-                <li>• "Search for authentication code in the repo"</li>
-                <li>• "Fix the bug in the login flow"</li>
-                <li>• "Add unit tests for the user service"</li>
-                <li>• "Review the pull request for security issues"</li>
-              </ul>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-default">
+                <Search className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium">Code Search</p>
+                  <p className="text-xs text-muted-foreground">"Find auth implementations"</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-default">
+                <FileCode className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium">Bug Fixes</p>
+                  <p className="text-xs text-muted-foreground">"Fix login flow error"</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-default">
+                <Zap className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium">Add Tests</p>
+                  <p className="text-xs text-muted-foreground">"Test user service"</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-default">
+                <Bot className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium">Code Review</p>
+                  <p className="text-xs text-muted-foreground">"Review PR #123"</p>
+                </div>
+              </div>
+            </div>
+            <div className="mt-6 pt-6 border-t">
+              <p className="text-xs text-muted-foreground">
+                <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[10px] font-mono">⌘K</kbd> to focus input
+              </p>
             </div>
           </Card>
         </div>
