@@ -244,7 +244,7 @@ app.get("/info", (c) => {
  */
 app.post("/run", async (c) => {
   try {
-    const { input, threadId } = await c.req.json();
+    const { input, threadId: clientThreadId } = await c.req.json();
     const userId = c.req.header("X-User-Id") || undefined;
 
     if (typeof input !== "string" || !input.trim()) {
@@ -254,9 +254,13 @@ app.post("/run", async (c) => {
       );
     }
 
+    // Use client-provided threadId or generate a new one
+    const threadId = clientThreadId ?? crypto.randomUUID();
+
     const out = await runCodeagentTurn(input, threadId, userId, "http");
 
     return c.json({
+      threadId,
       result: out,
       input,
       state: {
