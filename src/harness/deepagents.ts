@@ -115,7 +115,7 @@ export function emitTodoEvent(
 }
 
 const useSandbox = process.env.USE_SANDBOX === "true";
-const AGENT_RECURSION_LIMIT = Number.parseInt(process.env.AGENT_RECURSION_LIMIT || "100", 10);
+const AGENT_RECURSION_LIMIT = Number.parseInt(process.env.AGENT_RECURSION_LIMIT || "1000", 10);
 let hasLoadedPersistedRepos = false;
 
 // ============================================================================
