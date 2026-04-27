@@ -21,7 +21,7 @@ interface ThreadMonitorProps {
   className?: string;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_BULLHORSE_API_URL || "http://localhost:7860";
+const API_URL = process.env.NEXT_PUBLIC_BULLHORSE_API_URL || "http://localhost:3000";
 
 export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonitorProps) {
   const activeThreadId = useThreadStore((state) => state.activeThreadId);

@@ -39,7 +39,7 @@ export class BullhorseClient {
   private maxReconnectDelay: number;
 
   constructor(options: BullhorseClientOptions = {}) {
-    this.apiUrl = options.apiUrl || process.env.NEXT_PUBLIC_BULLHORSE_API_URL || "http://localhost:7860";
+    this.apiUrl = options.apiUrl || process.env.NEXT_PUBLIC_BULLHORSE_API_URL || "http://localhost:3000";
     this.apiSecret = options.apiSecret;
     this.eventSources = new Map();
     this.connectionStates = new Map();
