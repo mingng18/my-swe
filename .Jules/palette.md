@@ -16,3 +16,6 @@
 ## 2025-02-14 - Keyboard Shortcut Discovery
 **Learning:** Combining explicit keyboard hints (<kbd>Tab</kbd>) with semantic roles (like <footer aria-live="polite">) creates a highly discoverable and accessible experience for companion web frames without cluttering the visual UI.
 **Action:** Consistently pair visual shortcut hints (<kbd>) with ARIA live regions when instructing users on keyboard-driven navigation in isolated frame views.
+## 2024-05-15 - Semantic Description Lists for Stats Grids
+**Learning:** Stats grids are often built using generic `div` elements, but they fundamentally represent key-value pairs (label and value). Using Description Lists (`<dl>`), with `<dt>` for the label and `<dd>` for the value, provides robust semantic relationships for screen readers, ensuring the label and value are programmatically associated without needing custom ARIA labels.
+**Action:** When creating key-value UI patterns like metric dashboards or stat cards, prefer `<dl>`, `<dt>`, and `<dd>` elements over generic `<div>` grids to inherently convey the relationship to assistive technologies.

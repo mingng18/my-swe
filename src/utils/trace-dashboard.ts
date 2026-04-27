@@ -32,7 +32,8 @@ export function generateTraceDashboardHTML(threadId: string): string {
     .stat-value.success { color: #4ade80; }
     .stat-value.warning { color: #fbbf24; }
     .stat-value.error { color: #f87171; }
-    .table-container { background: #16213e; border-radius: 8px; overflow: hidden; border: 1px solid #334155; }
+    .table-container { background: #16213e; border-radius: 8px; overflow-x: auto; border: 1px solid #334155; }
+    .table-container:focus-visible { outline: 2px solid #60a5fa; outline-offset: 2px; }
     table { width: 100%; border-collapse: collapse; }
     th { background: #1e293b; padding: 12px 15px; text-align: left; font-weight: 600; color: #94a3b8; font-size: 0.85rem; }
     td { padding: 12px 15px; border-bottom: 1px solid #334155; }
@@ -63,55 +64,55 @@ export function generateTraceDashboardHTML(threadId: string): string {
     <main>
 
     <h2>📊 Token Usage</h2>
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-label">Total Tokens</div>
-        <div class="stat-value">${tokenUsage?.totalTokens.toLocaleString() || 0}</div>
+    <dl class="stats-grid">
+      <div class="stat-card" role="group">
+        <dt class="stat-label">Total Tokens</dt>
+        <dd class="stat-value">${tokenUsage?.totalTokens.toLocaleString() || 0}</dd>
       </div>
-      <div class="stat-card">
-        <div class="stat-label">Input Tokens</div>
-        <div class="stat-value">${tokenUsage?.totalInputTokens.toLocaleString() || 0}</div>
+      <div class="stat-card" role="group">
+        <dt class="stat-label">Input Tokens</dt>
+        <dd class="stat-value">${tokenUsage?.totalInputTokens.toLocaleString() || 0}</dd>
       </div>
-      <div class="stat-card">
-        <div class="stat-label">Output Tokens</div>
-        <div class="stat-value">${tokenUsage?.totalOutputTokens.toLocaleString() || 0}</div>
+      <div class="stat-card" role="group">
+        <dt class="stat-label">Output Tokens</dt>
+        <dd class="stat-value">${tokenUsage?.totalOutputTokens.toLocaleString() || 0}</dd>
       </div>
-      <div class="stat-card">
-        <div class="stat-label">Total Cost</div>
-        <div class="stat-value">$${tokenUsage?.totalCost.toFixed(4) || "0.0000"}</div>
+      <div class="stat-card" role="group">
+        <dt class="stat-label">Total Cost</dt>
+        <dd class="stat-value">$${tokenUsage?.totalCost.toFixed(4) || "0.0000"}</dd>
       </div>
-      <div class="stat-card">
-        <div class="stat-label">LLM Calls</div>
-        <div class="stat-value">${metrics.llmCalls.count}</div>
+      <div class="stat-card" role="group">
+        <dt class="stat-label">LLM Calls</dt>
+        <dd class="stat-value">${metrics.llmCalls.count}</dd>
       </div>
-      <div class="stat-card">
-        <div class="stat-label">Avg Latency</div>
-        <div class="stat-value">${metrics.llmCalls.avgLatency.toFixed(0)}ms</div>
+      <div class="stat-card" role="group">
+        <dt class="stat-label">Avg Latency</dt>
+        <dd class="stat-value">${metrics.llmCalls.avgLatency.toFixed(0)}ms</dd>
       </div>
-    </div>
+    </dl>
 
     <h2>🗜️ Compression Metrics</h2>
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-label">Original Tokens</div>
-        <div class="stat-value">${getCompressionMetric(telemetry.metrics, "compression.original_tokens").toLocaleString()}</div>
+    <dl class="stats-grid">
+      <div class="stat-card" role="group">
+        <dt class="stat-label">Original Tokens</dt>
+        <dd class="stat-value">${getCompressionMetric(telemetry.metrics, "compression.original_tokens").toLocaleString()}</dd>
       </div>
-      <div class="stat-card">
-        <div class="stat-label">Compressed Tokens</div>
-        <div class="stat-value success">${getCompressionMetric(telemetry.metrics, "compression.compressed_tokens").toLocaleString()}</div>
+      <div class="stat-card" role="group">
+        <dt class="stat-label">Compressed Tokens</dt>
+        <dd class="stat-value success">${getCompressionMetric(telemetry.metrics, "compression.compressed_tokens").toLocaleString()}</dd>
       </div>
-      <div class="stat-card">
-        <div class="stat-label">Tokens Saved</div>
-        <div class="stat-value success">${(getCompressionMetric(telemetry.metrics, "compression.original_tokens") - getCompressionMetric(telemetry.metrics, "compression.compressed_tokens")).toLocaleString()}</div>
+      <div class="stat-card" role="group">
+        <dt class="stat-label">Tokens Saved</dt>
+        <dd class="stat-value success">${(getCompressionMetric(telemetry.metrics, "compression.original_tokens") - getCompressionMetric(telemetry.metrics, "compression.compressed_tokens")).toLocaleString()}</dd>
       </div>
-      <div class="stat-card">
-        <div class="stat-label">Avg Savings</div>
-        <div class="stat-value">${getCompressionAvgSavings(telemetry.metrics).toFixed(1)}%</div>
+      <div class="stat-card" role="group">
+        <dt class="stat-label">Avg Savings</dt>
+        <dd class="stat-value">${getCompressionAvgSavings(telemetry.metrics).toFixed(1)}%</dd>
       </div>
-    </div>
+    </dl>
 
     <h2>🔧 Tool Statistics</h2>
-    <div class="table-container">
+    <div class="table-container" tabindex="0">
       <table>
         <thead>
           <tr>
@@ -147,30 +148,30 @@ export function generateTraceDashboardHTML(threadId: string): string {
     </div>
 
     <h2>⚡ Performance Metrics</h2>
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-label">Total Duration</div>
-        <div class="stat-value">${(metrics.totalDuration / 1000).toFixed(2)}s</div>
+    <dl class="stats-grid">
+      <div class="stat-card" role="group">
+        <dt class="stat-label">Total Duration</dt>
+        <dd class="stat-value">${(metrics.totalDuration / 1000).toFixed(2)}s</dd>
       </div>
-      <div class="stat-card">
-        <div class="stat-label">Spans Recorded</div>
-        <div class="stat-value">${telemetry.spans.length}</div>
+      <div class="stat-card" role="group">
+        <dt class="stat-label">Spans Recorded</dt>
+        <dd class="stat-value">${telemetry.spans.length}</dd>
       </div>
-      <div class="stat-card">
-        <div class="stat-label">Metrics Recorded</div>
-        <div class="stat-value">${telemetry.metrics.length}</div>
+      <div class="stat-card" role="group">
+        <dt class="stat-label">Metrics Recorded</dt>
+        <dd class="stat-value">${telemetry.metrics.length}</dd>
       </div>
-    </div>
+    </dl>
 
     <h2>📈 Recent Activity</h2>
-    <div class="table-container">
-      <div style="padding: 15px;">
+    <div class="table-container" tabindex="0">
+      <div style="padding: 15px;" role="list">
         ${telemetry.spans
           .slice(-10)
           .reverse()
           .map(
             (span) => `
-          <div class="timeline-item ${span.status === "error" ? "error" : ""}">
+          <div role="listitem" class="timeline-item ${span.status === "error" ? "error" : ""}">
             <div style="font-weight: 600; margin-bottom: 4px;">${span.name}</div>
             <div class="timestamp">${new Date(span.startTime).toISOString()}</div>
             ${span.endTime ? `<div style="font-size: 0.85rem; color: #94a3b8; margin-top: 4px;">Duration: ${span.endTime - span.startTime}ms</div>` : ""}
