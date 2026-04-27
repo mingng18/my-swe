@@ -78,6 +78,7 @@ export function useBullhorseStream({
   }, [connectionState]);
 
   const handleEvent = useCallback((event: SSEEvent) => {
+    console.log(`[useBullhorseStream] Received event for ${threadId}:`, event.type, event);
     // Add event to thread
     addEvent(threadId, event);
 
@@ -171,7 +172,12 @@ export function useBullhorseStream({
   }, [threadId, threads, addEvent]);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      console.log(`[useBullhorseStream] SSE disabled for thread: ${threadId}`);
+      return;
+    }
+
+    console.log(`[useBullhorseStream] Subscribing to SSE for thread: ${threadId}`);
 
     // Add thread to store if it doesn't exist
     const existingThread = useThreadStore.getState().threads[threadId];
@@ -184,6 +190,7 @@ export function useBullhorseStream({
     unsubscribeRef.current = client.subscribeToThread(threadId, {
       onEvent: handleEvent,
       onOpen: () => {
+        console.log(`[useBullhorseStream] SSE connection opened for thread: ${threadId}`);
         const previousState = connectionStateRef.current;
         setConnectionState("connected");
         setShowReconnectingBanner(false);
