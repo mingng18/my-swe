@@ -64,12 +64,18 @@ export function useBullhorseStream({
   enabled = true,
 }: UseBullhorseStreamOptions) {
   const unsubscribeRef = useRef<(() => void) | null>(null);
+  const connectionStateRef = useRef<ConnectionState>("disconnected");
   const [connectionState, setConnectionState] = useState<ConnectionState>("disconnected");
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
   const [showReconnectingBanner, setShowReconnectingBanner] = useState(false);
   const [sseError, setSseError] = useState<string | null>(null);
   const { addThread, addEvent, updateTodo, updateThread, threads } = useThreadStore();
   const { addToast } = useToast();
+
+  // Update ref when state changes
+  useEffect(() => {
+    connectionStateRef.current = connectionState;
+  }, [connectionState]);
 
   const handleEvent = useCallback((event: SSEEvent) => {
     // Add event to thread
@@ -178,7 +184,7 @@ export function useBullhorseStream({
     unsubscribeRef.current = client.subscribeToThread(threadId, {
       onEvent: handleEvent,
       onOpen: () => {
-        const previousState = connectionState;
+        const previousState = connectionStateRef.current;
         setConnectionState("connected");
         setShowReconnectingBanner(false);
         setSseError(null);
@@ -231,7 +237,7 @@ export function useBullhorseStream({
         setShowReconnectingBanner(false);
       }
     };
-  }, [threadId, enabled, handleEvent, addThread, updateThread, reconnectAttempt, handleReconnect]);
+  }, [threadId, enabled, handleEvent, addThread, updateThread, handleReconnect]);
 
   const manualReconnect = useCallback(() => {
     const client = getBullhorseClient();
