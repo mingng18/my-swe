@@ -181,8 +181,8 @@ app.use(
 // Authentication Middleware
 app.use(async (c, next) => {
   const path = c.req.path;
-  // Skip auth for public endpoints like webhooks and health checks
-  if (path.startsWith("/webhook/") || path === "/health" || path === "/info") {
+  // Skip auth for public endpoints like webhooks, health checks, and stream
+  if (path.startsWith("/webhook/") || path === "/health" || path === "/info" || path === "/stream") {
     return next();
   }
   const secret = process.env.API_SECRET_KEY;
