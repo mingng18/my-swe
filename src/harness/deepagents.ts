@@ -75,12 +75,10 @@ const logger = createLogger("deepagents");
 
 /**
  * Emit an event to the SSE stream for a thread
+ * Uses buffering to handle cases where client hasn't connected yet
  */
 function emitStreamEvent(threadId: string, event: SSEEvent): void {
-  const emitter = streamRegistry.getEmitter(threadId);
-  if (emitter) {
-    emitter.emit(event);
-  }
+  streamRegistry.emitEvent(threadId, event);
 }
 
 /**

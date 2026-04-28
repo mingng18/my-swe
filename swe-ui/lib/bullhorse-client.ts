@@ -158,6 +158,8 @@ export class BullhorseClient {
       url.searchParams.set("token", this.apiSecret);
     }
 
+    console.log(`[SSE] Connecting to ${url.toString()} for thread ${threadId}`);
+
     const eventSource = new EventSource(url.toString());
 
     eventSource.onopen = (event) => {
@@ -185,6 +187,9 @@ export class BullhorseClient {
 
     eventSource.onerror = (error) => {
       console.error(`[SSE] Error for thread ${threadId}:`, error);
+      console.error(`[SSE] EventSource readyState: ${eventSource.readyState}`);
+
+      // EventSource readyState: 0=connecting, 1=open, 2=closed
 
       // EventSource will automatically try to reconnect
       // We add our own reconnection logic for better control

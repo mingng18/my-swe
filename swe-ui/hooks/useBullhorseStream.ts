@@ -197,8 +197,8 @@ export function useBullhorseStream({
         setSseError(null);
         updateThread(threadId, { status: "running", error: undefined });
 
-        // Show reconnected toast if this was a reconnection
-        if (previousState === "connecting" && reconnectAttempt > 0) {
+        // Show reconnected toast and restore history if this was a reconnection from disconnect
+        if (previousState === "disconnected" && reconnectAttempt > 0) {
           console.log(`[useBullhorseStream] Reconnected to ${threadId}`);
           addToast({
             title: "Reconnected",
@@ -206,7 +206,7 @@ export function useBullhorseStream({
             variant: "success",
             duration: 3000,
           });
-          handleReconnect();
+          handleReconnect(); // Restore history after reconnection
         }
       },
       onError: (error) => {
@@ -244,7 +244,9 @@ export function useBullhorseStream({
         setShowReconnectingBanner(false);
       }
     };
-  }, [threadId, enabled, handleEvent, addThread, updateThread, handleReconnect]);
+  // Only depend on threadId and enabled - use refs for callbacks to avoid re-runs
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [threadId, enabled]);
 
   const manualReconnect = useCallback(() => {
     const client = getBullhorseClient();
@@ -274,7 +276,9 @@ export function useBullhorseStream({
         setConnectionState("connecting");
       },
     });
-  }, [threadId, handleEvent, updateThread, handleReconnect, addToast]);
+  // Note: intentionally excluding handleReconnect from deps to avoid infinite loop
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [threadId, handleEvent, updateThread, addToast]);
 
   return {
     isConnected: connectionState === "connected",

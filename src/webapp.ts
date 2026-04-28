@@ -157,7 +157,18 @@ const log = createLogger("webapp");
 const app = new Hono();
 
 // Middleware
-app.use("*", secureHeaders());
+// Note: secureHeaders with crossOriginResourcePolicy causes issues with SSE
+// so we selectively apply it, excluding cross-origin restrictive headers
+app.use("*", async (c, next) => {
+  // Set security headers manually, allowing cross-origin for SSE
+  c.header("X-Content-Type-Options", "nosniff");
+  c.header("X-Frame-Options", "SAMEORIGIN");
+  c.header("X-DNS-Prefetch-Control", "off");
+  c.header("Referrer-Policy", "no-referrer");
+  c.header("X-XSS-Protection", "0");
+  // Note: NOT setting Cross-Origin-Resource-Policy to allow SSE from dev server
+  await next();
+});
 app.use("*", httpLogger());
 
 // Apply rate limits to public webhooks and expensive endpoints
@@ -752,13 +763,25 @@ app.get("/stream", async (c) => {
   // Create SSE stream
   const stream = streamRegistry.createStream(threadId);
 
-  // Set SSE headers
-  return c.body(stream, {
+  // Mark client as connected and emit initial event
+  streamRegistry.markClientConnected(threadId);
+
+  // Emit a session_start event to confirm connection
+  streamRegistry.emitEvent(threadId, {
+    type: "session_start",
+    threadId,
+    timestamp: Date.now(),
+  });
+
+  // Return Response with stream directly
+  return new Response(stream, {
     headers: {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
-      Connection: "keep-alive",
+      "Connection": "keep-alive",
       "X-Accel-Buffering": "no", // Disable nginx buffering
+      "Access-Control-Allow-Origin": c.req.header("Origin") || "*",
+      "Vary": "Origin",
     },
   });
 });

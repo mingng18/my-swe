@@ -28,6 +28,7 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
   const threads = useThreadStore((state) => state.threads);
   const addThread = useThreadStore((state) => state.addThread);
   const updateThread = useThreadStore((state) => state.updateThread);
+  const setActiveThread = useThreadStore((state) => state.setActiveThread);
 
   const threadId = propThreadId || activeThreadId;
   const thread = threadId ? threads[threadId] : null;
@@ -36,6 +37,9 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Track connection state in a ref that handleStartAgent can read
+  const connectionStateRef = useRef<"connecting" | "connected" | "disconnected" | "error">("disconnected");
 
   // Keyboard shortcut to focus input
   useKeyboardShortcut({
@@ -61,6 +65,11 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
     enabled: !!threadId,
   });
 
+  // Sync connection state to ref for handleStartAgent to read
+  useEffect(() => {
+    connectionStateRef.current = connectionState;
+  }, [connectionState]);
+
   const handleStartAgent = async () => {
     if (!userInput.trim()) return;
 
@@ -68,10 +77,41 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
     setError(null);
 
     try {
+      // Generate threadId on client first before connecting
+      const clientThreadId = crypto.randomUUID();
+
+      console.log(`[ThreadMonitor] Creating thread ${clientThreadId} and connecting SSE first...`);
+
+      // Add thread to store and set it as active so SSE hook can start connecting
+      addThread(clientThreadId);
+      setActiveThread(clientThreadId);
+
+      // Wait for React to re-render and useBullhorseStream to start connecting
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Wait for SSE connection to be established before starting the agent
+      // This prevents the race condition where events are emitted before the client is listening
+      const maxWaitTime = 5000; // 5 seconds max wait for connection
+      const startTime = Date.now();
+
+      console.log(`[ThreadMonitor] Waiting for SSE connection... (current: ${connectionStateRef.current})`);
+
+      // Use the ref to check connection state instead of the captured state variable
+      while (connectionStateRef.current !== "connected" && Date.now() - startTime < maxWaitTime) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      if (connectionStateRef.current !== "connected") {
+        throw new Error("Failed to establish SSE connection. Please check your network.");
+      }
+
+      console.log(`[ThreadMonitor] SSE connected! Starting agent for thread ${clientThreadId}`);
+
+      // Now that we're connected, start the agent with the existing threadId
       const response = await fetch(`${API_URL}/run`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input: userInput }),
+        body: JSON.stringify({ input: userInput, threadId: clientThreadId }),
       });
 
       if (!response.ok) {
@@ -80,12 +120,17 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
 
       const data = await response.json();
 
-      // Add thread to store
-      addThread(data.threadId);
+      // Verify the server returned the same threadId we used
+      if (data.threadId !== clientThreadId) {
+        console.warn(`Server returned different threadId: ${data.threadId} vs ${clientThreadId}`);
+      }
+
+      console.log(`[ThreadMonitor] Agent started successfully for thread ${data.threadId}`);
 
       // Clear input
       setUserInput("");
     } catch (err) {
+      console.error(`[ThreadMonitor] Error starting agent:`, err);
       setError(err instanceof Error ? err.message : "Failed to start agent");
     } finally {
       setIsLoading(false);
