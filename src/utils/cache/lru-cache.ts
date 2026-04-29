@@ -44,10 +44,7 @@ import type {
   CacheKeyFunction,
   SizeCalculationFunction,
 } from "./types";
-import {
-  DEFAULT_CACHE_OPTIONS,
-  mergeCacheOptions,
-} from "./cache-options";
+import { DEFAULT_CACHE_OPTIONS, mergeCacheOptions } from "./cache-options";
 
 /**
  * Default cache key generation function.
@@ -70,17 +67,27 @@ import {
  */
 export function makeCacheKey(
   key: string,
-  params: Record<string, unknown> = {}
+  params: Record<string, unknown> = {},
 ): string {
-  if (Object.keys(params).length === 0) {
+  const keys = [];
+  for (const k in params) {
+    if (Object.prototype.hasOwnProperty.call(params, k)) {
+      keys.push(k);
+    }
+  }
+
+  if (keys.length === 0) {
     return key;
   }
 
-  const sortedParams = Object.keys(params)
-    .sort()
-    .map((k) => `${k}=${JSON.stringify(params[k as keyof typeof params])}`)
-    .join("&");
-  return `${key}?${sortedParams}`;
+  keys.sort();
+  const sortedParamsParts = [];
+  for (let i = 0; i < keys.length; i++) {
+    const k = keys[i];
+    sortedParamsParts.push(`${k}=${JSON.stringify(params[k])}`);
+  }
+
+  return `${key}?${sortedParamsParts.join("&")}`;
 }
 
 /**
@@ -123,13 +130,15 @@ export class GenericCache {
    * });
    * ```
    */
-  constructor(options: {
-    maxSize?: number;
-    ttl?: number;
-    sizeCalculation?: SizeCalculationFunction<unknown>;
-    keyFunction?: CacheKeyFunction;
-    debug?: string;
-  } = {}) {
+  constructor(
+    options: {
+      maxSize?: number;
+      ttl?: number;
+      sizeCalculation?: SizeCalculationFunction<unknown>;
+      keyFunction?: CacheKeyFunction;
+      debug?: string;
+    } = {},
+  ) {
     const mergedOptions = mergeCacheOptions(options);
 
     this.debug = options.debug;
@@ -142,7 +151,7 @@ export class GenericCache {
 
     if (this.debug) {
       console.debug(
-        `[${this.debug}] Initialized with maxSize=${mergedOptions.maxSize}, ttl=${mergedOptions.ttl}`
+        `[${this.debug}] Initialized with maxSize=${mergedOptions.maxSize}, ttl=${mergedOptions.ttl}`,
       );
     }
   }
@@ -212,7 +221,7 @@ export class GenericCache {
 
     if (this.debug) {
       console.debug(
-        `[${this.debug}] Cache set: ${cacheKey} (size: ${size} bytes, total entries: ${this.cache.size})`
+        `[${this.debug}] Cache set: ${cacheKey} (size: ${size} bytes, total entries: ${this.cache.size})`,
       );
     }
   }
@@ -262,7 +271,7 @@ export class GenericCache {
   /**
    * Invalidate cache entries matching a regex pattern.
    *
- * Useful for bulk invalidation when you know a set of keys is no longer valid.
+   * Useful for bulk invalidation when you know a set of keys is no longer valid.
    * For example, after updating a user, invalidate all cache entries prefixed
    * with that user's ID.
    *
@@ -294,7 +303,7 @@ export class GenericCache {
 
     if (this.debug) {
       console.debug(
-        `[${this.debug}] Cache invalidate: ${pattern} (${count} entries removed)`
+        `[${this.debug}] Cache invalidate: ${pattern} (${count} entries removed)`,
       );
     }
 
@@ -316,7 +325,7 @@ export class GenericCache {
 
     if (this.debug) {
       console.debug(
-        `[${this.debug}] Cache cleared (${previousSize} entries removed)`
+        `[${this.debug}] Cache cleared (${previousSize} entries removed)`,
       );
     }
   }
@@ -440,7 +449,7 @@ export async function cachedCall<T>(
   cache: GenericCache,
   key: string,
   params: Record<string, unknown>,
-  fn: () => Promise<T>
+  fn: () => Promise<T>,
 ): Promise<T> {
   // Check cache
   const cached = cache.get<T>(key, params);
@@ -490,7 +499,7 @@ export async function conditionalCachedCall<T>(
   shouldCache: boolean,
   key: string,
   params: Record<string, unknown>,
-  fn: () => Promise<T>
+  fn: () => Promise<T>,
 ): Promise<T> {
   if (!shouldCache) {
     return fn();

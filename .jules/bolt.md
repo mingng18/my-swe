@@ -20,3 +20,6 @@
 ## 2024-11-20 - Optimize sequential file reads
 **Learning:** In Bun, optimizing sequential asynchronous file reads (like readFile in a loop) by mapping them directly into Promise.all yields significant performance gains (~20x faster) and safely handles typical application loads (e.g., thousands of files) concurrently without requiring explicit chunking or hitting EMFILE limits.
 **Action:** Always use Promise.all when reading multiple files independently instead of sequential await loops.
+## 2026-04-29 - Optimize large object property iteration
+**Learning:** Calling `Object.entries()` on large objects to extract a few properties creates massive intermediate arrays, causing unnecessary memory allocation and GC pressure.
+**Action:** Iterate with `for...in` instead to avoid intermediate arrays when processing dynamic objects or limiting results.
