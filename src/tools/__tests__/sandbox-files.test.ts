@@ -7,6 +7,7 @@ import {
   sandboxStatTool,
   sandboxChecksumTool,
   sandboxFindTool,
+  sandboxGrepTool,
   readSandboxFileTool,
   writeSandboxFileTool,
   listSandboxFilesTool
@@ -233,6 +234,159 @@ describe("Sandbox Files Tools", () => {
           count: 1
         });
         expect(mockExecute).toHaveBeenCalledWith("find '/workspace' -name '*.txt' -type f");
+      });
+    });
+
+    describe("sandboxGrepTool", () => {
+      test("successfully searches for pattern with matches", async () => {
+        mockExecute.mockResolvedValue({ exitCode: 0, output: "/workspace/file1.txt:line1\n/workspace/file2.txt:line2" });
+        const result = await sandboxGrepTool.invoke({ pattern: "test", path: "/workspace" }, validConfig);
+
+        expect(result).toEqual({
+          path: "/workspace",
+          pattern: "test",
+          matches: ["/workspace/file1.txt:line1", "/workspace/file2.txt:line2"],
+          count: 2
+        });
+        // Verify the exact command format
+        expect(mockExecute).toHaveBeenCalledTimes(1);
+        const actualCall = mockExecute.mock.calls[0][0];
+        expect(actualCall).toMatch(/grep.*'test'.*'\/workspace'/);
+      });
+
+      test("successfully searches with case-insensitive flag", async () => {
+        mockExecute.mockResolvedValue({ exitCode: 0, output: "/workspace/file.txt:Match" });
+        const result = await sandboxGrepTool.invoke({ pattern: "match", path: "/workspace", caseInsensitive: true }, validConfig);
+
+        expect(result).toEqual({
+          path: "/workspace",
+          pattern: "match",
+          matches: ["/workspace/file.txt:Match"],
+          count: 1
+        });
+        const actualCall = mockExecute.mock.calls[0][0];
+        expect(actualCall).toContain("-i");
+        expect(actualCall).toContain("'match'");
+      });
+
+      test("successfully searches with recursive flag", async () => {
+        mockExecute.mockResolvedValue({ exitCode: 0, output: "/workspace/file.txt:line1\n/workspace/subdir/file.txt:line2" });
+        const result = await sandboxGrepTool.invoke({ pattern: "test", path: "/workspace", recursive: true }, validConfig);
+
+        expect(result).toEqual({
+          path: "/workspace",
+          pattern: "test",
+          matches: ["/workspace/file.txt:line1", "/workspace/subdir/file.txt:line2"],
+          count: 2
+        });
+        const actualCall = mockExecute.mock.calls[0][0];
+        expect(actualCall).toContain("-r");
+      });
+
+      test("successfully searches with line numbers flag", async () => {
+        mockExecute.mockResolvedValue({ exitCode: 0, output: "10:test content here" });
+        const result = await sandboxGrepTool.invoke({ pattern: "test", path: "/workspace", lineNumbers: true }, validConfig);
+
+        expect(result).toEqual({
+          path: "/workspace",
+          pattern: "test",
+          matches: ["10:test content here"],
+          count: 1
+        });
+        const actualCall = mockExecute.mock.calls[0][0];
+        expect(actualCall).toContain("-n");
+      });
+
+      test("successfully searches with context lines", async () => {
+        mockExecute.mockResolvedValue({ exitCode: 0, output: "line before\ntest match\nline after" });
+        const result = await sandboxGrepTool.invoke({ pattern: "test", path: "/workspace", contextLines: 1 }, validConfig);
+
+        expect(result).toEqual({
+          path: "/workspace",
+          pattern: "test",
+          matches: ["line before", "test match", "line after"],
+          count: 3
+        });
+        const actualCall = mockExecute.mock.calls[0][0];
+        expect(actualCall).toContain("-C 1");
+      });
+
+      test("successfully searches with max matches", async () => {
+        mockExecute.mockResolvedValue({ exitCode: 0, output: "match1\nmatch2\nmatch3" });
+        const result = await sandboxGrepTool.invoke({ pattern: "test", path: "/workspace", maxMatches: 3 }, validConfig);
+
+        expect(result).toEqual({
+          path: "/workspace",
+          pattern: "test",
+          matches: ["match1", "match2", "match3"],
+          count: 3
+        });
+        const actualCall = mockExecute.mock.calls[0][0];
+        expect(actualCall).toContain("-m 3");
+      });
+
+      test("handles search with no matches (exit code 1)", async () => {
+        mockExecute.mockResolvedValue({ exitCode: 1, output: "" });
+        const result = await sandboxGrepTool.invoke({ pattern: "nonexistent", path: "/workspace" }, validConfig);
+
+        expect(result).toEqual({
+          path: "/workspace",
+          pattern: "nonexistent",
+          matches: [],
+          count: 0
+        });
+      });
+
+      test("handles search with multiple flags combined", async () => {
+        mockExecute.mockResolvedValue({ exitCode: 0, output: "1:test line" });
+        const result = await sandboxGrepTool.invoke({
+          pattern: "test",
+          path: "/workspace",
+          caseInsensitive: true,
+          recursive: true,
+          lineNumbers: true,
+          maxMatches: 5
+        }, validConfig);
+
+        expect(result).toEqual({
+          path: "/workspace",
+          pattern: "test",
+          matches: ["1:test line"],
+          count: 1
+        });
+        const actualCall = mockExecute.mock.calls[0][0];
+        expect(actualCall).toContain("-i");
+        expect(actualCall).toContain("-r");
+        expect(actualCall).toContain("-n");
+        expect(actualCall).toContain("-m 5");
+      });
+
+      test("handles search error (exit code 2)", async () => {
+        mockExecute.mockResolvedValue({ exitCode: 2, output: "grep: invalid option" });
+        const result = await sandboxGrepTool.invoke({ pattern: "test", path: "/workspace" }, validConfig);
+
+        expect(result).toEqual({
+          path: "/workspace",
+          pattern: "test",
+          matches: [],
+          count: 0,
+          error: "grep: invalid option"
+        });
+      });
+
+      test("uses default path when not provided", async () => {
+        mockExecute.mockResolvedValue({ exitCode: 0, output: "match" });
+        const result = await sandboxGrepTool.invoke({ pattern: "test" }, validConfig);
+
+        expect(result).toEqual({
+          path: "/workspace",
+          pattern: "test",
+          matches: ["match"],
+          count: 1
+        });
+        const actualCall = mockExecute.mock.calls[0][0];
+        expect(actualCall).toContain("'test'");
+        expect(actualCall).toContain("'/workspace'");
       });
     });
   });
