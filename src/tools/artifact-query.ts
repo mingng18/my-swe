@@ -1,13 +1,17 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
+import { createLogger } from "../utils/logger";
 import {
   queryArtifact,
   listArtifacts,
   deleteArtifact,
   retrieveArtifact,
+  updateArtifact,
   type QueryOptions,
   type ArtifactMetadata,
 } from "../utils/memory-pointer";
+
+const logger = createLogger("artifact-update");
 
 /**
 Query a stored artifact by pointer ID.
@@ -234,3 +238,164 @@ export const artifactDeleteTool = tool(async ({ pointer_id }, config) => {
     pointer_id: z.string().describe("The pointer ID to delete"),
   }),
 });
+
+/**
+Update an existing artifact by pointer ID.
+
+Use this to modify the content, metadata, or type of an existing artifact.
+Thread ownership is verified before updating.
+
+**Best for:**
+- Correcting artifact content
+- Updating metadata tags
+- Changing artifact type classification
+
+**Not for:**
+- Creating new artifacts (handled automatically by other tools)
+- Querying artifacts (use artifact_query instead)
+- Listing artifacts (use artifact_list instead)
+- Deleting artifacts (use artifact_delete instead)
+
+Args:
+    pointer_id: The pointer ID to update
+    content: New content to replace the existing content (optional)
+    metadata: Metadata to merge with existing metadata (optional)
+    type: New artifact type (optional)
+
+Returns:
+    Confirmation of update with new size and timestamp.
+**/
+export const artifactUpdateTool = tool(
+  async ({ pointer_id, content, metadata, type }, config) => {
+    const threadId = config?.configurable?.thread_id;
+    if (!threadId) {
+      return JSON.stringify({
+        error: "Missing thread_id",
+      });
+    }
+
+    // Validate pointer_id format
+    if (!pointer_id || !pointer_id.startsWith("ptr_")) {
+      return JSON.stringify({
+        error:
+          "Invalid pointer_id format. Must start with 'ptr_' (e.g., 'ptr_abc123')",
+      });
+    }
+
+    // Validate at least one update field is provided
+    if (content === undefined && metadata === undefined && type === undefined) {
+      return JSON.stringify({
+        error:
+          "At least one update field (content, metadata, or type) must be provided",
+      });
+    }
+
+    logger.info(
+      { pointerId: pointer_id, threadId, hasContent: content !== undefined, hasMetadata: metadata !== undefined, hasType: type !== undefined },
+      "[artifact-update] Updating artifact",
+    );
+
+    try {
+      // First verify the artifact belongs to this thread
+      const existingArtifact = await retrieveArtifact(pointer_id, threadId);
+      if (!existingArtifact) {
+        return JSON.stringify({
+          error: "Artifact not found or access denied",
+          pointer_id,
+        });
+      }
+
+      // Build update options
+      const updateOptions: {
+        content?: string;
+        metadata?: Record<string, unknown>;
+        type?: string;
+      } = {};
+
+      if (content !== undefined) {
+        updateOptions.content = content;
+      }
+
+      if (metadata !== undefined) {
+        updateOptions.metadata = metadata;
+      }
+
+      if (type !== undefined) {
+        updateOptions.type = type;
+      }
+
+      // Perform the update
+      const updatedArtifact = await updateArtifact(
+        pointer_id,
+        threadId,
+        updateOptions,
+      );
+
+      if (!updatedArtifact) {
+        return JSON.stringify({
+          error: "Failed to update artifact. It may have expired.",
+          pointer_id,
+        });
+      }
+
+      logger.info(
+        {
+          pointerId: pointer_id,
+          threadId,
+          oldSize: existingArtifact.metadata.size,
+          newSize: updatedArtifact.metadata.size,
+          oldType: existingArtifact.metadata.type,
+          newType: updatedArtifact.metadata.type,
+        },
+        "[artifact-update] Artifact updated successfully",
+      );
+
+      return JSON.stringify({
+        success: true,
+        pointer_id,
+        message: "Artifact updated successfully",
+        artifact: {
+          id: updatedArtifact.metadata.id,
+          type: updatedArtifact.metadata.type,
+          size: updatedArtifact.metadata.size,
+          size_formatted: `${updatedArtifact.metadata.size} characters`,
+          token_count: updatedArtifact.metadata.tokenCount,
+          timestamp: new Date(updatedArtifact.metadata.timestamp).toISOString(),
+          metadata: updatedArtifact.metadata.metadata,
+        },
+      });
+    } catch (error) {
+      logger.error({ error, pointerId: pointer_id }, "[artifact-update] Update failed");
+
+      return JSON.stringify({
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unknown error occurred during artifact update",
+        pointer_id,
+      });
+    }
+  },
+  {
+    name: "artifact_update",
+    description:
+      "Update an existing artifact by modifying its content, metadata, or type. Verifies thread ownership before updating.",
+    schema: z.object({
+      pointer_id: z
+        .string()
+        .describe("The pointer ID to update (e.g., 'ptr_abc123')"),
+      content: z
+        .string()
+        .optional()
+        .describe("New content to replace the existing content"),
+      metadata: z
+        .record(z.string(), z.any())
+        .optional()
+        .describe("Metadata to merge with existing metadata"),
+      type: z
+        .string()
+        .optional()
+        .describe("New artifact type"),
+    }),
+  },
+);
