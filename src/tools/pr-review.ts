@@ -3,6 +3,7 @@ import { z } from "zod";
 import { Octokit } from "octokit";
 import { createLogger } from "../utils/logger";
 import { cachedGithubApiCall } from "../utils/github/github-cache";
+import { postGithubComment } from "../utils/github/index";
 import { getReviewersForFiles } from "../subagents/reviewerMapping";
 import { getSandboxBackendSync } from "../utils/sandboxState";
 import {
@@ -292,12 +293,91 @@ Severity levels: LOW, MEDIUM, HIGH, CRITICAL`;
         "[pr_review] Review completed"
       );
 
+      // Format review results as markdown comment
+      let reviewComment = `## 🤖 PR Review Results\n\n`;
+      reviewComment += `**PR #${pr_number}** in \`${repoOwner}/${repoName}\`\n\n`;
+      reviewComment += `### Summary\n\n${summary}\n\n`;
+
+      if (allIssues.length > 0) {
+        reviewComment += `### Issues Found (${allIssues.length})\n\n`;
+
+        // Group issues by severity
+        const issuesBySeverity: Record<string, ReviewIssue[]> = {
+          CRITICAL: [],
+          HIGH: [],
+          MEDIUM: [],
+          LOW: [],
+        };
+
+        for (const issue of allIssues) {
+          if (issuesBySeverity[issue.severity]) {
+            issuesBySeverity[issue.severity].push(issue);
+          }
+        }
+
+        // Display issues by severity level
+        for (const severity of ["CRITICAL", "HIGH", "MEDIUM", "LOW"]) {
+          const issues = issuesBySeverity[severity];
+          if (issues.length > 0) {
+            const emoji = severity === "CRITICAL" ? "🚨" : severity === "HIGH" ? "⚠️" : severity === "MEDIUM" ? "⚡" : "ℹ️";
+            reviewComment += `#### ${emoji} ${severity} (${issues.length})\n\n`;
+            for (const issue of issues) {
+              reviewComment += `- **${issue.file}**: ${issue.issue}\n`;
+              if (issue.fix) {
+                reviewComment += `  - 💡 Suggested fix: ${issue.fix}\n`;
+              }
+            }
+            reviewComment += `\n`;
+          }
+        }
+      } else {
+        reviewComment += `### ✅ No Issues Found\n\n`;
+        reviewComment += `All reviewers passed! The code changes look good.\n\n`;
+      }
+
+      reviewComment += `---\n`;
+      reviewComment += `*Reviewed by: ${selectedReviewers.join(", ")}*\n`;
+
+      // Post the review comment to GitHub
+      let commentPosted = false;
+      let commentError = "";
+
+      try {
+        commentPosted = await postGithubComment(
+          { owner: repoOwner, name: repoName },
+          pr_number,
+          reviewComment,
+          githubToken
+        );
+
+        if (commentPosted) {
+          logger.info(
+            { pr_number },
+            "[pr_review] Review comment posted successfully"
+          );
+        } else {
+          logger.warn(
+            { pr_number },
+            "[pr_review] Failed to post review comment"
+          );
+          commentError = "Failed to post comment (check logs)";
+        }
+      } catch (error) {
+        logger.error(
+          { pr_number, error },
+          "[pr_review] Error posting review comment"
+        );
+        commentError = error instanceof Error ? error.message : "Unknown error";
+      }
+
       return JSON.stringify({
         success: true,
         issues: allIssues,
         has_critical: criticalFound,
         summary,
         reviewer_results: reviewerResults,
+        comment_posted: commentPosted,
+        comment_error: commentError,
       });
     } catch (error) {
       logger.error({ pr_number, error }, "[pr_review] Failed to review PR");
