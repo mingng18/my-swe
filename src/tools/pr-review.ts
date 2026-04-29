@@ -4,6 +4,12 @@ import { Octokit } from "octokit";
 import { createLogger } from "../utils/logger";
 import { cachedGithubApiCall } from "../utils/github/github-cache";
 import { getReviewersForFiles } from "../subagents/reviewerMapping";
+import { getSandboxBackendSync } from "../utils/sandboxState";
+import {
+  parseReviewerOutput,
+  hasCriticalIssues,
+  type ReviewIssue,
+} from "../subagents/reviewerParser";
 
 const logger = createLogger("pr-review-tool");
 
@@ -138,21 +144,163 @@ export const prReviewTool = tool(
         "[pr_review] Selected reviewers for PR"
       );
 
-      // TODO: Implement reviewer execution
-      // TODO: Implement review comment posting
+      // Check if we have reviewers to run
+      if (selectedReviewers.length === 0) {
+        return JSON.stringify({
+          success: true,
+          message: "No applicable reviewers found for the files in this PR",
+          issues: [],
+          has_critical: false,
+          summary: "No reviewers applicable",
+          reviewer_results: [],
+        });
+      }
+
+      // Get sandbox backend (optional for PR review)
+      const sandbox = getSandboxBackendSync(threadId);
+
+      // Lazy import to avoid circular dependency
+      const { builtInSubagents } = await import("../subagents/registry");
+
+      // Prepare file context for reviewers
+      const fileContext = files
+        .filter((f) => f.patch) // Only include files with patches
+        .map((f) => `
+File: ${f.filename} (${f.status})
+${f.patch}`)
+        .join("\n");
+
+      if (!fileContext.trim()) {
+        return JSON.stringify({
+          success: true,
+          message: "No file patches available for review (files may be binary or too large)",
+          issues: [],
+          has_critical: false,
+          summary: "No reviewable content",
+          reviewer_results: [],
+        });
+      }
+
+      // Create and run reviewers in parallel
+      const reviewerPromises = selectedReviewers.map(async (reviewerName) => {
+        const reviewerConfig = builtInSubagents.find(
+          (agent) => agent.name === reviewerName
+        );
+
+        if (!reviewerConfig) {
+          return {
+            name: reviewerName,
+            status: "error",
+            error: "Reviewer configuration not found",
+          };
+        }
+
+        try {
+          // Create a deep agent for this reviewer
+          const { createDeepAgent } = await import("deepagents");
+          const agent = createDeepAgent({
+            name: reviewerName,
+            systemPrompt: reviewerConfig.systemPrompt,
+            tools: reviewerConfig.tools || [],
+            ...(sandbox && { backend: sandbox as any }), // Only include backend if sandbox exists
+          });
+
+          // Prepare review prompt with PR context
+          const reviewPrompt = `Review the following pull request changes:
+
+PR #${pr_number} in ${repoOwner}/${repoName}
+
+Files changed:
+${filenames.join("\n")}
+
+Please review these changes for quality, security, and maintainability issues. Focus on the actual code changes in the diffs below.
+
+${fileContext}
+
+Provide your feedback in the following format for each issue found:
+[SEVERITY]
+File: path/to/file
+Issue: description of the issue
+Fix: suggested fix or improvement
+
+Severity levels: LOW, MEDIUM, HIGH, CRITICAL`;
+
+          // Run the review
+          const result = await agent.invoke(
+            { messages: [{ role: "user", content: reviewPrompt }] },
+            { configurable: { thread_id: threadId } }
+          );
+
+          // Parse the output
+          const lastMsg = result.messages[result.messages.length - 1];
+          const reply = typeof lastMsg?.content === "string" ? lastMsg.content : "";
+          const issues = parseReviewerOutput(reply);
+
+          return {
+            name: reviewerName,
+            status: "success",
+            issues_count: issues.length,
+            critical_issues: hasCriticalIssues(issues),
+            issues,
+            summary:
+              issues.length === 0
+                ? "No issues found"
+                : `${issues.length} issues detected`,
+          };
+        } catch (error) {
+          logger.error(
+            { pr_number, reviewer: reviewerName, error },
+            "[pr_review] Reviewer execution failed"
+          );
+
+          return {
+            name: reviewerName,
+            status: "error",
+            error: error instanceof Error ? error.message : "Unknown error",
+          };
+        }
+      });
+
+      // Wait for all reviewers to complete
+      const reviewerResults = await Promise.all(reviewerPromises);
+
+      // Aggregate all issues
+      const allIssues: ReviewIssue[] = [];
+      let criticalFound = false;
+
+      for (const result of reviewerResults) {
+        if (result.status === "success" && result.issues) {
+          allIssues.push(...result.issues);
+          if (result.critical_issues) {
+            criticalFound = true;
+          }
+        }
+      }
+
+      // Generate summary
+      const summary = reviewerResults
+        .map((r) => `${r.name}: ${r.summary || r.error || "Failed"}`)
+        .join("\n");
+
+      logger.info(
+        {
+          pr_number,
+          reviewersRun: selectedReviewers.length,
+          totalIssues: allIssues.length,
+          criticalFound,
+        },
+        "[pr_review] Review completed"
+      );
 
       return JSON.stringify({
-        success: false,
-        error: "PR review tool not yet fully implemented - reviewer execution pending",
-        files: files.map((f) => ({
-          filename: f.filename,
-          status: f.status,
-          changes: f.changes,
-        })),
-        selected_reviewers: selectedReviewers,
+        success: true,
+        issues: allIssues,
+        has_critical: criticalFound,
+        summary,
+        reviewer_results: reviewerResults,
       });
     } catch (error) {
-      logger.error({ pr_number, error }, "[pr_review] Failed to fetch PR files");
+      logger.error({ pr_number, error }, "[pr_review] Failed to review PR");
 
       return JSON.stringify({
         success: false,
