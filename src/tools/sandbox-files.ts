@@ -545,6 +545,141 @@ export const sandboxFindTool = tool(
   },
 );
 
+/**
+ * Search for content within files using grep.
+ */
+export const sandboxGrepTool = tool(
+  async (
+    {
+      pattern,
+      path,
+      caseInsensitive,
+      recursive,
+      lineNumbers,
+      contextLines,
+      maxMatches,
+    }: {
+      pattern: string;
+      path?: string;
+      caseInsensitive?: boolean;
+      recursive?: boolean;
+      lineNumbers?: boolean;
+      contextLines?: number;
+      maxMatches?: number;
+    },
+    config,
+  ) => {
+    const backend = getSandboxBackendFromConfig(config);
+    if (!backend) {
+      throw new Error(
+        "Sandbox backend not initialized. Make sure USE_SANDBOX=true is set.",
+      );
+    }
+
+    const searchPath = path || "/workspace";
+    logger.debug(
+      { path: searchPath, pattern, caseInsensitive, recursive },
+      "[sandbox-grep] Searching content",
+    );
+
+    try {
+      // Build grep flags
+      const flags: string[] = [];
+
+      if (caseInsensitive) {
+        flags.push("-i");
+      }
+
+      if (recursive) {
+        flags.push("-r");
+      }
+
+      if (lineNumbers) {
+        flags.push("-n");
+      }
+
+      if (contextLines !== undefined) {
+        flags.push(`-C ${contextLines}`);
+      }
+
+      if (maxMatches !== undefined) {
+        flags.push(`-m ${maxMatches}`);
+      }
+
+      const flagsStr = flags.length > 0 ? flags.join(" ") : "";
+      const result = await backend.execute(
+        `grep ${flagsStr} ${shellEscapeSingleQuotes(pattern)} ${shellEscapeSingleQuotes(searchPath)}`,
+      );
+
+      if (result.exitCode !== 0 && result.exitCode !== 1) {
+        // Exit code 1 means no matches found, which is not an error
+        return {
+          path: searchPath,
+          pattern,
+          matches: [],
+          count: 0,
+          error: result.output,
+        };
+      }
+
+      const lines = result.output
+        .split("\n")
+        .filter((line: string) => line.trim())
+        .map((line: string) => line.trim());
+
+      return {
+        path: searchPath,
+        pattern,
+        matches: lines,
+        count: lines.length,
+      };
+    } catch (err) {
+      logger.error({ error: err }, "[sandbox-grep] Failed to search content");
+      throw err;
+    }
+  },
+  {
+    name: "sandbox_grep",
+    description:
+      "Search for text patterns within files in the sandbox. " +
+      "Similar to the Unix 'grep' command. " +
+      "Useful for finding specific content, function definitions, or text patterns in code.",
+    schema: z.object({
+      pattern: z
+        .string()
+        .describe("Text pattern or regex to search for"),
+      path: z
+        .string()
+        .optional()
+        .default("/workspace")
+        .describe("Directory or file to search in"),
+      caseInsensitive: z
+        .boolean()
+        .optional()
+        .default(false)
+        .describe("Perform case-insensitive search"),
+      recursive: z
+        .boolean()
+        .optional()
+        .default(true)
+        .describe("Search recursively in subdirectories"),
+      lineNumbers: z
+        .boolean()
+        .optional()
+        .default(true)
+        .describe("Show line numbers in output"),
+      contextLines: z
+        .number()
+        .optional()
+        .describe("Number of context lines to show (like -C flag)"),
+      maxMatches: z
+        .number()
+        .optional()
+        .describe("Maximum number of matches to return"),
+    }),
+  },
+);
+
 // Export all file tools
 export const sandboxFileTools = [
   sandboxDeleteTool,
@@ -554,6 +689,7 @@ export const sandboxFileTools = [
   sandboxStatTool,
   sandboxChecksumTool,
   sandboxFindTool,
+  sandboxGrepTool,
   readSandboxFileTool,
   writeSandboxFileTool,
   listSandboxFilesTool,
