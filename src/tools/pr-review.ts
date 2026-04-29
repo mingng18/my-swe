@@ -3,6 +3,7 @@ import { z } from "zod";
 import { Octokit } from "octokit";
 import { createLogger } from "../utils/logger";
 import { cachedGithubApiCall } from "../utils/github/github-cache";
+import { getReviewersForFiles } from "../subagents/reviewerMapping";
 
 const logger = createLogger("pr-review-tool");
 
@@ -118,9 +119,6 @@ export const prReviewTool = tool(
       });
     }
 
-    // TODO: Implement reviewer selection and execution
-    // TODO: Implement review comment posting
-
     try {
       const files = await fetchPrFiles(repoOwner, repoName, pr_number, githubToken);
 
@@ -129,14 +127,29 @@ export const prReviewTool = tool(
         "[pr_review] Successfully fetched PR files"
       );
 
+      // Extract filenames from PR files
+      const filenames = files.map((f) => f.filename);
+
+      // Get reviewers for these files based on file patterns
+      const selectedReviewers = getReviewersForFiles(filenames);
+
+      logger.info(
+        { pr_number, fileCount: files.length, reviewers: selectedReviewers },
+        "[pr_review] Selected reviewers for PR"
+      );
+
+      // TODO: Implement reviewer execution
+      // TODO: Implement review comment posting
+
       return JSON.stringify({
         success: false,
-        error: "PR review tool not yet fully implemented",
+        error: "PR review tool not yet fully implemented - reviewer execution pending",
         files: files.map((f) => ({
           filename: f.filename,
           status: f.status,
           changes: f.changes,
         })),
+        selected_reviewers: selectedReviewers,
       });
     } catch (error) {
       logger.error({ pr_number, error }, "[pr_review] Failed to fetch PR files");
