@@ -18,7 +18,11 @@ export interface Span {
   endTime?: number;
   attributes: Record<string, unknown>;
   status: "ok" | "error";
-  events: Array<{ name: string; time: number; attributes: Record<string, unknown> }>;
+  events: Array<{
+    name: string;
+    time: number;
+    attributes: Record<string, unknown>;
+  }>;
 }
 
 /**
@@ -242,7 +246,12 @@ export function getThreadMetrics(threadId: string): {
   };
   tools: Record<
     string,
-    { count: number; successRate: number; avgDuration: number; avgOutputSize: number }
+    {
+      count: number;
+      successRate: number;
+      avgDuration: number;
+      avgOutputSize: number;
+    }
   >;
   totalDuration: number;
 } {
@@ -286,13 +295,23 @@ export function getThreadMetrics(threadId: string): {
   const toolMetrics = metrics.filter((m) => m.name.startsWith("tool."));
   const tools: Record<
     string,
-    { count: number; successRate: number; avgDuration: number; avgOutputSize: number }
+    {
+      count: number;
+      successRate: number;
+      avgDuration: number;
+      avgOutputSize: number;
+    }
   > = {};
 
   // First pass: collect data
   const toolData: Record<
     string,
-    { totalDuration: number; successCount: number; totalCount: number; totalOutputSize: number }
+    {
+      totalDuration: number;
+      successCount: number;
+      totalCount: number;
+      totalOutputSize: number;
+    }
   > = {};
 
   for (const metric of toolMetrics) {
@@ -324,11 +343,16 @@ export function getThreadMetrics(threadId: string): {
   }
 
   // Second pass: compute averages
-  for (const [tool, data] of Object.entries(toolData)) {
+  // ⚡ Bolt: Replace Object.entries with for...in to avoid intermediate array allocations
+  for (const tool in toolData) {
+    if (!Object.prototype.hasOwnProperty.call(toolData, tool)) continue;
+    const data = toolData[tool];
     tools[tool] = {
       count: data.totalCount,
-      successRate: data.totalCount > 0 ? data.successCount / data.totalCount : 0,
-      avgDuration: data.totalCount > 0 ? data.totalDuration / data.totalCount : 0,
+      successRate:
+        data.totalCount > 0 ? data.successCount / data.totalCount : 0,
+      avgDuration:
+        data.totalCount > 0 ? data.totalDuration / data.totalCount : 0,
       avgOutputSize:
         data.totalCount > 0 ? data.totalOutputSize / data.totalCount : 0,
     };
@@ -414,15 +438,26 @@ export function getGlobalToolMetrics(): Record<
   // Second pass: compute averages
   const tools: Record<
     string,
-    { count: number; successRate: number; avgDuration: number; avgOutputSize: number }
+    {
+      count: number;
+      successRate: number;
+      avgDuration: number;
+      avgOutputSize: number;
+    }
   > = {};
 
-  for (const [tool, data] of Object.entries(toolData)) {
+  // ⚡ Bolt: Replace Object.entries with for...in to avoid intermediate array allocations
+  for (const tool in toolData) {
+    if (!Object.prototype.hasOwnProperty.call(toolData, tool)) continue;
+    const data = toolData[tool];
     tools[tool] = {
       count: data.totalCount,
-      successRate: data.totalCount > 0 ? data.successCount / data.totalCount : 0,
-      avgDuration: data.totalCount > 0 ? data.totalDuration / data.totalCount : 0,
-      avgOutputSize: data.totalCount > 0 ? data.totalOutputSize / data.totalCount : 0,
+      successRate:
+        data.totalCount > 0 ? data.successCount / data.totalCount : 0,
+      avgDuration:
+        data.totalCount > 0 ? data.totalDuration / data.totalCount : 0,
+      avgOutputSize:
+        data.totalCount > 0 ? data.totalOutputSize / data.totalCount : 0,
     };
   }
 
