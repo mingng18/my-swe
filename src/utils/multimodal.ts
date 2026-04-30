@@ -5,6 +5,7 @@
 import { createLogger } from "./logger";
 import * as dns from "node:dns";
 import { promisify } from "node:util";
+import { Agent, fetch as undiciFetch } from "undici";
 
 const lookupAsync = promisify(dns.lookup);
 
@@ -38,6 +39,7 @@ export async function fetchImageBlock(
     }
 
     let parsedUrl: URL;
+    let finalNormalizedAddress: string;
     try {
       parsedUrl = new URL(imageUrl);
       if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
@@ -52,6 +54,9 @@ export async function fetchImageBlock(
         /^((?:0+:)+|(?:0+:)*:+(?:0+:)*)ffff:/,
         "",
       );
+
+      // Expose normalizedAddress to the outer scope so the Agent can use it
+      finalNormalizedAddress = normalizedAddress;
 
       if (
         normalizedAddress.startsWith("127.") ||
@@ -80,8 +85,24 @@ export async function fetchImageBlock(
       return null;
     }
 
-    // Fetch external image and convert to base64
-    const response = await fetch(imageUrl);
+    // Provide a fallback in case finalNormalizedAddress isn't set
+    const resolvedAddress =
+      typeof finalNormalizedAddress !== "undefined"
+        ? finalNormalizedAddress
+        : "127.0.0.1";
+    const family = resolvedAddress.includes(":") ? 6 : 4;
+    const agent = new Agent({
+      connect: {
+        lookup: (hostname, options, callback) => {
+          callback(null, [{ address: resolvedAddress, family }]);
+        },
+      },
+    });
+
+    // Fetch external image and convert to base64 securely
+    const response = await undiciFetch(imageUrl, {
+      dispatcher: agent,
+    });
     if (!response.ok) {
       logger.warn(
         { imageUrl, status: response.statusText },

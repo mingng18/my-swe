@@ -1,11 +1,29 @@
+import { fetch as undiciFetch } from "undici";
 import { test, expect, describe, mock, beforeEach, afterEach } from "bun:test";
 import { buildBlocksFromPayload, fetchImageBlock } from "../multimodal";
 
 describe("multimodal benchmark", () => {
+  const mockUndiciFetch = mock();
+mock.module("undici", () => ({
+  fetch: mockUndiciFetch,
+  Agent: class {}
+}));
+
   const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
     // Mock fetch to simulate network delay
+    mockUndiciFetch.mockImplementation(async (url: string) => {
+      // Simulate 100ms network latency
+      await new Promise(resolve => setTimeout(resolve, 100));
+      return {
+        ok: true,
+        arrayBuffer: async () => new ArrayBuffer(0),
+        headers: {
+          get: () => "image/png"
+        }
+      } as any;
+    });
     globalThis.fetch = (mock(async (url: string) => {
       // Simulate 100ms network latency
       await new Promise(resolve => setTimeout(resolve, 100));
