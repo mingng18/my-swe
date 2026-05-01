@@ -5,6 +5,7 @@
 import { createLogger } from "./logger";
 import * as dns from "node:dns";
 import { promisify } from "node:util";
+import { Agent, fetch as undiciFetch } from "undici";
 
 const lookupAsync = promisify(dns.lookup);
 
@@ -80,8 +81,20 @@ export async function fetchImageBlock(
       return null;
     }
 
+    // Create a safe agent pinned to the resolved IP address to prevent DNS rebinding
+    const safeAgent = new Agent({
+      connect: {
+        lookup: (hostname, options, callback) => {
+          const family = normalizedAddress.includes(":") ? 6 : 4;
+          callback(null, [{ address: normalizedAddress, family }]);
+        },
+      },
+    });
+
     // Fetch external image and convert to base64
-    const response = await fetch(imageUrl);
+    const response = await undiciFetch(imageUrl, {
+      dispatcher: safeAgent,
+    } as any);
     if (!response.ok) {
       logger.warn(
         { imageUrl, status: response.statusText },
