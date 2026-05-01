@@ -226,7 +226,8 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
                   variant="ghost"
                   size="icon-xs"
                   onClick={() => setUserInput("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 opacity-50 hover:opacity-100 transition-opacity"
+                  aria-label="Clear input"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 opacity-50 hover:opacity-100 transition-opacity"
                 >
                   <X className="h-3 w-3" />
                 </Button>
@@ -357,6 +358,7 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
                       variant="ghost"
                       size="icon-xs"
                       onClick={() => setUserInput("")}
+                      aria-label="Clear input"
                       className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 opacity-50 hover:opacity-100 transition-opacity"
                     >
                       <X className="h-3 w-3" />

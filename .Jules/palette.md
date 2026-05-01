@@ -16,3 +16,6 @@
 ## 2025-02-14 - Keyboard Shortcut Discovery
 **Learning:** Combining explicit keyboard hints (<kbd>Tab</kbd>) with semantic roles (like <footer aria-live="polite">) creates a highly discoverable and accessible experience for companion web frames without cluttering the visual UI.
 **Action:** Consistently pair visual shortcut hints (<kbd>) with ARIA live regions when instructing users on keyboard-driven navigation in isolated frame views.
+## 2024-05-01 - [Add ARIA labels to icon-only buttons]
+**Learning:** [Icon-only buttons like `<Button><X/></Button>` or `<button><X/></button>` are commonly used for clear and close actions but lack semantic meaning for screen readers. Providing an `aria-label` drastically improves accessibility for visually impaired users without affecting the UI.]
+**Action:** [Always check for icon-only buttons during code review and implement `aria-label` attributes summarizing the action (e.g. `Close thread`, `Clear input`).]
