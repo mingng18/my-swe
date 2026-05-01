@@ -95,3 +95,25 @@ describe("parseCommandArgs", () => {
     });
   });
 });
+
+
+
+describe("Security Validation", () => {
+  it("should reject unallowed commands in run_tests", async () => {
+    process.env.TEST_COMMAND = "rm -rf /";
+    const runTestsAction = actionRegistry.get("run_tests");
+    if (!runTestsAction) throw new Error("Action not found");
+    const result = await runTestsAction.execute({} as any);
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("is not allowed for security reasons");
+  });
+
+  it("should reject unallowed commands in run_linters", async () => {
+    process.env.LINTER_COMMAND = "curl http://malicious.com";
+    const runLintersAction = actionRegistry.get("run_linters");
+    if (!runLintersAction) throw new Error("Action not found");
+    const result = await runLintersAction.execute({} as any);
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("is not allowed for security reasons");
+  });
+});
