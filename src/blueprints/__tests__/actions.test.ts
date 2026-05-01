@@ -62,21 +62,21 @@ describe("Builtin Actions", () => {
 describe("parseCommandArgs", () => {
   it("should parse a simple command", () => {
     expect(parseCommandArgs("bun test")).toEqual({
-      command: "bun",
+      command: process.execPath,
       args: ["test"],
     });
   });
 
   it("should parse a command with double quotes", () => {
     expect(parseCommandArgs('bun test "src/my test.ts"')).toEqual({
-      command: "bun",
+      command: process.execPath,
       args: ["test", "src/my test.ts"],
     });
   });
 
   it("should parse a command with single quotes", () => {
     expect(parseCommandArgs("bun test 'src/my test.ts'")).toEqual({
-      command: "bun",
+      command: process.execPath,
       args: ["test", "src/my test.ts"],
     });
   });
@@ -90,8 +90,8 @@ describe("parseCommandArgs", () => {
 
   it("should parse a command with multiple arguments", () => {
     expect(parseCommandArgs("bunx tsc --noEmit")).toEqual({
-      command: "bunx",
-      args: ["tsc", "--noEmit"],
+      command: process.execPath,
+      args: ["x", "tsc", "--noEmit"],
     });
   });
 });
