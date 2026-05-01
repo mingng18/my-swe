@@ -20,3 +20,6 @@
 ## 2024-11-20 - Optimize sequential file reads
 **Learning:** In Bun, optimizing sequential asynchronous file reads (like readFile in a loop) by mapping them directly into Promise.all yields significant performance gains (~20x faster) and safely handles typical application loads (e.g., thousands of files) concurrently without requiring explicit chunking or hitting EMFILE limits.
 **Action:** Always use Promise.all when reading multiple files independently instead of sequential await loops.
+## 2024-05-18 - Avoid array methods in Context Compactor and Identity
+**Learning:** In hot paths (like identity mapping and context compaction text scanning), using \`Object.fromEntries(Object.entries(...).map(...))\` or chaining \`.filter(...).map(...).join(...)\` creates many intermediate arrays and unnecessary iterations that severely impact performance.
+**Action:** Use direct \`for...in\` loops and traditional \`for\` loops with string concatenation in hot paths to avoid intermediate allocations and speed up processing.

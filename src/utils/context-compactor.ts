@@ -140,15 +140,21 @@ export function calculateImportance(
           isSuccessful = false;
         }
       } else if (Array.isArray(content)) {
-        const textContent = content
-          .filter((p) => p.type === "text")
-          .map((p) => p.text || "")
-          .join(" ")
-          .toLowerCase();
+        // ⚡ Bolt: Replace map/filter/join with a single for loop for performance
+        let textContent = "";
+        for (let i = 0; i < content.length; i++) {
+          const p = content[i];
+          if (p.type === "text" && p.text) {
+            if (textContent) textContent += " ";
+            textContent += p.text;
+          }
+        }
+
+        const lowerContent = textContent.toLowerCase();
         if (
-          textContent.includes("error:") ||
-          textContent.includes("failed") ||
-          textContent.includes("exception")
+          lowerContent.includes("error:") ||
+          lowerContent.includes("failed") ||
+          lowerContent.includes("exception")
         ) {
           isSuccessful = false;
         }
