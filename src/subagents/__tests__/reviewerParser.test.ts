@@ -165,6 +165,49 @@ Fix: Bad fix`;
   });
 });
 
+it("handles parseSingleIssue edge cases (missing match, bad prefixes, invalid severity)", () => {
+  // Missing severity brackets
+  const missingBrackets = `CRITICAL
+File: test.ts
+Issue: Test
+Fix: Test`;
+  expect(parseReviewerOutput(missingBrackets)).toEqual([]);
+
+  // Unrecognized severity
+  const invalidSeverity = `[UNKNOWN]
+File: test.ts
+Issue: Test
+Fix: Test`;
+  expect(parseReviewerOutput(invalidSeverity)).toEqual([]);
+
+  // Invalid file format (missing 'File: ')
+  const invalidFile = `[CRITICAL]
+test.ts
+Issue: Test
+Fix: Test`;
+  expect(parseReviewerOutput(invalidFile)).toEqual([]);
+
+  // Invalid issue format (missing 'Issue: ')
+  const invalidIssue = `[CRITICAL]
+File: test.ts
+Test Issue
+Fix: Test`;
+  expect(parseReviewerOutput(invalidIssue)).toEqual([]);
+
+  // Invalid fix format (missing 'Fix: ')
+  const invalidFix = `[CRITICAL]
+File: test.ts
+Issue: Test Issue
+Test Fix`;
+  expect(parseReviewerOutput(invalidFix)).toEqual([]);
+
+  // Less than 4 lines
+  const shortSection = `[CRITICAL]
+File: test.ts
+Issue: Test Issue`;
+  expect(parseReviewerOutput(shortSection)).toEqual([]);
+});
+
 describe("filterIssuesBySeverity", () => {
   const testIssues: ReviewIssue[] = [
     {
