@@ -20,3 +20,6 @@
 ## 2024-11-20 - Optimize sequential file reads
 **Learning:** In Bun, optimizing sequential asynchronous file reads (like readFile in a loop) by mapping them directly into Promise.all yields significant performance gains (~20x faster) and safely handles typical application loads (e.g., thousands of files) concurrently without requiring explicit chunking or hitting EMFILE limits.
 **Action:** Always use Promise.all when reading multiple files independently instead of sequential await loops.
+## 2025-05-01 - Memory Search N+1 Concurrency Optimization
+**Learning:** Calling `getByThread` repeatedly inside a `for...of` loop in `SearchService.search` to fetch memories for multiple threads created an N+1 fetching bottleneck.
+**Action:** Implemented `getByThreads` method in `MemoryRepository` that uses a bulk `in.` PostgREST filter on `thread_id` and updated `SearchService` to fetch all memories for the thread list in a single network request.

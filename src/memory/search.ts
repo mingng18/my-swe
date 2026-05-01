@@ -37,13 +37,21 @@ export class SearchService {
     }
 
     // Get all memories for the specified threads
-    const allMemories: Memory[] = [];
-    for (const threadId of threadIds) {
-      const memories = await this.repository.getByThread(
-        threadId,
+    let allMemories: Memory[] = [];
+    if (typeof (this.repository as any).getByThreads === "function") {
+      allMemories = await (this.repository as any).getByThreads(
+        threadIds,
         options.types,
       );
-      allMemories.push(...memories);
+    } else {
+      // Fallback for older repository implementations
+      for (const threadId of threadIds) {
+        const memories = await this.repository.getByThread(
+          threadId,
+          options.types,
+        );
+        allMemories.push(...memories);
+      }
     }
 
     if (allMemories.length === 0) {
