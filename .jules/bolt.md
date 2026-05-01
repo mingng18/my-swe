@@ -20,3 +20,6 @@
 ## 2024-11-20 - Optimize sequential file reads
 **Learning:** In Bun, optimizing sequential asynchronous file reads (like readFile in a loop) by mapping them directly into Promise.all yields significant performance gains (~20x faster) and safely handles typical application loads (e.g., thousands of files) concurrently without requiring explicit chunking or hitting EMFILE limits.
 **Action:** Always use Promise.all when reading multiple files independently instead of sequential await loops.
+## 2026-03-02 - Replace N+1 Soft Deletes
+**Learning:** Calling a database operation sequentially inside a `for...of` loop (like soft-deleting memories individually) introduces massive N+1 network overhead, which dominates execution time as the dataset grows.
+**Action:** When performing bulk updates against a database like Supabase (or any PostgREST endpoint), always create and use a batch repository method (e.g., using the `in.` filter) to minimize network roundtrips.
