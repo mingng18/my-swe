@@ -70,6 +70,25 @@ export class ActionRegistry {
 export const actionRegistry = new ActionRegistry();
 
 /**
+ * Allowed executables for blueprint actions to prevent arbitrary command injection.
+ */
+const ALLOWED_EXECUTABLES = new Set([
+  "bun",
+  "bunx",
+  "npm",
+  "npx",
+  "yarn",
+  "pnpm",
+  "node",
+  "tsc",
+  "eslint",
+  "prettier",
+  "jest",
+  "vitest",
+  "biome",
+]);
+
+/**
  * Builtin action: Run configured linters.
  * @param state - Blueprint state (unused in this action)
  * @returns ActionResult with linter output
@@ -83,6 +102,12 @@ const runLintersAction: DeterministicAction = {
       const { command, args } = parseCommandArgs(linterCommand);
       if (!command) {
         return { success: false, error: "Empty linter command" };
+      }
+      if (!ALLOWED_EXECUTABLES.has(command)) {
+        return {
+          success: false,
+          error: `Command "${command}" is not allowed for security reasons`,
+        };
       }
       const { stdout, stderr } = await execFileAsync(command, args);
       return { success: true, output: stdout || "Linters passed" };
@@ -110,6 +135,12 @@ const runTestsAction: DeterministicAction = {
       const { command, args } = parseCommandArgs(testCommand);
       if (!command) {
         return { success: false, error: "Empty test command" };
+      }
+      if (!ALLOWED_EXECUTABLES.has(command)) {
+        return {
+          success: false,
+          error: `Command "${command}" is not allowed for security reasons`,
+        };
       }
       const { stdout, stderr } = await execFileAsync(command, args);
       return { success: true, output: stdout || "Tests passed" };

@@ -1,6 +1,6 @@
 // src/blueprints/__tests__/actions.test.ts
 
-import { describe, it, expect, beforeEach } from "bun:test";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import {
   ActionRegistry,
   actionRegistry,
@@ -93,5 +93,48 @@ describe("parseCommandArgs", () => {
       command: "bunx",
       args: ["tsc", "--noEmit"],
     });
+  });
+});
+
+describe("Builtin Actions Execution", () => {
+  let originalEnv: NodeJS.ProcessEnv;
+
+  beforeEach(() => {
+    originalEnv = { ...process.env };
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it("should prevent arbitrary command execution in run_linters", async () => {
+    process.env.LINTER_COMMAND = "rm -rf /";
+    const action = actionRegistry.get("run_linters");
+    const result = await action!.execute({} as any);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("not allowed for security reasons");
+  });
+
+  it("should prevent arbitrary command execution in run_tests", async () => {
+    process.env.TEST_COMMAND = "cat /etc/passwd";
+    const action = actionRegistry.get("run_tests");
+    const result = await action!.execute({} as any);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("not allowed for security reasons");
+  });
+
+  it("should allow approved commands in run_linters", async () => {
+    process.env.LINTER_COMMAND = "bunx --version";
+    const action = actionRegistry.get("run_linters");
+    const result = await action!.execute({} as any);
+
+    // As long as it doesn't fail due to security reasons, it's fine.
+    // It might fail because bunx --version doesn't return 0 or we don't mock execFile
+    // but the error shouldn't be the security one.
+    if (!result.success) {
+      expect(result.error).not.toContain("not allowed for security reasons");
+    }
   });
 });
