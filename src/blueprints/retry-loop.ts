@@ -367,7 +367,6 @@ export async function defaultEscalationHandler(
           }),
         },
       );
-      console.log("[Blueprint Escalation] Admin notified via Telegram.");
     }
   } catch (err) {
     console.error(
