@@ -60,11 +60,12 @@ export function Toast({
         {description && <p className="text-sm opacity-90">{description}</p>}
       </div>
       <button
+        aria-label="Close toast"
         onClick={() => {
           setIsVisible(false)
           setTimeout(() => onClose?.(), 300)
         }}
-        className="opacity-70 hover:opacity-100 transition-opacity"
+        className="opacity-70 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 rounded-sm transition-opacity"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"

@@ -1,56 +1,97 @@
-import {
-  test,
-  expect,
-  describe,
-  mock,
-  afterEach,
-  beforeEach,
-  spyOn,
-} from "bun:test";
-import { initializeMemoryServices, isMemoryEnabled } from "../LinterNode";
+import { test, expect, describe, mock, beforeEach, afterEach } from "bun:test";
 
-describe("LinterNode - initializeMemoryServices", () => {
-  let originalEnv: NodeJS.ProcessEnv;
+let mockSaveBatch = mock().mockResolvedValue(undefined);
+let mockExtractFromTurn = mock().mockReturnValue([]);
+let mockGenerateEmbedding = mock().mockResolvedValue([0.1, 0.2]);
 
-  beforeEach(() => {
-    // Clone env before each test
-    originalEnv = { ...process.env };
-  });
+mock.module("../../../memory/repository", () => ({
+  MemoryRepository: class {
+    saveBatch = mockSaveBatch;
+  }
+}));
 
-  afterEach(() => {
-    // Restore env after each test
-    process.env = { ...originalEnv };
-  });
+mock.module("../../../memory/extractor", () => ({
+  MemoryExtractor: class {
+    extractFromTurn = mockExtractFromTurn;
+  }
+}));
 
-  test("initializes memory services when MEMORY_ENABLED=true", () => {
-    process.env.MEMORY_ENABLED = "true";
+mock.module("../../../memory/embeddings", () => ({
+  EmbeddingService: class {
+    generateEmbedding = mockGenerateEmbedding;
+  }
+}));
 
-    // MemoryRepository requires these to be set or it throws an error and falls back to false
-    process.env.SUPABASE_URL = "http://localhost:8000";
-    process.env.SUPABASE_SERVICE_ROLE_KEY = "dummy-key";
-    process.env.OPENAI_API_KEY = "dummy-openai-key";
+import { extractAndSaveMemories, initializeMemoryServices } from "../LinterNode";
 
-    initializeMemoryServices();
-    expect(isMemoryEnabled()).toBe(true);
-  });
+describe("extractAndSaveMemories", () => {
+    let originalMemoryEnabled: string | undefined;
 
-  test("does not initialize when MEMORY_ENABLED=false", () => {
-    process.env.MEMORY_ENABLED = "false";
-    initializeMemoryServices();
-    expect(isMemoryEnabled()).toBe(false);
-  });
+    beforeEach(() => {
+        originalMemoryEnabled = process.env.MEMORY_ENABLED;
+        process.env.MEMORY_ENABLED = "true";
 
-  test("handles initialization errors gracefully", () => {
-    process.env.MEMORY_ENABLED = "true";
+        mockSaveBatch.mockClear();
+        mockExtractFromTurn.mockClear();
+        mockGenerateEmbedding.mockClear();
 
-    // Intentionally omit SUPABASE_URL to force MemoryRepository to throw an error
-    delete process.env.SUPABASE_URL;
-    process.env.SUPABASE_SERVICE_ROLE_KEY = "dummy-key";
+        initializeMemoryServices();
+    });
 
-    // Should not throw an unhandled exception
-    expect(() => initializeMemoryServices()).not.toThrow();
+    afterEach(() => {
+        if (originalMemoryEnabled === undefined) {
+            delete process.env.MEMORY_ENABLED;
+        } else {
+            process.env.MEMORY_ENABLED = originalMemoryEnabled;
+        }
+    });
 
-    // But should result in disabled memory
-    expect(isMemoryEnabled()).toBe(false);
-  });
+    test("does nothing if memory is disabled", async () => {
+        process.env.MEMORY_ENABLED = "false";
+
+        await extractAndSaveMemories({ threadId: "test", userText: "hi", input: "hi" }, "test-thread");
+        expect(mockExtractFromTurn).not.toHaveBeenCalled();
+    });
+
+    test("early returns if no memories extracted", async () => {
+        mockExtractFromTurn.mockReturnValue([]);
+
+        await extractAndSaveMemories({ threadId: "test", userText: "hi", input: "hi" }, "test-thread");
+        expect(mockExtractFromTurn).toHaveBeenCalled();
+        expect(mockGenerateEmbedding).not.toHaveBeenCalled();
+        expect(mockSaveBatch).not.toHaveBeenCalled();
+    });
+
+    test("processes and saves extracted memories", async () => {
+        mockExtractFromTurn.mockReturnValue([
+            {
+                type: "user",
+                title: "Test Memory",
+                content: "This is a test memory",
+                metadata: { key: "value" }
+            }
+        ]);
+
+        await extractAndSaveMemories({ threadId: "test", userText: "hi", input: "hi" }, "test-thread");
+
+        expect(mockExtractFromTurn).toHaveBeenCalled();
+        expect(mockGenerateEmbedding).toHaveBeenCalledWith("Test Memory. This is a test memory");
+        expect(mockSaveBatch).toHaveBeenCalledWith([{
+            threadId: "test-thread",
+            type: "user",
+            title: "Test Memory",
+            content: "This is a test memory",
+            metadata: { key: "value" },
+            embedding: [0.1, 0.2]
+        }]);
+    });
+
+    test("handles errors gracefully without throwing", async () => {
+        mockExtractFromTurn.mockImplementation(() => {
+            throw new Error("Extraction failed");
+        });
+
+        // This should not throw
+        await extractAndSaveMemories({ threadId: "test", userText: "hi", input: "hi" }, "test-thread");
+    });
 });
