@@ -11,7 +11,8 @@
 **Vulnerability:** Found `timingSafeEqual` used with buffers of potentially different lengths in `src/webapp.ts` and `src/utils/github/github-comments.ts`. While the code checks `expectedBuffer.length !== signatureBuffer.length` and returns early, this early return still leaks the length of the expected secret via timing side channels.
 **Learning:** `timingSafeEqual` requires buffers of the exact same length. If lengths differ, it throws an error in Node.js. To safely handle variable length inputs without leaking length via early returns, one must use an HMAC with a constant length, or pad buffers. However, the most secure pattern for string comparison is to hash both strings using a strong algorithm (like SHA-256) and then compare the hashes using `timingSafeEqual`.
 **Prevention:** When comparing secrets (like API tokens) of variable or unknown length against a known secret, hash both the user-provided token and the expected secret using `crypto.createHash('sha256')`, then compare the resulting fixed-length hashes (which will always be 32 bytes) using `crypto.timingSafeEqual`.
-## 2024-05-01 - Overly Permissive CORS Origin
-**Vulnerability:** CORS configuration allowed requests from `localhost` in all environments, including production.
-**Learning:** Defaulting to permissive CORS settings (like `localhost` for development convenience) can lead to vulnerabilities in production, potentially enabling SSRF or cross-site attacks from local scripts.
-**Prevention:** Use environment-specific CORS configurations. Restrict origins dynamically based on `NODE_ENV` and load allowed origins securely via environment variables (`CORS_ALLOWED_ORIGIN`).
+
+## 2025-02-28 - [SSRF TOCTOU via DNS Rebinding in Fetch]
+**Vulnerability:** Global fetch() re-resolves DNS, leading to Time-Of-Check to Time-Of-Use (TOCTOU) SSRF when fetching external images.
+**Learning:** DNS resolution checks (like `dns.lookup`) followed by `fetch()` are insecure. The IP can change between the check and the actual fetch, bypassing the validation.
+**Prevention:** Use `undici.fetch` with a custom `Agent` and override its `lookup` method to pin the exact, pre-validated IP address, ensuring it uses the checked IP. Always destroy the agent after use.
