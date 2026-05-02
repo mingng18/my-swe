@@ -717,6 +717,322 @@ describe("memory-pointer", () => {
     });
   });
 
+  describe("updateArtifact", () => {
+    it("should update artifact content", async () => {
+      const originalContent = LARGE_CONTENT;
+      const newContent = "b".repeat(26000);
+      const pointerId = await memoryPointer.storeArtifact(
+        "thread-1",
+        "test-type",
+        originalContent,
+      );
+
+      expect(pointerId).not.toBeNull();
+
+      const updatedArtifact = await memoryPointer.updateArtifact(
+        pointerId!,
+        "thread-1",
+        { content: newContent },
+      );
+
+      expect(updatedArtifact).not.toBeNull();
+      expect(updatedArtifact!.content).toBe(newContent);
+      expect(updatedArtifact!.metadata.size).toBe(newContent.length);
+    });
+
+    it("should update artifact metadata", async () => {
+      const content = LARGE_CONTENT;
+      const originalMetadata = { source: "test", key: "value" };
+      const pointerId = await memoryPointer.storeArtifact(
+        "thread-1",
+        "test-type",
+        content,
+        originalMetadata,
+      );
+
+      expect(pointerId).not.toBeNull();
+
+      const newMetadata = { newKey: "newValue", anotherKey: 123 };
+      const updatedArtifact = await memoryPointer.updateArtifact(
+        pointerId!,
+        "thread-1",
+        { metadata: newMetadata },
+      );
+
+      expect(updatedArtifact).not.toBeNull();
+      expect(updatedArtifact!.metadata.metadata).toEqual({
+        ...originalMetadata,
+        ...newMetadata,
+      });
+    });
+
+    it("should update artifact type", async () => {
+      const content = LARGE_CONTENT;
+      const pointerId = await memoryPointer.storeArtifact(
+        "thread-1",
+        "original-type",
+        content,
+      );
+
+      expect(pointerId).not.toBeNull();
+
+      const updatedArtifact = await memoryPointer.updateArtifact(
+        pointerId!,
+        "thread-1",
+        { type: "new-type" },
+      );
+
+      expect(updatedArtifact).not.toBeNull();
+      expect(updatedArtifact!.metadata.type).toBe("new-type");
+    });
+
+    it("should update multiple fields at once", async () => {
+      const originalContent = LARGE_CONTENT;
+      const newContent = "c".repeat(27000);
+      const newType = "updated-type";
+      const newMetadata = { updated: true };
+
+      const pointerId = await memoryPointer.storeArtifact(
+        "thread-1",
+        "original-type",
+        originalContent,
+        { original: true },
+      );
+
+      expect(pointerId).not.toBeNull();
+
+      const updatedArtifact = await memoryPointer.updateArtifact(
+        pointerId!,
+        "thread-1",
+        {
+          content: newContent,
+          type: newType,
+          metadata: newMetadata,
+        },
+      );
+
+      expect(updatedArtifact).not.toBeNull();
+      expect(updatedArtifact!.content).toBe(newContent);
+      expect(updatedArtifact!.metadata.type).toBe(newType);
+      expect(updatedArtifact!.metadata.metadata).toEqual({
+        original: true,
+        ...newMetadata,
+      });
+    });
+
+    it("should recalculate size and token count after content update", async () => {
+      const originalContent = LARGE_CONTENT;
+      const newContent = "d".repeat(30000); // Different size
+      const pointerId = await memoryPointer.storeArtifact(
+        "thread-1",
+        "test-type",
+        originalContent,
+      );
+
+      expect(pointerId).not.toBeNull();
+
+      const originalArtifact = await memoryPointer.retrieveArtifact(
+        pointerId!,
+        "thread-1",
+      );
+      const originalTokenCount = originalArtifact!.metadata.tokenCount;
+
+      const updatedArtifact = await memoryPointer.updateArtifact(
+        pointerId!,
+        "thread-1",
+        { content: newContent },
+      );
+
+      expect(updatedArtifact).not.toBeNull();
+      expect(updatedArtifact!.metadata.size).toBe(newContent.length);
+      expect(updatedArtifact!.metadata.tokenCount).not.toBe(originalTokenCount);
+      expect(updatedArtifact!.metadata.tokenCount).toBe(
+        Math.ceil(newContent.length / 4),
+      );
+    });
+
+    it("should update timestamp", async () => {
+      const content = LARGE_CONTENT;
+      const pointerId = await memoryPointer.storeArtifact(
+        "thread-1",
+        "test-type",
+        content,
+      );
+
+      expect(pointerId).not.toBeNull();
+
+      const originalArtifact = await memoryPointer.retrieveArtifact(
+        pointerId!,
+        "thread-1",
+      );
+      const originalTimestamp = originalArtifact!.metadata.timestamp;
+
+      // Wait a bit to ensure timestamp difference
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const updatedArtifact = await memoryPointer.updateArtifact(
+        pointerId!,
+        "thread-1",
+        { type: "new-type" },
+      );
+
+      expect(updatedArtifact).not.toBeNull();
+      expect(updatedArtifact!.metadata.timestamp).toBeGreaterThan(
+        originalTimestamp,
+      );
+    });
+
+    it("should return null for non-existent artifact", async () => {
+      const result = await memoryPointer.updateArtifact(
+        "ptr_nonexistent",
+        "thread-1",
+        { type: "new-type" },
+      );
+
+      expect(result).toBeNull();
+    });
+
+    it("should return null for invalid pointer ID format", async () => {
+      await expect(
+        memoryPointer.updateArtifact("invalid-format", "thread-1", {
+          type: "new-type",
+        }),
+      ).rejects.toThrow();
+    });
+
+    it("should return null when thread ID does not match", async () => {
+      const content = LARGE_CONTENT;
+      const pointerId = await memoryPointer.storeArtifact(
+        "thread-1",
+        "test-type",
+        content,
+      );
+
+      expect(pointerId).not.toBeNull();
+
+      const result = await memoryPointer.updateArtifact(
+        pointerId!,
+        "thread-2",
+        { type: "new-type" },
+      );
+
+      expect(result).toBeNull();
+    });
+
+    it("should return null for expired artifacts", async () => {
+      const content = LARGE_CONTENT;
+      const pointerId = await memoryPointer.storeArtifact(
+        "thread-1",
+        "test-type",
+        content,
+      );
+
+      expect(pointerId).not.toBeNull();
+
+      // Manually expire the artifact
+      const fs = require("node:fs");
+      const path = require("node:path");
+      const filePath = path.join(TEST_MEMORY_DIR, `${pointerId}.json`);
+      const data = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+      data.metadata.expiresAt = Date.now() - 1000;
+      fs.writeFileSync(filePath, JSON.stringify(data));
+
+      const result = await memoryPointer.updateArtifact(
+        pointerId!,
+        "thread-1",
+        { type: "new-type" },
+      );
+
+      expect(result).toBeNull();
+    });
+
+    it("should persist changes to disk", async () => {
+      const content = LARGE_CONTENT;
+      const newContent = "e".repeat(28000);
+      const pointerId = await memoryPointer.storeArtifact(
+        "thread-1",
+        "test-type",
+        content,
+      );
+
+      expect(pointerId).not.toBeNull();
+
+      await memoryPointer.updateArtifact(pointerId!, "thread-1", {
+        content: newContent,
+      });
+
+      // Retrieve the artifact again to verify persistence
+      const retrievedArtifact = await memoryPointer.retrieveArtifact(
+        pointerId!,
+        "thread-1",
+      );
+
+      expect(retrievedArtifact).not.toBeNull();
+      expect(retrievedArtifact!.content).toBe(newContent);
+    });
+
+    it("should handle empty update options", async () => {
+      const content = LARGE_CONTENT;
+      const pointerId = await memoryPointer.storeArtifact(
+        "thread-1",
+        "test-type",
+        content,
+        { key: "value" },
+      );
+
+      expect(pointerId).not.toBeNull();
+
+      const originalArtifact = await memoryPointer.retrieveArtifact(
+        pointerId!,
+        "thread-1",
+      );
+
+      // Update with no actual changes
+      const updatedArtifact = await memoryPointer.updateArtifact(
+        pointerId!,
+        "thread-1",
+        {},
+      );
+
+      expect(updatedArtifact).not.toBeNull();
+      expect(updatedArtifact!.content).toBe(originalArtifact!.content);
+      expect(updatedArtifact!.metadata.type).toBe(originalArtifact!.metadata.type);
+      expect(updatedArtifact!.metadata.metadata).toEqual(
+        originalArtifact!.metadata.metadata,
+      );
+      // Timestamp should still be updated
+      expect(updatedArtifact!.metadata.timestamp).toBeGreaterThanOrEqual(
+        originalArtifact!.metadata.timestamp,
+      );
+    });
+
+    it("should handle updating with undefined content", async () => {
+      const content = LARGE_CONTENT;
+      const pointerId = await memoryPointer.storeArtifact(
+        "thread-1",
+        "test-type",
+        content,
+      );
+
+      expect(pointerId).not.toBeNull();
+
+      const originalArtifact = await memoryPointer.retrieveArtifact(
+        pointerId!,
+        "thread-1",
+      );
+
+      // Update with undefined content (should not change content)
+      const updatedArtifact = await memoryPointer.updateArtifact(
+        pointerId!,
+        "thread-1",
+        { content: undefined },
+      );
+
+      expect(updatedArtifact).not.toBeNull();
+      expect(updatedArtifact!.content).toBe(originalArtifact!.content);
+    });
+  });
+
   describe("security and validation", () => {
     it("should validate pointer ID format", async () => {
       const content = LARGE_CONTENT;

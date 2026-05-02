@@ -11,6 +11,7 @@ import {
   artifactQueryTool,
   artifactListTool,
   artifactDeleteTool,
+  artifactUpdateTool,
 } from "./artifact-query";
 import { semanticSearchTool } from "./semantic-search";
 import { activateSkillTool } from "./activate-skill";
@@ -50,6 +51,7 @@ export const allToolsUncompressed = [
   artifactQueryTool,
   artifactListTool,
   artifactDeleteTool,
+  artifactUpdateTool,
   semanticSearchTool,
   activateSkillTool,
   toolSearchTool,

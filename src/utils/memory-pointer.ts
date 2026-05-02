@@ -62,6 +62,15 @@ export interface QueryResult {
 }
 
 /**
+ * Options for updating an artifact
+ */
+export interface UpdateOptions {
+  content?: string;
+  metadata?: Record<string, unknown>;
+  type?: string;
+}
+
+/**
  * Validate a regex pattern to prevent ReDoS (Regular Expression Denial of Service).
  * Blocks patterns with nested repetition, multiple wildcards, or excessive length.
  */
@@ -259,6 +268,99 @@ export async function retrieveArtifact(
     logger.error(
       { pointerId, error },
       "[memory-pointer] Failed to retrieve artifact",
+    );
+    return null;
+  }
+}
+
+/**
+ * Update an existing artifact.
+ * Validates thread ownership and expiration.
+ *
+ * @param pointerId - The pointer ID to update
+ * @param threadId - Thread ID for validation
+ * @param options - Update options (content, metadata, type)
+ * @returns The updated artifact or null if not found/invalid
+ */
+export async function updateArtifact(
+  pointerId: string,
+  threadId: string,
+  options: UpdateOptions,
+): Promise<StoredArtifact | null> {
+  const filePath = getPointerPath(pointerId);
+
+  if (!existsSync(filePath)) {
+    logger.warn({ pointerId }, "[memory-pointer] Artifact not found for update");
+    return null;
+  }
+
+  try {
+    const data = await readFile(filePath, "utf-8");
+    const artifact: StoredArtifact = JSON.parse(data);
+
+    // Validate thread ownership
+    if (artifact.metadata.threadId !== threadId) {
+      logger.warn(
+        {
+          pointerId,
+          expectedThread: threadId,
+          actualThread: artifact.metadata.threadId,
+        },
+        "[memory-pointer] Thread ownership validation failed",
+      );
+      return null;
+    }
+
+    // Check expiration
+    if (isExpired(artifact.metadata.expiresAt)) {
+      logger.debug(
+        { pointerId },
+        "[memory-pointer] Artifact expired, cannot update",
+      );
+      return null;
+    }
+
+    // Update content if provided
+    if (options.content !== undefined) {
+      artifact.content = options.content;
+    }
+
+    // Merge metadata if provided
+    if (options.metadata !== undefined) {
+      artifact.metadata.metadata = {
+        ...artifact.metadata.metadata,
+        ...options.metadata,
+      };
+    }
+
+    // Update type if provided
+    if (options.type !== undefined) {
+      artifact.metadata.type = options.type;
+    }
+
+    // Recalculate size and token count
+    artifact.metadata.size = artifact.content.length;
+    artifact.metadata.tokenCount = estimateTokens(artifact.content);
+    artifact.metadata.timestamp = Date.now();
+
+    // Write updated artifact back to file
+    await writeFile(filePath, JSON.stringify(artifact), "utf-8");
+
+    logger.info(
+      {
+        pointerId,
+        threadId,
+        size: artifact.metadata.size,
+        tokenCount: artifact.metadata.tokenCount,
+      },
+      "[memory-pointer] Updated artifact",
+    );
+
+    return artifact;
+  } catch (error) {
+    logger.error(
+      { pointerId, error },
+      "[memory-pointer] Failed to update artifact",
     );
     return null;
   }
