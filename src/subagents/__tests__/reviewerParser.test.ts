@@ -257,7 +257,7 @@ describe("filterIssuesBySeverity", () => {
 });
 
 describe("hasCriticalIssues", () => {
-  it("returns true when CRITICAL issues exist", () => {
+  it("returns true when CRITICAL issues exist among other severities", () => {
     const issues: ReviewIssue[] = [
       { severity: "HIGH", file: "a.ts", issue: "High issue", fix: "Fix" },
       {
@@ -267,6 +267,32 @@ describe("hasCriticalIssues", () => {
         issue: "Critical issue",
         fix: "Fix",
       },
+    ];
+
+    expect(hasCriticalIssues(issues)).toBe(true);
+  });
+
+  it("returns true when only CRITICAL issues exist", () => {
+    const issues: ReviewIssue[] = [
+      { severity: "CRITICAL", file: "a.ts", issue: "Critical issue 1", fix: "Fix 1" },
+      {
+        severity: "CRITICAL",
+        file: "b.ts",
+        line: 1,
+        issue: "Critical issue 2",
+        fix: "Fix 2",
+      },
+    ];
+
+    expect(hasCriticalIssues(issues)).toBe(true);
+  });
+
+  it("returns true when multiple CRITICAL issues exist among other severities", () => {
+    const issues: ReviewIssue[] = [
+      { severity: "LOW", file: "c.ts", issue: "Low issue", fix: "Fix" },
+      { severity: "CRITICAL", file: "a.ts", issue: "Critical issue 1", fix: "Fix 1" },
+      { severity: "HIGH", file: "d.ts", issue: "High issue", fix: "Fix" },
+      { severity: "CRITICAL", file: "b.ts", line: 1, issue: "Critical issue 2", fix: "Fix 2" },
     ];
 
     expect(hasCriticalIssues(issues)).toBe(true);
@@ -282,6 +308,16 @@ describe("hasCriticalIssues", () => {
         issue: "Medium issue",
         fix: "Fix",
       },
+    ];
+
+    expect(hasCriticalIssues(issues)).toBe(false);
+  });
+
+  it("returns false when only non-critical issues (LOW, MEDIUM, HIGH) exist", () => {
+    const issues: ReviewIssue[] = [
+      { severity: "LOW", file: "c.ts", issue: "Low issue", fix: "Fix" },
+      { severity: "MEDIUM", file: "d.ts", issue: "Medium issue", fix: "Fix" },
+      { severity: "HIGH", file: "a.ts", issue: "High issue", fix: "Fix" },
     ];
 
     expect(hasCriticalIssues(issues)).toBe(false);
