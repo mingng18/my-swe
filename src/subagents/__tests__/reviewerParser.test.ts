@@ -224,6 +224,21 @@ describe("filterIssuesBySeverity", () => {
     expect(filtered.every((issue) => issue.severity === "CRITICAL")).toBe(true);
   });
 
+  it("filters by MEDIUM severity (CRITICAL + HIGH + MEDIUM)", () => {
+    const filtered = filterIssuesBySeverity(testIssues, "MEDIUM");
+
+    expect(filtered).toHaveLength(4);
+    expect(
+      filtered.every((issue) => ["CRITICAL", "HIGH", "MEDIUM"].includes(issue.severity)),
+    ).toBe(true);
+
+    // Check that MEDIUM, HIGH and CRITICAL issues are included
+    expect(filtered.find((i) => i.severity === "CRITICAL")).toBeDefined();
+    expect(filtered.find((i) => i.severity === "HIGH")).toBeDefined();
+    expect(filtered.find((i) => i.severity === "MEDIUM")).toBeDefined();
+    expect(filtered.find((i) => i.severity === "LOW")).toBeUndefined();
+  });
+
   it("returns all for LOW severity", () => {
     const filtered = filterIssuesBySeverity(testIssues, "LOW");
 
