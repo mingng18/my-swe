@@ -165,6 +165,49 @@ Fix: Bad fix`;
   });
 });
 
+it("handles parseSingleIssue edge cases (missing match, bad prefixes, invalid severity)", () => {
+  // Missing severity brackets
+  const missingBrackets = `CRITICAL
+File: test.ts
+Issue: Test
+Fix: Test`;
+  expect(parseReviewerOutput(missingBrackets)).toEqual([]);
+
+  // Unrecognized severity
+  const invalidSeverity = `[UNKNOWN]
+File: test.ts
+Issue: Test
+Fix: Test`;
+  expect(parseReviewerOutput(invalidSeverity)).toEqual([]);
+
+  // Invalid file format (missing 'File: ')
+  const invalidFile = `[CRITICAL]
+test.ts
+Issue: Test
+Fix: Test`;
+  expect(parseReviewerOutput(invalidFile)).toEqual([]);
+
+  // Invalid issue format (missing 'Issue: ')
+  const invalidIssue = `[CRITICAL]
+File: test.ts
+Test Issue
+Fix: Test`;
+  expect(parseReviewerOutput(invalidIssue)).toEqual([]);
+
+  // Invalid fix format (missing 'Fix: ')
+  const invalidFix = `[CRITICAL]
+File: test.ts
+Issue: Test Issue
+Test Fix`;
+  expect(parseReviewerOutput(invalidFix)).toEqual([]);
+
+  // Less than 4 lines
+  const shortSection = `[CRITICAL]
+File: test.ts
+Issue: Test Issue`;
+  expect(parseReviewerOutput(shortSection)).toEqual([]);
+});
+
 describe("filterIssuesBySeverity", () => {
   const testIssues: ReviewIssue[] = [
     {
@@ -224,6 +267,21 @@ describe("filterIssuesBySeverity", () => {
     expect(filtered.every((issue) => issue.severity === "CRITICAL")).toBe(true);
   });
 
+  it("filters by MEDIUM severity (CRITICAL + HIGH + MEDIUM)", () => {
+    const filtered = filterIssuesBySeverity(testIssues, "MEDIUM");
+
+    expect(filtered).toHaveLength(4);
+    expect(
+      filtered.every((issue) => ["CRITICAL", "HIGH", "MEDIUM"].includes(issue.severity)),
+    ).toBe(true);
+
+    // Check that MEDIUM, HIGH and CRITICAL issues are included
+    expect(filtered.find((i) => i.severity === "CRITICAL")).toBeDefined();
+    expect(filtered.find((i) => i.severity === "HIGH")).toBeDefined();
+    expect(filtered.find((i) => i.severity === "MEDIUM")).toBeDefined();
+    expect(filtered.find((i) => i.severity === "LOW")).toBeUndefined();
+  });
+
   it("returns all for LOW severity", () => {
     const filtered = filterIssuesBySeverity(testIssues, "LOW");
 
@@ -242,7 +300,7 @@ describe("filterIssuesBySeverity", () => {
 });
 
 describe("hasCriticalIssues", () => {
-  it("returns true when CRITICAL issues exist", () => {
+  it("returns true when CRITICAL issues exist among other severities", () => {
     const issues: ReviewIssue[] = [
       { severity: "HIGH", file: "a.ts", issue: "High issue", fix: "Fix" },
       {
@@ -252,6 +310,32 @@ describe("hasCriticalIssues", () => {
         issue: "Critical issue",
         fix: "Fix",
       },
+    ];
+
+    expect(hasCriticalIssues(issues)).toBe(true);
+  });
+
+  it("returns true when only CRITICAL issues exist", () => {
+    const issues: ReviewIssue[] = [
+      { severity: "CRITICAL", file: "a.ts", issue: "Critical issue 1", fix: "Fix 1" },
+      {
+        severity: "CRITICAL",
+        file: "b.ts",
+        line: 1,
+        issue: "Critical issue 2",
+        fix: "Fix 2",
+      },
+    ];
+
+    expect(hasCriticalIssues(issues)).toBe(true);
+  });
+
+  it("returns true when multiple CRITICAL issues exist among other severities", () => {
+    const issues: ReviewIssue[] = [
+      { severity: "LOW", file: "c.ts", issue: "Low issue", fix: "Fix" },
+      { severity: "CRITICAL", file: "a.ts", issue: "Critical issue 1", fix: "Fix 1" },
+      { severity: "HIGH", file: "d.ts", issue: "High issue", fix: "Fix" },
+      { severity: "CRITICAL", file: "b.ts", line: 1, issue: "Critical issue 2", fix: "Fix 2" },
     ];
 
     expect(hasCriticalIssues(issues)).toBe(true);
@@ -267,6 +351,16 @@ describe("hasCriticalIssues", () => {
         issue: "Medium issue",
         fix: "Fix",
       },
+    ];
+
+    expect(hasCriticalIssues(issues)).toBe(false);
+  });
+
+  it("returns false when only non-critical issues (LOW, MEDIUM, HIGH) exist", () => {
+    const issues: ReviewIssue[] = [
+      { severity: "LOW", file: "c.ts", issue: "Low issue", fix: "Fix" },
+      { severity: "MEDIUM", file: "d.ts", issue: "Medium issue", fix: "Fix" },
+      { severity: "HIGH", file: "a.ts", issue: "High issue", fix: "Fix" },
     ];
 
     expect(hasCriticalIssues(issues)).toBe(false);
@@ -325,6 +419,46 @@ describe("formatIssues", () => {
   it("handles empty array", () => {
     const formatted = formatIssues([]);
     expect(formatted).toBe("No issues found.");
+  });
+
+
+  it("orders issues strictly by severity (CRITICAL > HIGH > MEDIUM > LOW)", () => {
+    const unorderedIssues = [
+      { severity: "LOW", file: "low.ts", issue: "Low", fix: "Fix" },
+      { severity: "MEDIUM", file: "medium.ts", issue: "Medium", fix: "Fix" },
+      { severity: "CRITICAL", file: "critical.ts", issue: "Critical", fix: "Fix" },
+      { severity: "HIGH", file: "high.ts", issue: "High", fix: "Fix" },
+    ];
+
+    const formatted = formatIssues(unorderedIssues);
+
+    const criticalIndex = formatted.indexOf("CRITICAL Issues (1):");
+    const highIndex = formatted.indexOf("HIGH Issues (1):");
+    const mediumIndex = formatted.indexOf("MEDIUM Issues (1):");
+    const lowIndex = formatted.indexOf("LOW Issues (1):");
+
+    expect(criticalIndex).toBeLessThan(highIndex);
+    expect(highIndex).toBeLessThan(mediumIndex);
+    expect(mediumIndex).toBeLessThan(lowIndex);
+  });
+
+  it("groups multiple issues of the same severity together", () => {
+    const mixedIssues = [
+      { severity: "HIGH", file: "high1.ts", issue: "High 1", fix: "Fix 1" },
+      { severity: "LOW", file: "low1.ts", issue: "Low 1", fix: "Fix 1" },
+      { severity: "HIGH", file: "high2.ts", issue: "High 2", fix: "Fix 2" },
+      { severity: "CRITICAL", file: "crit1.ts", issue: "Critical 1", fix: "Fix 1" },
+    ];
+
+    const formatted = formatIssues(mixedIssues);
+
+    expect(formatted).toContain("CRITICAL Issues (1):");
+    expect(formatted).toContain("HIGH Issues (2):");
+    expect(formatted).toContain("LOW Issues (1):");
+
+    // Check that both HIGH issues are listed
+    expect(formatted).toContain("File: high1.ts");
+    expect(formatted).toContain("File: high2.ts");
   });
 
   it("handles single issue", () => {
