@@ -128,10 +128,51 @@ export class MemoryRepository {
   }
 
   /**
+   * Get all memories for multiple threads, optionally filtered by type
+   */
+  async getByThreads(
+    threadIds: string[],
+    types?: MemoryType[],
+  ): Promise<Memory[]> {
+    if (!threadIds || threadIds.length === 0) {
+      return [];
+    }
+    const rows = await this.supabaseSelectByThreads(threadIds, types);
+    return rows.map((row) => this.fromRow(row));
+  }
+
+  /**
    * Soft delete a memory (mark as inactive)
    */
   async softDelete(id: string): Promise<void> {
     await this.supabaseUpdate(id, { is_active: false });
+  }
+
+  /**
+   * Soft delete multiple memories (mark as inactive)
+   */
+  async softDeleteMany(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+
+    // We can use the PostgREST in. filter to update multiple rows
+    const url = `${this.supabaseUrl}/rest/v1/${this.tableName}?id=in.(${ids.map((id) => encodeURIComponent(id)).join(",")})`;
+    const res = await this.client.fetch(url, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify({ is_active: false }),
+    });
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      logger.warn(
+        { status: res.status, body },
+        "Failed to batch update memories",
+      );
+      throw new Error("Failed to soft delete multiple memories");
+    }
   }
 
   /**
@@ -265,6 +306,40 @@ export class MemoryRepository {
       logger.warn(
         { status: res.status },
         "Failed to select memories by thread",
+      );
+      return [];
+    }
+
+    return (await res.json()) as SupabaseMemoryRow[];
+  }
+
+  /**
+   * Supabase: Select by multiple thread IDs
+   */
+  private async supabaseSelectByThreads(
+    threadIds: string[],
+    types?: MemoryType[],
+  ): Promise<SupabaseMemoryRow[]> {
+    const threadFilter = threadIds
+      .map((id) => encodeURIComponent(id))
+      .join(",");
+    let url = `${this.supabaseUrl}/rest/v1/${this.tableName}?thread_id=in.(${threadFilter})`;
+
+    if (types && types.length > 0) {
+      const typeFilter = types
+        .map((t) => `type.eq.${encodeURIComponent(t)}`)
+        .join(",");
+      url += `&or=(${typeFilter})`;
+    }
+
+    url += "&order=created_at.desc";
+
+    const res = await this.client.fetch(url);
+
+    if (!res.ok) {
+      logger.warn(
+        { status: res.status },
+        "Failed to select memories by threads",
       );
       return [];
     }
