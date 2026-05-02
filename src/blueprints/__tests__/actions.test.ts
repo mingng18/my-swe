@@ -1,6 +1,6 @@
 // src/blueprints/__tests__/actions.test.ts
 
-import { describe, it, expect, beforeEach } from "bun:test";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import {
   ActionRegistry,
   actionRegistry,
