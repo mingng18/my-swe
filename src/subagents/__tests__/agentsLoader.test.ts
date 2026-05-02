@@ -61,6 +61,63 @@ System prompt here`;
     expect(result).toBeNull();
   });
 
+
+  it("should reject AGENTS.md without a name in frontmatter", () => {
+    const content = `---
+description: Valid agent
+tools: [code_search]
+---
+System prompt here`;
+    const result = parseAgentsMd(content, "no-name.md");
+    expect(result).toBeNull();
+  });
+
+  it("should reject AGENTS.md without a description in frontmatter", () => {
+    const content = `---
+name: valid-agent
+tools: [code_search]
+---
+System prompt here`;
+    const result = parseAgentsMd(content, "no-desc.md");
+    expect(result).toBeNull();
+  });
+
+  it("should reject AGENTS.md with an empty system prompt", () => {
+    const content = `---
+name: valid-agent
+description: Valid agent
+tools: [code_search]
+---`;
+    const result = parseAgentsMd(content, "empty-prompt.md");
+    expect(result).toBeNull();
+  });
+
+  it("should return null for invalid YAML frontmatter", () => {
+    const content = `---
+name: valid-agent
+description Valid agent # Missing colon
+---
+System prompt here`;
+    const result = parseAgentsMd(content, "invalid-yaml.md");
+    expect(result).toBeNull();
+  });
+
+  it("should correctly map optional fields from YAML", () => {
+    const content = `---
+name: valid-agent
+description: Valid agent
+model: gpt-4
+tools: [code_search]
+disallowedTools: [semantic_search]
+---
+System prompt here`;
+    const result = parseAgentsMd(content, "optional-fields.md");
+    expect(result).not.toBeNull();
+    expect(result?.model).toBe("gpt-4");
+    // tool mapping via filterToolsByName is already tested elsewhere or mocked,
+    // but we can assert we hit the model
+  });
+
   it("should merge repo agents with built-ins", () => {
     const repoAgents = [
       {
