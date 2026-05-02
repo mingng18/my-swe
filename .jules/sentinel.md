@@ -11,7 +11,7 @@
 **Vulnerability:** Found `timingSafeEqual` used with buffers of potentially different lengths in `src/webapp.ts` and `src/utils/github/github-comments.ts`. While the code checks `expectedBuffer.length !== signatureBuffer.length` and returns early, this early return still leaks the length of the expected secret via timing side channels.
 **Learning:** `timingSafeEqual` requires buffers of the exact same length. If lengths differ, it throws an error in Node.js. To safely handle variable length inputs without leaking length via early returns, one must use an HMAC with a constant length, or pad buffers. However, the most secure pattern for string comparison is to hash both strings using a strong algorithm (like SHA-256) and then compare the hashes using `timingSafeEqual`.
 **Prevention:** When comparing secrets (like API tokens) of variable or unknown length against a known secret, hash both the user-provided token and the expected secret using `crypto.createHash('sha256')`, then compare the resulting fixed-length hashes (which will always be 32 bytes) using `crypto.timingSafeEqual`.
-## 2024-04-30 - Fix SSRF TOCTOU in multimodal image fetch
-**Vulnerability:** DNS rebinding (TOCTOU) vulnerability where `fetch` resolved the hostname again after our initial safety check via `dns.lookup`.
-**Learning:** `fetch` resolves DNS independently. Validating an IP via `dns.lookup` before a global `fetch` does not guarantee the same IP is hit during the actual request.
-**Prevention:** Use a custom `undici` Agent with a custom `lookup` method to force `fetch` to use the pre-validated IP address.
+## 2026-05-01 - Prevent Command Injection via execFile
+**Vulnerability:** Potential Command Injection in `src/blueprints/actions.ts` where `execFile` executed commands derived directly from `process.env.TEST_COMMAND` and `process.env.LINTER_COMMAND` without validation.
+**Learning:** Even though `execFile` avoids spawning a shell by default, executing an unvalidated binary name passed by user-controlled environment variables allows attackers to run arbitrary executables on the system.
+**Prevention:** Always validate user-provided executable commands against a strict allowlist (e.g., `ALLOWED_COMMANDS`) before passing them to `execFile` or similar process creation APIs.

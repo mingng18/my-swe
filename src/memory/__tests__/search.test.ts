@@ -17,8 +17,37 @@ class MockSupabaseClient implements SupabaseClient {
 
     const idMatch = url.match(/id=eq\.([^&]+)/);
     const threadIdMatch = url.match(/thread_id=eq\.([^&]+)/);
+    const threadsInMatch = url.match(/thread_id=in\.\(([^)]+)\)/);
 
     if (method === "GET") {
+      if (threadsInMatch) {
+        const threadIds = threadsInMatch[1]
+          .split(",")
+          .map((id) => decodeURIComponent(id));
+        let memories = Array.from(this.memories.values()).filter(
+          (m: any) =>
+            threadIds.includes(m.thread_id || m.threadId) &&
+            m.is_active !== false &&
+            m.isActive !== false,
+        );
+
+        // Check for type filter
+        const orParam = params.get("or");
+        if (orParam) {
+          const types = orParam
+            .match(/type\.eq\.([^,)]+)/g)
+            ?.map((t: string) => t.replace("type.eq.", ""));
+          if (types) {
+            memories = memories.filter((m: any) => types.includes(m.type));
+          }
+        }
+
+        return new Response(JSON.stringify(memories), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+
       if (threadIdMatch) {
         const threadId = decodeURIComponent(threadIdMatch[1]);
         let memories = Array.from(this.memories.values()).filter(

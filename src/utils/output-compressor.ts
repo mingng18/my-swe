@@ -315,14 +315,23 @@ export function extractJsonSchema(input: string): string {
         return `Array[${value.length}] of ${elemType}`;
       }
       if (typeof value === "object") {
-        const entries = Object.entries(value as Record<string, unknown>);
-        if (entries.length === 0) return "{}";
-        const fields = entries.slice(0, 10).map(([k, v]) => {
-          const t = extractType(v, depth + 1, maxDepth);
-          return `"${k}": ${t}`;
-        });
-        if (entries.length > 10) {
-          fields.push(`... (${entries.length - 10} more fields)`);
+        const fields: string[] = [];
+        let count = 0;
+        const record = value as Record<string, unknown>;
+
+        // ⚡ Bolt: Replace Object.entries with for...in to avoid intermediate array allocations in hot path
+        for (const k in record) {
+          if (!Object.prototype.hasOwnProperty.call(record, k)) continue;
+          count++;
+          if (fields.length < 10) {
+            const t = extractType(record[k], depth + 1, maxDepth);
+            fields.push(`"${k}": ${t}`);
+          }
+        }
+
+        if (count === 0) return "{}";
+        if (count > 10) {
+          fields.push(`... (${count - 10} more fields)`);
         }
         return `{ ${fields.join(", ")} }`;
       }

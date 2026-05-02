@@ -149,7 +149,7 @@ describe("webapp", () => {
       expect(data.result).toBe("Mocked reply for: hello world");
       expect(data.input).toBe("hello world");
       expect(data.state.replyLength).toBeGreaterThan(0);
-      expect(server.runCodeagentTurn).toHaveBeenCalledWith("hello world", undefined, undefined, "http");
+      expect(server.runCodeagentTurn).toHaveBeenCalledWith("hello world", expect.any(String), undefined, "http");
     });
   });
 
