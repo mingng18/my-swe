@@ -62,20 +62,27 @@ export class ConsolidationService {
 
       // Find and archive stale memories
       const staleMemories = await this.findStaleMemories(threadId);
-      for (const memory of staleMemories) {
+      if (staleMemories.length > 0) {
         try {
-          await this.repository.softDelete(memory.id!);
-          result.archived++;
+          // If the repository supports batch soft delete, use it to avoid N+1 queries
+          if (typeof (this.repository as any).softDeleteMany === "function") {
+            const ids = staleMemories.map((m) => m.id!).filter(Boolean);
+            if (ids.length > 0) {
+              await (this.repository as any).softDeleteMany(ids);
+              result.archived += ids.length;
+            }
+          } else {
+            // Fallback for older repository implementations
+            for (const memory of staleMemories) {
+              await this.repository.softDelete(memory.id!);
+              result.archived++;
+            }
+          }
         } catch (error) {
           const errorMsg =
             error instanceof Error ? error.message : String(error);
-          result.errors.push(
-            `Failed to archive stale memory ${memory.id}: ${errorMsg}`,
-          );
-          logger.error(
-            { error, memoryId: memory.id },
-            "Failed to archive stale memory",
-          );
+          result.errors.push(`Failed to archive stale memories: ${errorMsg}`);
+          logger.error({ error, threadId }, "Failed to archive stale memories");
         }
       }
 
@@ -265,8 +272,16 @@ export class ConsolidationService {
       });
 
       // Soft delete the duplicates
-      for (const memory of toDelete) {
-        await this.repository.softDelete(memory.id!);
+      if (typeof (this.repository as any).softDeleteMany === "function") {
+        const ids = toDelete.map((m) => m.id!).filter(Boolean);
+        if (ids.length > 0) {
+          await (this.repository as any).softDeleteMany(ids);
+        }
+      } else {
+        // Fallback
+        for (const memory of toDelete) {
+          await this.repository.softDelete(memory.id!);
+        }
       }
 
       result.merged = toDelete.length;

@@ -20,6 +20,6 @@
 ## 2024-11-20 - Optimize sequential file reads
 **Learning:** In Bun, optimizing sequential asynchronous file reads (like readFile in a loop) by mapping them directly into Promise.all yields significant performance gains (~20x faster) and safely handles typical application loads (e.g., thousands of files) concurrently without requiring explicit chunking or hitting EMFILE limits.
 **Action:** Always use Promise.all when reading multiple files independently instead of sequential await loops.
-## 2025-04-30 - Replace Object.entries with for...in for iteration performance
-**Learning:** In V8/Node.js environments, avoid using `Object.entries()` in performance-critical loops, as it allocates a new array of `[key, value]` pairs for every property. Instead, use `for...in` loops to iterate over object keys without intermediate array allocations.
-**Action:** Replace `Object.entries()` with `for...in` in hot paths such as loop iterations.
+## 2025-02-24 - Parallelize agent execution in commit-and-open-pr reviewers
+**Learning:** Sequential await loops over independent agent invocations introduce significant latency when calling out to LLMs or remote APIs. In this case, `await agent.invoke()` in a `for...of` loop caused reviewers to wait for the previous one to finish, resulting in an O(N) penalty.
+**Action:** Use `Promise.all` with `.map` to execute independent agent sub-tasks concurrently.
