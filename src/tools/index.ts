@@ -7,6 +7,7 @@ import { githubCommentTool } from "./github-comment";
 import { createGithubIssueTool } from "./create-github-issue";
 import { commentGithubIssueTool } from "./comment-github-issue";
 import { sandboxTools } from "./sandbox-shell";
+import { sandboxGrepTool } from "./sandbox-files";
 import {
   artifactQueryTool,
   artifactListTool,
@@ -48,6 +49,7 @@ export const allToolsUncompressed = [
   githubCommentTool,
   createGithubIssueTool,
   commentGithubIssueTool,
+  sandboxGrepTool,
   artifactQueryTool,
   artifactListTool,
   artifactDeleteTool,
