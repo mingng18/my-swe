@@ -89,56 +89,119 @@ export type SSEEvent =
   | ErrorEvent;
 
 // ============================================================================
-// SSE Emitter Class
+// SSE Stream Controller
 // ============================================================================
 
-export class SSEEmitter {
-  private controller: ReadableStreamDefaultController<any> | null = null;
+export class SSEStream {
   private encoder = new TextEncoder();
+  private controller: ReadableStreamDefaultController<Uint8Array> | null = null;
+  private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+  private stream: ReadableStream<Uint8Array> | null = null;
+  private pendingEvents: SSEEvent[] = [];
+  private initialized = false;
 
   /**
    * Create a new SSE stream
    */
-  createStream(): ReadableStream {
-    return new ReadableStream({
-      start: (controller) => {
-        this.controller = controller;
-        logger.debug("[SSE] Stream created");
+  create(): ReadableStream<Uint8Array> {
+    this.stream = new ReadableStream({
+      pull: (controller) => {
+        if (!this.initialized) {
+          this.controller = controller;
+          this.initialized = true;
+          logger.debug("[SSE] Stream pull called, controller initialized");
+
+          // Send initial comment to establish connection
+          try {
+            controller.enqueue(this.encoder.encode(": connected\n\n"));
+          } catch (error) {
+            logger.error({ error }, "[SSE] Failed to send initial comment");
+          }
+
+          // Emit any pending events
+          while (this.pendingEvents.length > 0) {
+            const event = this.pendingEvents.shift();
+            if (event) {
+              this.emit(event);
+            }
+          }
+
+          // Start heartbeat every 15 seconds to keep connection alive
+          this.heartbeatInterval = setInterval(() => {
+            if (this.controller) {
+              try {
+                controller.enqueue(this.encoder.encode(": heartbeat\n\n"));
+                logger.debug("[SSE] Heartbeat sent");
+              } catch (error) {
+                logger.error({ error }, "[SSE] Failed to send heartbeat");
+                this.stopHeartbeat();
+              }
+            }
+          }, 15000);
+        }
+        // Don't close the stream - let it stay open for SSE
       },
       cancel: () => {
-        this.controller = null;
         logger.debug("[SSE] Stream cancelled");
+        this.stopHeartbeat();
+        this.controller = null;
+        this.initialized = false;
       },
     });
+
+    // Keep a reference to prevent garbage collection
+    return this.stream;
   }
 
   /**
    * Emit an event to the SSE stream
    */
   emit(event: SSEEvent): void {
-    if (!this.controller) {
-      logger.debug("[SSE] No controller, cannot emit event");
+    // If controller isn't ready yet, queue the event
+    if (!this.controller || !this.initialized) {
+      logger.debug({ eventType: event.type }, "[SSE] Controller not ready, queuing event");
+      this.pendingEvents.push(event);
       return;
     }
 
-    const data = JSON.stringify(event);
-    const message = `data: ${data}\n\n`;
-    this.controller.enqueue(this.encoder.encode(message));
+    try {
+      const data = JSON.stringify(event);
+      const message = `data: ${data}\n\n`;
+      this.controller.enqueue(this.encoder.encode(message));
 
-    logger.debug(
-      { eventType: event.type },
-      `[SSE] Emitted event: ${event.type}`,
-    );
+      logger.debug(
+        { eventType: event.type },
+        `[SSE] Emitted event: ${event.type}`,
+      );
+    } catch (error) {
+      logger.error({ error }, "[SSE] Failed to emit event");
+    }
   }
 
   /**
    * End the SSE stream
    */
   end(): void {
+    this.stopHeartbeat();
     if (this.controller) {
-      this.controller.close();
+      try {
+        this.controller.close();
+      } catch (error) {
+        logger.error({ error }, "[SSE] Failed to close controller");
+      }
       this.controller = null;
-      logger.debug("[SSE] Stream ended");
+    }
+    this.stream = null;
+    logger.debug("[SSE] Stream ended");
+  }
+
+  /**
+   * Stop the heartbeat interval
+   */
+  private stopHeartbeat(): void {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
     }
   }
 
@@ -155,40 +218,123 @@ export class SSEEmitter {
 // ============================================================================
 
 interface StreamConnection {
-  stream: ReadableStream;
-  emitter: SSEEmitter;
+  stream: ReadableStream<Uint8Array>;
+  sseStream: SSEStream;
   threadId: string;
   createdAt: number;
+  clientConnectedAt?: number;
 }
 
 class StreamRegistry {
   private connections = new Map<string, StreamConnection>();
+  private eventBuffers = new Map<string, Array<{ event: SSEEvent; timestamp: number }>>();
+  private readonly BUFFER_TTL = 5000; // 5 seconds
+  private readonly MAX_BUFFER_SIZE = 100; // Max events to buffer per thread
 
   /**
    * Create a new stream for a thread
    */
-  createStream(threadId: string): ReadableStream {
+  createStream(threadId: string): ReadableStream<Uint8Array> {
     // Close existing stream for this thread if any
     this.closeStream(threadId);
 
-    const emitter = new SSEEmitter();
-    const stream = emitter.createStream();
+    const sseStream = new SSEStream();
+    const stream = sseStream.create();
 
     this.connections.set(threadId, {
       stream,
-      emitter,
+      sseStream,
       threadId,
       createdAt: Date.now(),
     });
+
+    logger.debug({ threadId }, "[SSE] Created new stream for thread");
 
     return stream;
   }
 
   /**
-   * Get emitter for a thread
+   * Mark a stream as having a connected client and replay buffered events
    */
-  getEmitter(threadId: string): SSEEmitter | undefined {
-    return this.connections.get(threadId)?.emitter;
+  markClientConnected(threadId: string): void {
+    const connection = this.connections.get(threadId);
+    if (connection && !connection.clientConnectedAt) {
+      connection.clientConnectedAt = Date.now();
+      logger.debug({ threadId }, "[SSE] Client connected, replaying buffered events");
+
+      // Replay any buffered events
+      const buffer = this.eventBuffers.get(threadId);
+      if (buffer && buffer.length > 0) {
+        const now = Date.now();
+        const validEvents = buffer.filter(e => now - e.timestamp < this.BUFFER_TTL);
+
+        logger.debug({ threadId, count: validEvents.length }, "[SSE] Replaying buffered events");
+
+        for (const { event } of validEvents) {
+          connection.sseStream.emit(event);
+        }
+
+        // Clear the buffer after replaying
+        if (validEvents.length === buffer.length) {
+          this.eventBuffers.delete(threadId);
+        } else {
+          this.eventBuffers.set(threadId, validEvents);
+        }
+      }
+    }
+  }
+
+  /**
+   * Emit an event, buffering it if no client is connected yet
+   */
+  emitEvent(threadId: string, event: SSEEvent): void {
+    const connection = this.connections.get(threadId);
+
+    if (!connection) {
+      // No stream exists yet, buffer the event
+      this.bufferEvent(threadId, event);
+      return;
+    }
+
+    const hasClient = connection.clientConnectedAt &&
+                        Date.now() - connection.clientConnectedAt < this.BUFFER_TTL;
+
+    if (!hasClient) {
+      // Stream exists but client not connected yet, buffer the event
+      this.bufferEvent(threadId, event);
+      return;
+    }
+
+    // Client is connected, emit directly
+    connection.sseStream.emit(event);
+  }
+
+  /**
+   * Buffer an event for later replay
+   */
+  private bufferEvent(threadId: string, event: SSEEvent): void {
+    let buffer = this.eventBuffers.get(threadId);
+    if (!buffer) {
+      buffer = [];
+      this.eventBuffers.set(threadId, buffer);
+    }
+
+    // Add event to buffer (with timestamp)
+    buffer.push({ event, timestamp: Date.now() });
+
+    // Prune old events and enforce size limit
+    const now = Date.now();
+    const validEvents = buffer.filter(e => now - e.timestamp < this.BUFFER_TTL);
+
+    if (validEvents.length > this.MAX_BUFFER_SIZE) {
+      // Keep only the most recent events
+      validEvents.splice(0, validEvents.length - this.MAX_BUFFER_SIZE);
+    }
+
+    this.eventBuffers.set(threadId, validEvents);
+
+    logger.debug({ threadId, eventType: event.type, bufferSize: validEvents.length },
+                  "[SSE] Buffered event (no client connected)");
   }
 
   /**
@@ -197,13 +343,14 @@ class StreamRegistry {
   closeStream(threadId: string): void {
     const connection = this.connections.get(threadId);
     if (connection) {
-      connection.emitter.end();
+      connection.sseStream.end();
       this.connections.delete(threadId);
+      // Keep event buffer for potential reconnection
     }
   }
 
   /**
-   * Clean up old streams (older than 1 hour)
+   * Clean up old streams (older than 1 hour) and their buffers
    */
   cleanup(): void {
     const now = Date.now();
@@ -211,9 +358,21 @@ class StreamRegistry {
 
     for (const [threadId, connection] of this.connections.entries()) {
       if (now - connection.createdAt > maxAge) {
-        connection.emitter.end();
+        connection.sseStream.end();
         this.connections.delete(threadId);
+        this.eventBuffers.delete(threadId); // Clean up buffer too
         logger.debug({ threadId }, "[SSE] Cleaned up old stream");
+      }
+    }
+
+    // Also clean up old event buffers for threads without connections
+    for (const [threadId, buffer] of this.eventBuffers.entries()) {
+      const hasConnection = this.connections.has(threadId);
+      const hasValidEvents = buffer.some(e => now - e.timestamp < this.BUFFER_TTL);
+
+      if (!hasConnection && !hasValidEvents) {
+        this.eventBuffers.delete(threadId);
+        logger.debug({ threadId }, "[SSE] Cleaned up old event buffer");
       }
     }
   }

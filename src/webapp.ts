@@ -5,6 +5,7 @@ import { cors } from "hono/cors";
 import { logger as httpLogger } from "hono/logger";
 
 import { runCodeagentTurn } from "./server";
+import { streamRegistry, type SSEEvent } from "./stream";
 import { isDuplicateMessage, sendChatAction } from "./utils/telegram";
 import { secureHeaders } from "hono/secure-headers";
 import { LRUCache } from "lru-cache";
@@ -156,7 +157,18 @@ const log = createLogger("webapp");
 const app = new Hono();
 
 // Middleware
-app.use("*", secureHeaders());
+// Note: secureHeaders with crossOriginResourcePolicy causes issues with SSE
+// so we selectively apply it, excluding cross-origin restrictive headers
+app.use("*", async (c, next) => {
+  // Set security headers manually, allowing cross-origin for SSE
+  c.header("X-Content-Type-Options", "nosniff");
+  c.header("X-Frame-Options", "SAMEORIGIN");
+  c.header("X-DNS-Prefetch-Control", "off");
+  c.header("Referrer-Policy", "no-referrer");
+  c.header("X-XSS-Protection", "0");
+  // Note: NOT setting Cross-Origin-Resource-Policy to allow SSE from dev server
+  await next();
+});
 app.use("*", httpLogger());
 
 // Apply rate limits to public webhooks and expensive endpoints
@@ -166,7 +178,16 @@ app.use("/v1/chat/completions", rateLimiter(20));
 app.use(
   "*",
   cors({
-    origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
+    origin: (origin) => {
+      const allowedOrigin = process.env.CORS_ALLOWED_ORIGIN;
+      if (process.env.NODE_ENV === "production") {
+        return allowedOrigin && origin === allowedOrigin ? origin : "";
+      }
+      if (!origin || /^http:\/\/(localhost|127\.0\.0\.1):(3000|3001)$/.test(origin)) {
+        return origin;
+      }
+      return allowedOrigin && origin === allowedOrigin ? origin : "";
+    },
     allowMethods: ["POST", "GET", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization", "X-User-Id"],
   }),
@@ -175,8 +196,8 @@ app.use(
 // Authentication Middleware
 app.use(async (c, next) => {
   const path = c.req.path;
-  // Skip auth for public endpoints like webhooks and health checks
-  if (path.startsWith("/webhook/") || path === "/health" || path === "/info") {
+  // Skip auth for public endpoints like webhooks, health checks, and stream
+  if (path.startsWith("/webhook/") || path === "/health" || path === "/info" || path === "/stream") {
     return next();
   }
   const secret = process.env.API_SECRET_KEY;
@@ -238,7 +259,7 @@ app.get("/info", (c) => {
  */
 app.post("/run", async (c) => {
   try {
-    const { input, threadId } = await c.req.json();
+    const { input, threadId: clientThreadId } = await c.req.json();
     const userId = c.req.header("X-User-Id") || undefined;
 
     if (typeof input !== "string" || !input.trim()) {
@@ -248,9 +269,13 @@ app.post("/run", async (c) => {
       );
     }
 
+    // Use client-provided threadId or generate a new one
+    const threadId = clientThreadId ?? crypto.randomUUID();
+
     const out = await runCodeagentTurn(input, threadId, userId, "http");
 
     return c.json({
+      threadId,
       result: out,
       input,
       state: {
@@ -730,6 +755,39 @@ app.get("/metrics", async (c) => {
       500,
     );
   }
+});
+
+/**
+ * SSE stream endpoint for real-time agent execution events
+ * GET /stream?threadId=:threadId
+ */
+app.get("/stream", async (c) => {
+  const threadId = c.req.query("threadId") || "default-session";
+
+  // Create SSE stream
+  const stream = streamRegistry.createStream(threadId);
+
+  // Mark client as connected and emit initial event
+  streamRegistry.markClientConnected(threadId);
+
+  // Emit a session_start event to confirm connection
+  streamRegistry.emitEvent(threadId, {
+    type: "session_start",
+    threadId,
+    timestamp: Date.now(),
+  });
+
+  // Return Response with stream directly
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      "Connection": "keep-alive",
+      "X-Accel-Buffering": "no", // Disable nginx buffering
+      "Access-Control-Allow-Origin": c.req.header("Origin") || "*",
+      "Vary": "Origin",
+    },
+  });
 });
 
 /**

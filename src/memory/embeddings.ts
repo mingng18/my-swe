@@ -15,7 +15,8 @@ export class EmbeddingService {
 
   constructor() {
     this.apiKey = process.env.OPENAI_API_KEY?.trim() || "";
-    this.baseUrl = process.env.OPENAI_BASE_URL?.trim() || "https://api.openai.com/v1";
+    this.baseUrl =
+      process.env.OPENAI_BASE_URL?.trim() || "https://api.openai.com/v1";
 
     if (!this.apiKey) {
       throw new Error("OPENAI_API_KEY environment variable is required");
@@ -55,7 +56,7 @@ export class EmbeddingService {
     if (validTexts.length > MAX_BATCH_SIZE) {
       logger.warn(
         { requested: validTexts.length, max: MAX_BATCH_SIZE },
-        "Batch size exceeds maximum, splitting into multiple requests"
+        "Batch size exceeds maximum, splitting into multiple requests",
       );
       const results: number[][] = [];
       for (let i = 0; i < validTexts.length; i += MAX_BATCH_SIZE) {
@@ -93,10 +94,10 @@ export class EmbeddingService {
         const errorText = await response.text();
         logger.error(
           { status: response.status, error: errorText },
-          "OpenAI API error"
+          "OpenAI API error",
         );
         throw new Error(
-          `OpenAI API error: ${response.status} ${response.statusText}`
+          `OpenAI API error: ${response.status} ${response.statusText}`,
         );
       }
 

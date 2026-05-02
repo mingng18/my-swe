@@ -380,17 +380,12 @@ describe("ConsolidationService", () => {
 
     const saved = await repository.saveBatch(memories);
 
-    // Debug: check if memories were saved with embeddings
-    console.log("Saved memories:", saved.length);
-    console.log("Memory 1 embedding length:", saved[0]?.embedding?.length);
-    console.log("Memory 2 embedding length:", saved[1]?.embedding?.length);
 
     // With high threshold (0.95), should find duplicates since similarity is 1.0
     const highThreshold = await consolidationService.findDuplicates(
       testThreadId,
       0.95,
     );
-    console.log("High threshold groups:", highThreshold.length);
     expect(highThreshold.length).toBeGreaterThan(0);
 
     // With even higher threshold (1.0), should still find duplicates

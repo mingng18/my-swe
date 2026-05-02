@@ -65,11 +65,55 @@ import { builtInSubagents } from "../subagents/registry";
 import { loadRepoAgents, mergeSubagents } from "../subagents/agentsLoader";
 import { asyncSubagents } from "../subagents/async";
 import { type BaseMessage, type ToolCall } from "@langchain/core/messages";
+import { streamRegistry, type SSEEvent } from "../stream";
 
 const logger = createLogger("deepagents");
 
+// ============================================================================
+// SSE Event Emission Helpers
+// ============================================================================
+
+/**
+ * Emit an event to the SSE stream for a thread
+ * Uses buffering to handle cases where client hasn't connected yet
+ */
+function emitStreamEvent(threadId: string, event: SSEEvent): void {
+  streamRegistry.emitEvent(threadId, event);
+}
+
+/**
+ * Emit todo events (called by middleware)
+ */
+export function emitTodoEvent(
+  threadId: string,
+  event:
+    | { type: "add"; id: string; subject: string; status: string }
+    | { type: "update"; id: string; status: string }
+    | { type: "complete"; id: string },
+): void {
+  if (event.type === "add") {
+    emitStreamEvent(threadId, {
+      type: "todo_added",
+      id: event.id,
+      subject: event.subject,
+      status: event.status as "pending" | "in_progress" | "completed",
+    });
+  } else if (event.type === "update") {
+    emitStreamEvent(threadId, {
+      type: "todo_updated",
+      id: event.id,
+      status: event.status as "pending" | "in_progress" | "completed",
+    });
+  } else if (event.type === "complete") {
+    emitStreamEvent(threadId, {
+      type: "todo_completed",
+      id: event.id,
+    });
+  }
+}
+
 const useSandbox = process.env.USE_SANDBOX === "true";
-const AGENT_RECURSION_LIMIT = Number.parseInt(process.env.AGENT_RECURSION_LIMIT || "100", 10);
+const AGENT_RECURSION_LIMIT = Number.parseInt(process.env.AGENT_RECURSION_LIMIT || "1000", 10);
 let hasLoadedPersistedRepos = false;
 
 // ============================================================================
@@ -829,12 +873,19 @@ export class DeepAgentWrapper implements AgentHarness {
     options?: AgentInvokeOptions,
   ): Promise<AgentResponse> {
     const startTime = Date.now();
+    const threadId = options?.threadId || "default-session";
     try {
-      const threadId = options?.threadId || "default-session";
+      // Emit session start
+      emitStreamEvent(threadId, {
+        type: "session_start",
+        threadId,
+        timestamp: Date.now(),
+      });
+
       let { agent, configurable } = await this.prepareAgent(input, threadId);
       const activeRepo = threadManager.getRepo(threadId);
       if (activeRepo) {
-        
+
       }
 
       // Mark thread as accessed in cleanup scheduler
@@ -1011,6 +1062,15 @@ If you need to make additional changes, continue working and they'll be added to
           });
         }
 
+        // Emit LLM start
+        const modelConfig = loadModelConfig();
+        const model = modelConfig.model || "unknown";
+        emitStreamEvent(threadId, {
+          type: "llm_start",
+          model,
+          timestamp: Date.now(),
+        });
+
         result = traceTerminal
           ? await runDeepAgentWithStreamTrace(
               agent,
@@ -1024,12 +1084,31 @@ If you need to make additional changes, continue working and they'll be added to
                 recursionLimit: AGENT_RECURSION_LIMIT,
               },
             );
+
+        // Calculate tokens (rough estimate)
+        const messagesAfter = result.messages || [];
+        const totalTokens = JSON.stringify(messagesAfter).length / 4; // Rough estimate
+
+        // Emit LLM end
+        emitStreamEvent(threadId, {
+          type: "llm_end",
+          totalTokens: Math.round(totalTokens),
+          timestamp: Date.now(),
+        });
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
         logger.error(
           { threadId, elapsedMs: Date.now() - agentStart, message: errorMsg },
           "[deepagents] Invoke failed",
         );
+
+        // Emit error event
+        emitStreamEvent(threadId, {
+          type: "error",
+          message: errorMsg,
+          timestamp: Date.now(),
+        });
+
         return {
           reply:
             "The coding model encountered an error. Please retry shortly or switch to a different MODEL/provider.",
@@ -1115,6 +1194,35 @@ If you need to make additional changes, continue working and they'll be added to
             );
           },
         );
+      }
+
+      // Emit tool call events
+      for (const msg of messages) {
+        if (msg.tool_calls && Array.isArray(msg.tool_calls)) {
+          for (const tc of msg.tool_calls) {
+            emitStreamEvent(threadId, {
+              type: "tool_call",
+              tool: tc.name || "unknown",
+              args: tc.args || {},
+              timestamp: Date.now(),
+            });
+          }
+        }
+
+        // Emit tool result events
+        if ((msg.type === "tool" || msg.role === "tool") && msg.name) {
+          const content =
+            typeof msg.content === "string"
+              ? msg.content
+              : JSON.stringify(msg.content);
+          emitStreamEvent(threadId, {
+            type: "tool_result",
+            tool: String(msg.name),
+            result: content,
+            duration: 0, // We don't have individual tool timing
+            timestamp: Date.now(),
+          });
+        }
       }
 
       const responseText =
@@ -1232,6 +1340,13 @@ If you need to make additional changes, continue working and they'll be added to
         void flushLangfuse();
       }
 
+      // Emit session end
+      emitStreamEvent(threadId, {
+        type: "session_end",
+        threadId,
+        timestamp: Date.now(),
+      });
+
       return {
         reply: responseText,
         messages,
@@ -1243,6 +1358,13 @@ If you need to make additional changes, continue working and they'll be added to
         { err: e, message: errorMsg, stack: errorStack },
         `[deepagents] Invoke error after ${Date.now() - startTime}ms`,
       );
+
+      // Emit error event
+      emitStreamEvent(threadId, {
+        type: "error",
+        message: errorMsg,
+        timestamp: Date.now(),
+      });
 
       // Flush Langfuse traces even on error (non-blocking)
       if (isLangfuseEnabled()) {
