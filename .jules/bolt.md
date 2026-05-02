@@ -20,3 +20,6 @@
 ## 2024-11-20 - Optimize sequential file reads
 **Learning:** In Bun, optimizing sequential asynchronous file reads (like readFile in a loop) by mapping them directly into Promise.all yields significant performance gains (~20x faster) and safely handles typical application loads (e.g., thousands of files) concurrently without requiring explicit chunking or hitting EMFILE limits.
 **Action:** Always use Promise.all when reading multiple files independently instead of sequential await loops.
+## 2025-02-24 - Parallelize agent execution in commit-and-open-pr reviewers
+**Learning:** Sequential await loops over independent agent invocations introduce significant latency when calling out to LLMs or remote APIs. In this case, `await agent.invoke()` in a `for...of` loop caused reviewers to wait for the previous one to finish, resulting in an O(N) penalty.
+**Action:** Use `Promise.all` with `.map` to execute independent agent sub-tasks concurrently.
