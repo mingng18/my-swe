@@ -25,10 +25,7 @@ function createMockEmbedding(text: string, dimension: number = 1536): number[] {
 }
 
 function setupMockFetch() {
-  mockFetch = mock(async (
-    url: string | Request,
-    options?: RequestInit,
-  ) => {
+  mockFetch = mock(async (url: string | Request, options?: RequestInit) => {
     const urlStr = typeof url === "string" ? url : url.toString();
 
     if (urlStr.includes("/embeddings")) {

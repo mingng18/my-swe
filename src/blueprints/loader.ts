@@ -91,7 +91,10 @@ export class BlueprintLoader {
     if (!blueprint.initialState) errors.push("Missing 'initialState'");
     if (!blueprint.states) errors.push("Missing 'states'");
     if (blueprint.states) {
-      for (const [stateId, state] of Object.entries(blueprint.states)) {
+      // ⚡ Bolt: Replace Object.entries with for...in to avoid intermediate array allocations
+      for (const stateId in blueprint.states) {
+        if (!Object.prototype.hasOwnProperty.call(blueprint.states, stateId)) continue;
+        const state = blueprint.states[stateId];
         if (!state.type) errors.push(`State '${stateId}': missing 'type'`);
         if (state.type === "agent") {
           if (!state.config)

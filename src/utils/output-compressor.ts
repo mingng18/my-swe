@@ -315,20 +315,21 @@ export function extractJsonSchema(input: string): string {
         return `Array[${value.length}] of ${elemType}`;
       }
       if (typeof value === "object") {
-        const obj = value as Record<string, unknown>;
         const fields: string[] = [];
         let count = 0;
-        let hasKeys = false;
-        for (const k in obj) {
-          if (!Object.prototype.hasOwnProperty.call(obj, k)) continue;
-          hasKeys = true;
-          if (count < 10) {
-            const t = extractType(obj[k], depth + 1, maxDepth);
+        const record = value as Record<string, unknown>;
+
+        // ⚡ Bolt: Replace Object.entries with for...in to avoid intermediate array allocations in hot path
+        for (const k in record) {
+          if (!Object.prototype.hasOwnProperty.call(record, k)) continue;
+          count++;
+          if (fields.length < 10) {
+            const t = extractType(record[k], depth + 1, maxDepth);
             fields.push(`"${k}": ${t}`);
           }
-          count++;
         }
-        if (!hasKeys) return "{}";
+
+        if (count === 0) return "{}";
         if (count > 10) {
           fields.push(`... (${count - 10} more fields)`);
         }
