@@ -5,37 +5,50 @@ describe("multimodal benchmark", () => {
   const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
-    // Mock fetch to simulate network delay
-    globalThis.fetch = (mock(async (url: string) => {
-      // Simulate 100ms network latency
-      await new Promise(resolve => setTimeout(resolve, 100));
-      return {
-        ok: true,
-        arrayBuffer: async () => new ArrayBuffer(0),
-        headers: {
-          get: () => "image/png"
-        }
-      } as any;
-    }) as unknown) as typeof fetch;
+    // We now use undici for fetching in multimodal, so we need to mock undici fetch
+    mock.module("undici", () => ({
+      fetch: async (url: string) => {
+        // Simulate 100ms network latency
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        return {
+          ok: true,
+          arrayBuffer: async () => new ArrayBuffer(0),
+          headers: {
+            get: () => "image/png",
+          },
+        } as any;
+      },
+      Agent: class {
+        destroy() {}
+      },
+    }));
+
+    // We also need to mock dns.lookup to return a valid IP address for the tests
+    mock.module("node:dns", () => ({
+      lookup: (hostname: string, callback: any) => {
+        callback(null, "8.8.8.8", 4);
+      },
+    }));
   });
 
   afterEach(() => {
-    globalThis.fetch = originalFetch;
+    mock.restore();
   });
 
   test("benchmark buildBlocksFromPayload with multiple images", async () => {
-    const urls = Array.from({ length: 5 }, (_, i) => `http://example.com/image${i}.png`);
+    const urls = Array.from(
+      { length: 5 },
+      (_, i) => `http://example.com/image${i}.png`,
+    );
 
     const start = performance.now();
     const blocks = await buildBlocksFromPayload({
       text: "Test",
-      image_urls: urls
+      image_urls: urls,
     });
     const end = performance.now();
 
     const duration = end - start;
-    console.log(`\nBenchmark Result:`);
-    console.log(`Duration for 5 images: ${duration.toFixed(2)}ms`);
 
     expect(blocks.length).toBe(6); // 1 text + 5 images
     // Currently sequential, so 5 * 100ms = ~500ms
