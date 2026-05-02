@@ -1,7 +1,14 @@
+import { fetch as undiciFetch } from "undici";
 import { test, expect, describe, mock, beforeEach, afterEach } from "bun:test";
 import { buildBlocksFromPayload, fetchImageBlock } from "../multimodal";
 
 describe("multimodal benchmark", () => {
+  const mockUndiciFetch = mock();
+mock.module("undici", () => ({
+  fetch: mockUndiciFetch,
+  Agent: class {}
+}));
+
   const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
