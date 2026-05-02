@@ -367,7 +367,6 @@ export async function defaultEscalationHandler(
           }),
         },
       );
-      console.log("[Blueprint Escalation] Admin notified via Telegram.");
     }
   } catch (err) {
     console.error(
@@ -427,7 +426,6 @@ export function initializeMemoryServices(): void {
         EmbeddingService.cosineSimilarity(a, b),
     });
 
-    console.log("[Memory] Services initialized successfully");
   } catch (error) {
     console.error("[Memory] Failed to initialize services:", error);
     // Don't throw - allow the server to start without memory
