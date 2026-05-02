@@ -5,6 +5,7 @@
 import { createLogger } from "./logger";
 import * as dns from "node:dns";
 import { promisify } from "node:util";
+import { Agent, fetch as undiciFetch } from "undici";
 
 const lookupAsync = promisify(dns.lookup);
 
@@ -38,6 +39,9 @@ export async function fetchImageBlock(
     }
 
     let parsedUrl: URL;
+    let safeAgent: Agent | null = null;
+    let normalizedAddress = "";
+
     try {
       parsedUrl = new URL(imageUrl);
       if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
@@ -47,7 +51,7 @@ export async function fetchImageBlock(
 
       const { address } = await lookupAsync(parsedUrl.hostname);
       // Normalize IPv4-mapped IPv6 addresses for accurate checking
-      let normalizedAddress = address.toLowerCase();
+      normalizedAddress = address.toLowerCase();
       normalizedAddress = normalizedAddress.replace(
         /^((?:0+:)+|(?:0+:)*:+(?:0+:)*)ffff:/,
         "",
@@ -72,6 +76,15 @@ export async function fetchImageBlock(
         );
         return null;
       }
+
+      safeAgent = new Agent({
+        connect: {
+          lookup: (hostname, options, callback) => {
+            const family = normalizedAddress.includes(":") ? 6 : 4;
+            callback(null, [{ address: normalizedAddress, family }]);
+          },
+        },
+      });
     } catch (e) {
       logger.warn(
         { imageUrl, error: e },
@@ -80,24 +93,33 @@ export async function fetchImageBlock(
       return null;
     }
 
-    // Fetch external image and convert to base64
-    const response = await fetch(imageUrl);
-    if (!response.ok) {
-      logger.warn(
-        { imageUrl, status: response.statusText },
-        "Failed to fetch image",
-      );
-      return null;
+    try {
+      // Fetch external image and convert to base64
+      const response = await undiciFetch(imageUrl, {
+        dispatcher: safeAgent,
+      });
+
+      if (!response.ok) {
+        logger.warn(
+          { imageUrl, status: response.statusText },
+          "Failed to fetch image",
+        );
+        return null;
+      }
+
+      const buffer = await response.arrayBuffer();
+      const base64 = Buffer.from(buffer).toString("base64");
+      const mimeType = response.headers.get("content-type") || "image/png";
+
+      return {
+        type: "image",
+        image_url: { url: `data:${mimeType};base64,${base64}` },
+      };
+    } finally {
+      if (safeAgent) {
+        await safeAgent.destroy();
+      }
     }
-
-    const buffer = await response.arrayBuffer();
-    const base64 = Buffer.from(buffer).toString("base64");
-    const mimeType = response.headers.get("content-type") || "image/png";
-
-    return {
-      type: "image",
-      image_url: { url: `data:${mimeType};base64,${base64}` },
-    };
   } catch (error) {
     logger.warn({ imageUrl, error }, "Error fetching image");
     return null;
