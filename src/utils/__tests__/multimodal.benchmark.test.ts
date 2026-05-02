@@ -49,8 +49,6 @@ describe("multimodal benchmark", () => {
     const end = performance.now();
 
     const duration = end - start;
-    console.log(`\nBenchmark Result:`);
-    console.log(`Duration for 5 images: ${duration.toFixed(2)}ms`);
 
     expect(blocks.length).toBe(6); // 1 text + 5 images
     // Currently sequential, so 5 * 100ms = ~500ms
