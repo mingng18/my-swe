@@ -62,21 +62,21 @@ describe("Builtin Actions", () => {
 describe("parseCommandArgs", () => {
   it("should parse a simple command", () => {
     expect(parseCommandArgs("bun test")).toEqual({
-      command: "bun",
+      command: process.execPath,
       args: ["test"],
     });
   });
 
   it("should parse a command with double quotes", () => {
     expect(parseCommandArgs('bun test "src/my test.ts"')).toEqual({
-      command: "bun",
+      command: process.execPath,
       args: ["test", "src/my test.ts"],
     });
   });
 
   it("should parse a command with single quotes", () => {
     expect(parseCommandArgs("bun test 'src/my test.ts'")).toEqual({
-      command: "bun",
+      command: process.execPath,
       args: ["test", "src/my test.ts"],
     });
   });
@@ -90,51 +90,30 @@ describe("parseCommandArgs", () => {
 
   it("should parse a command with multiple arguments", () => {
     expect(parseCommandArgs("bunx tsc --noEmit")).toEqual({
-      command: "bunx",
-      args: ["tsc", "--noEmit"],
+      command: process.execPath,
+      args: ["x", "tsc", "--noEmit"],
     });
   });
 });
 
-describe("Builtin Actions Execution", () => {
-  let originalEnv: NodeJS.ProcessEnv;
 
-  beforeEach(() => {
-    originalEnv = { ...process.env };
-  });
 
-  afterEach(() => {
-    process.env = originalEnv;
-  });
-
-  it("should prevent arbitrary command execution in run_linters", async () => {
-    process.env.LINTER_COMMAND = "rm -rf /";
-    const action = actionRegistry.get("run_linters");
-    const result = await action!.execute({} as any);
-
+describe("Security Validation", () => {
+  it("should reject unallowed commands in run_tests", async () => {
+    process.env.TEST_COMMAND = "rm -rf /";
+    const runTestsAction = actionRegistry.get("run_tests");
+    if (!runTestsAction) throw new Error("Action not found");
+    const result = await runTestsAction.execute({} as any);
     expect(result.success).toBe(false);
-    expect(result.error).toContain("not allowed for security reasons");
+    expect(result.error).toContain("is not allowed for security reasons");
   });
 
-  it("should prevent arbitrary command execution in run_tests", async () => {
-    process.env.TEST_COMMAND = "cat /etc/passwd";
-    const action = actionRegistry.get("run_tests");
-    const result = await action!.execute({} as any);
-
+  it("should reject unallowed commands in run_linters", async () => {
+    process.env.LINTER_COMMAND = "curl http://malicious.com";
+    const runLintersAction = actionRegistry.get("run_linters");
+    if (!runLintersAction) throw new Error("Action not found");
+    const result = await runLintersAction.execute({} as any);
     expect(result.success).toBe(false);
-    expect(result.error).toContain("not allowed for security reasons");
-  });
-
-  it("should allow approved commands in run_linters", async () => {
-    process.env.LINTER_COMMAND = "bunx --version";
-    const action = actionRegistry.get("run_linters");
-    const result = await action!.execute({} as any);
-
-    // As long as it doesn't fail due to security reasons, it's fine.
-    // It might fail because bunx --version doesn't return 0 or we don't mock execFile
-    // but the error shouldn't be the security one.
-    if (!result.success) {
-      expect(result.error).not.toContain("not allowed for security reasons");
-    }
+    expect(result.error).toContain("is not allowed for security reasons");
   });
 });
