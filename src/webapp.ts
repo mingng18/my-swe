@@ -178,12 +178,16 @@ app.use("/v1/chat/completions", rateLimiter(20));
 app.use(
   "*",
   cors({
-    origin: [
-      "http://localhost:3000",
-      "http://127.0.0.1:3000",
-      "http://localhost:3001",
-      "http://127.0.0.1:3001",
-    ],
+    origin: (origin) => {
+      const allowedOrigin = process.env.CORS_ALLOWED_ORIGIN;
+      if (process.env.NODE_ENV === "production") {
+        return allowedOrigin && origin === allowedOrigin ? origin : "";
+      }
+      if (!origin || /^http:\/\/(localhost|127\.0\.0\.1):(3000|3001)$/.test(origin)) {
+        return origin;
+      }
+      return allowedOrigin && origin === allowedOrigin ? origin : "";
+    },
     allowMethods: ["POST", "GET", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization", "X-User-Id"],
   }),

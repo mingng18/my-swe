@@ -92,9 +92,9 @@ export function ThreadTabs({ className }: ThreadTabsProps) {
               </div>
               <button
                 type="button"
-                onClick={(e) => handleClose(e, threadId)}
                 aria-label="Close thread"
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 h-5 w-5 p-0 opacity-0 group-hover:opacity-100 hover:bg-destructive/20 hover:text-destructive transition-all rounded-md flex items-center justify-center"
+                onClick={(e) => handleClose(e, threadId)}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 h-5 w-5 p-0 opacity-0 group-hover:opacity-100 hover:bg-destructive/20 hover:text-destructive focus-visible:opacity-100 focus-visible:ring-2 focus-visible:outline-none transition-all rounded-md flex items-center justify-center"
               >
                 <X className="h-3 w-3" />
               </button>
