@@ -12,7 +12,7 @@
 **Learning:** `timingSafeEqual` requires buffers of the exact same length. If lengths differ, it throws an error in Node.js. To safely handle variable length inputs without leaking length via early returns, one must use an HMAC with a constant length, or pad buffers. However, the most secure pattern for string comparison is to hash both strings using a strong algorithm (like SHA-256) and then compare the hashes using `timingSafeEqual`.
 **Prevention:** When comparing secrets (like API tokens) of variable or unknown length against a known secret, hash both the user-provided token and the expected secret using `crypto.createHash('sha256')`, then compare the resulting fixed-length hashes (which will always be 32 bytes) using `crypto.timingSafeEqual`.
 
-## 2024-05-18 - Potential Command Injection via execFile
-**Vulnerability:** The code previously used `execFileAsync("bun", ...)` and `execFileAsync("bunx", ...)` which relies on the PATH environment variable to resolve the executable. This exposes the application to command injection if an attacker can manipulate the PATH to point to a malicious binary.
-**Learning:** `child_process.execFile` executes files without a shell, but still relies on PATH resolution if given a relative or bare command name. Relying on user environment variables like PATH is risky.
-**Prevention:** Always use absolute paths for executables when using `execFile`, especially for core runtime binaries. For Node/Bun, use `process.execPath` instead of relying on the environment PATH.
+## 2025-02-28 - [SSRF TOCTOU via DNS Rebinding in Fetch]
+**Vulnerability:** Global fetch() re-resolves DNS, leading to Time-Of-Check to Time-Of-Use (TOCTOU) SSRF when fetching external images.
+**Learning:** DNS resolution checks (like `dns.lookup`) followed by `fetch()` are insecure. The IP can change between the check and the actual fetch, bypassing the validation.
+**Prevention:** Use `undici.fetch` with a custom `Agent` and override its `lookup` method to pin the exact, pre-validated IP address, ensuring it uses the checked IP. Always destroy the agent after use.
