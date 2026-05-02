@@ -68,26 +68,33 @@ async function runPreCommitReview(
   const { builtInSubagents } = await import("../subagents/registry");
 
   const allIssues: any[] = [];
-  for (const reviewerName of reviewersToRun) {
-    try {
-      const reviewer = builtInSubagents.find((a) => a.name === reviewerName);
-      if (!reviewer) continue;
+  await Promise.all(
+    reviewersToRun.map(async (reviewerName) => {
+      try {
+        const reviewer = builtInSubagents.find((a) => a.name === reviewerName);
+        if (!reviewer) return;
 
-      const agent = createDeepAgent({ subagents: [reviewer] });
-      const prompt = `Review staged files for issues.\\n\\nFiles: ${changedFiles.join("\\n")}\\n\\nRun git diff --staged to see changes.`;
+        const agent = createDeepAgent({ subagents: [reviewer] });
+        const prompt = `Review staged files for issues.\\n\\nFiles: ${changedFiles.join("\\n")}\\n\\nRun git diff --staged to see changes.`;
 
-      const result = await agent.invoke(
-        { messages: [{ role: "user", content: prompt }] },
-        { configurable: { thread_id: `pre-commit-${Date.now()}` } },
-      );
+        const result = await agent.invoke(
+          { messages: [{ role: "user", content: prompt }] },
+          {
+            configurable: {
+              thread_id: `pre-commit-${Date.now()}-${reviewerName}`,
+            },
+          },
+        );
 
-      const output = result.messages[result.messages.length - 1]?.content || "";
-      const issues = parseReviewerOutput(String(output));
-      allIssues.push(...issues);
-    } catch (err) {
-      logger.warn({ err }, `[pre-commit] Reviewer ${reviewerName} failed`);
-    }
-  }
+        const output =
+          result.messages[result.messages.length - 1]?.content || "";
+        const issues = parseReviewerOutput(String(output));
+        allIssues.push(...issues);
+      } catch (err) {
+        logger.warn({ err }, `[pre-commit] Reviewer ${reviewerName} failed`);
+      }
+    }),
+  );
 
   const criticalFound = hasCriticalIssues(allIssues);
   const summary = `Pre-commit: ${allIssues.length} issue(s) (${allIssues.filter((i) => i.severity === "CRITICAL").length} CRITICAL)`;

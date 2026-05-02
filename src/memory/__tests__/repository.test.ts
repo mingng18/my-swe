@@ -19,8 +19,45 @@ class MockSupabaseClient implements SupabaseClient {
     // Extract ID from URL if present (check both pathname and search params)
     const idMatch = url.match(/id=eq\.([^&]+)/);
     const threadIdMatch = url.match(/thread_id=eq\.([^&]+)/);
+    const threadsInMatch = url.match(/thread_id=in\.\(([^)]+)\)/);
 
     if (method === "GET") {
+      if (threadsInMatch) {
+        const threadIds = threadsInMatch[1]
+          .split(",")
+          .map((id) => decodeURIComponent(id));
+        const memories = Array.from(this.memories.values()).filter(
+          (m: any) =>
+            threadIds.includes(m.thread_id || m.threadId) &&
+            m.is_active !== false &&
+            m.isActive !== false,
+        );
+
+        // Check for type filter
+        const orParam = params.get("or");
+        if (orParam) {
+          const types = orParam
+            .match(/type\.eq\.([^,)]+)/g)
+            ?.map((t: string) => t.replace("type.eq.", ""));
+          if (types) {
+            return new Response(
+              JSON.stringify(
+                memories.filter((m: any) => types.includes(m.type)),
+              ),
+              {
+                status: 200,
+                headers: { "content-type": "application/json" },
+              },
+            );
+          }
+        }
+
+        return new Response(JSON.stringify(memories), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+
       // Check thread_id first to avoid conflict with id regex
       if (threadIdMatch) {
         const threadId = decodeURIComponent(threadIdMatch[1]);
@@ -174,6 +211,50 @@ describe("MemoryRepository", () => {
     expect(retrieved).toBeDefined();
     expect(retrieved?.title).toBe("Test feedback");
     expect(retrieved?.content).toBe("Do not mock database");
+  });
+
+  it("should get memories by multiple threads", async () => {
+    const memory1: Memory = {
+      threadId: "multi-thread-1",
+      type: "user",
+      title: "Thread 1",
+      content: "Content 1",
+      metadata: {},
+    };
+
+    const memory2: Memory = {
+      threadId: "multi-thread-2",
+      type: "project",
+      title: "Thread 2",
+      content: "Content 2",
+      metadata: {},
+    };
+
+    const memory3: Memory = {
+      threadId: "multi-thread-3",
+      type: "user",
+      title: "Thread 3",
+      content: "Content 3",
+      metadata: {},
+    };
+
+    await repo.saveBatch([memory1, memory2, memory3]);
+
+    const results = await repo.getByThreads([
+      "multi-thread-1",
+      "multi-thread-2",
+    ]);
+    expect(results).toHaveLength(2);
+    expect(results.map((r) => r.threadId).sort()).toEqual(
+      ["multi-thread-1", "multi-thread-2"].sort(),
+    );
+
+    const resultsWithFilter = await repo.getByThreads(
+      ["multi-thread-1", "multi-thread-2", "multi-thread-3"],
+      ["project"],
+    );
+    expect(resultsWithFilter).toHaveLength(1);
+    expect(resultsWithFilter[0].threadId).toBe("multi-thread-2");
   });
 
   it("should search memories by thread", async () => {
