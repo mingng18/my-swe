@@ -149,6 +149,33 @@ export class MemoryRepository {
   }
 
   /**
+   * Soft delete multiple memories (mark as inactive)
+   */
+  async softDeleteMany(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+
+    // We can use the PostgREST in. filter to update multiple rows
+    const url = `${this.supabaseUrl}/rest/v1/${this.tableName}?id=in.(${ids.map((id) => encodeURIComponent(id)).join(",")})`;
+    const res = await this.client.fetch(url, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify({ is_active: false }),
+    });
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      logger.warn(
+        { status: res.status, body },
+        "Failed to batch update memories",
+      );
+      throw new Error("Failed to soft delete multiple memories");
+    }
+  }
+
+  /**
    * Permanently delete a memory
    */
   async delete(id: string): Promise<void> {
