@@ -1,0 +1,16 @@
+{
+  "target": "src/",
+  "status": "in_progress",
+  "flags": {
+    "security_focus": false,
+    "performance_critical": false,
+    "strict_mode": false,
+    "framework": null
+  },
+  "current_step": 1,
+  "current_phase": 1,
+  "completed_steps": [],
+  "files_created": [],
+  "started_at": "2026-04-26T14:29:00Z",
+  "last_updated": "2026-04-26T14:29:00Z"
+}
