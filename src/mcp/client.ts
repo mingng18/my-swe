@@ -44,8 +44,10 @@ function expandEnvVarsRecursive(obj: any): any {
   }
   if (obj && typeof obj === "object") {
     const result: any = {};
-    for (const [key, value] of Object.entries(obj)) {
-      result[key] = expandEnvVarsRecursive(value);
+    // ⚡ Bolt: Replace Object.entries with for...in to avoid intermediate array allocations
+    for (const key in obj) {
+      if (!Object.prototype.hasOwnProperty.call(obj, key)) continue;
+      result[key] = expandEnvVarsRecursive(obj[key]);
     }
     return result;
   }

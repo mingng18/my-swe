@@ -187,7 +187,11 @@ function buildZodSchemaFromJsonSchema(jsonSchema: any): z.ZodTypeAny {
   if (schemaType === "object" && properties) {
     const shape: Record<string, z.ZodTypeAny> = {};
 
-    for (const [propName, propSchema] of Object.entries(properties as any)) {
+    // ⚡ Bolt: Replace Object.entries with for...in to avoid intermediate array allocations
+    const props = properties as any;
+    for (const propName in props) {
+      if (!Object.prototype.hasOwnProperty.call(props, propName)) continue;
+      const propSchema = props[propName];
       let fieldSchema = convertJsonSchemaToZod(propSchema);
 
       // Make optional if not in required array
