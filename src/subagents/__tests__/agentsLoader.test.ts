@@ -87,4 +87,41 @@ System prompt here`;
     const explore = merged.find(a => a.name === "explore-agent");
     expect(explore?.description).toBe("Custom explore");
   });
+
+  it("should handle directory read errors (other than ENOENT)", async () => {
+    // Create a file and try to read it as a directory, which throws ENOTDIR
+    const testFilePath = join(testAgentsDir, "not-a-dir.txt");
+    writeFileSync(testFilePath, "test");
+    const agents = await loadRepoAgents(testFilePath);
+    expect(agents).toEqual([]);
+    unlinkSync(testFilePath);
+  });
+
+  it("should reject AGENTS.md with missing required fields", () => {
+    const content = `---
+name: incomplete-agent
+---
+System prompt`;
+    const result = parseAgentsMd(content, "missing-fields.md");
+    expect(result).toBeNull();
+  });
+
+  it("should reject AGENTS.md with empty system prompt", () => {
+    const content = `---
+name: valid-name
+description: Valid description
+---
+  \n  `;
+    const result = parseAgentsMd(content, "empty-prompt.md");
+    expect(result).toBeNull();
+  });
+
+  it("should handle YAML parsing errors gracefully", () => {
+    const content = `---
+[invalid yaml
+---
+System prompt`;
+    const result = parseAgentsMd(content, "invalid-yaml.md");
+    expect(result).toBeNull();
+  });
 });
