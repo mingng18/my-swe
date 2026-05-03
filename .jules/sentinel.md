@@ -15,3 +15,7 @@
 **Vulnerability:** Potential Command Injection in `src/blueprints/actions.ts` where `execFile` executed commands derived directly from `process.env.TEST_COMMAND` and `process.env.LINTER_COMMAND` without validation.
 **Learning:** Even though `execFile` avoids spawning a shell by default, executing an unvalidated binary name passed by user-controlled environment variables allows attackers to run arbitrary executables on the system.
 **Prevention:** Always validate user-provided executable commands against a strict allowlist (e.g., `ALLOWED_COMMANDS`) before passing them to `execFile` or similar process creation APIs.
+## 2023-10-27 - [Undici Agent Resource Leak in SSRF Mitigation]
+**Vulnerability:** Resource Exhaustion (DoS) due to un-destroyed undici Agents
+**Learning:** When mitigating SSRF using custom DNS lookup via `undici.Agent`, failing to explicitly call `await agent.destroy()` leaks socket connections and file descriptors because custom Agents bypass global connection pooling.
+**Prevention:** Always destroy custom networking Agents in a `finally` block immediately after the response is fully consumed.

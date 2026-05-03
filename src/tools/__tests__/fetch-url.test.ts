@@ -4,7 +4,9 @@ const mockUndiciFetch = mock();
 
 mock.module("undici", () => ({
   fetch: mockUndiciFetch,
-  Agent: class {},
+  Agent: class {
+    destroy() { return Promise.resolve(); }
+  },
 }));
 
 // Import dynamically so the mock applies
