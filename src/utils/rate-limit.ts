@@ -50,6 +50,28 @@ const DEFAULT_LIMITS: RateLimitConfig = {
 };
 
 /**
+ * Find the first index in a sorted array where the value is strictly greater than the threshold.
+ * Uses binary search for O(log N) performance.
+ */
+function findFirstIdxGreaterThan(arr: number[], threshold: number): number {
+  let start = 0;
+  let end = arr.length - 1;
+  let idx = arr.length;
+
+  while (start <= end) {
+    const mid = (start + end) >> 1; // Faster integer division
+    if (arr[mid] > threshold) {
+      idx = mid;
+      end = mid - 1; // Look left for an earlier element
+    } else {
+      start = mid + 1; // Look right
+    }
+  }
+
+  return idx;
+}
+
+/**
  * Multi-dimensional rate limiter.
  */
 export class MultiDimensionalRateLimiter {
@@ -74,15 +96,22 @@ export class MultiDimensionalRateLimiter {
     }
 
     // Clean old timestamps (older than 1 hour)
+    // ⚡ Bolt: Use binary search instead of O(N) array filtering.
+    // Since we only ever push Date.now(), arrays are naturally sorted.
     const oneHourAgo = now - 3600000;
-    timestamps = timestamps.filter((t) => t > oneHourAgo);
+    const hourStartIdx = findFirstIdxGreaterThan(timestamps, oneHourAgo);
+    if (hourStartIdx > 0) {
+      timestamps.splice(0, hourStartIdx);
+    }
+    // timestamps is updated in-place, but let's re-set it to be safe
     this.windows.set(keyStr, timestamps);
 
     // Check per-minute limit
     const oneMinuteAgo = now - 60000;
-    const recentMinute = timestamps.filter((t) => t > oneMinuteAgo);
+    const minuteStartIdx = findFirstIdxGreaterThan(timestamps, oneMinuteAgo);
+    const minuteCount = timestamps.length - minuteStartIdx;
 
-    if (recentMinute.length >= config.perMinute) {
+    if (minuteCount >= config.perMinute) {
       logger.warn(
         { ip: key.ip, endpoint: key.endpoint, limit: config.perMinute },
         "[rate-limit] Per-minute limit exceeded",
@@ -93,7 +122,7 @@ export class MultiDimensionalRateLimiter {
         retryAfter: 60,
         limit: config.perMinute,
         remaining: 0,
-        resetTime: this.getNextResetTime(recentMinute, 60000),
+        resetTime: this.getNextResetTime(timestamps.slice(minuteStartIdx), 60000),
       };
     }
 
@@ -117,9 +146,10 @@ export class MultiDimensionalRateLimiter {
     if (config.perThread && key.threadId) {
       const threadKey = this.serializeKey({ ...key, endpoint: `${key.endpoint}:thread` });
       const threadTimestamps = this.windows.get(threadKey) || [];
-      const recentThreadMinute = threadTimestamps.filter((t) => t > oneMinuteAgo);
+      const threadMinuteStartIdx = findFirstIdxGreaterThan(threadTimestamps, oneMinuteAgo);
+      const threadMinuteCount = threadTimestamps.length - threadMinuteStartIdx;
 
-      if (recentThreadMinute.length >= config.perThread) {
+      if (threadMinuteCount >= config.perThread) {
         logger.warn(
           { ip: key.ip, threadId: key.threadId, endpoint: key.endpoint, limit: config.perThread },
           "[rate-limit] Per-thread limit exceeded",
@@ -130,7 +160,7 @@ export class MultiDimensionalRateLimiter {
           retryAfter: 60,
           limit: config.perThread,
           remaining: 0,
-          resetTime: this.getNextResetTime(recentThreadMinute, 60000),
+          resetTime: this.getNextResetTime(threadTimestamps.slice(threadMinuteStartIdx), 60000),
         };
       }
     }
@@ -139,9 +169,10 @@ export class MultiDimensionalRateLimiter {
     if (config.perUser && key.userId) {
       const userKey = this.serializeKey({ ...key, endpoint: `${key.endpoint}:user` });
       const userTimestamps = this.windows.get(userKey) || [];
-      const recentUserMinute = userTimestamps.filter((t) => t > oneMinuteAgo);
+      const userMinuteStartIdx = findFirstIdxGreaterThan(userTimestamps, oneMinuteAgo);
+      const userMinuteCount = userTimestamps.length - userMinuteStartIdx;
 
-      if (recentUserMinute.length >= config.perUser) {
+      if (userMinuteCount >= config.perUser) {
         logger.warn(
           { ip: key.ip, userId: key.userId, endpoint: key.endpoint, limit: config.perUser },
           "[rate-limit] Per-user limit exceeded",
@@ -152,7 +183,7 @@ export class MultiDimensionalRateLimiter {
           retryAfter: 60,
           limit: config.perUser,
           remaining: 0,
-          resetTime: this.getNextResetTime(recentUserMinute, 60000),
+          resetTime: this.getNextResetTime(userTimestamps.slice(userMinuteStartIdx), 60000),
         };
       }
     }
@@ -179,8 +210,8 @@ export class MultiDimensionalRateLimiter {
     return {
       allowed: true,
       limit: config.perMinute,
-      remaining: config.perMinute - recentMinute.length - 1,
-      resetTime: this.getNextResetTime(recentMinute, 60000),
+      remaining: config.perMinute - minuteCount - 1,
+      resetTime: this.getNextResetTime(timestamps.slice(minuteStartIdx), 60000),
     };
   }
 
@@ -199,8 +230,11 @@ export class MultiDimensionalRateLimiter {
     const oneMinuteAgo = now - 60000;
     const oneHourAgo = now - 3600000;
 
-    const minuteCount = timestamps.filter((t) => t > oneMinuteAgo).length;
-    const hourCount = timestamps.filter((t) => t > oneHourAgo).length;
+    const minuteIdx = findFirstIdxGreaterThan(timestamps, oneMinuteAgo);
+    const minuteCount = timestamps.length - minuteIdx;
+
+    const hourIdx = findFirstIdxGreaterThan(timestamps, oneHourAgo);
+    const hourCount = timestamps.length - hourIdx;
 
     return {
       minuteCount,
@@ -232,7 +266,9 @@ export class MultiDimensionalRateLimiter {
       return Date.now() + windowMs;
     }
 
-    const oldestTimestamp = Math.min(...timestamps);
+    // ⚡ Bolt: Since timestamps are pushed sequentially, the array is naturally chronologically sorted.
+    // Replace O(N) Math.min array spread with an O(1) first element lookup.
+    const oldestTimestamp = timestamps[0];
     return oldestTimestamp + windowMs;
   }
 

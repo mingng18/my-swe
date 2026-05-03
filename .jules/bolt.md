@@ -23,3 +23,6 @@
 ## 2025-02-24 - Parallelize agent execution in commit-and-open-pr reviewers
 **Learning:** Sequential await loops over independent agent invocations introduce significant latency when calling out to LLMs or remote APIs. In this case, `await agent.invoke()` in a `for...of` loop caused reviewers to wait for the previous one to finish, resulting in an O(N) penalty.
 **Action:** Use `Promise.all` with `.map` to execute independent agent sub-tasks concurrently.
+## 2026-05-03 - Rate Limiter Sliding Window Optimization
+**Learning:** Using `Math.min(...timestamps)` or `.filter()` chains on a sliding window rate limiter where timestamps are appended sequentially invokes unnecessary O(N) allocations and stack expansions.
+**Action:** Use binary search to find threshold indices since the array is chronologically sorted, and use `timestamps[0]` for O(1) oldest access to avoid intermediate array allocations.
