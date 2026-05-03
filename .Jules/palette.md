@@ -19,3 +19,6 @@
 ## 2024-04-23 - Add ARIA labels to icon-only clear/close buttons
 **Learning:** Icon-only buttons (like those using a simple X icon for closing tabs or clearing inputs) often lack descriptive text. Without an explicit `aria-label`, screen readers might read them simply as "button", leaving users without context about what the button does.
 **Action:** Always ensure that icon-only interactive elements, especially common ones like clear inputs or close modals/tabs, have descriptive `aria-label` attributes.
+## 2024-05-03 - Missing Aria-labels on Primary Task Inputs
+**Learning:** Primary task input fields in the ThreadMonitor were lacking explicit labels, causing screen readers to rely only on placeholder text, which can be insufficient or cleared upon input.
+**Action:** Always ensure critical text inputs have an `aria-label` or an associated `<label>` even if the visual design only uses a placeholder.

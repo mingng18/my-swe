@@ -209,6 +209,7 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
             <div className="relative flex-1">
               <Input
                 ref={inputRef}
+                aria-label="Enter your task for the agent"
                 placeholder="Enter your task for the agent... (⌘K)"
                 value={userInput}
                 onChange={(e) => setUserInput(e.target.value)}
@@ -341,6 +342,7 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
                 <div className="relative flex-1">
                   <Input
                     ref={inputRef}
+                    aria-label="Start a new agent run"
                     placeholder="Start a new agent run... (⌘K)"
                     value={userInput}
                     onChange={(e) => setUserInput(e.target.value)}
