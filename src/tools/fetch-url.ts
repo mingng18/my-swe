@@ -430,6 +430,10 @@ export async function fetchUrl(
       error: `Fetch URL error: ${errorMessage}`,
       url,
     };
+  } finally {
+    if (safeAgent) {
+      await safeAgent.destroy();
+    }
   }
 }
 
