@@ -141,8 +141,11 @@ function validateURL(url: string): { valid: boolean; error?: string } {
   }
 
   // Basic hostname validation
+  const isIPv6 =
+    parsed.hostname.startsWith("[") && parsed.hostname.endsWith("]");
+  const isLocalhost = parsed.hostname === "localhost";
   const parts = parsed.hostname.split(".");
-  if (parts.length < 2) {
+  if (!isIPv6 && !isLocalhost && parts.length < 2) {
     return { valid: false, error: "Invalid hostname" };
   }
 
@@ -212,7 +215,12 @@ async function fetchWithPermittedRedirects(
 
       if (isPermittedRedirect(url, redirectUrl)) {
         // Follow the permitted redirect recursively
-        return fetchWithPermittedRedirects(redirectUrl, signal, dispatcher, depth + 1);
+        return fetchWithPermittedRedirects(
+          redirectUrl,
+          signal,
+          dispatcher,
+          depth + 1,
+        );
       } else {
         // Return redirect info for user to decide
         return {
@@ -290,7 +298,7 @@ export async function fetchUrl(
 
   let parsedUrl: URL;
   let safeAgent: Agent | undefined;
-  
+
   try {
     parsedUrl = new URL(url);
 
@@ -322,7 +330,7 @@ export async function fetchUrl(
     const { address } = await lookupAsync(parsedUrl.hostname);
 
     // Normalize IPv4-mapped IPv6 addresses for accurate checking
-    let normalizedAddress = address.toLowerCase();
+    let normalizedAddress = address ? address.toLowerCase() : "";
     normalizedAddress = normalizedAddress.replace(
       /^((?:0+:)+|(?:0+:)*:+(?:0+:)*)ffff:/,
       "",
@@ -338,22 +346,22 @@ export async function fetchUrl(
       normalizedAddress === "0.0.0.0" ||
       normalizedAddress === "::1" ||
       normalizedAddress === "::" ||
+      /^0*(?::+0*)*$/.test(normalizedAddress) ||
       normalizedAddress.startsWith("fc00:") ||
       normalizedAddress.startsWith("fd") ||
       normalizedAddress.startsWith("fe80:")
     ) {
       throw new Error("Local and private addresses are not allowed");
     }
-    
-    safeAgent = new Agent({
-        connect: {
-          lookup: (hostname, options, callback) => {
-            const family = normalizedAddress.includes(":") ? 6 : 4;
-            callback(null, [{ address: normalizedAddress, family }]);
-          },
-        },
-      });
 
+    safeAgent = new Agent({
+      connect: {
+        lookup: (hostname, options, callback) => {
+          const family = normalizedAddress.includes(":") ? 6 : 4;
+          callback(null, [{ address: normalizedAddress, family }]);
+        },
+      },
+    });
   } catch (err) {
     return {
       error: `Fetch URL error: ${err instanceof Error ? err.message : String(err)}`,
@@ -369,7 +377,7 @@ export async function fetchUrl(
     const fetchResult = await fetchWithPermittedRedirects(
       url,
       controller.signal,
-      safeAgent
+      safeAgent,
     );
 
     // Handle redirect case

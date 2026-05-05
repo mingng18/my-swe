@@ -2,10 +2,19 @@ import { describe, expect, test, mock, afterEach, beforeEach } from "bun:test";
 
 const mockUndiciFetch = mock();
 
+const util = require("util");
+mock.module("node:dns", () => ({
+  lookup: (hostname, callback) => {
+    callback(null, { address: "8.8.8.8", family: 4 });
+  },
+}));
+
 mock.module("undici", () => ({
   fetch: mockUndiciFetch,
   Agent: class {
-    destroy() { return Promise.resolve(); }
+    destroy() {
+      return Promise.resolve();
+    }
   },
 }));
 

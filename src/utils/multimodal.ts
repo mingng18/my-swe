@@ -51,14 +51,11 @@ export async function fetchImageBlock(
 
       const { address } = await lookupAsync(parsedUrl.hostname);
       // Normalize IPv4-mapped IPv6 addresses for accurate checking
-      normalizedAddress = address.toLowerCase();
+      normalizedAddress = address ? address.toLowerCase() : "";
       normalizedAddress = normalizedAddress.replace(
         /^((?:0+:)+|(?:0+:)*:+(?:0+:)*)ffff:/,
         "",
       );
-
-      // Expose normalizedAddress to the outer scope so the Agent can use it
-      finalNormalizedAddress = normalizedAddress;
 
       if (
         normalizedAddress.startsWith("127.") ||
@@ -69,6 +66,7 @@ export async function fetchImageBlock(
         normalizedAddress === "0.0.0.0" ||
         normalizedAddress === "::1" ||
         normalizedAddress === "::" ||
+        /^0*(?::+0*)*$/.test(normalizedAddress) ||
         normalizedAddress.startsWith("fc00:") ||
         normalizedAddress.startsWith("fd") ||
         normalizedAddress.startsWith("fe80:")

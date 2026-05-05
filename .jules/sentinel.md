@@ -19,3 +19,7 @@
 **Vulnerability:** Resource Exhaustion (DoS) due to un-destroyed undici Agents
 **Learning:** When mitigating SSRF using custom DNS lookup via `undici.Agent`, failing to explicitly call `await agent.destroy()` leaks socket connections and file descriptors because custom Agents bypass global connection pooling.
 **Prevention:** Always destroy custom networking Agents in a `finally` block immediately after the response is fully consumed.
+## 2024-05-18 - SSRF bypass via IPv6 zero compression
+**Vulnerability:** Bypass of SSRF blocklist using alternative zero-compression IPv6 forms.
+**Learning:** The unspecified address can be formatted in many valid ways (e.g., `0::`, `0000::`, `0::0`) which bypasses strict string equality checks like `=== "::"`.
+**Prevention:** Use a robust regex such as `/^0*(?::+0*)*$/` to capture all permutations of the unspecified IPv6 address form.
