@@ -19,3 +19,6 @@
 ## 2024-04-23 - Add ARIA labels to icon-only clear/close buttons
 **Learning:** Icon-only buttons (like those using a simple X icon for closing tabs or clearing inputs) often lack descriptive text. Without an explicit `aria-label`, screen readers might read them simply as "button", leaving users without context about what the button does.
 **Action:** Always ensure that icon-only interactive elements, especially common ones like clear inputs or close modals/tabs, have descriptive `aria-label` attributes.
+## 2024-05-06 - Missing TooltipProvider in Radix UI
+**Learning:** When using Radix UI/shadcn tooltips, the root `TooltipProvider` must be added to the application providers. Without it, tooltips won't render, and no error is thrown. Icon-only buttons (like close buttons in tabs) heavily rely on this for basic accessibility.
+**Action:** Always verify that `TooltipProvider` is present in the root layout when implementing tooltips for icon-only buttons to ensure they are discoverable by sighted users, while continuing to provide `aria-label`s for screen reader users.

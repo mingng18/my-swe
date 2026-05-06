@@ -4,6 +4,7 @@ import { useThreadStore } from "@/store/thread-store";
 import type { ThreadState } from "@/lib/types";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Circle, CheckCircle2, AlertCircle, X, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -63,6 +64,7 @@ export function ThreadTabs({ className }: ThreadTabsProps) {
           variant="ghost"
           size="sm"
           onClick={handleNewThread}
+          aria-label="New Run"
           className="h-7 gap-1.5 hover:bg-primary/10 hover:text-primary transition-colors"
         >
           <Plus className="h-4 w-4" />
@@ -90,14 +92,21 @@ export function ThreadTabs({ className }: ThreadTabsProps) {
                 {getStatusIcon(thread.status)}
                 <span className="text-xs font-mono font-medium">{getShortThreadId(threadId)}</span>
               </div>
-              <button
-                type="button"
-                aria-label="Close thread"
-                onClick={(e) => handleClose(e, threadId)}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 h-5 w-5 p-0 opacity-0 group-hover:opacity-100 hover:bg-destructive/20 hover:text-destructive focus-visible:opacity-100 focus-visible:ring-2 focus-visible:outline-none transition-all rounded-md flex items-center justify-center"
-              >
-                <X className="h-3 w-3" />
-              </button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={`Close thread ${getShortThreadId(threadId)}`}
+                    onClick={(e) => handleClose(e, threadId)}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 h-5 w-5 p-0 opacity-0 group-hover:opacity-100 hover:bg-destructive/20 hover:text-destructive focus-visible:opacity-100 focus-visible:ring-2 focus-visible:outline-none transition-all rounded-md flex items-center justify-center"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Close thread</p>
+                </TooltipContent>
+              </Tooltip>
             </TabsTrigger>
           ))}
         </TabsList>
@@ -106,6 +115,7 @@ export function ThreadTabs({ className }: ThreadTabsProps) {
         variant="ghost"
         size="sm"
         onClick={handleNewThread}
+        aria-label="New Run"
         className="h-7 gap-1.5 shrink-0 hover:bg-primary/10 hover:text-primary transition-colors"
       >
         <Plus className="h-4 w-4" />
