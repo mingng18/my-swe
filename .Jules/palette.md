@@ -19,3 +19,9 @@
 ## 2024-04-23 - Add ARIA labels to icon-only clear/close buttons
 **Learning:** Icon-only buttons (like those using a simple X icon for closing tabs or clearing inputs) often lack descriptive text. Without an explicit `aria-label`, screen readers might read them simply as "button", leaving users without context about what the button does.
 **Action:** Always ensure that icon-only interactive elements, especially common ones like clear inputs or close modals/tabs, have descriptive `aria-label` attributes.
+## 2024-05-07 - Global Tooltip Provider for Radix/shadcn UI
+**Learning:** Radix UI tooltips (used in shadcn/ui) silently fail to render if they are not wrapped in a TooltipProvider higher up in the React tree. This issue often goes unnoticed during component development but breaks accessibility affordances (like tooltips on icon-only buttons) across the entire application.
+**Action:** When working with shadcn UI tooltips in Next.js applications, ensure a single `<TooltipProvider>` wraps the root layout or global providers component.
+## 2024-05-07 - Interactive Tooltips on Icon-Only Buttons
+**Learning:** Icon-only buttons (like clear/close buttons) are often unclear to sighted users who aren't familiar with the specific iconography, even if they have an `aria-label` for screen readers. Using a Tooltip bridges this gap. Additionally, placing Tooltip components requires the app to have a `<TooltipProvider>` correctly configured at the root.
+**Action:** Always wrap small, icon-only buttons with a standard `<Tooltip>` component that displays the same text as the `aria-label` to provide equal context to visual and non-visual users.
