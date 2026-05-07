@@ -424,10 +424,10 @@ describe("formatIssues", () => {
 
   it("orders issues strictly by severity (CRITICAL > HIGH > MEDIUM > LOW)", () => {
     const unorderedIssues = [
-      { severity: "LOW", file: "low.ts", issue: "Low", fix: "Fix" },
-      { severity: "MEDIUM", file: "medium.ts", issue: "Medium", fix: "Fix" },
-      { severity: "CRITICAL", file: "critical.ts", issue: "Critical", fix: "Fix" },
-      { severity: "HIGH", file: "high.ts", issue: "High", fix: "Fix" },
+      { severity: "LOW", file: "low.ts", issue: "Low", fix: "Fix" } as any,
+      { severity: "MEDIUM", file: "medium.ts", issue: "Medium", fix: "Fix" } as any,
+      { severity: "CRITICAL", file: "critical.ts", issue: "Critical", fix: "Fix" } as any,
+      { severity: "HIGH", file: "high.ts", issue: "High", fix: "Fix" } as any,
     ];
 
     const formatted = formatIssues(unorderedIssues);
@@ -444,10 +444,10 @@ describe("formatIssues", () => {
 
   it("groups multiple issues of the same severity together", () => {
     const mixedIssues = [
-      { severity: "HIGH", file: "high1.ts", issue: "High 1", fix: "Fix 1" },
-      { severity: "LOW", file: "low1.ts", issue: "Low 1", fix: "Fix 1" },
-      { severity: "HIGH", file: "high2.ts", issue: "High 2", fix: "Fix 2" },
-      { severity: "CRITICAL", file: "crit1.ts", issue: "Critical 1", fix: "Fix 1" },
+      { severity: "HIGH", file: "high1.ts", issue: "High 1", fix: "Fix 1" } as any,
+      { severity: "LOW", file: "low1.ts", issue: "Low 1", fix: "Fix 1" } as any,
+      { severity: "HIGH", file: "high2.ts", issue: "High 2", fix: "Fix 2" } as any,
+      { severity: "CRITICAL", file: "crit1.ts", issue: "Critical 1", fix: "Fix 1" } as any,
     ];
 
     const formatted = formatIssues(mixedIssues);

@@ -4,7 +4,7 @@ import { describe, it, expect, mock, beforeEach } from "bun:test";
 const mockInstallDependencies = mock(async () => ({ installed: true, packageManager: "npm" }));
 const mockRunTests = mock(async () => ({ testPassed: true }));
 const mockRunLinter = mock(async () => ({ lintPassed: true }));
-const mockEnforcePRSubmission = mock(async () => ({ prCreated: true, prUrl: "http://pr" }));
+const mockEnforcePRSubmission = mock(async () => ({ prCreated: true, prUrl: "http://pr" as any }));
 
 mock.module("../nodes/deterministic/DependencyInstallerNode", () => ({
   installDependencies: mockInstallDependencies,
@@ -36,7 +36,7 @@ describe("runVerificationPipeline", () => {
     mockInstallDependencies.mockImplementation(async () => ({ installed: true, packageManager: "npm" }));
     mockRunTests.mockImplementation(async () => ({ testPassed: true }));
     mockRunLinter.mockImplementation(async () => ({ lintPassed: true }));
-    mockEnforcePRSubmission.mockImplementation(async () => ({ prCreated: true, prUrl: "http://pr" }));
+    mockEnforcePRSubmission.mockImplementation(async () => ({ prCreated: true, prUrl: "http://pr" as any }));
   });
 
   const defaultParams = {
@@ -55,8 +55,7 @@ describe("runVerificationPipeline", () => {
       dependenciesInstalled: true,
       testsPassed: true,
       lintPassed: true,
-      prCreated: true,
-      prUrl: "http://pr"
+      prCreated: true, prUrl: "http://pr" as any
     });
 
     expect(mockInstallDependencies).toHaveBeenCalledTimes(1);
@@ -74,8 +73,7 @@ describe("runVerificationPipeline", () => {
 
     expect(result).toEqual({
       dependenciesInstalled: true,
-      prCreated: true,
-      prUrl: "http://pr"
+      prCreated: true, prUrl: "http://pr" as any
     });
 
     expect(mockInstallDependencies).toHaveBeenCalledTimes(1);
@@ -122,7 +120,7 @@ describe("runVerificationPipeline", () => {
   it("should continue execution even if dependency installation fails or finds no package manager", async () => {
     mockInstallDependencies.mockImplementationOnce(async () => ({
       installed: false,
-      packageManager: null,
+      packageManager: "",
       output: "no package.json"
     }));
 
@@ -132,8 +130,7 @@ describe("runVerificationPipeline", () => {
       dependenciesInstalled: false,
       testsPassed: true,
       lintPassed: true,
-      prCreated: true,
-      prUrl: "http://pr"
+      prCreated: true, prUrl: "http://pr" as any
     });
 
     expect(mockInstallDependencies).toHaveBeenCalledTimes(1);
@@ -144,8 +141,7 @@ describe("runVerificationPipeline", () => {
 
   it("should return error if PR submission fails", async () => {
     mockEnforcePRSubmission.mockImplementationOnce(async () => ({
-      prCreated: false,
-      error: "GitHub API rate limit"
+      prCreated: false, error: "GitHub API rate limit", prUrl: "" as any
     }));
 
     const result = await runVerificationPipeline(defaultParams);
@@ -154,8 +150,7 @@ describe("runVerificationPipeline", () => {
       dependenciesInstalled: true,
       testsPassed: true,
       lintPassed: true,
-      prCreated: false,
-      error: "GitHub API rate limit"
+      prCreated: false, error: "GitHub API rate limit", prUrl: "" as any
     });
 
     expect(mockInstallDependencies).toHaveBeenCalledTimes(1);
