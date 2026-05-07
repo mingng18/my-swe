@@ -19,3 +19,7 @@
 **Vulnerability:** Resource Exhaustion (DoS) due to un-destroyed undici Agents
 **Learning:** When mitigating SSRF using custom DNS lookup via `undici.Agent`, failing to explicitly call `await agent.destroy()` leaks socket connections and file descriptors because custom Agents bypass global connection pooling.
 **Prevention:** Always destroy custom networking Agents in a `finally` block immediately after the response is fully consumed.
+## 2026-05-18 - Fix XSS Vulnerability in schema-display
+**Vulnerability:** Found `dangerouslySetInnerHTML` being used to render unescaped strings in `swe-ui/components/ai-elements/schema-display.tsx` to apply syntax highlighting to API paths (replacing `{param}` with a styled span string). This is an XSS vector if the path can be controlled by users or is derived from untrusted schemas.
+**Learning:** React is secure by default against XSS when rendering strings, but using `dangerouslySetInnerHTML` bypasses this protection. To highlight or style parts of a dynamic string, never build HTML strings and inject them.
+**Prevention:** Always split strings using a regex and map the resulting array segments into safe React elements (`<span>`) instead of using `.replaceAll` with HTML strings and `dangerouslySetInnerHTML`.
