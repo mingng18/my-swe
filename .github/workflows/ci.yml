@@ -94,9 +94,6 @@ jobs:
       - name: Generate coverage report
         run: bun test src/**/*.test.ts --coverage
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
-        if: always()
 
   # Integration tests
   test-integration:
