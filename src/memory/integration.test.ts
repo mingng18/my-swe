@@ -5,7 +5,7 @@
  * Also tests duplicate detection and semantic search functionality.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
 import { MemoryRepository } from "./repository";
 import { MemoryExtractor } from "./extractor";
 import { EmbeddingService } from "./embeddings";
@@ -132,6 +132,7 @@ describe("Memory System Integration", () => {
     repository = new MemoryRepository(mockClient as any);
     extractor = new MemoryExtractor();
     embeddingService = new EmbeddingService();
+    embeddingService.generateEmbedding = mock(async () => [0.1, 0.2, 0.3]);
     searchService = new SearchService(repository, {
       generateEmbedding: (text: string) =>
         embeddingService.generateEmbedding(text),
