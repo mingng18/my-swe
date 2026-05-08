@@ -4,7 +4,7 @@
  */
 
 import { describe, test, expect, beforeEach } from "bun:test";
-import { shellEscapeSingleQuotes } from "./github";
+import { shellEscapeSingleQuotes } from "../shell";
 import {
   sanitizeUserPrompt,
   sanitizeThreadId,
@@ -57,7 +57,7 @@ describe("Security Tests - Command Injection Prevention", () => {
 
     test("should safely escape single quotes", () => {
       const result = shellEscapeSingleQuotes("it's a test");
-      expect(result).toBe("'it'\\''s a test'");
+      expect(result).toBe(`'it'"'"'s a test'`);
     });
 
     test("should handle safe inputs correctly", () => {

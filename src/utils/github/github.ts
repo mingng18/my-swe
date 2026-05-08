@@ -20,13 +20,7 @@ const logger = console;
 const HTTP_CREATED = 201;
 const HTTP_UNPROCESSABLE_ENTITY = 422;
 
-/**
- * Safely embed an arbitrary string into a POSIX shell command.
- * Produces: 'foo'"'"'bar' style quoting.
- */
-function shellEscapeSingleQuotes(input: string): string {
-  return `'${input.replace(/'/g, `'"'"'`)}'`;
-}
+import { shellEscapeSingleQuotes } from "../shell";
 
 export interface ExecuteResponse {
   exitCode: number;
