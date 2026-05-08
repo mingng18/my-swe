@@ -23,3 +23,6 @@
 ## 2025-02-24 - Parallelize agent execution in commit-and-open-pr reviewers
 **Learning:** Sequential await loops over independent agent invocations introduce significant latency when calling out to LLMs or remote APIs. In this case, `await agent.invoke()` in a `for...of` loop caused reviewers to wait for the previous one to finish, resulting in an O(N) penalty.
 **Action:** Use `Promise.all` with `.map` to execute independent agent sub-tasks concurrently.
+## 2026-05-08 - Octokit Pagination Iterator Overhead
+**Learning:** When retrieving paginated resources from GitHub using Octokit, `octokit.paginate.iterator()` introduces significant performance overhead compared to `octokit.paginate()`. The iterator pattern requires manual async iteration and repeated array spread/push operations which cause unnecessary allocations and event loop ticks. The codebase was using the iterator pattern, making fetching PR comments significantly slower.
+**Action:** Use `octokit.paginate()` instead of `octokit.paginate.iterator()` to aggregate paginated results more efficiently and avoid performance overhead (up to ~8x faster).

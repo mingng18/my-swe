@@ -331,8 +331,7 @@ export async function fetchIssueComments(
       auth: token,
     });
 
-    const comments: GitHubComment[] = [];
-    for await (const response of octokit.paginate.iterator(
+    const issueComments = (await octokit.paginate(
       octokit.rest.issues.listComments,
       {
         owner,
@@ -342,18 +341,14 @@ export async function fetchIssueComments(
           "X-GitHub-Api-Version": "2022-11-28",
         },
       },
-    )) {
-      comments.push(
-        ...(response.data as GitHubIssueComment[]).map((comment) => ({
-          body: comment.body ?? "",
-          author: comment.user?.login ?? "unknown",
-          created_at: comment.created_at,
-          comment_id: comment.id,
-        })),
-      );
-    }
+    )) as GitHubIssueComment[];
 
-    return comments;
+    return issueComments.map((comment) => ({
+      body: comment.body ?? "",
+      author: comment.user?.login ?? "unknown",
+      created_at: comment.created_at,
+      comment_id: comment.id,
+    }));
   } catch (error) {
     logger.error(
       `[github_comments] Failed to fetch comments for issue #${issueNumber}:`,
@@ -464,16 +459,12 @@ async function fetchPaginatedComments<T>(
   method: (...args: any[]) => any,
   params: Record<string, unknown>,
 ): Promise<T[]> {
-  const results: T[] = [];
-  for await (const response of octokit.paginate.iterator(method as any, {
+  return (await octokit.paginate(method as any, {
     ...params,
     headers: {
       "X-GitHub-Api-Version": "2022-11-28",
     },
-  })) {
-    results.push(...(response.data as T[]));
-  }
-  return results;
+  })) as T[];
 }
 
 /**
@@ -483,19 +474,12 @@ async function fetchPaginatedReviews(
   octokit: Octokit,
   params: Record<string, unknown>,
 ): Promise<GitHubReview[]> {
-  const results: GitHubReview[] = [];
-  for await (const response of octokit.paginate.iterator(
-    octokit.rest.pulls.listReviews as any,
-    {
-      ...params,
-      headers: {
-        "X-GitHub-Api-Version": "2022-11-28",
-      },
+  return (await octokit.paginate(octokit.rest.pulls.listReviews as any, {
+    ...params,
+    headers: {
+      "X-GitHub-Api-Version": "2022-11-28",
     },
-  )) {
-    results.push(...(response.data as GitHubReview[]));
-  }
-  return results;
+  })) as GitHubReview[];
 }
 
 /**
