@@ -19,3 +19,6 @@
 ## 2024-04-23 - Add ARIA labels to icon-only clear/close buttons
 **Learning:** Icon-only buttons (like those using a simple X icon for closing tabs or clearing inputs) often lack descriptive text. Without an explicit `aria-label`, screen readers might read them simply as "button", leaving users without context about what the button does.
 **Action:** Always ensure that icon-only interactive elements, especially common ones like clear inputs or close modals/tabs, have descriptive `aria-label` attributes.
+## 2024-05-08 - Nested Buttons & Tooltip Providers
+**Learning:** Tooltips in shadcn/ui silently fail if not wrapped in a global <TooltipProvider>. Furthermore, nesting interactive elements inside Radix UI TabsTrigger components causes hydration errors (<button> inside <button>), requiring the use of a <div role="button"> with tabIndex and onKeyDown handlers.
+**Action:** Always wrap the root application in a <TooltipProvider> and ensure semantic HTML structures to avoid nested buttons in interactive UI primitives.

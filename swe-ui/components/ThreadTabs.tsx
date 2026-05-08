@@ -6,6 +6,11 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Circle, CheckCircle2, AlertCircle, X, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface ThreadTabsProps {
   className?: string;
@@ -23,7 +28,9 @@ export function ThreadTabs({ className }: ThreadTabsProps) {
   const getStatusIcon = (status: ThreadState["status"]) => {
     switch (status) {
       case "running":
-        return <Circle className="h-3 w-3 text-blue-500 fill-blue-500 animate-pulse" />;
+        return (
+          <Circle className="h-3 w-3 text-blue-500 fill-blue-500 animate-pulse" />
+        );
       case "completed":
         return <CheckCircle2 className="h-3 w-3 text-green-500" />;
       case "error":
@@ -54,10 +61,17 @@ export function ThreadTabs({ className }: ThreadTabsProps) {
 
   if (threadEntries.length === 0) {
     return (
-      <div className={cn("flex items-center justify-between px-4 py-2.5 border-b bg-muted/30 backdrop-blur-sm", className)}>
+      <div
+        className={cn(
+          "flex items-center justify-between px-4 py-2.5 border-b bg-muted/30 backdrop-blur-sm",
+          className,
+        )}
+      >
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-muted-foreground/30" />
-          <p className="text-sm text-muted-foreground font-medium">No active threads</p>
+          <p className="text-sm text-muted-foreground font-medium">
+            No active threads
+          </p>
         </div>
         <Button
           variant="ghost"
@@ -73,7 +87,12 @@ export function ThreadTabs({ className }: ThreadTabsProps) {
   }
 
   return (
-    <div className={cn("flex items-center gap-2 px-4 py-2.5 border-b bg-muted/30 backdrop-blur-sm", className)}>
+    <div
+      className={cn(
+        "flex items-center gap-2 px-4 py-2.5 border-b bg-muted/30 backdrop-blur-sm",
+        className,
+      )}
+    >
       <Tabs
         value={activeThreadId || undefined}
         onValueChange={handleTabChange}
@@ -88,16 +107,30 @@ export function ThreadTabs({ className }: ThreadTabsProps) {
             >
               <div className="flex items-center gap-2">
                 {getStatusIcon(thread.status)}
-                <span className="text-xs font-mono font-medium">{getShortThreadId(threadId)}</span>
+                <span className="text-xs font-mono font-medium">
+                  {getShortThreadId(threadId)}
+                </span>
               </div>
-              <button
-                type="button"
-                aria-label="Close thread"
-                onClick={(e) => handleClose(e, threadId)}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 h-5 w-5 p-0 opacity-0 group-hover:opacity-100 hover:bg-destructive/20 hover:text-destructive focus-visible:opacity-100 focus-visible:ring-2 focus-visible:outline-none transition-all rounded-md flex items-center justify-center"
-              >
-                <X className="h-3 w-3" />
-              </button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    aria-label="Close thread"
+                    onClick={(e) => handleClose(e, threadId)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        handleClose(e as any, threadId);
+                      }
+                    }}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 h-5 w-5 p-0 opacity-0 group-hover:opacity-100 hover:bg-destructive/20 hover:text-destructive focus-visible:opacity-100 focus-visible:ring-2 focus-visible:outline-none transition-all rounded-md flex items-center justify-center"
+                  >
+                    <X className="h-3 w-3" />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>Close thread</TooltipContent>
+              </Tooltip>
             </TabsTrigger>
           ))}
         </TabsList>
