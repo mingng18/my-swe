@@ -338,6 +338,13 @@ class StreamRegistry {
   }
 
   /**
+   * Check if a stream exists
+   */
+  hasStream(threadId: string): boolean {
+    return this.connections.has(threadId);
+  }
+
+  /**
    * Close stream for a thread
    */
   closeStream(threadId: string): void {
