@@ -331,8 +331,8 @@ export async function fetchIssueComments(
       auth: token,
     });
 
-    const comments: GitHubComment[] = [];
-    for await (const response of octokit.paginate.iterator(
+    // ⚡ Bolt: Replace paginate.iterator with octokit.paginate to avoid array spread overhead
+    const commentsData = await octokit.paginate(
       octokit.rest.issues.listComments,
       {
         owner,
@@ -342,18 +342,14 @@ export async function fetchIssueComments(
           "X-GitHub-Api-Version": "2022-11-28",
         },
       },
-    )) {
-      comments.push(
-        ...(response.data as GitHubIssueComment[]).map((comment) => ({
-          body: comment.body ?? "",
-          author: comment.user?.login ?? "unknown",
-          created_at: comment.created_at,
-          comment_id: comment.id,
-        })),
-      );
-    }
+    );
 
-    return comments;
+    return (commentsData as GitHubIssueComment[]).map((comment) => ({
+      body: comment.body ?? "",
+      author: comment.user?.login ?? "unknown",
+      created_at: comment.created_at,
+      comment_id: comment.id,
+    }));
   } catch (error) {
     logger.error(
       `[github_comments] Failed to fetch comments for issue #${issueNumber}:`,
@@ -464,16 +460,14 @@ async function fetchPaginatedComments<T>(
   method: (...args: any[]) => any,
   params: Record<string, unknown>,
 ): Promise<T[]> {
-  const results: T[] = [];
-  for await (const response of octokit.paginate.iterator(method as any, {
+  // ⚡ Bolt: Replace paginate.iterator with octokit.paginate to avoid array spread overhead
+  const results = await octokit.paginate(method as any, {
     ...params,
     headers: {
       "X-GitHub-Api-Version": "2022-11-28",
     },
-  })) {
-    results.push(...(response.data as T[]));
-  }
-  return results;
+  });
+  return results as T[];
 }
 
 /**
@@ -483,8 +477,8 @@ async function fetchPaginatedReviews(
   octokit: Octokit,
   params: Record<string, unknown>,
 ): Promise<GitHubReview[]> {
-  const results: GitHubReview[] = [];
-  for await (const response of octokit.paginate.iterator(
+  // ⚡ Bolt: Replace paginate.iterator with octokit.paginate to avoid array spread overhead
+  const results = await octokit.paginate(
     octokit.rest.pulls.listReviews as any,
     {
       ...params,
@@ -492,10 +486,8 @@ async function fetchPaginatedReviews(
         "X-GitHub-Api-Version": "2022-11-28",
       },
     },
-  )) {
-    results.push(...(response.data as GitHubReview[]));
-  }
-  return results;
+  );
+  return results as GitHubReview[];
 }
 
 /**
