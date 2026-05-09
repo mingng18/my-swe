@@ -19,3 +19,6 @@
 ## 2024-04-23 - Add ARIA labels to icon-only clear/close buttons
 **Learning:** Icon-only buttons (like those using a simple X icon for closing tabs or clearing inputs) often lack descriptive text. Without an explicit `aria-label`, screen readers might read them simply as "button", leaving users without context about what the button does.
 **Action:** Always ensure that icon-only interactive elements, especially common ones like clear inputs or close modals/tabs, have descriptive `aria-label` attributes.
+## 2024-05-15 - Icon-only Button Context
+**Learning:** While `aria-label` is sufficient for screen readers, sighted users may not recognize abstract icons (like "X" for clear) without additional context, especially in complex UIs like the ThreadMonitor.
+**Action:** Always wrap icon-only buttons in a shadcn `<Tooltip>` that mirrors the `aria-label` to provide explicit context for all users.

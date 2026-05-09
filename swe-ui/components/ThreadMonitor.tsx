@@ -12,6 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle, Loader2, Send, RefreshCw, X, Bot, Zap, FileCode, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -222,15 +223,20 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
                 className="flex-1 pr-12 transition-all focus:ring-2 focus:ring-primary/20"
               />
               {userInput && (
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label="Clear input"
-                  onClick={() => setUserInput("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 opacity-50 hover:opacity-100 focus-visible:opacity-100 transition-opacity"
-                >
-                  <X className="h-3 w-3" />
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      aria-label="Clear input"
+                      onClick={() => setUserInput("")}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 opacity-50 hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Clear input</TooltipContent>
+                </Tooltip>
               )}
             </div>
             <Button
@@ -354,15 +360,20 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
                     className="flex-1 pr-12 transition-all focus:ring-2 focus:ring-primary/20"
                   />
                   {userInput && (
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      aria-label="Clear input"
-                      onClick={() => setUserInput("")}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 opacity-50 hover:opacity-100 focus-visible:opacity-100 transition-opacity"
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          aria-label="Clear input"
+                          onClick={() => setUserInput("")}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 opacity-50 hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Clear input</TooltipContent>
+                    </Tooltip>
                   )}
                 </div>
                 <Button
