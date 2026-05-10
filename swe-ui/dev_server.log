@@ -1,0 +1,56 @@
+
+> swe-ui@0.1.0 dev /app/swe-ui
+> next dev
+
+▲ Next.js 16.2.4 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.0.2:3000
+✓ Ready in 556ms
+⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of /app/package-lock.json as the root directory.
+ To silence this warning, set `turbopack.root` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack#root-directory for more information.
+ Detected additional lockfiles:
+   * /app/swe-ui/bun.lockb
+
+Attention: Next.js now collects completely anonymous telemetry regarding usage.
+This information is used to shape Next.js' roadmap and prioritize features.
+You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+https://nextjs.org/telemetry
+
+
+○ Compiling / ...
+ GET / 200 in 4.4s (next.js: 4.0s, application-code: 408ms)
+ GET / 200 in 79ms (next.js: 5ms, application-code: 74ms)
+ GET / 200 in 66ms (next.js: 4ms, application-code: 62ms)
+ GET / 200 in 71ms (next.js: 4ms, application-code: 67ms)
+ GET / 200 in 73ms (next.js: 5ms, application-code: 68ms)
+ GET /stream?threadId=360060fc-37e6-4501-91a6-ee5011b93d0d 404 in 697ms (next.js: 590ms, application-code: 107ms)
+[browser] [SSE] Error for thread 360060fc-37e6-4501-91a6-ee5011b93d0d: [object Event]
+    at eventSource.onerror (lib/bullhorse-client.ts:189:15)
+  187 |
+  188 |     eventSource.onerror = (error) => {
+> 189 |       console.error(`[SSE] Error for thread ${threadId}:`, error);
+      |               ^
+  190 |       console.error(`[SSE] EventSource readyState: ${eventSource.readyState}`);
+  191 |
+  192 |       // EventSource readyState: 0=connecting, 1=open, 2=closed (lib/bullhorse-client.ts:189:15)
+[browser] [SSE] EventSource readyState: 2
+    at eventSource.onerror (lib/bullhorse-client.ts:190:15)
+  188 |     eventSource.onerror = (error) => {
+  189 |       console.error(`[SSE] Error for thread ${threadId}:`, error);
+> 190 |       console.error(`[SSE] EventSource readyState: ${eventSource.readyState}`);
+      |               ^
+  191 |
+  192 |       // EventSource readyState: 0=connecting, 1=open, 2=closed
+  193 | (lib/bullhorse-client.ts:190:15)
+[browser] [useBullhorseStream] Error for 360060fc-37e6-4501-91a6-ee5011b93d0d: [object Event]
+    at useBullhorseStream.useEffect [as onError] (hooks/useBullhorseStream.ts:213:17)
+    at eventSource.onerror (lib/bullhorse-client.ts:218:26)
+  211 |       },
+  212 |       onError: (error) => {
+> 213 |         console.error(`[useBullhorseStream] Error for ${threadId}:`, error);
+      |                 ^
+  214 |         setConnectionState("error");
+  215 |         updateThread(threadId, { status: "error" });
+  216 |       }, (hooks/useBullhorseStream.ts:213:17)

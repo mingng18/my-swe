@@ -19,3 +19,6 @@
 ## 2024-04-23 - Add ARIA labels to icon-only clear/close buttons
 **Learning:** Icon-only buttons (like those using a simple X icon for closing tabs or clearing inputs) often lack descriptive text. Without an explicit `aria-label`, screen readers might read them simply as "button", leaving users without context about what the button does.
 **Action:** Always ensure that icon-only interactive elements, especially common ones like clear inputs or close modals/tabs, have descriptive `aria-label` attributes.
+## 2024-05-10 - Tooltips on interactive icon-only elements
+**Learning:** Even when `aria-label` provides context for screen readers on icon-only buttons, sighted users navigating via mouse or keyboard focus may not understand the icon's purpose. Furthermore, wrapping an interactive icon element inside a component that already renders as a `<button>` (like a Radix `TabsTrigger`) causes hydration errors ("button inside button") and breaks interaction.
+**Action:** When adding accessible labels to icon-only buttons, wrap them in a Shadcn `<Tooltip>` (with a `TooltipProvider` at the root) to mirror the `aria-label` visually. To avoid nested button hydration errors, use `<div role="button" tabIndex={0}>` with appropriate `onClick` and `onKeyDown` handlers for Enter/Space keys instead of a nested `<button>`.
