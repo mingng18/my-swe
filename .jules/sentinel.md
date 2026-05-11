@@ -19,3 +19,7 @@
 **Vulnerability:** Resource Exhaustion (DoS) due to un-destroyed undici Agents
 **Learning:** When mitigating SSRF using custom DNS lookup via `undici.Agent`, failing to explicitly call `await agent.destroy()` leaks socket connections and file descriptors because custom Agents bypass global connection pooling.
 **Prevention:** Always destroy custom networking Agents in a `finally` block immediately after the response is fully consumed.
+## 2024-05-11 - XSS via dangerouslySetInnerHTML and string replacement
+**Vulnerability:** XSS vulnerability in `SchemaDisplayPath` using `dangerouslySetInnerHTML` combined with regex string replacement (`replaceAll`) for dynamic `{param}` syntax highlighting.
+**Learning:** Combining user-controlled input (`path`) with simple string replacement and then rendering it directly via `dangerouslySetInnerHTML` bypasses React's built-in escaping mechanisms, allowing arbitrary script execution if the schema originates from a malicious source.
+**Prevention:** Avoid `dangerouslySetInnerHTML` for syntax highlighting. Instead, parse/split the string using a regular expression (e.g., `split(/(\{.*?\})/)`) and dynamically map the string segments to safe React elements (`<span>`), allowing React to natively escape any malicious characters in the input.
