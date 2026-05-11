@@ -23,3 +23,6 @@
 ## 2025-02-24 - Parallelize agent execution in commit-and-open-pr reviewers
 **Learning:** Sequential await loops over independent agent invocations introduce significant latency when calling out to LLMs or remote APIs. In this case, `await agent.invoke()` in a `for...of` loop caused reviewers to wait for the previous one to finish, resulting in an O(N) penalty.
 **Action:** Use `Promise.all` with `.map` to execute independent agent sub-tasks concurrently.
+## 2025-05-18 - Missing memoization on controlled inputs with large derived state
+**Learning:** In React, placing expensive state derivations (like mapping over potentially thousands of streaming SSE events via `adaptEventsToMessages`) directly in the render path of a component that also contains controlled inputs (`onChange={(e) => setUserInput(e.target.value)}`) will cause the expensive operation to execute on every keystroke, blocking the main thread and causing input lag.
+**Action:** Always wrap large derived state that relies on external/streamed data in `useMemo`, specifically in components that also manage frequent local state updates like text inputs.

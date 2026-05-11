@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useThreadStore } from "@/store/thread-store";
 import { useBullhorseStream } from "@/hooks/useBullhorseStream";
 import { useKeyboardShortcut } from "@/hooks/useKeyboardShortcut";
@@ -13,7 +13,17 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertCircle, Loader2, Send, RefreshCw, X, Bot, Zap, FileCode, Search } from "lucide-react";
+import {
+  AlertCircle,
+  Loader2,
+  Send,
+  RefreshCw,
+  X,
+  Bot,
+  Zap,
+  FileCode,
+  Search,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ThreadMonitorProps {
@@ -21,9 +31,13 @@ interface ThreadMonitorProps {
   className?: string;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_BULLHORSE_API_URL || "http://localhost:3000";
+const API_URL =
+  process.env.NEXT_PUBLIC_BULLHORSE_API_URL || "http://localhost:3000";
 
-export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonitorProps) {
+export function ThreadMonitor({
+  threadId: propThreadId,
+  className,
+}: ThreadMonitorProps) {
   const activeThreadId = useThreadStore((state) => state.activeThreadId);
   const threads = useThreadStore((state) => state.threads);
   const addThread = useThreadStore((state) => state.addThread);
@@ -39,7 +53,9 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Track connection state in a ref that handleStartAgent can read
-  const connectionStateRef = useRef<"connecting" | "connected" | "disconnected" | "error">("disconnected");
+  const connectionStateRef = useRef<
+    "connecting" | "connected" | "disconnected" | "error"
+  >("disconnected");
 
   // Keyboard shortcut to focus input
   useKeyboardShortcut({
@@ -80,32 +96,43 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
       // Generate threadId on client first before connecting
       const clientThreadId = crypto.randomUUID();
 
-      console.log(`[ThreadMonitor] Creating thread ${clientThreadId} and connecting SSE first...`);
+      console.log(
+        `[ThreadMonitor] Creating thread ${clientThreadId} and connecting SSE first...`,
+      );
 
       // Add thread to store and set it as active so SSE hook can start connecting
       addThread(clientThreadId);
       setActiveThread(clientThreadId);
 
       // Wait for React to re-render and useBullhorseStream to start connecting
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Wait for SSE connection to be established before starting the agent
       // This prevents the race condition where events are emitted before the client is listening
       const maxWaitTime = 5000; // 5 seconds max wait for connection
       const startTime = Date.now();
 
-      console.log(`[ThreadMonitor] Waiting for SSE connection... (current: ${connectionStateRef.current})`);
+      console.log(
+        `[ThreadMonitor] Waiting for SSE connection... (current: ${connectionStateRef.current})`,
+      );
 
       // Use the ref to check connection state instead of the captured state variable
-      while (connectionStateRef.current !== "connected" && Date.now() - startTime < maxWaitTime) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+      while (
+        connectionStateRef.current !== "connected" &&
+        Date.now() - startTime < maxWaitTime
+      ) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
 
       if (connectionStateRef.current !== "connected") {
-        throw new Error("Failed to establish SSE connection. Please check your network.");
+        throw new Error(
+          "Failed to establish SSE connection. Please check your network.",
+        );
       }
 
-      console.log(`[ThreadMonitor] SSE connected! Starting agent for thread ${clientThreadId}`);
+      console.log(
+        `[ThreadMonitor] SSE connected! Starting agent for thread ${clientThreadId}`,
+      );
 
       // Now that we're connected, start the agent with the existing threadId
       const response = await fetch(`${API_URL}/run`, {
@@ -122,10 +149,14 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
 
       // Verify the server returned the same threadId we used
       if (data.threadId !== clientThreadId) {
-        console.warn(`Server returned different threadId: ${data.threadId} vs ${clientThreadId}`);
+        console.warn(
+          `Server returned different threadId: ${data.threadId} vs ${clientThreadId}`,
+        );
       }
 
-      console.log(`[ThreadMonitor] Agent started successfully for thread ${data.threadId}`);
+      console.log(
+        `[ThreadMonitor] Agent started successfully for thread ${data.threadId}`,
+      );
 
       // Clear input
       setUserInput("");
@@ -152,7 +183,10 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
   };
 
   // Convert events to messages for display
-  const messages = thread ? groupLLMChunks(adaptEventsToMessages(thread.events)) : [];
+  // Memoized to prevent expensive recalculation on every keystroke in userInput
+  const messages = useMemo(() => {
+    return thread ? groupLLMChunks(adaptEventsToMessages(thread.events)) : [];
+  }, [thread, thread?.events]);
 
   return (
     <div className={cn("flex flex-col h-screen bg-background", className)}>
@@ -291,7 +325,8 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
           <AlertTitle>Connection Lost</AlertTitle>
           <AlertDescription className="flex items-center justify-between">
             <span>
-              Reconnecting{reconnectAttempt > 0 ? ` (attempt ${reconnectAttempt})` : ""}...
+              Reconnecting
+              {reconnectAttempt > 0 ? ` (attempt ${reconnectAttempt})` : ""}...
             </span>
             <Button
               variant="outline"
@@ -405,15 +440,15 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
                     {thread.status === "running"
                       ? "Agent is processing..."
                       : connectionState === "connecting"
-                      ? "Connecting to stream..."
-                      : "Waiting for events"}
+                        ? "Connecting to stream..."
+                        : "Waiting for events"}
                   </h3>
                   <p className="text-sm text-muted-foreground max-w-md">
                     {thread.status === "running"
                       ? "The agent is working on your task. Events will appear here as they happen."
                       : connectionState === "connecting"
-                      ? "Establishing connection to the agent stream..."
-                      : "Start an agent run to see the timeline of events."}
+                        ? "Establishing connection to the agent stream..."
+                        : "Start an agent run to see the timeline of events."}
                   </p>
                   {connectionState === "connecting" && (
                     <div className="mt-6 space-y-2 w-full max-w-sm">
@@ -433,7 +468,8 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
                         message.role === "user" && "justify-end",
                       )}
                     >
-                      {message.role === "assistant" || message.role === "system" ? (
+                      {message.role === "assistant" ||
+                      message.role === "system" ? (
                         <>
                           <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                             {message.role === "assistant" ? (
@@ -445,7 +481,9 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
                           <Card className="flex-1 p-3 max-w-2xl">
                             <div className="flex items-center gap-2 mb-1">
                               <span className="text-xs font-medium text-muted-foreground">
-                                {message.role === "assistant" ? "Agent" : "System"}
+                                {message.role === "assistant"
+                                  ? "Agent"
+                                  : "System"}
                               </span>
                               {message.metadata?.tool && (
                                 <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">
@@ -472,7 +510,11 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
                                   Arguments
                                 </summary>
                                 <pre className="text-xs bg-muted/50 p-2 rounded mt-1 overflow-x-auto">
-                                  {JSON.stringify(message.metadata.args, null, 2)}
+                                  {JSON.stringify(
+                                    message.metadata.args,
+                                    null,
+                                    2,
+                                  )}
                                 </pre>
                               </details>
                             )}
@@ -494,7 +536,9 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
                       <Card className="flex-1 p-3 max-w-2xl">
                         <div className="flex items-center gap-2">
                           <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                          <span className="text-sm text-muted-foreground">Agent is working...</span>
+                          <span className="text-sm text-muted-foreground">
+                            Agent is working...
+                          </span>
                         </div>
                       </Card>
                     </div>
@@ -511,44 +555,57 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
             <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center mx-auto mb-6">
               <Bot className="h-10 w-10 text-primary" />
             </div>
-            <h3 className="text-xl font-bold mb-2">Start Your First Agent Run</h3>
+            <h3 className="text-xl font-bold mb-2">
+              Start Your First Agent Run
+            </h3>
             <p className="text-sm text-muted-foreground mb-6">
-              Enter a task above to start the Bullhorse agent. Watch as it processes your request
-              in real-time with full transparency.
+              Enter a task above to start the Bullhorse agent. Watch as it
+              processes your request in real-time with full transparency.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
               <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-default">
                 <Search className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-medium">Code Search</p>
-                  <p className="text-xs text-muted-foreground">"Find auth implementations"</p>
+                  <p className="text-xs text-muted-foreground">
+                    "Find auth implementations"
+                  </p>
                 </div>
               </div>
               <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-default">
                 <FileCode className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-medium">Bug Fixes</p>
-                  <p className="text-xs text-muted-foreground">"Fix login flow error"</p>
+                  <p className="text-xs text-muted-foreground">
+                    "Fix login flow error"
+                  </p>
                 </div>
               </div>
               <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-default">
                 <Zap className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-medium">Add Tests</p>
-                  <p className="text-xs text-muted-foreground">"Test user service"</p>
+                  <p className="text-xs text-muted-foreground">
+                    "Test user service"
+                  </p>
                 </div>
               </div>
               <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-default">
                 <Bot className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-medium">Code Review</p>
-                  <p className="text-xs text-muted-foreground">"Review PR #123"</p>
+                  <p className="text-xs text-muted-foreground">
+                    "Review PR #123"
+                  </p>
                 </div>
               </div>
             </div>
             <div className="mt-6 pt-6 border-t">
               <p className="text-xs text-muted-foreground">
-                <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[10px] font-mono">⌘K</kbd> to focus input
+                <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[10px] font-mono">
+                  ⌘K
+                </kbd>{" "}
+                to focus input
               </p>
             </div>
           </Card>
