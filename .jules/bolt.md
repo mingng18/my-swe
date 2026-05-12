@@ -23,3 +23,6 @@
 ## 2025-02-24 - Parallelize agent execution in commit-and-open-pr reviewers
 **Learning:** Sequential await loops over independent agent invocations introduce significant latency when calling out to LLMs or remote APIs. In this case, `await agent.invoke()` in a `for...of` loop caused reviewers to wait for the previous one to finish, resulting in an O(N) penalty.
 **Action:** Use `Promise.all` with `.map` to execute independent agent sub-tasks concurrently.
+## 2025-02-23 - Optimizing Octokit Pagination with mapFn
+**Learning:** When retrieving paginated resources from GitHub using Octokit in this codebase, calling `octokit.paginate` without providing the `mapFn` argument and then later mapping the returned array causes the entire unmapped raw JSON response arrays (containing all pages) to be loaded into memory simultaneously. This can cause severe memory usage spikes when processing PRs with hundreds or thousands of comments.
+**Action:** Always prefer `octokit.paginate(method, options, mapFn)` over `octokit.paginate.iterator()` or iterating/mapping the resulting array afterwards. Applying the mapping and filtering chunk-by-chunk on the fly using `mapFn` safely discards raw data earlier and keeps the peak memory footprint dramatically smaller during large ingestions.
