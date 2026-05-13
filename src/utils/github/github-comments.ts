@@ -331,8 +331,10 @@ export async function fetchIssueComments(
       auth: token,
     });
 
-    const comments: GitHubComment[] = [];
-    for await (const response of octokit.paginate.iterator(
+    // ⚡ Bolt: Using octokit.paginate with a mapFn to process comments chunk-by-chunk.
+    // This reduces memory overhead by preventing the instantiation of the entire unmapped
+    // comment array in memory and avoids spread operator call stack limits.
+    const comments: GitHubComment[] = await octokit.paginate(
       octokit.rest.issues.listComments,
       {
         owner,
@@ -342,16 +344,14 @@ export async function fetchIssueComments(
           "X-GitHub-Api-Version": "2022-11-28",
         },
       },
-    )) {
-      comments.push(
-        ...(response.data as GitHubIssueComment[]).map((comment) => ({
+      (response) =>
+        (response.data as GitHubIssueComment[]).map((comment) => ({
           body: comment.body ?? "",
           author: comment.user?.login ?? "unknown",
           created_at: comment.created_at,
           comment_id: comment.id,
         })),
-      );
-    }
+    );
 
     return comments;
   } catch (error) {
@@ -464,16 +464,18 @@ async function fetchPaginatedComments<T>(
   method: (...args: any[]) => any,
   params: Record<string, unknown>,
 ): Promise<T[]> {
-  const results: T[] = [];
-  for await (const response of octokit.paginate.iterator(method as any, {
-    ...params,
-    headers: {
-      "X-GitHub-Api-Version": "2022-11-28",
+  // ⚡ Bolt: Provide a mapFn to properly map chunks in place, avoiding manual array
+  // spreading which scales poorly with page size.
+  return octokit.paginate(
+    method as any,
+    {
+      ...params,
+      headers: {
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
     },
-  })) {
-    results.push(...(response.data as T[]));
-  }
-  return results;
+    (response) => response.data as T[],
+  );
 }
 
 /**
@@ -483,8 +485,8 @@ async function fetchPaginatedReviews(
   octokit: Octokit,
   params: Record<string, unknown>,
 ): Promise<GitHubReview[]> {
-  const results: GitHubReview[] = [];
-  for await (const response of octokit.paginate.iterator(
+  // ⚡ Bolt: Replace manual mapping loop with octokit.paginate mapFn
+  return octokit.paginate(
     octokit.rest.pulls.listReviews as any,
     {
       ...params,
@@ -492,10 +494,8 @@ async function fetchPaginatedReviews(
         "X-GitHub-Api-Version": "2022-11-28",
       },
     },
-  )) {
-    results.push(...(response.data as GitHubReview[]));
-  }
-  return results;
+    (response) => response.data as GitHubReview[],
+  );
 }
 
 /**
