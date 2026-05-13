@@ -23,7 +23,6 @@
 ## 2025-02-24 - Parallelize agent execution in commit-and-open-pr reviewers
 **Learning:** Sequential await loops over independent agent invocations introduce significant latency when calling out to LLMs or remote APIs. In this case, `await agent.invoke()` in a `for...of` loop caused reviewers to wait for the previous one to finish, resulting in an O(N) penalty.
 **Action:** Use `Promise.all` with `.map` to execute independent agent sub-tasks concurrently.
-
-## 2025-02-12 - Pagination Memory Management with Octokit
-**Learning:** The previous implementation manually mapped over and accumulated results within a `for await (const response of octokit.paginate.iterator(...))` loop using `results.push(...response.data)`. This degraded memory efficiency because the entire unmapped raw array of items was stored in memory chunk-by-chunk and suffered from max call stack size limits due to the spread operator.
-**Action:** Use `octokit.paginate(method, options, mapFn)` directly instead of `octokit.paginate.iterator`. The `mapFn` argument correctly processes items chunk-by-chunk under the hood, natively resolving memory overhead issues and preventing "Maximum call stack size exceeded" errors.
+## 2025-05-10 - Octokit Pagination Memory/Performance Optimization
+**Learning:** `octokit.paginate.iterator` requires a manual loop that spreads `response.data` via `push(...array)`. This array spreading inside a loop allocates numerous intermediate arrays and degrades memory efficiency on high page counts. `octokit.paginate` using the third `mapFn` argument inherently merges results safely without spreading.
+**Action:** Replace `octokit.paginate.iterator` loops with direct `octokit.paginate(method, options, mapFn)` calls, preventing unnecessary GC spikes from chunked arrays and reducing call stack pressure.

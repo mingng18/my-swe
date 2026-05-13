@@ -331,10 +331,7 @@ export async function fetchIssueComments(
       auth: token,
     });
 
-    // ⚡ Bolt: Using octokit.paginate with a mapFn to process comments chunk-by-chunk.
-    // This reduces memory overhead by preventing the instantiation of the entire unmapped
-    // comment array in memory and avoids spread operator call stack limits.
-    const comments: GitHubComment[] = await octokit.paginate(
+    const comments = await octokit.paginate(
       octokit.rest.issues.listComments,
       {
         owner,
@@ -464,9 +461,7 @@ async function fetchPaginatedComments<T>(
   method: (...args: any[]) => any,
   params: Record<string, unknown>,
 ): Promise<T[]> {
-  // ⚡ Bolt: Provide a mapFn to properly map chunks in place, avoiding manual array
-  // spreading which scales poorly with page size.
-  return octokit.paginate(
+  const results = await octokit.paginate(
     method as any,
     {
       ...params,
@@ -476,6 +471,7 @@ async function fetchPaginatedComments<T>(
     },
     (response) => response.data as T[],
   );
+  return results;
 }
 
 /**
@@ -485,8 +481,7 @@ async function fetchPaginatedReviews(
   octokit: Octokit,
   params: Record<string, unknown>,
 ): Promise<GitHubReview[]> {
-  // ⚡ Bolt: Replace manual mapping loop with octokit.paginate mapFn
-  return octokit.paginate(
+  const results = await octokit.paginate(
     octokit.rest.pulls.listReviews as any,
     {
       ...params,
@@ -496,6 +491,7 @@ async function fetchPaginatedReviews(
     },
     (response) => response.data as GitHubReview[],
   );
+  return results;
 }
 
 /**
