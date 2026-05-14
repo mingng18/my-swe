@@ -19,3 +19,6 @@
 ## 2024-04-23 - Add ARIA labels to icon-only clear/close buttons
 **Learning:** Icon-only buttons (like those using a simple X icon for closing tabs or clearing inputs) often lack descriptive text. Without an explicit `aria-label`, screen readers might read them simply as "button", leaving users without context about what the button does.
 **Action:** Always ensure that icon-only interactive elements, especially common ones like clear inputs or close modals/tabs, have descriptive `aria-label` attributes.
+## 2024-05-14 - Add ARIA labels to terminal action buttons
+**Learning:** Terminal tool actions like copy or clear often use pure icon buttons (e.g. `<Button size="icon"><CopyIcon /></Button>`) without descriptive labels, making them inaccessible to screen reader users who rely on context. Furthermore, dynamically updating `aria-label` text to indicate state changes (like "Copied to clipboard" vs "Copy terminal output") improves the interactive experience.
+**Action:** When adding or auditing icon-only utility buttons, ensure they have descriptive `aria-label`s, and consider making the label dynamic if the button conveys interactive state feedback.
