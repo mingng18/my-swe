@@ -41,6 +41,7 @@ export async function fetchImageBlock(
     let parsedUrl: URL;
     let safeAgent: Agent | null = null;
     let normalizedAddress = "";
+    let finalNormalizedAddress = "";
 
     try {
       parsedUrl = new URL(imageUrl);
@@ -56,9 +57,6 @@ export async function fetchImageBlock(
         /^((?:0+:)+|(?:0+:)*:+(?:0+:)*)ffff:/,
         "",
       );
-
-      // Expose normalizedAddress to the outer scope so the Agent can use it
-      finalNormalizedAddress = normalizedAddress;
 
       if (
         normalizedAddress.startsWith("127.") ||
@@ -79,6 +77,9 @@ export async function fetchImageBlock(
         );
         return null;
       }
+
+      // Expose normalizedAddress to the outer scope so the Agent can use it safely
+      finalNormalizedAddress = normalizedAddress;
 
       safeAgent = new Agent({
         connect: {

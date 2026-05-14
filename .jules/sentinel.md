@@ -19,3 +19,7 @@
 **Vulnerability:** Resource Exhaustion (DoS) due to un-destroyed undici Agents
 **Learning:** When mitigating SSRF using custom DNS lookup via `undici.Agent`, failing to explicitly call `await agent.destroy()` leaks socket connections and file descriptors because custom Agents bypass global connection pooling.
 **Prevention:** Always destroy custom networking Agents in a `finally` block immediately after the response is fully consumed.
+## 2025-01-21 - Fix SSRF Validation Race Condition in Multimodal Agent
+**Vulnerability:** A variable used to hold the normalized IP address (`finalNormalizedAddress`) was assigned *before* the IP address was validated against an internal blocklist in `src/utils/multimodal.ts`. It was also undeclared in the local scope, leading to a TypeScript error and implicitly leaking state.
+**Learning:** This architectural flaw created a race condition where concurrent requests could allow an unvalidated or malicious IP (e.g., an internal 10.x.x.x network address) to be set, potentially bypassing Server-Side Request Forgery (SSRF) protections.
+**Prevention:** Always declare variables tightly scoped to the function (using `let` or `const`). Ensure that assignments to state or variables consumed by downstream systems (like HTTP Agents) occur strictly *after* all security validation checks have passed.
