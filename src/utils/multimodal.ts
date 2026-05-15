@@ -41,6 +41,7 @@ export async function fetchImageBlock(
     let parsedUrl: URL;
     let safeAgent: Agent | null = null;
     let normalizedAddress = "";
+    let finalNormalizedAddress = "";
 
     try {
       parsedUrl = new URL(imageUrl);
