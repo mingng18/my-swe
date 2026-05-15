@@ -23,3 +23,7 @@
 ## 2025-02-24 - Parallelize agent execution in commit-and-open-pr reviewers
 **Learning:** Sequential await loops over independent agent invocations introduce significant latency when calling out to LLMs or remote APIs. In this case, `await agent.invoke()` in a `for...of` loop caused reviewers to wait for the previous one to finish, resulting in an O(N) penalty.
 **Action:** Use `Promise.all` with `.map` to execute independent agent sub-tasks concurrently.
+
+## 2026-05-15 - Octokit Pagination Memory Optimization
+**Learning:** When retrieving paginated resources from GitHub using Octokit, using `octokit.paginate.iterator()` and manually pushing chunks into an unmapped intermediate array degrades memory efficiency, and the array spread operator (`...response.data`) inside the loop can crash V8 with "Maximum call stack size exceeded" errors if the chunk size or total dataset is massive.
+**Action:** Always use `octokit.paginate(method, options, mapFn)` with the `mapFn` argument to safely transform items chunk-by-chunk and allow immediate garbage collection of raw API responses.
