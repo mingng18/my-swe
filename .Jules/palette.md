@@ -19,3 +19,6 @@
 ## 2024-04-23 - Add ARIA labels to icon-only clear/close buttons
 **Learning:** Icon-only buttons (like those using a simple X icon for closing tabs or clearing inputs) often lack descriptive text. Without an explicit `aria-label`, screen readers might read them simply as "button", leaving users without context about what the button does.
 **Action:** Always ensure that icon-only interactive elements, especially common ones like clear inputs or close modals/tabs, have descriptive `aria-label` attributes.
+## 2024-05-15 - Missing Tooltips on Dynamic Tabs
+**Learning:** In shadcn-powered Next.js applications, tooltips require a `<TooltipProvider>` wrapping the component tree (usually in `providers.tsx`). Additionally, icon-only buttons nested inside complex interactive primitives like Radix UI `TabsTrigger` can cause React hydration errors if a `<button>` is rendered inside another `<button>`. Finally, hover states within these structures can be tricky to test with Playwright without explicit parent-hovering.
+**Action:** Always wrap application roots with `<TooltipProvider>` when adding tooltips. When adding interactive elements inside `TabsTrigger` or similar button-like primitives, use a `<div role="button" tabIndex={0}>` with an `onKeyDown` handler to preserve keyboard accessibility while avoiding hydration errors.
