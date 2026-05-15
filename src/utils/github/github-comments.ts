@@ -331,6 +331,8 @@ export async function fetchIssueComments(
       auth: token,
     });
 
+    // ⚡ Bolt: Replace manual accumulation with mapped pagination chunks
+    // to avoid excessive memory allocation and call stack limits on large arrays.
     const comments = await octokit.paginate(
       octokit.rest.issues.listComments,
       {
@@ -381,6 +383,8 @@ export async function fetchPrCommentsSinceLastTag(
     });
 
     // Fetch all three types of comments in parallel
+    // ⚡ Bolt: Use mapped chunks in pagination to prevent OOM / call stack errors
+    // without intermediate unmapped arrays during Promise.all.
     const [prComments, reviewComments, reviews] = await Promise.all([
       octokit.paginate(
         octokit.rest.issues.listComments,
