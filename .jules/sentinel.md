@@ -19,3 +19,7 @@
 **Vulnerability:** Resource Exhaustion (DoS) due to un-destroyed undici Agents
 **Learning:** When mitigating SSRF using custom DNS lookup via `undici.Agent`, failing to explicitly call `await agent.destroy()` leaks socket connections and file descriptors because custom Agents bypass global connection pooling.
 **Prevention:** Always destroy custom networking Agents in a `finally` block immediately after the response is fully consumed.
+## 2026-05-16 - Hardcoded Salt in Key Derivation
+**Vulnerability:** The application used a hardcoded string ("bullhorse-token-salt") as the salt for `scryptSync` when encrypting sensitive GitHub tokens in thread metadata.
+**Learning:** Hardcoded salts negate the protection that salts provide against pre-computed dictionary and rainbow table attacks.
+**Prevention:** Always generate a random salt (e.g., using `crypto.randomBytes(16)`) for every encryption operation and store it alongside the ciphertext (or initialization vector) so the key can be correctly derived during decryption. Ensure legacy support when migrating encryption formats by maintaining logic for old formats (like a "v2:" prefix check).
