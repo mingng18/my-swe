@@ -48,7 +48,7 @@ const activeThreads = new Set<string>();
  * Generate a deterministic thread ID from a Telegram chat ID.
  */
 function generateThreadId(chatId: number): string {
-  return createHash("md5")
+  return createHash("sha256")
     .update(chatId.toString())
     .digest("hex")
     .substring(0, 16);

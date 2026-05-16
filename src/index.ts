@@ -33,7 +33,7 @@ const logger = createLogger("index");
  * This ensures each chat has its own conversation history.
  */
 function generateThreadId(chatId: number): string {
-  return createHash("md5")
+  return createHash("sha256")
     .update(chatId.toString())
     .digest("hex")
     .substring(0, 16);
