@@ -5,7 +5,7 @@
  * Also tests duplicate detection and semantic search functionality.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect, beforeEach, afterEach, beforeAll } from "bun:test";
 import { MemoryRepository } from "./repository";
 import { MemoryExtractor } from "./extractor";
 import { EmbeddingService } from "./embeddings";
@@ -115,6 +115,16 @@ class MockSupabaseClient {
 }
 
 describe("Memory System Integration", () => {
+  beforeAll(() => {
+    // Override EmbeddingService to not call OpenAI
+    EmbeddingService.prototype.generateEmbedding = async (text: string) => {
+      return Array(1536).fill(0.01);
+    };
+    EmbeddingService.prototype.generateEmbeddingsBatch = async (texts: string[]) => {
+      return texts.map(() => Array(1536).fill(0.01));
+    };
+  });
+
   let mockClient: MockSupabaseClient;
   let repository: MemoryRepository;
   let extractor: MemoryExtractor;
