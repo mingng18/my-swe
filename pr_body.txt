@@ -1,5 +1,0 @@
-## Description
-This PR addresses a performance issue in the `commit-and-open-pr` tool where pre-commit reviewers were invoked sequentially inside a `for...of` loop. The execution of independent agent reviews has been parallelized using `Promise.all` with `.map()`, removing the O(N) waiting penalty for remote API calls and LLM invocation.
-
-## Test Plan
-- [ ] No behavioral changes; rely on automated tests and successful parallel accumulation of reviewer issues.
