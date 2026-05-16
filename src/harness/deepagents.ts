@@ -1,6 +1,6 @@
 import { createLogger } from "../utils/logger";
 import { threadManager, threadRepoMap, THREAD_TTL_MS, type RepoContext } from "./thread-manager";
-import { loadLlmConfig, loadModelConfig } from "../utils/config";
+import { loadLlmConfig, loadModelConfig, getSandboxProfileFromEnv } from "../utils/config";
 import { createChatModel } from "../utils/model-factory";
 import { createDeepAgent, FilesystemBackend, type DeepAgent } from "deepagents";
 import {
@@ -572,19 +572,7 @@ function extractRepoFromInput(
 // if the user doesn't re-type `--repo foo/bar`.
 
 
-function getSandboxProfileFromEnv(): SandboxProfile {
-  const p = (process.env.SANDBOX_PROFILE || "typescript").trim().toLowerCase();
-  if (
-    p === "typescript" ||
-    p === "javascript" ||
-    p === "python" ||
-    p === "java" ||
-    p === "polyglot"
-  ) {
-    return p;
-  }
-  return "typescript";
-}
+
 
 async function acquireDaytonaSandboxForThreadRepo(args: {
   threadId: string;

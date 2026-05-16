@@ -1,5 +1,7 @@
-## Description
-This PR addresses a performance issue in the `commit-and-open-pr` tool where pre-commit reviewers were invoked sequentially inside a `for...of` loop. The execution of independent agent reviews has been parallelized using `Promise.all` with `.map()`, removing the O(N) waiting penalty for remote API calls and LLM invocation.
+🎯 **What:** Extracted the duplicated `getSandboxProfileFromEnv` function and its associated `SandboxProfile` type into the centralized `src/utils/config.ts` utility file.
 
-## Test Plan
-- [ ] No behavioral changes; rely on automated tests and successful parallel accumulation of reviewer issues.
+💡 **Why:** To remove code duplication from `src/harness/deepagents.ts` and `src/memory/supabaseRepoMemory.ts`, improving maintainability and ensuring consistent behavior when fetching the sandbox profile from environment variables.
+
+✅ **Verification:** Type checking was verified with `bun x tsc --noEmit` and the overall test suite (`bun test`) passed relative to previous state. Review passed via the automated code review system.
+
+✨ **Result:** A more DRY codebase where environment configurations related to Sandbox Profiles are managed in a single, predictable location (`src/utils/config.ts`).

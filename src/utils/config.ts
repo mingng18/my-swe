@@ -1,3 +1,4 @@
+import { type SandboxProfile } from "../integrations/daytona-pool";
 import {
   detectProvider,
   type LlmProvider,
@@ -169,4 +170,19 @@ export function loadModelConfig(override?: {
 export function validateStartupConfig(): void {
   // Validate LLM configuration and optional fallback pairings.
   loadLlmConfig();
+}
+
+/** Get the sandbox profile from environment variables. */
+export function getSandboxProfileFromEnv(): SandboxProfile {
+  const p = (process.env.SANDBOX_PROFILE || "typescript").trim().toLowerCase();
+  if (
+    p === "typescript" ||
+    p === "javascript" ||
+    p === "python" ||
+    p === "java" ||
+    p === "polyglot"
+  ) {
+    return p as SandboxProfile;
+  }
+  return "typescript";
 }
