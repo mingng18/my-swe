@@ -350,10 +350,12 @@ export const semanticSearchTool = tool(
     const batchSize = 10;
     const maxFilesToProcess = Math.min(files.length, 50); // Limit total files processed
 
-    for (let i = 0; i < maxFilesToProcess; i += batchSize) {
-      const batch = files.slice(i, i + batchSize);
+    // Maximize concurrency by mapping all promises at once instead of sequential batches
+    const filesToProcess = files.slice(0, maxFilesToProcess);
 
-      const batchPromises = batch.map(async (file) => {
+    // We map all independent async operations to a single array of promises
+    // and wait for them all simultaneously, bypassing the original batching limit completely
+    const allPromises = filesToProcess.map(async (file) => {
         try {
           // Check cache for document vectors
           let cachedVectors = semanticSearchCache.getDocumentVectors(file);
@@ -434,8 +436,7 @@ export const semanticSearchTool = tool(
         }
       });
       
-      await Promise.all(batchPromises);
-    }
+    await Promise.all(allPromises);
 
     // Sort by score and limit results
     results.sort((a, b) => b.score - a.score);
