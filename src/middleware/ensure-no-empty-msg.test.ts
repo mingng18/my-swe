@@ -1,7 +1,49 @@
 import { describe, it, expect } from "bun:test";
-import { ensureNoEmptyMsg, AgentState, BaseMessage } from "./ensure-no-empty-msg";
+import { ensureNoEmptyMsg, AgentState, BaseMessage, getEveryMessageSinceLastHuman } from "./ensure-no-empty-msg";
 
-describe("ensureNoEmptyMsg", () => {
+
+  describe("getEveryMessageSinceLastHuman", () => {
+    it("should return an empty array when there are no messages", () => {
+      const state: AgentState = { messages: [] };
+      expect(getEveryMessageSinceLastHuman(state)).toEqual([]);
+    });
+
+    it("should return all messages when there are no human messages", () => {
+      const state: AgentState = {
+        messages: [
+          { type: "ai", content: "hello" },
+          { type: "system", content: "init" }
+        ]
+      };
+      expect(getEveryMessageSinceLastHuman(state)).toEqual(state.messages);
+    });
+
+    it("should return messages after the last human message", () => {
+      const state: AgentState = {
+        messages: [
+          { type: "human", content: "first" },
+          { type: "ai", content: "response" },
+          { type: "human", content: "second" },
+          { type: "tool", name: "some_tool", tool_calls: [] }
+        ]
+      };
+      expect(getEveryMessageSinceLastHuman(state)).toEqual([
+        { type: "tool", name: "some_tool", tool_calls: [] }
+      ]);
+    });
+
+    it("should return an empty array when the human message is the last message", () => {
+      const state: AgentState = {
+        messages: [
+          { type: "ai", content: "hi" },
+          { type: "human", content: "there" }
+        ]
+      };
+      expect(getEveryMessageSinceLastHuman(state)).toEqual([]);
+    });
+  });
+
+  describe("ensureNoEmptyMsg", () => {
   it("should return null when there are no messages", () => {
     const state: AgentState = { messages: [] };
     expect(ensureNoEmptyMsg(state)).toBeNull();
