@@ -7,6 +7,7 @@
  */
 
 import { createLogger } from "../utils/logger";
+import { shellEscapeSingleQuotes } from "../utils/shell";
 import {
   createGithubPr,
   findExistingPr,
@@ -26,9 +27,6 @@ import type { SandboxService } from "../integrations/sandbox-service";
 
 const logger = createLogger("open-pr-middleware");
 
-function shellEscapeSingleQuotes(input: string): string {
-  return `'${input.replace(/'/g, `'"'"'`)}'`;
-}
 
 /**
  * Message interface from the agent state.

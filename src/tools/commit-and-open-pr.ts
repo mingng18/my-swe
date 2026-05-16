@@ -1,4 +1,5 @@
 import { tool } from "@langchain/core/tools";
+import { shellEscapeSingleQuotes } from "../utils/shell";
 import { z } from "zod";
 import {
   createGithubPr,
@@ -102,9 +103,6 @@ async function runPreCommitReview(
   return { shouldBlock: criticalFound, issues: allIssues, summary };
 }
 
-function shellEscapeSingleQuotes(input: string): string {
-  return `'${input.replace(/'/g, `'"'"'`)}'`;
-}
 
 /**
 Commit all current changes and open a GitHub Pull Request.
