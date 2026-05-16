@@ -4,7 +4,7 @@
  */
 
 import { describe, test, expect, beforeEach } from "bun:test";
-import { shellEscapeSingleQuotes } from "./github";
+import { shellEscapeSingleQuotes } from "../../utils/shell";
 import {
   sanitizeUserPrompt,
   sanitizeThreadId,
