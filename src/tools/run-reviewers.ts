@@ -107,29 +107,28 @@ export const runReviewersTool = tool(
 
       // Lazy import to avoid circular dependency
       const { builtInSubagents } = await import("../subagents/registry");
+      // Hoist dynamic import outside of the parallelization map
+      const { createDeepAgent } = await import("deepagents");
 
       // Create and run reviewers
-      const reviewerResults = [];
       let allIssues: ReviewIssue[] = [];
       let criticalFound = false;
 
-      for (const reviewerName of reviewerNames) {
+      const reviewerPromises = reviewerNames.map(async (reviewerName) => {
         const reviewerConfig = builtInSubagents.find(
           (agent) => agent.name === reviewerName,
         );
 
         if (!reviewerConfig) {
-          reviewerResults.push({
+          return {
             name: reviewerName,
             status: "error",
             error: "Reviewer configuration not found",
-          });
-          continue;
+          };
         }
 
         try {
           // Create a deep agent for this reviewer
-          const { createDeepAgent } = await import("deepagents");
           const agent = createDeepAgent({
             name: reviewerName,
             systemPrompt: reviewerConfig.systemPrompt,
@@ -147,30 +146,42 @@ export const runReviewersTool = tool(
           const lastMsg = result.messages[result.messages.length - 1];
           const reply = typeof lastMsg?.content === "string" ? lastMsg.content : "";
           const issues = parseReviewerOutput(reply);
-          allIssues.push(...issues);
 
-          if (hasCriticalIssues(issues)) {
-            criticalFound = true;
-          }
-
-          reviewerResults.push({
+          return {
             name: reviewerName,
             status: "success",
             issues_count: issues.length,
             critical_issues: hasCriticalIssues(issues),
+            issues,
             summary:
               issues.length === 0
                 ? "No issues found"
                 : `${issues.length} issues detected`,
-          });
+          };
         } catch (error) {
-          reviewerResults.push({
+          return {
             name: reviewerName,
             status: "error",
             error: error instanceof Error ? error.message : "Unknown error",
-          });
+          };
         }
-      }
+      });
+
+      const reviewerResultsObj = await Promise.all(reviewerPromises);
+
+      const reviewerResults = reviewerResultsObj.map((r) => {
+        if (r.status === "success" && r.issues) {
+          allIssues.push(...r.issues);
+          if (r.critical_issues) {
+            criticalFound = true;
+          }
+        }
+
+        // Remove issues array from the final result to match original type shape if needed
+        // But we actually can keep it, or map it out. We will remove it just in case
+        const { issues, ...rest } = r;
+        return rest;
+      });
 
       // Generate summary
       const summary = reviewerResults
