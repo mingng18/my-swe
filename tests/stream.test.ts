@@ -84,7 +84,7 @@ describe("SSE Endpoint", () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Get emitter and emit event
-    const emitter = streamRegistry.getEmitter(threadId);
+    const emitter = (streamRegistry as any).getEmitter(threadId);
     expect(emitter).toBeDefined();
 
     emitter?.emit({
@@ -146,14 +146,14 @@ describe("SSE Endpoint", () => {
 
     // Verify all streams are active
     for (const threadId of threadIds) {
-      const emitter = streamRegistry.getEmitter(threadId);
+      const emitter = (streamRegistry as any).getEmitter(threadId);
       expect(emitter).toBeDefined();
       expect(emitter?.isActive()).toBe(true);
     }
 
     // Close all streams
     for (const threadId of threadIds) {
-      const emitter = streamRegistry.getEmitter(threadId);
+      const emitter = (streamRegistry as any).getEmitter(threadId);
       emitter?.end();
     }
 
@@ -162,7 +162,7 @@ describe("SSE Endpoint", () => {
 
     // Close all streams
     for (const threadId of threadIds) {
-      const emitter = streamRegistry.getEmitter(threadId);
+      const emitter = (streamRegistry as any).getEmitter(threadId);
       emitter?.end();
     }
 
@@ -193,7 +193,7 @@ describe("SSE Endpoint", () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Verify emitter exists
-    const emitter = streamRegistry.getEmitter(threadId);
+    const emitter = (streamRegistry as any).getEmitter(threadId);
     expect(emitter).toBeDefined();
 
     // Close the stream
@@ -213,7 +213,7 @@ describe("SSE Endpoint", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     // Emitter should still be in registry but inactive
-    const afterEmitter = streamRegistry.getEmitter(threadId);
+    const afterEmitter = (streamRegistry as any).getEmitter(threadId);
     expect(afterEmitter).toBeDefined();
     expect(afterEmitter?.isActive()).toBe(false);
   });
