@@ -1,7 +1,4 @@
-🔒 Security: Prevent Command Injection in Blueprint Actions
-
-🎯 **What:** Fixes a command injection vulnerability via `execFile` in the `run_linters` and `run_tests` blueprint actions.
-
-⚠️ **Risk:** An attacker could theoretically modify the `LINTER_COMMAND` or `TEST_COMMAND` environment variables to execute arbitrary system commands via `child_process.execFile` (e.g., executing `rm -rf /` instead of the linter/test runner).
-
-🛡️ **Solution:** Implemented an explicit allowlist (`ALLOWED_EXECUTABLES`) to restrict the executable binaries that can be run through the blueprint action runner, mitigating the vulnerability.
+🎯 **What:** Extracted duplicated implementations of `extractRepoFromInput`, `getSandboxProfileFromEnv`, and `SandboxProfile` into a shared utility file `src/utils/repo.ts`.
+💡 **Why:** Reduces code duplication, unifies the slightly diverged implementation logic gracefully across `supabaseRepoMemory.ts` and `deepagents.ts`, and improves overall maintainability.
+✅ **Verification:** Ran `bun test` ensuring all tests pass flawlessly, and checked compilation and formatting manually.
+✨ **Result:** A cleaner codebase with a single source of truth for extracting sandbox profiles and GitHub repositories from user inputs.

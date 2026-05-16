@@ -1,6 +1,11 @@
 import { randomUUID, createHash } from "node:crypto";
 import { Agent, fetch as undiciFetch } from "undici";
 import { createLogger } from "../utils/logger";
+import {
+  getSandboxProfileFromEnv,
+  extractRepoFromInput,
+} from "../utils/repo.js";
+import { type SandboxProfile } from "../integrations/daytona-pool.js";
 
 const logger = createLogger("repo-memory");
 
@@ -17,13 +22,6 @@ async function supabaseFetch(url: string | URL, init: RequestInit) {
     dispatcher: supabaseAgent,
   } as any);
 }
-
-type SandboxProfile =
-  | "typescript"
-  | "javascript"
-  | "python"
-  | "java"
-  | "polyglot";
 
 export interface RepoMemoryTurnResult {
   threadId: string;
@@ -50,44 +48,6 @@ export interface RepoMemoryTurnResult {
     };
     testResults?: { passed: boolean; summary?: string; output?: string };
   };
-}
-
-function getSandboxProfileFromEnv(): SandboxProfile {
-  const p = (process.env.SANDBOX_PROFILE || "typescript").trim().toLowerCase();
-  if (
-    p === "typescript" ||
-    p === "javascript" ||
-    p === "python" ||
-    p === "java" ||
-    p === "polyglot"
-  ) {
-    return p;
-  }
-  return "typescript";
-}
-
-function extractRepoFromInput(
-  input: string,
-): { owner: string; name: string; workspaceDir: string } | null {
-  // Mirror the deepagents wrapper parsing so DB memory matches the actual repo context.
-  const match = input.match(/--repo\s+([a-zA-Z0-9_.-]+(?:\/[a-zA-Z0-9_.-]+)?)/);
-  if (!match) return null;
-
-  // Strip trailing punctuation (common when users type `--repo foo/bar.` mid-sentence).
-  const repoStr = match[1].replace(/[.,;!?]+$/, "");
-
-  const defaultOwner = process.env.GITHUB_DEFAULT_OWNER || "";
-  if (!repoStr.includes("/")) {
-    if (!defaultOwner) return null;
-    return {
-      owner: defaultOwner,
-      name: repoStr,
-      workspaceDir: `/workspace/${repoStr}`,
-    };
-  }
-
-  const [owner, name] = repoStr.split("/", 2);
-  return { owner, name, workspaceDir: `/workspace/${name}` };
 }
 
 function truncateForJson(text: string, maxChars: number): string {
