@@ -23,3 +23,6 @@
 ## 2025-02-24 - Parallelize agent execution in commit-and-open-pr reviewers
 **Learning:** Sequential await loops over independent agent invocations introduce significant latency when calling out to LLMs or remote APIs. In this case, `await agent.invoke()` in a `for...of` loop caused reviewers to wait for the previous one to finish, resulting in an O(N) penalty.
 **Action:** Use `Promise.all` with `.map` to execute independent agent sub-tasks concurrently.
+## 2024-05-16 - File I/O unbounded concurrency via Promise.all
+**Learning:** Mapping a large array to a set of I/O promises (like `readFile` or `unlink`) and awaiting them all via `Promise.all` attempts to open a massive number of file handles simultaneously. This hits node max heap usage hard, and triggers `EMFILE` limits on the OS.
+**Action:** When working with unbounded file lists (like directory contents), chunk array operations in batches (e.g., using `slice(i, i + 500)`) and sequentially `Promise.all` the chunks to control memory and I/O concurrency limits.
