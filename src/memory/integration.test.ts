@@ -13,96 +13,170 @@ import { SearchService } from "./search";
 import { ConsolidationService } from "./consolidation";
 import type { Memory, TurnResult } from "./types";
 
-// Mock Supabase client for testing
-class MockSupabaseClient {
-  private memories: Map<string, any> = new Map();
+import { mock } from "bun:test";
 
-  async fetch(url: string, options?: RequestInit): Promise<Response> {
-    const method = options?.method || "GET";
+// Create deterministic embeddings based on text content
+function createMockEmbedding(text: string, dimension: number = 1536): number[] {
+  const embedding: number[] = [];
+  const seed = text
+    .split("")
+    .reduce((acc, char) => acc + char.charCodeAt(0), 0);
 
-    if (method === "GET") {
-      // Parse URL to extract filter parameters
-      const urlObj = new URL(url);
-      const threadId = urlObj.searchParams.get("thread_id");
-      const id = urlObj.searchParams.get("id");
+  for (let i = 0; i < dimension; i++) {
+    const value = Math.sin(seed + i * 0.1) * 0.5 + 0.5;
+    embedding.push(value);
+  }
 
-      if (id) {
-        // Get by ID
-        const memory = this.memories.get(id);
-        return new Response(JSON.stringify(memory ? [memory] : []), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
+  const magnitude = Math.sqrt(
+    embedding.reduce((sum, val) => sum + val * val, 0),
+  );
+  return embedding.map((val) => val / magnitude);
+}
 
-      if (threadId) {
-        // Get by thread ID
-        const memories = Array.from(this.memories.values()).filter(
-          (m) => m.thread_id === threadId,
-        );
-        return new Response(JSON.stringify(memories), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
+let mockFetch: ReturnType<typeof mock>;
+function setupMockFetch() {
+  mockFetch = mock(async (url: string | Request, options?: RequestInit) => {
+    const urlStr = typeof url === "string" ? url : url.toString();
 
-      return new Response(JSON.stringify([]), {
+    if (urlStr.includes("/embeddings")) {
+      const body = options?.body as string;
+      const data = JSON.parse(body);
+      const texts = Array.isArray(data.input) ? data.input : [data.input];
+
+      const responseData = {
+        data: texts.map((text: string, index: number) => ({
+          embedding: createMockEmbedding(text),
+          index,
+        })),
+      };
+
+      return new Response(JSON.stringify(responseData), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       });
     }
 
-    if (method === "POST") {
-      // Insert or upsert
-      const body = JSON.parse(options?.body as string);
-      const memories = Array.isArray(body) ? body : [body];
+    // For supabase fallback
+    return new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+    });
+  });
+  globalThis.fetch = mockFetch;
+}
 
-      for (const memory of memories) {
-        if (!memory.id) {
-          memory.id = crypto.randomUUID();
+setupMockFetch();
+
+
+// Mock Supabase client for testing
+class MockSupabaseClient {
+  private memories: Map<string, any> = new Map();
+  private nextId = 1;
+
+  async fetch(url: string, options?: RequestInit): Promise<Response> {
+    const method = options?.method || "GET";
+    const urlObj = new URL(url);
+    const params = urlObj.searchParams;
+
+    const idMatch = url.match(/id=eq\.([^&]+)/);
+    const threadIdMatch = url.match(/thread_id=eq\.([^&]+)/);
+
+    if (method === "GET") {
+      if (threadIdMatch) {
+        const threadId = decodeURIComponent(threadIdMatch[1]);
+        let memories = Array.from(this.memories.values()).filter(
+          (m: any) =>
+            (m.thread_id || m.threadId) === threadId &&
+            m.is_active !== false &&
+            m.isActive !== false,
+        );
+
+        const orParam = params.get("or");
+        if (orParam) {
+          const types = orParam
+            .match(/type\.eq\.([^,)]+)/g)
+            ?.map((t: string) => t.replace("type.eq.", ""));
+          if (types) {
+            memories = memories.filter((m: any) => types.includes(m.type));
+          }
         }
-        this.memories.set(memory.id, memory);
+
+        return new Response(JSON.stringify(memories), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
       }
 
-      return new Response(JSON.stringify(memories), {
+      if (idMatch) {
+        const id = decodeURIComponent(idMatch[1]);
+        const memory = this.memories.get(id);
+        if (!memory) {
+          return new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        return new Response(JSON.stringify([memory]), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+
+      return new Response(JSON.stringify([]), { status: 200, headers: { "content-type": "application/json" } });
+    }
+
+    if (method === "POST") {
+      const body = JSON.parse(options?.body as string);
+      const memories = Array.isArray(body) ? body : [body];
+      const savedMemories: any[] = [];
+
+      for (const memory of memories) {
+        const id = memory.id || `mock-${this.nextId++}`;
+        const saved = {
+          ...memory,
+          id,
+          created_at: memory.created_at || new Date().toISOString(),
+          is_active: memory.is_active !== undefined ? memory.is_active : true,
+          access_count: memory.access_count || 0,
+        };
+        this.memories.set(id, saved);
+        savedMemories.push(saved);
+      }
+
+      return new Response(JSON.stringify(savedMemories), {
         status: 200,
-        headers: { "Content-Type": "application/json" },
+        headers: { "content-type": "application/json" },
       });
     }
 
     if (method === "PATCH") {
-      // Update
-      const urlObj = new URL(url);
-      const id = urlObj.searchParams.get("id");
-      const updates = JSON.parse(options?.body as string);
-
-      if (id) {
+      const idMatch = url.match(/id=eq\.([^&]+)/);
+      if (idMatch) {
+        const id = decodeURIComponent(idMatch[1]);
+        const updates = JSON.parse(options?.body as string);
         const existing = this.memories.get(id);
+
         if (existing) {
-          Object.assign(existing, updates);
-          return new Response(JSON.stringify([existing]), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
+          const updated = { ...existing, ...updates };
+          if (updates.last_accessed_at) {
+            updated.access_count = (existing.access_count || 0) + 1;
+          }
+          this.memories.set(id, updated);
         }
       }
-
-      return new Response(null, { status: 404 });
+      return new Response(null, { status: 204 });
     }
 
     if (method === "DELETE") {
-      const urlObj = new URL(url);
-      const id = urlObj.searchParams.get("id");
-
-      if (id && this.memories.has(id)) {
+      const idMatch = url.match(/id=eq\.([^&]+)/);
+      if (idMatch) {
+        const id = decodeURIComponent(idMatch[1]);
         this.memories.delete(id);
-        return new Response(null, { status: 204 });
       }
-
-      return new Response(null, { status: 404 });
+      return new Response(null, { status: 204 });
     }
 
-    return new Response(null, { status: 400 });
+    return new Response("Not found", { status: 404 });
   }
 
   clear() {
