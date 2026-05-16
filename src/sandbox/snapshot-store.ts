@@ -42,7 +42,10 @@ const STORAGE_DIR = process.env.SNAPSHOT_STORAGE_DIR || "/tmp/snapshots";
  * Environment variable: SNAPSHOT_CACHE_TTL_MS
  * Default: 300000 (5 minutes)
  */
-const CACHE_TTL_MS = Number.parseInt(process.env.SNAPSHOT_CACHE_TTL_MS || "300000", 10);
+const CACHE_TTL_MS = Number.parseInt(
+  process.env.SNAPSHOT_CACHE_TTL_MS || "300000",
+  10,
+);
 
 /**
  * File extension for snapshot metadata files.
@@ -309,44 +312,12 @@ export class FilesystemSnapshotStore implements SnapshotStore {
   ): Promise<SnapshotMetadata[]> {
     await this.initialize();
 
-    const snapshots: SnapshotMetadata[] = [];
-    const prefix = `${repoOwner.toLowerCase()}/${repoName.toLowerCase()}/`;
-
-    try {
-      const files = await readdir(this.storageDir);
-
-      const filteredFiles = files.filter(
-        (file) => file.startsWith(prefix) && file.endsWith(METADATA_EXT),
-      );
-
-      const metadataPromises = filteredFiles.map(async (file) => {
-        try {
-          const filePath = join(this.storageDir, file);
-          const data = await readFile(filePath, "utf-8");
-          const metadata = JSON.parse(data) as SnapshotMetadata;
-          metadata.createdAt = new Date(metadata.createdAt);
-          metadata.refreshedAt = new Date(metadata.refreshedAt);
-          return metadata;
-        } catch (error) {
-          logger.warn(
-            { error, file },
-            `[snapshot-store] Failed to read snapshot file`,
-          );
-          return null;
-        }
-      });
-
-      const results = await Promise.all(metadataPromises);
-      for (const metadata of results) {
-        if (metadata) {
-          snapshots.push(metadata);
-        }
-      }
-    } catch (error) {
-      logger.error({ error }, `[snapshot-store] Failed to list snapshots`);
-    }
-
-    return snapshots;
+    const allSnapshots = await this.listAll();
+    return allSnapshots.filter(
+      (snapshot) =>
+        snapshot.key.repoOwner.toLowerCase() === repoOwner.toLowerCase() &&
+        snapshot.key.repoName.toLowerCase() === repoName.toLowerCase(),
+    );
   }
 
   /**
@@ -357,44 +328,14 @@ export class FilesystemSnapshotStore implements SnapshotStore {
   ): Promise<SnapshotMetadata[]> {
     await this.initialize();
 
-    const snapshots: SnapshotMetadata[] = [];
-    const prefix = `${params.repoOwner.toLowerCase()}/${params.repoName.toLowerCase()}/${params.profile}/`;
-
-    try {
-      const files = await readdir(this.storageDir);
-
-      const filteredFiles = files.filter(
-        (file) => file.startsWith(prefix) && file.endsWith(METADATA_EXT),
-      );
-
-      const metadataPromises = filteredFiles.map(async (file) => {
-        try {
-          const filePath = join(this.storageDir, file);
-          const data = await readFile(filePath, "utf-8");
-          const metadata = JSON.parse(data) as SnapshotMetadata;
-          metadata.createdAt = new Date(metadata.createdAt);
-          metadata.refreshedAt = new Date(metadata.refreshedAt);
-          return metadata;
-        } catch (error) {
-          logger.warn(
-            { error, file },
-            `[snapshot-store] Failed to read snapshot file`,
-          );
-          return null;
-        }
-      });
-
-      const results = await Promise.all(metadataPromises);
-      for (const metadata of results) {
-        if (metadata) {
-          snapshots.push(metadata);
-        }
-      }
-    } catch (error) {
-      logger.error({ error }, `[snapshot-store] Failed to list snapshots`);
-    }
-
-    return snapshots;
+    const allSnapshots = await this.listAll();
+    return allSnapshots.filter(
+      (snapshot) =>
+        snapshot.key.repoOwner.toLowerCase() ===
+          params.repoOwner.toLowerCase() &&
+        snapshot.key.repoName.toLowerCase() === params.repoName.toLowerCase() &&
+        snapshot.key.profile === params.profile,
+    );
   }
 
   /**
@@ -546,31 +487,24 @@ export class FilesystemSnapshotStore implements SnapshotStore {
     let deleted = 0;
 
     try {
-      const files = await readdir(this.storageDir);
+      const allSnapshots = await this.listAll();
+      const expiredSnapshots = allSnapshots.filter((metadata) =>
+        isSnapshotExpired(metadata, maxAgeHours),
+      );
 
-      const filteredFiles = files.filter((file) => file.endsWith(METADATA_EXT));
-
-      const deletePromises = filteredFiles.map(async (file) => {
+      const deletePromises = expiredSnapshots.map(async (metadata) => {
         try {
-          const filePath = join(this.storageDir, file);
-          const data = await readFile(filePath, "utf-8");
-          const metadata = JSON.parse(data) as SnapshotMetadata;
-          metadata.createdAt = new Date(metadata.createdAt);
-          metadata.refreshedAt = new Date(metadata.refreshedAt);
-
-          if (isSnapshotExpired(metadata, maxAgeHours)) {
-            await unlink(filePath);
-            logger.debug(
-              { snapshotId: metadata.snapshotId, file },
-              `[snapshot-store] Deleted expired snapshot`,
-            );
-            return 1;
-          }
-          return 0;
+          const filePath = this.getFilePath(metadata.key);
+          await unlink(filePath);
+          logger.debug(
+            { snapshotId: metadata.snapshotId, file: filePath },
+            `[snapshot-store] Deleted expired snapshot`,
+          );
+          return 1;
         } catch (error) {
           logger.warn(
-            { error, file },
-            `[snapshot-store] Failed to process snapshot file`,
+            { error, snapshotId: metadata.snapshotId },
+            `[snapshot-store] Failed to delete expired snapshot file`,
           );
           return 0;
         }

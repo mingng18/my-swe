@@ -23,3 +23,6 @@
 ## 2025-02-24 - Parallelize agent execution in commit-and-open-pr reviewers
 **Learning:** Sequential await loops over independent agent invocations introduce significant latency when calling out to LLMs or remote APIs. In this case, `await agent.invoke()` in a `for...of` loop caused reviewers to wait for the previous one to finish, resulting in an O(N) penalty.
 **Action:** Use `Promise.all` with `.map` to execute independent agent sub-tasks concurrently.
+## 2026-05-16 - Refactor Snapshot Store Operations to use cached listAll
+**Learning:** The unoptimized listByRepo, listByProfile, and cleanup methods were causing performance issues due to unawaited maps with sequential I/O file reads. Not only were they slow, but they were also fundamentally broken because readdir(storageDir) only returned top-level directories while the target files were nested in `repoOwner/repoName/profile/branch.json`.
+**Action:** Reused the cached and recursive listAll() method and performed purely in-memory filtering. This changed it from N sequential I/O operations and bugged lookups into a single O(1) cache read (with a background recursive update on TTL expiration) and fast O(N) array filter.
