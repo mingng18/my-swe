@@ -23,3 +23,6 @@
 ## 2025-02-24 - Parallelize agent execution in commit-and-open-pr reviewers
 **Learning:** Sequential await loops over independent agent invocations introduce significant latency when calling out to LLMs or remote APIs. In this case, `await agent.invoke()` in a `for...of` loop caused reviewers to wait for the previous one to finish, resulting in an O(N) penalty.
 **Action:** Use `Promise.all` with `.map` to execute independent agent sub-tasks concurrently.
+## 2024-05-18 - Promise Map Overhead
+**Learning:** Wrapping `Array.prototype.map` callbacks in `async` when immediately passed to `Promise.all` introduces unnecessary microtask overhead in V8/Node.js.
+**Action:** When mapping over items to create a concurrent I/O array for `Promise.all()`, return the native promise chain (e.g., `item => fs.readFile(...).then(...)`) directly rather than using an `async` arrow function wrapper.

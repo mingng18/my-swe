@@ -19,10 +19,11 @@ export async function loadRepoAgents(
     const files = await fsPromises.readdir(agentsDir);
     const mdFiles = files.filter((file) => file.endsWith(".md"));
 
-    const readPromises = mdFiles.map(async (file) => {
-      const content = await fsPromises.readFile(join(agentsDir, file), "utf8");
-      return parseAgentsMd(content, file);
-    });
+    const readPromises = mdFiles.map((file) =>
+      fsPromises
+        .readFile(join(agentsDir, file), "utf8")
+        .then((content) => parseAgentsMd(content, file)),
+    );
 
     const parsedAgents = await Promise.all(readPromises);
 
