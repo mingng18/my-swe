@@ -23,3 +23,7 @@
 ## 2025-02-24 - Parallelize agent execution in commit-and-open-pr reviewers
 **Learning:** Sequential await loops over independent agent invocations introduce significant latency when calling out to LLMs or remote APIs. In this case, `await agent.invoke()` in a `for...of` loop caused reviewers to wait for the previous one to finish, resulting in an O(N) penalty.
 **Action:** Use `Promise.all` with `.map` to execute independent agent sub-tasks concurrently.
+
+## 2024-05-18 - Replacing chunked Promise.all with Native Worker Pool for I/O bounds
+**Learning:** When performing parallel I/O mapped loops over arrays (like batch uploads/downloads), chunking with `await Promise.all(slice)` is inefficient because the whole chunk must complete before the next chunk starts, constrained by the slowest item in the chunk.
+**Action:** Replace `for` loops making chunk slices with a worker pool pattern using `Array.from({ length: CONCURRENCY_LIMIT }, worker)` where the `worker` pulls indices from a shared iterator/variable (`let currentIndex = 0`). This eliminates chunk-boundary delays.
