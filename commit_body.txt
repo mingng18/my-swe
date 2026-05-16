@@ -1,3 +1,0 @@
-🎯 **What:** Replaced the weak `md5` hashing algorithm with the secure `sha256` algorithm in `generateThreadId` functions.
-⚠️ **Risk:** MD5 is cryptographically broken and vulnerable to collision attacks, which could theoretically allow attackers to guess or manipulate thread IDs, potentially accessing or disrupting other users' conversations.
-🛡️ **Solution:** Updated the `createHash("md5")` calls to `createHash("sha256")` in both `src/webapp.ts` and `src/index.ts` to ensure thread IDs are generated using a secure, modern hashing algorithm.
