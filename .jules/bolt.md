@@ -23,3 +23,6 @@
 ## 2025-02-24 - Parallelize agent execution in commit-and-open-pr reviewers
 **Learning:** Sequential await loops over independent agent invocations introduce significant latency when calling out to LLMs or remote APIs. In this case, `await agent.invoke()` in a `for...of` loop caused reviewers to wait for the previous one to finish, resulting in an O(N) penalty.
 **Action:** Use `Promise.all` with `.map` to execute independent agent sub-tasks concurrently.
+## 2026-05-16 - Bolt: Run setup commands concurrently in snapshot manager
+**Learning:** Found an N+1 sequential I/O query bottleneck in `SnapshotManager.createSnapshot` where backend/sandbox setup commands (which are highly I/O bound in node) were being awaited inside a simple `for` loop.
+**Action:** Always look for and rewrite sequential `for...of` loops that map to backend `.execute()` methods with `Promise.all(list.map(...))` to ensure proper parallelism for performance gains.
