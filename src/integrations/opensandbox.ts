@@ -459,36 +459,32 @@ export class OpenSandboxBackend extends BaseSandboxBackend {
         | null;
     }> = [];
 
-    // ⚡ Bolt: Chunked parallel downloads to eliminate N+1 sequential bottlenecks.
-    // Processes 5 files concurrently. Reduces total download time significantly
-    // (e.g. from O(N) network roundtrips to O(N/5)).
-    const CONCURRENCY_LIMIT = 5;
-    for (let i = 0; i < paths.length; i += CONCURRENCY_LIMIT) {
-      const chunk = paths.slice(i, i + CONCURRENCY_LIMIT);
-      const chunkResults = await Promise.all(
-        chunk.map(async (path) => {
-          try {
-            const content = await this.sandbox!.files.readFile(path);
-            const data = new TextEncoder().encode(content);
-            return { path, content: data, error: null };
-          } catch (err) {
-            // Map to FileOperationError
-            const error:
-              | "file_not_found"
-              | "permission_denied"
-              | "is_directory"
-              | "invalid_path" =
-              err instanceof Error && err.message.includes("not found")
-                ? "file_not_found"
-                : err instanceof Error && err.message.includes("permission")
-                  ? "permission_denied"
-                  : "invalid_path";
-            return { path, content: null, error };
-          }
-        }),
-      );
-      results.push(...chunkResults);
-    }
+    // ⚡ Bolt: Fully parallel downloads to eliminate sequential bottlenecks.
+    // Processes all files concurrently. Reduces total download time to a single roundtrip
+    // (O(1) network roundtrips).
+    const parallelResults = await Promise.all(
+      paths.map(async (path) => {
+        try {
+          const content = await this.sandbox!.files.readFile(path);
+          const data = new TextEncoder().encode(content);
+          return { path, content: data, error: null };
+        } catch (err) {
+          // Map to FileOperationError
+          const error:
+            | "file_not_found"
+            | "permission_denied"
+            | "is_directory"
+            | "invalid_path" =
+            err instanceof Error && err.message.includes("not found")
+              ? "file_not_found"
+              : err instanceof Error && err.message.includes("permission")
+                ? "permission_denied"
+                : "invalid_path";
+          return { path, content: null, error };
+        }
+      }),
+    );
+    results.push(...parallelResults);
 
     return results;
   }

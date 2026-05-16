@@ -23,3 +23,6 @@
 ## 2025-02-24 - Parallelize agent execution in commit-and-open-pr reviewers
 **Learning:** Sequential await loops over independent agent invocations introduce significant latency when calling out to LLMs or remote APIs. In this case, `await agent.invoke()` in a `for...of` loop caused reviewers to wait for the previous one to finish, resulting in an O(N) penalty.
 **Action:** Use `Promise.all` with `.map` to execute independent agent sub-tasks concurrently.
+## 2025-05-16 - Sequential File I/O in Loop in OpenSandbox Integration
+**Learning:** `downloadFiles` was artificially bottlenecked by batching network requests into chunks of 5 using `Promise.all` inside a loop, causing `O(N/5)` network roundtrips.
+**Action:** Replace chunked batching with a single fully parallel map over all items (`Promise.all(paths.map(...))`) when the underlying integration can handle concurrent network requests efficiently, reducing total operation time to `O(1)` roundtrips.
