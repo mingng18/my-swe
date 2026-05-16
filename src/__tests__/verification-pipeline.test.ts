@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, mock, beforeEach } from "bun:test";
 
 // Mock dependencies before importing the module under test
@@ -122,7 +123,7 @@ describe("runVerificationPipeline", () => {
   it("should continue execution even if dependency installation fails or finds no package manager", async () => {
     mockInstallDependencies.mockImplementationOnce(async () => ({
       installed: false,
-      packageManager: null,
+      packageManager: "",
       output: "no package.json"
     }));
 

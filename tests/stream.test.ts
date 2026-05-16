@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, beforeAll, afterAll } from "bun:test";
 import { streamRegistry } from "../src/stream";
 
