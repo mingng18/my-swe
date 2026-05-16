@@ -23,3 +23,6 @@
 ## 2025-02-24 - Parallelize agent execution in commit-and-open-pr reviewers
 **Learning:** Sequential await loops over independent agent invocations introduce significant latency when calling out to LLMs or remote APIs. In this case, `await agent.invoke()` in a `for...of` loop caused reviewers to wait for the previous one to finish, resulting in an O(N) penalty.
 **Action:** Use `Promise.all` with `.map` to execute independent agent sub-tasks concurrently.
+## 2023-11-20 - Promise.all Optimization for Dynamic Imports
+**Learning:** Sequential dynamic imports (`await import(...)`) can introduce unnecessary I/O-bound microtask delays within request handlers, even when Node.js caches the modules.
+**Action:** Always group sequential dynamic imports using `Promise.all` inside request handlers where the modules are needed together to fetch them concurrently.
