@@ -12,6 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle, Loader2, Send, RefreshCw, X, Bot, Zap, FileCode, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -36,6 +37,7 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
   const [userInput, setUserInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isNewRunModalOpen, setIsNewRunModalOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Track connection state in a ref that handleStartAgent can read
@@ -156,6 +158,75 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
 
   return (
     <div className={cn("flex flex-col h-screen bg-background", className)}>
+      <Dialog open={isNewRunModalOpen} onOpenChange={setIsNewRunModalOpen}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Start New Agent Run</DialogTitle>
+            <DialogDescription>
+              Enter a task for the agent to start a new thread.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 mt-4">
+            <div className="relative">
+              <Input
+                placeholder="Enter your task for the agent..."
+                value={userInput}
+                onChange={(e) => setUserInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleStartAgent();
+                    setIsNewRunModalOpen(false);
+                  }
+                }}
+                disabled={isLoading}
+                className="pr-10"
+                autoFocus
+              />
+              {userInput && (
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="Clear input"
+                  onClick={() => setUserInput("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 opacity-50 hover:opacity-100"
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setIsNewRunModalOpen(false)}
+                disabled={isLoading}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  handleStartAgent();
+                  setIsNewRunModalOpen(false);
+                }}
+                disabled={isLoading || !userInput.trim()}
+                className="gap-2"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Starting...
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4" />
+                    Run
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b bg-card shadow-sm">
         <div className="flex items-center gap-3">
@@ -200,7 +271,7 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
       </div>
 
       {/* Thread Tabs */}
-      <ThreadTabs />
+      <ThreadTabs onNewThread={() => setIsNewRunModalOpen(true)} />
 
       {/* New Agent Input (shown when no threads or explicitly requested) */}
       {!threadId && (

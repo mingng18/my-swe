@@ -8,10 +8,11 @@ import { Circle, CheckCircle2, AlertCircle, X, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ThreadTabsProps {
+  onNewThread?: () => void;
   className?: string;
 }
 
-export function ThreadTabs({ className }: ThreadTabsProps) {
+export function ThreadTabs({ className, onNewThread }: ThreadTabsProps) {
   const threads = useThreadStore((state) => state.threads);
   const activeThreadId = useThreadStore((state) => state.activeThreadId);
   const setActiveThread = useThreadStore((state) => state.setActiveThread);
@@ -47,9 +48,11 @@ export function ThreadTabs({ className }: ThreadTabsProps) {
   };
 
   const handleNewThread = () => {
-    console.log("Start new agent run");
-    // TODO: Open modal/input for new agent run
-    // This will be implemented in ThreadMonitor
+    if (onNewThread) {
+      onNewThread();
+    } else {
+      console.log("Start new agent run");
+    }
   };
 
   if (threadEntries.length === 0) {
