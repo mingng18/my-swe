@@ -5,6 +5,7 @@ import {
   createRepoSandbox,
   releaseRepoSandbox,
   type SandboxProfile,
+  normalizeProfile,
 } from "./integrations/daytona-pool";
 
 const logger = createLogger("prewarm");
@@ -54,19 +55,6 @@ function parseReposJson(): PrewarmRepoSpec[] {
   ];
 }
 
-function normalizeProfile(profile?: string): SandboxProfile {
-  const p = (profile || "").trim().toLowerCase();
-  if (
-    p === "typescript" ||
-    p === "javascript" ||
-    p === "python" ||
-    p === "java" ||
-    p === "polyglot"
-  ) {
-    return p;
-  }
-  return "typescript";
-}
 
 async function createAdditionalSandbox(
   owner: string,
