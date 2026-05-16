@@ -19,3 +19,7 @@
 **Vulnerability:** Resource Exhaustion (DoS) due to un-destroyed undici Agents
 **Learning:** When mitigating SSRF using custom DNS lookup via `undici.Agent`, failing to explicitly call `await agent.destroy()` leaks socket connections and file descriptors because custom Agents bypass global connection pooling.
 **Prevention:** Always destroy custom networking Agents in a `finally` block immediately after the response is fully consumed.
+## 2026-05-16 - Exposure of sensitive error information through console logger
+**Vulnerability:** Use of raw 'console' for logging errors in 'github-token.ts'.
+**Learning:** Relying on 'console' can leak sensitive information like tokens or configuration to standard output instead of funneling it through a structured logging system which has mechanisms for secret redaction or serialization limits. Standard JS 'Error' objects, when logged via console, can dump large swaths of arbitrary internal state.
+**Prevention:** Consistently use the application's dedicated logger (e.g. 'pino' via 'createLogger') and pass errors as structured objects (e.g., 'logger.error({ error }, "message")') to ensure predictable output formatting and prevent unintentional data spillage.
