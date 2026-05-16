@@ -423,7 +423,7 @@ describe("formatIssues", () => {
 
 
   it("orders issues strictly by severity (CRITICAL > HIGH > MEDIUM > LOW)", () => {
-    const unorderedIssues = [
+    const unorderedIssues: ReviewIssue[] = [
       { severity: "LOW", file: "low.ts", issue: "Low", fix: "Fix" },
       { severity: "MEDIUM", file: "medium.ts", issue: "Medium", fix: "Fix" },
       { severity: "CRITICAL", file: "critical.ts", issue: "Critical", fix: "Fix" },
@@ -443,7 +443,7 @@ describe("formatIssues", () => {
   });
 
   it("groups multiple issues of the same severity together", () => {
-    const mixedIssues = [
+    const mixedIssues: ReviewIssue[] = [
       { severity: "HIGH", file: "high1.ts", issue: "High 1", fix: "Fix 1" },
       { severity: "LOW", file: "low1.ts", issue: "Low 1", fix: "Fix 1" },
       { severity: "HIGH", file: "high2.ts", issue: "High 2", fix: "Fix 2" },
