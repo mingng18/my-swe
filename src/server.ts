@@ -24,6 +24,9 @@ export async function runCodeagentTurn(
   const startedAt = Date.now();
 
   try {
+    // Note: getAgentHarness and harness.run must remain sequential awaits.
+    // They cannot be grouped in Promise.all because harness.run inherently
+    // depends on the resolved harness instance.
     const harness = await getAgentHarness();
     const result = await harness.run(userText, {
       threadId: threadId ?? "default-session",
