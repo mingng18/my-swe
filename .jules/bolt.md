@@ -23,3 +23,6 @@
 ## 2025-02-24 - Parallelize agent execution in commit-and-open-pr reviewers
 **Learning:** Sequential await loops over independent agent invocations introduce significant latency when calling out to LLMs or remote APIs. In this case, `await agent.invoke()` in a `for...of` loop caused reviewers to wait for the previous one to finish, resulting in an O(N) penalty.
 **Action:** Use `Promise.all` with `.map` to execute independent agent sub-tasks concurrently.
+## 2026-05-16 - Replace N+1 queries with Promise.all for embedding generation
+**Learning:** Sequential processing in loops (`for...of` containing `await`) creates a severe N+1 bottleneck, specifically when each iteration triggers separate asynchronous calls to external services like embedding APIs or databases.
+**Action:** Use `Promise.all` alongside `.map()` to generate embedding requests in parallel, significantly reducing I/O latency. Ensure to correctly map error handling behavior (e.g., catching inline and omitting the `continue` statement that's invalid inside a `.map()` callback) so side-effects are preserved.

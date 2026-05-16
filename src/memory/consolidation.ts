@@ -118,24 +118,24 @@ export class ConsolidationService {
     const processed = new Set<string>();
 
     // Generate embeddings for memories that don't have them
-    for (const memory of memories) {
-      if (!memory.embedding || memory.embedding.length === 0) {
-        try {
-          const text = `${memory.title}. ${memory.content}`;
-          memory.embedding =
-            await this.embeddingService.generateEmbedding(text);
-          await this.repository.update(memory.id!, {
-            embedding: memory.embedding,
-          });
-        } catch (error) {
-          logger.warn(
-            { memoryId: memory.id },
-            "Failed to generate embedding for duplicate detection",
-          );
-          continue;
+    await Promise.all(
+      memories.map(async (memory) => {
+        if (!memory.embedding || memory.embedding.length === 0) {
+          try {
+            const text = `${memory.title}. ${memory.content}`;
+            memory.embedding = await this.embeddingService.generateEmbedding(text);
+            await this.repository.update(memory.id!, {
+              embedding: memory.embedding,
+            });
+          } catch (error) {
+            logger.warn(
+              { memoryId: memory.id },
+              "Failed to generate embedding for duplicate detection",
+            );
+          }
         }
-      }
-    }
+      })
+    );
 
     // Find duplicate groups
     for (let i = 0; i < memories.length; i++) {
