@@ -1,10 +1,10 @@
 import { describe, it, expect, mock, beforeEach } from "bun:test";
 
 // Mock dependencies before importing the module under test
-const mockInstallDependencies = mock(async () => ({ installed: true, packageManager: "npm" }));
+const mockInstallDependencies = mock(async (): Promise<{ installed: boolean; packageManager: string | null; output?: string }> => ({ installed: true, packageManager: "npm" }));
 const mockRunTests = mock(async () => ({ testPassed: true }));
 const mockRunLinter = mock(async () => ({ lintPassed: true }));
-const mockEnforcePRSubmission = mock(async () => ({ prCreated: true, prUrl: "http://pr" }));
+const mockEnforcePRSubmission = mock(async (): Promise<{ prCreated: boolean; prUrl?: string; error?: string }> => ({ prCreated: true, prUrl: "http://pr" }));
 
 mock.module("../nodes/deterministic/DependencyInstallerNode", () => ({
   installDependencies: mockInstallDependencies,
@@ -33,10 +33,10 @@ describe("runVerificationPipeline", () => {
     mockEnforcePRSubmission.mockClear();
 
     // Reset mocks to their default successful states
-    mockInstallDependencies.mockImplementation(async () => ({ installed: true, packageManager: "npm" }));
+    mockInstallDependencies.mockImplementation(async (): Promise<{ installed: boolean; packageManager: string | null; output?: string }> => ({ installed: true, packageManager: "npm" }));
     mockRunTests.mockImplementation(async () => ({ testPassed: true }));
     mockRunLinter.mockImplementation(async () => ({ lintPassed: true }));
-    mockEnforcePRSubmission.mockImplementation(async () => ({ prCreated: true, prUrl: "http://pr" }));
+    mockEnforcePRSubmission.mockImplementation(async (): Promise<{ prCreated: boolean; prUrl?: string; error?: string }> => ({ prCreated: true, prUrl: "http://pr" }));
   });
 
   const defaultParams = {
@@ -120,7 +120,7 @@ describe("runVerificationPipeline", () => {
   });
 
   it("should continue execution even if dependency installation fails or finds no package manager", async () => {
-    mockInstallDependencies.mockImplementationOnce(async () => ({
+    mockInstallDependencies.mockImplementationOnce(async (): Promise<{ installed: boolean; packageManager: string | null; output?: string }> => ({
       installed: false,
       packageManager: null,
       output: "no package.json"
@@ -143,7 +143,7 @@ describe("runVerificationPipeline", () => {
   });
 
   it("should return error if PR submission fails", async () => {
-    mockEnforcePRSubmission.mockImplementationOnce(async () => ({
+    mockEnforcePRSubmission.mockImplementationOnce(async (): Promise<{ prCreated: boolean; prUrl?: string; error?: string }> => ({
       prCreated: false,
       error: "GitHub API rate limit"
     }));
