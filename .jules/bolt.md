@@ -23,3 +23,6 @@
 ## 2025-02-24 - Parallelize agent execution in commit-and-open-pr reviewers
 **Learning:** Sequential await loops over independent agent invocations introduce significant latency when calling out to LLMs or remote APIs. In this case, `await agent.invoke()` in a `for...of` loop caused reviewers to wait for the previous one to finish, resulting in an O(N) penalty.
 **Action:** Use `Promise.all` with `.map` to execute independent agent sub-tasks concurrently.
+## 2026-05-16 - File Descriptor Exhaustion in Map/ForEach
+**Learning:** Mapping `async` over arrays without limits (like `Promise.all(files.map(async...))`) for heavy filesystem operations (`fs/promises`) can lead to huge memory spikes and unbounded concurrency which causes file descriptor exhaustion or performance slowdown. `p-limit` is an effective, simple mechanism to mitigate this while maintaining the interface of asynchronous mapping without blocking.
+**Action:** When performing `Promise.all` over dynamic data arrays mapping an I/O operation, always implement bounded concurrency control using `p-limit` if the array length can exceed safe thresholds (e.g., > 100).

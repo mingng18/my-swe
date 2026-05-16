@@ -1,6 +1,7 @@
 import { createLogger } from "./logger";
 import { mkdir, readFile, writeFile, unlink, readdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import pLimit from "p-limit";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
 
@@ -498,9 +499,11 @@ export async function listArtifacts(
   const files = await readdir(MEMORY_POINTER_DIR);
   const artifacts: ArtifactMetadata[] = [];
 
+  const limit = pLimit(50);
+
   const readPromises = files
     .filter((file) => file.endsWith(".json"))
-    .map(async (file) => {
+    .map((file) => limit(async () => {
       try {
         const filePath = path.join(MEMORY_POINTER_DIR, file);
         const data = await readFile(filePath, "utf-8");
@@ -523,7 +526,7 @@ export async function listArtifacts(
         );
       }
       return null;
-    });
+    }));
 
   const results = await Promise.all(readPromises);
   for (const metadata of results) {
@@ -561,9 +564,11 @@ export async function cleanupArtifacts(threadId: string): Promise<number> {
   const files = await readdir(MEMORY_POINTER_DIR);
   let cleanedCount = 0;
 
+  const limit = pLimit(50);
+
   const cleanupPromises = files
     .filter((file) => file.endsWith(".json"))
-    .map(async (file) => {
+    .map((file) => limit(async () => {
       try {
         const filePath = path.join(MEMORY_POINTER_DIR, file);
         const data = await readFile(filePath, "utf-8");
@@ -581,7 +586,7 @@ export async function cleanupArtifacts(threadId: string): Promise<number> {
         logger.warn({ file, error }, "[memory-pointer] Failed during cleanup");
       }
       return 0;
-    });
+    }));
 
   const results = await Promise.all(cleanupPromises);
   cleanedCount = results.reduce((sum: number, count) => sum + count, 0);
