@@ -302,7 +302,7 @@ describe("filterIssuesBySeverity", () => {
 describe("hasCriticalIssues", () => {
   it("returns true when CRITICAL issues exist among other severities", () => {
     const issues: ReviewIssue[] = [
-      { severity: "HIGH", file: "a.ts", issue: "High issue", fix: "Fix" },
+      { severity: "HIGH" as const, file: "a.ts", issue: "High issue", fix: "Fix" },
       {
         severity: "CRITICAL",
         file: "b.ts",
@@ -317,7 +317,7 @@ describe("hasCriticalIssues", () => {
 
   it("returns true when only CRITICAL issues exist", () => {
     const issues: ReviewIssue[] = [
-      { severity: "CRITICAL", file: "a.ts", issue: "Critical issue 1", fix: "Fix 1" },
+      { severity: "CRITICAL" as const, file: "a.ts", issue: "Critical issue 1", fix: "Fix 1" },
       {
         severity: "CRITICAL",
         file: "b.ts",
@@ -332,10 +332,10 @@ describe("hasCriticalIssues", () => {
 
   it("returns true when multiple CRITICAL issues exist among other severities", () => {
     const issues: ReviewIssue[] = [
-      { severity: "LOW", file: "c.ts", issue: "Low issue", fix: "Fix" },
-      { severity: "CRITICAL", file: "a.ts", issue: "Critical issue 1", fix: "Fix 1" },
-      { severity: "HIGH", file: "d.ts", issue: "High issue", fix: "Fix" },
-      { severity: "CRITICAL", file: "b.ts", line: 1, issue: "Critical issue 2", fix: "Fix 2" },
+      { severity: "LOW" as const, file: "c.ts", issue: "Low issue", fix: "Fix" },
+      { severity: "CRITICAL" as const, file: "a.ts", issue: "Critical issue 1", fix: "Fix 1" },
+      { severity: "HIGH" as const, file: "d.ts", issue: "High issue", fix: "Fix" },
+      { severity: "CRITICAL" as const, file: "b.ts", line: 1, issue: "Critical issue 2", fix: "Fix 2" },
     ];
 
     expect(hasCriticalIssues(issues)).toBe(true);
@@ -343,7 +343,7 @@ describe("hasCriticalIssues", () => {
 
   it("returns false when no CRITICAL issues", () => {
     const issues: ReviewIssue[] = [
-      { severity: "HIGH", file: "a.ts", issue: "High issue", fix: "Fix" },
+      { severity: "HIGH" as const, file: "a.ts", issue: "High issue", fix: "Fix" },
       {
         severity: "MEDIUM",
         file: "b.ts",
@@ -358,9 +358,9 @@ describe("hasCriticalIssues", () => {
 
   it("returns false when only non-critical issues (LOW, MEDIUM, HIGH) exist", () => {
     const issues: ReviewIssue[] = [
-      { severity: "LOW", file: "c.ts", issue: "Low issue", fix: "Fix" },
-      { severity: "MEDIUM", file: "d.ts", issue: "Medium issue", fix: "Fix" },
-      { severity: "HIGH", file: "a.ts", issue: "High issue", fix: "Fix" },
+      { severity: "LOW" as const, file: "c.ts", issue: "Low issue", fix: "Fix" },
+      { severity: "MEDIUM" as const, file: "d.ts", issue: "Medium issue", fix: "Fix" },
+      { severity: "HIGH" as const, file: "a.ts", issue: "High issue", fix: "Fix" },
     ];
 
     expect(hasCriticalIssues(issues)).toBe(false);
@@ -424,10 +424,10 @@ describe("formatIssues", () => {
 
   it("orders issues strictly by severity (CRITICAL > HIGH > MEDIUM > LOW)", () => {
     const unorderedIssues = [
-      { severity: "LOW", file: "low.ts", issue: "Low", fix: "Fix" },
-      { severity: "MEDIUM", file: "medium.ts", issue: "Medium", fix: "Fix" },
-      { severity: "CRITICAL", file: "critical.ts", issue: "Critical", fix: "Fix" },
-      { severity: "HIGH", file: "high.ts", issue: "High", fix: "Fix" },
+      { severity: "LOW" as const, file: "low.ts", issue: "Low", fix: "Fix" },
+      { severity: "MEDIUM" as const, file: "medium.ts", issue: "Medium", fix: "Fix" },
+      { severity: "CRITICAL" as const, file: "critical.ts", issue: "Critical", fix: "Fix" },
+      { severity: "HIGH" as const, file: "high.ts", issue: "High", fix: "Fix" },
     ];
 
     const formatted = formatIssues(unorderedIssues);
@@ -444,10 +444,10 @@ describe("formatIssues", () => {
 
   it("groups multiple issues of the same severity together", () => {
     const mixedIssues = [
-      { severity: "HIGH", file: "high1.ts", issue: "High 1", fix: "Fix 1" },
-      { severity: "LOW", file: "low1.ts", issue: "Low 1", fix: "Fix 1" },
-      { severity: "HIGH", file: "high2.ts", issue: "High 2", fix: "Fix 2" },
-      { severity: "CRITICAL", file: "crit1.ts", issue: "Critical 1", fix: "Fix 1" },
+      { severity: "HIGH" as const, file: "high1.ts", issue: "High 1", fix: "Fix 1" },
+      { severity: "LOW" as const, file: "low1.ts", issue: "Low 1", fix: "Fix 1" },
+      { severity: "HIGH" as const, file: "high2.ts", issue: "High 2", fix: "Fix 2" },
+      { severity: "CRITICAL" as const, file: "crit1.ts", issue: "Critical 1", fix: "Fix 1" },
     ];
 
     const formatted = formatIssues(mixedIssues);
