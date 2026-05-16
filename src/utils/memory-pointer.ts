@@ -290,7 +290,10 @@ export async function updateArtifact(
   const filePath = getPointerPath(pointerId);
 
   if (!existsSync(filePath)) {
-    logger.warn({ pointerId }, "[memory-pointer] Artifact not found for update");
+    logger.warn(
+      { pointerId },
+      "[memory-pointer] Artifact not found for update",
+    );
     return null;
   }
 
@@ -498,34 +501,41 @@ export async function listArtifacts(
   const files = await readdir(MEMORY_POINTER_DIR);
   const artifacts: ArtifactMetadata[] = [];
 
-  const readPromises = files
-    .filter((file) => file.endsWith(".json"))
-    .map(async (file) => {
-      try {
-        const filePath = path.join(MEMORY_POINTER_DIR, file);
-        const data = await readFile(filePath, "utf-8");
-        const artifact: StoredArtifact = JSON.parse(data);
+  const jsonFiles = files.filter((file) => file.endsWith(".json"));
+  const results: (ArtifactMetadata | null)[] = [];
 
-        // Skip expired artifacts
-        if (isExpired(artifact.metadata.expiresAt)) {
-          await deleteArtifact(artifact.metadata.id);
-          return null;
+  // Process in chunks to prevent excessive concurrent I/O and memory spikes
+  const CHUNK_SIZE = 50;
+  for (let i = 0; i < jsonFiles.length; i += CHUNK_SIZE) {
+    const chunk = jsonFiles.slice(i, i + CHUNK_SIZE);
+    const chunkResults = await Promise.all(
+      chunk.map(async (file) => {
+        try {
+          const filePath = path.join(MEMORY_POINTER_DIR, file);
+          const data = await readFile(filePath, "utf-8");
+          const artifact: StoredArtifact = JSON.parse(data);
+
+          // Skip expired artifacts
+          if (isExpired(artifact.metadata.expiresAt)) {
+            await deleteArtifact(artifact.metadata.id);
+            return null;
+          }
+
+          // Only return artifacts for this thread
+          if (artifact.metadata.threadId === threadId) {
+            return artifact.metadata;
+          }
+        } catch (error) {
+          logger.warn(
+            { file, error },
+            "[memory-pointer] Failed to read artifact during listing",
+          );
         }
-
-        // Only return artifacts for this thread
-        if (artifact.metadata.threadId === threadId) {
-          return artifact.metadata;
-        }
-      } catch (error) {
-        logger.warn(
-          { file, error },
-          "[memory-pointer] Failed to read artifact during listing",
-        );
-      }
-      return null;
-    });
-
-  const results = await Promise.all(readPromises);
+        return null;
+      }),
+    );
+    results.push(...chunkResults);
+  }
   for (const metadata of results) {
     if (metadata) {
       artifacts.push(metadata);
@@ -561,29 +571,39 @@ export async function cleanupArtifacts(threadId: string): Promise<number> {
   const files = await readdir(MEMORY_POINTER_DIR);
   let cleanedCount = 0;
 
-  const cleanupPromises = files
-    .filter((file) => file.endsWith(".json"))
-    .map(async (file) => {
-      try {
-        const filePath = path.join(MEMORY_POINTER_DIR, file);
-        const data = await readFile(filePath, "utf-8");
-        const artifact: StoredArtifact = JSON.parse(data);
+  const jsonFiles = files.filter((file) => file.endsWith(".json"));
+  const results: number[] = [];
 
-        // Delete if expired or belongs to this thread
-        if (
-          isExpired(artifact.metadata.expiresAt) ||
-          artifact.metadata.threadId === threadId
-        ) {
-          await unlink(filePath);
-          return 1;
+  // Process in chunks to prevent excessive concurrent I/O and memory spikes
+  const CHUNK_SIZE = 50;
+  for (let i = 0; i < jsonFiles.length; i += CHUNK_SIZE) {
+    const chunk = jsonFiles.slice(i, i + CHUNK_SIZE);
+    const chunkResults = await Promise.all(
+      chunk.map(async (file) => {
+        try {
+          const filePath = path.join(MEMORY_POINTER_DIR, file);
+          const data = await readFile(filePath, "utf-8");
+          const artifact: StoredArtifact = JSON.parse(data);
+
+          // Delete if expired or belongs to this thread
+          if (
+            isExpired(artifact.metadata.expiresAt) ||
+            artifact.metadata.threadId === threadId
+          ) {
+            await unlink(filePath);
+            return 1;
+          }
+        } catch (error) {
+          logger.warn(
+            { file, error },
+            "[memory-pointer] Failed during cleanup",
+          );
         }
-      } catch (error) {
-        logger.warn({ file, error }, "[memory-pointer] Failed during cleanup");
-      }
-      return 0;
-    });
-
-  const results = await Promise.all(cleanupPromises);
+        return 0;
+      }),
+    );
+    results.push(...chunkResults);
+  }
   cleanedCount = results.reduce((sum: number, count) => sum + count, 0);
 
   if (cleanedCount > 0) {
