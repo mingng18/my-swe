@@ -19,3 +19,7 @@
 **Vulnerability:** Resource Exhaustion (DoS) due to un-destroyed undici Agents
 **Learning:** When mitigating SSRF using custom DNS lookup via `undici.Agent`, failing to explicitly call `await agent.destroy()` leaks socket connections and file descriptors because custom Agents bypass global connection pooling.
 **Prevention:** Always destroy custom networking Agents in a `finally` block immediately after the response is fully consumed.
+## 2024-05-24 - Missing Cross-Origin Resource Policy (CORP) Header
+**Vulnerability:** The application was missing the `Cross-Origin-Resource-Policy` header and used dangerous `unsafe-inline` and `unsafe-eval` directives in its Content Security Policy (CSP).
+**Learning:** Development environments often introduce relaxed security headers for convenience (like HMR), but these can easily bleed into production or create vulnerable attack surfaces if not carefully managed. Always ensure default fallback policies are strict.
+**Prevention:** Implement strict defaults for security middlewares, even in development configurations, and override them on an as-needed, explicitly documented basis rather than by default.
