@@ -2,6 +2,7 @@ import { randomUUID, createHash } from "node:crypto";
 import { Agent, fetch as undiciFetch } from "undici";
 import { createLogger } from "../utils/logger";
 
+import { extractRepoFromInput } from "../utils/repo-parser";
 const logger = createLogger("repo-memory");
 
 // Keep-alive agent for Supabase connection pooling
@@ -66,29 +67,6 @@ function getSandboxProfileFromEnv(): SandboxProfile {
   return "typescript";
 }
 
-function extractRepoFromInput(
-  input: string,
-): { owner: string; name: string; workspaceDir: string } | null {
-  // Mirror the deepagents wrapper parsing so DB memory matches the actual repo context.
-  const match = input.match(/--repo\s+([a-zA-Z0-9_.-]+(?:\/[a-zA-Z0-9_.-]+)?)/);
-  if (!match) return null;
-
-  // Strip trailing punctuation (common when users type `--repo foo/bar.` mid-sentence).
-  const repoStr = match[1].replace(/[.,;!?]+$/, "");
-
-  const defaultOwner = process.env.GITHUB_DEFAULT_OWNER || "";
-  if (!repoStr.includes("/")) {
-    if (!defaultOwner) return null;
-    return {
-      owner: defaultOwner,
-      name: repoStr,
-      workspaceDir: `/workspace/${repoStr}`,
-    };
-  }
-
-  const [owner, name] = repoStr.split("/", 2);
-  return { owner, name, workspaceDir: `/workspace/${name}` };
-}
 
 function truncateForJson(text: string, maxChars: number): string {
   if (text.length <= maxChars) return text;
@@ -285,8 +263,9 @@ export async function writeRepoMemoryAfterAgentTurn(
   if (!urlBase) return;
 
   const parsedRepo = extractRepoFromInput(turn.input);
+  const repoWithWorkspace = parsedRepo ? { ...parsedRepo, workspaceDir: `/workspace/${parsedRepo.name}` } : undefined;
   const profile = getSandboxProfileFromEnv();
-  if (!parsedRepo) {
+  if (!repoWithWorkspace) {
     logger.debug(
       "[repo-memory] No --repo found in input; skipping repo memory",
     );
@@ -404,10 +383,10 @@ export async function writeRepoMemoryAfterAgentTurn(
     // Try RPC first for N+1 optimization
     const rpcSuccess = await supabaseRpc("record_agent_turn", {
       p_repo_id: repoId,
-      p_owner: parsedRepo.owner,
-      p_name: parsedRepo.name,
+      p_owner: repoWithWorkspace.owner,
+      p_name: repoWithWorkspace.name,
       p_thread_id: turn.threadId,
-      p_workspace_dir: parsedRepo.workspaceDir,
+      p_workspace_dir: repoWithWorkspace.workspaceDir,
       p_profile: profile,
       p_agent_run_id: agentRunId,
       p_input_hash: inputHash,
@@ -424,7 +403,7 @@ export async function writeRepoMemoryAfterAgentTurn(
       logger.info(
         {
           threadId: turn.threadId,
-          repo: `${parsedRepo.owner}/${parsedRepo.name}`,
+          repo: `${repoWithWorkspace.owner}/${repoWithWorkspace.name}`,
         },
         "[repo-memory] Persisted repo memory after turn via RPC",
       );
@@ -439,15 +418,15 @@ export async function writeRepoMemoryAfterAgentTurn(
     // 1) Repo upsert → repo_id
     const existingRepo = await supabaseSelectSingle(
       "repo",
-      { owner: parsedRepo.owner, name: parsedRepo.name },
+      { owner: repoWithWorkspace.owner, name: repoWithWorkspace.name },
       "id",
     );
     const repoRow =
       existingRepo ??
       (await supabaseUpsertSingle("repo", {
         id: randomUUID(),
-        owner: parsedRepo.owner,
-        name: parsedRepo.name,
+        owner: repoWithWorkspace.owner,
+        name: repoWithWorkspace.name,
         created_at: startedAtIso,
       }));
 
@@ -464,7 +443,7 @@ export async function writeRepoMemoryAfterAgentTurn(
     await supabaseUpsertSingle("thread_repo_context", {
       thread_id: turn.threadId,
       repo_id: resolvedRepoId,
-      workspace_dir: parsedRepo.workspaceDir,
+      workspace_dir: repoWithWorkspace.workspaceDir,
       profile,
       updated_at: startedAtIso,
     });
@@ -547,7 +526,7 @@ export async function writeRepoMemoryAfterAgentTurn(
     logger.info(
       {
         threadId: turn.threadId,
-        repo: `${parsedRepo.owner}/${parsedRepo.name}`,
+        repo: `${repoWithWorkspace.owner}/${repoWithWorkspace.name}`,
         agentRunId: resolvedAgentRunId,
       },
       "[repo-memory] Persisted repo memory after turn",
