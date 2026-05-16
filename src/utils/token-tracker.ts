@@ -8,6 +8,14 @@ const MAX_TOKENS_PER_THREAD = Number.parseInt(
   process.env.MAX_TOKENS_PER_THREAD || "500000",
   10,
 );
+/**
+ * Estimate token count using heuristic (~4 chars per token).
+ * Exported as a shared utility to prevent duplication.
+ */
+export function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
 const MAX_COST_PER_THREAD = Number.parseFloat(
   process.env.MAX_COST_PER_THREAD || "10.0",
 );

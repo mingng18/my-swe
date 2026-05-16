@@ -1,4 +1,5 @@
 import { createLogger } from "./logger";
+import { estimateTokens } from "./token-tracker";
 import { mkdir, readFile, writeFile, unlink, readdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
@@ -96,14 +97,6 @@ function isValidPattern(pattern: string): boolean {
   }
 
   return true;
-}
-
-/**
- * Estimate token count for a string (rough approximation)
- * Uses ~4 characters per token as a heuristic
- */
-function estimateTokens(str: string): number {
-  return Math.ceil(str.length / 4);
 }
 
 /**

@@ -9,6 +9,8 @@
  */
 
 import type { BaseMessage } from "@langchain/core/messages";
+import { estimateTokens } from "../../utils/token-tracker";
+export { estimateTokens };
 
 /**
  * Token usage from API response.
@@ -30,13 +32,6 @@ export interface TokenCount {
   tokens: number;
   /** Whether this is a real API count or heuristic */
   isReal: boolean;
-}
-
-/**
- * Estimate token count using heuristic (chars / 4).
- */
-export function estimateTokens(text: string): number {
-  return Math.ceil(text.length / 4);
 }
 
 /**

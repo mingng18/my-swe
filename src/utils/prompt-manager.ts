@@ -1,4 +1,5 @@
 import { createLogger } from "./logger";
+import { estimateTokens } from "./token-tracker";
 import {
   TASK_OVERVIEW_SECTION,
   FILE_MANAGEMENT_SECTION,
@@ -61,13 +62,6 @@ function simpleHash(str: string): string {
     hash = hash & hash; // Convert to 32bit integer
   }
   return Math.abs(hash).toString(36);
-}
-
-/**
- * Estimate token count for a string
- */
-function estimateTokens(str: string): number {
-  return Math.ceil(str.length / 4);
 }
 
 /**

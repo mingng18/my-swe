@@ -13,6 +13,7 @@
  */
 
 import { createLogger } from "./logger";
+import { estimateTokens } from "./token-tracker";
 import { recordMetric } from "./telemetry";
 
 const logger = createLogger("output-compressor");
@@ -81,14 +82,6 @@ export interface CompressedResult {
   compressedSize: number;
   strategy: string;
   metadata?: Record<string, unknown>;
-}
-
-/**
- * Estimate token count for a string (rough approximation).
- * Uses ~4 characters per token for English text.
- */
-function estimateTokens(str: string): number {
-  return Math.ceil(str.length / 4);
 }
 
 /**
