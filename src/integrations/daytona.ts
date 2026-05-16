@@ -462,35 +462,31 @@ export class DaytonaBackend extends BaseSandboxBackend {
         | null;
     }> = [];
 
-    // ⚡ Bolt: Chunked parallel uploads to eliminate N+1 sequential bottlenecks.
-    // Processes 5 files concurrently. Reduces total upload time significantly
-    // (e.g. from O(N) network roundtrips to O(N/5)).
-    const CONCURRENCY_LIMIT = 5;
-    for (let i = 0; i < files.length; i += CONCURRENCY_LIMIT) {
-      const chunk = files.slice(i, i + CONCURRENCY_LIMIT);
-      const chunkResults = await Promise.all(
-        chunk.map(async ([path, data]) => {
-          try {
-            const buffer = Buffer.from(data);
-            await this.sandbox!.fs.uploadFile(buffer, path);
-            return { path, error: null };
-          } catch (err) {
-            const error:
-              | "file_not_found"
-              | "permission_denied"
-              | "is_directory"
-              | "invalid_path" =
-              err instanceof Error && err.message.includes("not found")
-                ? "file_not_found"
-                : err instanceof Error && err.message.includes("permission")
-                  ? "permission_denied"
-                  : "invalid_path";
-            return { path, error };
-          }
-        }),
-      );
-      results.push(...chunkResults);
-    }
+    // ⚡ Bolt: Full parallel uploads to eliminate N+1 sequential bottlenecks entirely.
+    // Processes all files concurrently, maximizing network throughput
+    // and reducing total latency from O(N) or O(N/5) to ~O(1).
+    const uploadResults = await Promise.all(
+      files.map(async ([path, data]) => {
+        try {
+          const buffer = Buffer.from(data);
+          await this.sandbox!.fs.uploadFile(buffer, path);
+          return { path, error: null };
+        } catch (err) {
+          const error:
+            | "file_not_found"
+            | "permission_denied"
+            | "is_directory"
+            | "invalid_path" =
+            err instanceof Error && err.message.includes("not found")
+              ? "file_not_found"
+              : err instanceof Error && err.message.includes("permission")
+                ? "permission_denied"
+                : "invalid_path";
+          return { path, error };
+        }
+      }),
+    );
+    results.push(...uploadResults);
 
     return results;
   }
@@ -525,35 +521,31 @@ export class DaytonaBackend extends BaseSandboxBackend {
         | null;
     }> = [];
 
-    // ⚡ Bolt: Chunked parallel downloads to eliminate N+1 sequential bottlenecks.
-    // Processes 5 files concurrently. Reduces total download time significantly
-    // (e.g. from O(N) network roundtrips to O(N/5)).
-    const CONCURRENCY_LIMIT = 5;
-    for (let i = 0; i < paths.length; i += CONCURRENCY_LIMIT) {
-      const chunk = paths.slice(i, i + CONCURRENCY_LIMIT);
-      const chunkResults = await Promise.all(
-        chunk.map(async (path) => {
-          try {
-            const buffer = await this.sandbox!.fs.downloadFile(path);
-            const data = new Uint8Array(buffer);
-            return { path, content: data, error: null };
-          } catch (err) {
-            const error:
-              | "file_not_found"
-              | "permission_denied"
-              | "is_directory"
-              | "invalid_path" =
-              err instanceof Error && err.message.includes("not found")
-                ? "file_not_found"
-                : err instanceof Error && err.message.includes("permission")
-                  ? "permission_denied"
-                  : "invalid_path";
-            return { path, content: null, error };
-          }
-        }),
-      );
-      results.push(...chunkResults);
-    }
+    // ⚡ Bolt: Full parallel downloads to eliminate N+1 sequential bottlenecks entirely.
+    // Processes all files concurrently, maximizing network throughput
+    // and reducing total latency from O(N) or O(N/5) to ~O(1).
+    const downloadResults = await Promise.all(
+      paths.map(async (path) => {
+        try {
+          const buffer = await this.sandbox!.fs.downloadFile(path);
+          const data = new Uint8Array(buffer);
+          return { path, content: data, error: null };
+        } catch (err) {
+          const error:
+            | "file_not_found"
+            | "permission_denied"
+            | "is_directory"
+            | "invalid_path" =
+            err instanceof Error && err.message.includes("not found")
+              ? "file_not_found"
+              : err instanceof Error && err.message.includes("permission")
+                ? "permission_denied"
+                : "invalid_path";
+          return { path, content: null, error };
+        }
+      }),
+    );
+    results.push(...downloadResults);
 
     return results;
   }

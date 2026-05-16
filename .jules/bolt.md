@@ -23,3 +23,6 @@
 ## 2025-02-24 - Parallelize agent execution in commit-and-open-pr reviewers
 **Learning:** Sequential await loops over independent agent invocations introduce significant latency when calling out to LLMs or remote APIs. In this case, `await agent.invoke()` in a `for...of` loop caused reviewers to wait for the previous one to finish, resulting in an O(N) penalty.
 **Action:** Use `Promise.all` with `.map` to execute independent agent sub-tasks concurrently.
+## 2025-02-28 - Optimize Sandbox Parallel I/O
+**Learning:** Sequential chunked batching (e.g., `for` loop with `Promise.all` in chunks) for fully independent network or file operations underutilizes available concurrency and introduces artificial latency equal to `number_of_chunks * average_latency`.
+**Action:** Use unbounded `Promise.all` for fully independent async I/O operations where rate limiting or strict sequential guarantees are not required by the underlying API.
