@@ -209,6 +209,7 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
             <div className="relative flex-1">
               <Input
                 ref={inputRef}
+                aria-label="Agent task input"
                 placeholder="Enter your task for the agent... (⌘K)"
                 value={userInput}
                 onChange={(e) => setUserInput(e.target.value)}
@@ -341,6 +342,7 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
                 <div className="relative flex-1">
                   <Input
                     ref={inputRef}
+                    aria-label="Agent task input"
                     placeholder="Start a new agent run... (⌘K)"
                     value={userInput}
                     onChange={(e) => setUserInput(e.target.value)}
@@ -517,34 +519,50 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
               in real-time with full transparency.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-default">
+              <button
+                type="button"
+                onClick={() => { setUserInput("Find auth implementations"); inputRef.current?.focus(); }}
+                className="flex items-start gap-3 p-3 text-left w-full rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+              >
                 <Search className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-medium">Code Search</p>
-                  <p className="text-xs text-muted-foreground">"Find auth implementations"</p>
+                  <p className="text-xs text-muted-foreground">&quot;Find auth implementations&quot;</p>
                 </div>
-              </div>
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-default">
+              </button>
+              <button
+                type="button"
+                onClick={() => { setUserInput("Fix login flow error"); inputRef.current?.focus(); }}
+                className="flex items-start gap-3 p-3 text-left w-full rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+              >
                 <FileCode className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-medium">Bug Fixes</p>
-                  <p className="text-xs text-muted-foreground">"Fix login flow error"</p>
+                  <p className="text-xs text-muted-foreground">&quot;Fix login flow error&quot;</p>
                 </div>
-              </div>
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-default">
+              </button>
+              <button
+                type="button"
+                onClick={() => { setUserInput("Test user service"); inputRef.current?.focus(); }}
+                className="flex items-start gap-3 p-3 text-left w-full rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+              >
                 <Zap className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-medium">Add Tests</p>
-                  <p className="text-xs text-muted-foreground">"Test user service"</p>
+                  <p className="text-xs text-muted-foreground">&quot;Test user service&quot;</p>
                 </div>
-              </div>
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-default">
+              </button>
+              <button
+                type="button"
+                onClick={() => { setUserInput("Review PR #123"); inputRef.current?.focus(); }}
+                className="flex items-start gap-3 p-3 text-left w-full rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+              >
                 <Bot className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-medium">Code Review</p>
-                  <p className="text-xs text-muted-foreground">"Review PR #123"</p>
+                  <p className="text-xs text-muted-foreground">&quot;Review PR #123&quot;</p>
                 </div>
-              </div>
+              </button>
             </div>
             <div className="mt-6 pt-6 border-t">
               <p className="text-xs text-muted-foreground">

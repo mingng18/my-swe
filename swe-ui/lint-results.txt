@@ -1,0 +1,311 @@
+
+> swe-ui@0.1.0 lint /app/swe-ui
+> eslint
+
+
+/app/swe-ui/components/ThreadMonitor.tsx
+   56:5   warning  'isConnected' is assigned a value but never used                 @typescript-eslint/no-unused-vars
+  147:9   warning  'handleKeyPress' is assigned a value but never used              @typescript-eslint/no-unused-vars
+  524:64  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  524:90  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  531:64  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  531:85  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  538:64  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  538:82  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  545:64  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  545:79  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+
+/app/swe-ui/components/ThreadTabs.tsx
+  21:9  warning  'activeThread' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/app/swe-ui/components/ai-elements/attachments.tsx
+   94:5  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  102:5  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+/app/swe-ui/components/ai-elements/code-block.tsx
+  398:5  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/app/swe-ui/components/ai-elements/code-block.tsx:398:5
+  396 |   // Invalidate stale async tokens synchronously during render
+  397 |   if (
+> 398 |     asyncKeyRef.current.code !== code ||
+      |     ^^^^^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  399 |     asyncKeyRef.current.language !== language
+  400 |   ) {
+  401 |     asyncKeyRef.current = { code, language };  react-hooks/refs
+  399:5  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/app/swe-ui/components/ai-elements/code-block.tsx:399:5
+  397 |   if (
+  398 |     asyncKeyRef.current.code !== code ||
+> 399 |     asyncKeyRef.current.language !== language
+      |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  400 |   ) {
+  401 |     asyncKeyRef.current = { code, language };
+  402 |     setAsyncTokens(null);                                   react-hooks/refs
+  401:5  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/app/swe-ui/components/ai-elements/code-block.tsx:401:5
+  399 |     asyncKeyRef.current.language !== language
+  400 |   ) {
+> 401 |     asyncKeyRef.current = { code, language };
+      |     ^^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  402 |     setAsyncTokens(null);
+  403 |   }
+  404 |                                                                                              react-hooks/refs
+
+/app/swe-ui/components/ai-elements/commit.tsx
+  173:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/app/swe-ui/components/ai-elements/commit.tsx:173:5
+  171 |
+  172 |   useEffect(() => {
+> 173 |     updateFormatted();
+      |     ^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  174 |   }, [updateFormatted]);
+  175 |
+  176 |   return (  react-hooks/set-state-in-effect
+
+/app/swe-ui/components/ai-elements/file-tree.tsx
+  168:11  warning  Elements with the ARIA role "treeitem" must have the following attributes defined: aria-selected  jsx-a11y/role-has-required-aria-props
+  267:9   warning  Elements with the ARIA role "treeitem" must have the following attributes defined: aria-selected  jsx-a11y/role-has-required-aria-props
+
+/app/swe-ui/components/ai-elements/image.tsx
+  11:15  warning  '_uint8Array' is defined but never used                                                                                                                                                                                                                                                  @typescript-eslint/no-unused-vars
+  15:3   warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+/app/swe-ui/components/ai-elements/inline-citation.tsx
+  174:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/app/swe-ui/components/ai-elements/inline-citation.tsx:174:5
+  172 |     }
+  173 |
+> 174 |     syncState();
+      |     ^^^^^^^^^ Avoid calling setState() directly within an effect
+  175 |
+  176 |     api.on("select", syncState);
+  177 |  react-hooks/set-state-in-effect
+
+/app/swe-ui/components/ai-elements/jsx-preview.tsx
+  147:12  warning  '_lastGoodJsx' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             @typescript-eslint/no-unused-vars
+  216:7   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/app/swe-ui/components/ai-elements/jsx-preview.tsx:216:7
+  214 |     useEffect(() => {
+  215 |       errorReportedRef.current = null;
+> 216 |       setHadError(false);
+      |       ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  217 |     }, [processedJsx]);
+  218 |
+  219 |     const handleError = useCallback(  react-hooks/set-state-in-effect
+  249:33  error    Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/app/swe-ui/components/ai-elements/jsx-preview.tsx:249:33
+  247 |     // During streaming, if the current JSX errored, re-render with last good version
+  248 |     const displayJsx =
+> 249 |       isStreaming && hadError ? lastGoodJsxRef.current : processedJsx;
+      |                                 ^^^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  250 |
+  251 |     return (
+  252 |       <div className={cn("jsx-preview-content", className)} {...props}>                                                                                                                                                                                                                  react-hooks/refs
+
+/app/swe-ui/components/ai-elements/mic-selector.tsx
+  120:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/app/swe-ui/components/ai-elements/mic-selector.tsx:120:5
+  118 |
+  119 |   useEffect(() => {
+> 120 |     loadDevicesWithoutPermission();
+      |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  121 |   }, [loadDevicesWithoutPermission]);
+  122 |
+  123 |   useEffect(() => {  react-hooks/set-state-in-effect
+
+/app/swe-ui/components/ai-elements/model-selector.tsx
+  181:3  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+/app/swe-ui/components/ai-elements/persona.tsx
+  283:9  error  Error: This value cannot be modified
+
+Modifying a value returned from a hook is not allowed. Consider moving the modification into the hook where the value is constructed.
+
+/app/swe-ui/components/ai-elements/persona.tsx:283:9
+  281 |     useEffect(() => {
+  282 |       if (listeningInput) {
+> 283 |         listeningInput.value = state === "listening";
+      |         ^^^^^^^^^^^^^^ `listeningInput` cannot be modified
+  284 |       }
+  285 |       if (thinkingInput) {
+  286 |         thinkingInput.value = state === "thinking";  react-hooks/immutability
+  286:9  error  Error: This value cannot be modified
+
+Modifying a value returned from a hook is not allowed. Consider moving the modification into the hook where the value is constructed.
+
+/app/swe-ui/components/ai-elements/persona.tsx:286:9
+  284 |       }
+  285 |       if (thinkingInput) {
+> 286 |         thinkingInput.value = state === "thinking";
+      |         ^^^^^^^^^^^^^ `thinkingInput` cannot be modified
+  287 |       }
+  288 |       if (speakingInput) {
+  289 |         speakingInput.value = state === "speaking";                     react-hooks/immutability
+  289:9  error  Error: This value cannot be modified
+
+Modifying a value returned from a hook is not allowed. Consider moving the modification into the hook where the value is constructed.
+
+/app/swe-ui/components/ai-elements/persona.tsx:289:9
+  287 |       }
+  288 |       if (speakingInput) {
+> 289 |         speakingInput.value = state === "speaking";
+      |         ^^^^^^^^^^^^^ `speakingInput` cannot be modified
+  290 |       }
+  291 |       if (asleepInput) {
+  292 |         asleepInput.value = state === "asleep";                           react-hooks/immutability
+  292:9  error  Error: This value cannot be modified
+
+Modifying a value returned from a hook is not allowed. Consider moving the modification into the hook where the value is constructed.
+
+/app/swe-ui/components/ai-elements/persona.tsx:292:9
+  290 |       }
+  291 |       if (asleepInput) {
+> 292 |         asleepInput.value = state === "asleep";
+      |         ^^^^^^^^^^^ `asleepInput` cannot be modified
+  293 |       }
+  294 |     }, [state, listeningInput, thinkingInput, speakingInput, asleepInput]);
+  295 |                                  react-hooks/immutability
+
+/app/swe-ui/components/ai-elements/prompt-input.tsx
+  865:34  warning  '_id' is defined but never used  @typescript-eslint/no-unused-vars
+
+/app/swe-ui/components/ai-elements/queue.tsx
+  154:3  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+/app/swe-ui/components/ai-elements/shimmer.tsx
+  51:6  error  Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+/app/swe-ui/components/ai-elements/shimmer.tsx:51:6
+  49 |
+  50 |   return (
+> 51 |     <MotionComponent
+     |      ^^^^^^^^^^^^^^^ This component is created during render
+  52 |       animate={{ backgroundPosition: "0% center" }}
+  53 |       className={cn(
+  54 |         "relative inline-block bg-[length:250%_100%,auto] bg-clip-text text-transparent",
+
+/app/swe-ui/components/ai-elements/shimmer.tsx:41:27
+  39 |   spread = 2,
+  40 | }: TextShimmerProps) => {
+> 41 |   const MotionComponent = getMotionComponent(
+     |                           ^^^^^^^^^^^^^^^^^^^
+> 42 |     Component as keyof JSX.IntrinsicElements
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 43 |   );
+     | ^^^^ The component is created during render here
+  44 |
+  45 |   const dynamicSpread = useMemo(
+  46 |     () => (children?.length ?? 0) * spread,  react-hooks/static-components
+
+/app/swe-ui/components/ai-elements/speech-input.tsx
+  112:3  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/app/swe-ui/components/ai-elements/speech-input.tsx:112:3
+  110 |
+  111 |   // Keep refs in sync
+> 112 |   onTranscriptionChangeRef.current = onTranscriptionChange;
+      |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  113 |   onAudioRecordedRef.current = onAudioRecorded;
+  114 |
+  115 |   // Initialize Speech Recognition when mode is speech-recognition                                                                                                                                                                                                                                                                                                                                           react-hooks/refs
+  113:3  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/app/swe-ui/components/ai-elements/speech-input.tsx:113:3
+  111 |   // Keep refs in sync
+  112 |   onTranscriptionChangeRef.current = onTranscriptionChange;
+> 113 |   onAudioRecordedRef.current = onAudioRecorded;
+      |   ^^^^^^^^^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  114 |
+  115 |   // Initialize Speech Recognition when mode is speech-recognition
+  116 |   useEffect(() => {                                                                                                                                                                                                                                                                                                                             react-hooks/refs
+  167:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/app/swe-ui/components/ai-elements/speech-input.tsx:167:5
+  165 |
+  166 |     recognitionRef.current = speechRecognition;
+> 167 |     setIsRecognitionReady(true);
+      |     ^^^^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  168 |
+  169 |     return () => {
+  170 |       speechRecognition.removeEventListener("start", handleStart);  react-hooks/set-state-in-effect
+
+/app/swe-ui/components/ui/carousel.tsx
+  98:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/app/swe-ui/components/ui/carousel.tsx:98:5
+   96 |   React.useEffect(() => {
+   97 |     if (!api) return
+>  98 |     onSelect(api)
+      |     ^^^^^^^^ Avoid calling setState() directly within an effect
+   99 |     api.on("reInit", onSelect)
+  100 |     api.on("select", onSelect)
+  101 |  react-hooks/set-state-in-effect
+
+/app/swe-ui/components/ui/skeleton.tsx
+  3:11  error  An interface declaring no members is equivalent to its supertype  @typescript-eslint/no-empty-object-type
+
+/app/swe-ui/hooks/useBullhorseStream.ts
+   53:10  warning  'clearEventsFromStorage' is defined but never used                                                                  @typescript-eslint/no-unused-vars
+  128:6   warning  React Hook useCallback has an unnecessary dependency: 'addToast'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+
+✖ 41 problems (26 errors, 15 warnings)
+
+ ELIFECYCLE  Command failed with exit code 1.
