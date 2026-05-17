@@ -6,29 +6,7 @@ This document outlines known issues, limitations, and future improvements for th
 
 ## Critical Issues
 
-### 1. TypeScript Error in Unrelated Component
-
-**Status:** Non-blocking
-
-**Description:**
-There is a TypeScript error in `components/ai-elements/schema-display.tsx` that prevents production builds. This component is not part of the Bullhorse UI system but exists in the same codebase.
-
-**Error:**
-```
-Type 'string | number | bigint | boolean | ReactElement<...>' is not assignable to type 'string | TrustedHTML'.
-Type 'number' is not assignable to type 'string | TrustedHTML'.
-```
-
-**Impact:**
-- Production build fails
-- Development mode works fine
-- Does not affect Bullhorse UI functionality
-
-**Fix Required:**
-Update `schema-display.tsx` to properly type the `dangerouslySetInnerHTML` prop.
-
-**Workaround:**
-Use development mode for testing.
+None currently.
 
 ---
 
