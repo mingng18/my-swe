@@ -4,7 +4,7 @@
  */
 
 import { describe, test, expect, beforeEach } from "bun:test";
-import { shellEscapeSingleQuotes } from "../shell";
+import { shellEscapeSingleQuotes } from "./github";
 import {
   sanitizeUserPrompt,
   sanitizeThreadId,
@@ -13,7 +13,7 @@ import {
   sanitizeUrl,
 } from "../sanitize";
 
-describe.skip("Security Tests - Command Injection Prevention", () => {
+describe("Security Tests - Command Injection Prevention", () => {
   describe("shellEscapeSingleQuotes", () => {
     test("should reject null bytes", () => {
       expect(() => shellEscapeSingleQuotes("hello\x00world")).toThrow("null byte");
@@ -267,7 +267,7 @@ describe("Security Tests - Rate Limiting", () => {
   });
 });
 
-describe.skip("Security Tests - Timing Attack Mitigation", () => {
+describe("Security Tests - Timing Attack Mitigation", () => {
   test("should use constant-time comparison", async () => {
     // This test verifies that the timing attack mitigation is in place
     // by checking that the webapp uses timingSafeEqual and HMAC
@@ -303,7 +303,7 @@ describe.skip("Security Tests - Timing Attack Mitigation", () => {
   });
 });
 
-describe.skip("Security Tests - Message Trimming", () => {
+describe("Security Tests - Message Trimming", () => {
   test("should trim messages when threshold reached", async () => {
     const { readFileSync } = require("fs");
     const deepagentsCode = readFileSync("src/harness/deepagents.ts", "utf-8");
@@ -324,7 +324,7 @@ describe.skip("Security Tests - Message Trimming", () => {
   });
 });
 
-describe.skip("Security Tests - Connection Pooling", () => {
+describe("Security Tests - Connection Pooling", () => {
   test("should use undici Agent for connection pooling", async () => {
     const { readFileSync } = require("fs");
     const supabaseCode = readFileSync("src/memory/supabaseRepoMemory.ts", "utf-8");
@@ -349,7 +349,7 @@ describe.skip("Security Tests - Connection Pooling", () => {
   });
 });
 
-describe.skip("Security Tests - Graceful Shutdown", () => {
+describe("Security Tests - Graceful Shutdown", () => {
   test("should register shutdown handlers", async () => {
     const { readFileSync } = require("fs");
     const indexCode = readFileSync("src/index.ts", "utf-8");

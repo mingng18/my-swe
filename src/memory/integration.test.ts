@@ -114,7 +114,7 @@ class MockSupabaseClient {
   }
 }
 
-describe.skip("Memory System Integration", () => {
+describe("Memory System Integration", () => {
   let mockClient: MockSupabaseClient;
   let repository: MemoryRepository;
   let extractor: MemoryExtractor;
@@ -166,12 +166,12 @@ describe.skip("Memory System Integration", () => {
           "I'll implement this using TypeScript with strict mode enabled",
       };
 
-      const extractedMemories = (extractor as any).extractFromTurn ? (extractor as any).extractFromTurn(turn) : [];
+      const extractedMemories = extractor.extractFromTurn(turn);
       expect(extractedMemories.length).toBeGreaterThan(0);
 
       // Step 2: Generate embeddings
       const memoriesWithEmbeddings = await Promise.all(
-        extractedMemories.map(async (extracted: any) => {
+        extractedMemories.map(async (extracted) => {
           const text = `${extracted.title}. ${extracted.content}`;
           const embedding = await embeddingService.generateEmbedding(text);
           return {
@@ -211,7 +211,7 @@ describe.skip("Memory System Integration", () => {
         input: "",
       };
 
-      const extractedMemories = (extractor as any).extractFromTurn ? (extractor as any).extractFromTurn(turn) : [];
+      const extractedMemories = extractor.extractFromTurn(turn);
       expect(extractedMemories.length).toBe(0);
     });
 
@@ -231,12 +231,12 @@ describe.skip("Memory System Integration", () => {
         },
       };
 
-      const extractedMemories = (extractor as any).extractFromTurn ? (extractor as any).extractFromTurn(turn) : [];
+      const extractedMemories = extractor.extractFromTurn(turn);
 
       // Should extract from user text, agent reply, error, and linter results
       expect(extractedMemories.length).toBeGreaterThan(0);
 
-      const types = extractedMemories.map((m: any) => m.type);
+      const types = extractedMemories.map((m) => m.type);
       expect(types).toContain("user");
     });
   });

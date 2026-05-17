@@ -4,7 +4,7 @@ import { streamRegistry } from "../src/stream";
 const BULLHORSE_PORT = parseInt(process.env.BULLHORSE_TEST_PORT || "7861");
 const BULLHORSE_URL = `http://localhost:${BULLHORSE_PORT}`;
 
-describe.skip("SSE Endpoint", () => {
+describe("SSE Endpoint", () => {
   let server: any;
 
   beforeAll(async () => {
@@ -84,7 +84,7 @@ describe.skip("SSE Endpoint", () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Get emitter and emit event
-    const emitter = (streamRegistry as any).getStream ? (streamRegistry as any).getStream(threadId) : (streamRegistry as any).getEmitter ? (streamRegistry as any).getEmitter(threadId) : null;
+    const emitter = streamRegistry.getEmitter(threadId);
     expect(emitter).toBeDefined();
 
     emitter?.emit({
@@ -146,14 +146,14 @@ describe.skip("SSE Endpoint", () => {
 
     // Verify all streams are active
     for (const threadId of threadIds) {
-      const emitter = (streamRegistry as any).getStream ? (streamRegistry as any).getStream(threadId) : (streamRegistry as any).getEmitter ? (streamRegistry as any).getEmitter(threadId) : null;
+      const emitter = streamRegistry.getEmitter(threadId);
       expect(emitter).toBeDefined();
       expect(emitter?.isActive()).toBe(true);
     }
 
     // Close all streams
     for (const threadId of threadIds) {
-      const emitter = (streamRegistry as any).getStream ? (streamRegistry as any).getStream(threadId) : (streamRegistry as any).getEmitter ? (streamRegistry as any).getEmitter(threadId) : null;
+      const emitter = streamRegistry.getEmitter(threadId);
       emitter?.end();
     }
 
@@ -162,7 +162,7 @@ describe.skip("SSE Endpoint", () => {
 
     // Close all streams
     for (const threadId of threadIds) {
-      const emitter = (streamRegistry as any).getStream ? (streamRegistry as any).getStream(threadId) : (streamRegistry as any).getEmitter ? (streamRegistry as any).getEmitter(threadId) : null;
+      const emitter = streamRegistry.getEmitter(threadId);
       emitter?.end();
     }
 
@@ -193,7 +193,7 @@ describe.skip("SSE Endpoint", () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Verify emitter exists
-    const emitter = (streamRegistry as any).getStream ? (streamRegistry as any).getStream(threadId) : (streamRegistry as any).getEmitter ? (streamRegistry as any).getEmitter(threadId) : null;
+    const emitter = streamRegistry.getEmitter(threadId);
     expect(emitter).toBeDefined();
 
     // Close the stream
@@ -213,7 +213,7 @@ describe.skip("SSE Endpoint", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     // Emitter should still be in registry but inactive
-    const afterEmitter = (streamRegistry as any).getStream ? (streamRegistry as any).getStream(threadId) : (streamRegistry as any).getEmitter ? (streamRegistry as any).getEmitter(threadId) : null;
+    const afterEmitter = streamRegistry.getEmitter(threadId);
     expect(afterEmitter).toBeDefined();
     expect(afterEmitter?.isActive()).toBe(false);
   });
