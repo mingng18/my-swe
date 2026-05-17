@@ -52,7 +52,7 @@ export const runReviewersTool = tool(
       | { owner?: string; name?: string; workspaceDir?: string }
       | undefined;
     const workspaceDir = repoConfig?.workspaceDir;
-    
+
     if (!workspaceDir) {
       return JSON.stringify({
         error: "Unable to determine workspace directory",
@@ -107,29 +107,24 @@ export const runReviewersTool = tool(
 
       // Lazy import to avoid circular dependency
       const { builtInSubagents } = await import("../subagents/registry");
+      const { createDeepAgent } = await import("deepagents");
 
-      // Create and run reviewers
-      const reviewerResults = [];
-      let allIssues: ReviewIssue[] = [];
-      let criticalFound = false;
-
-      for (const reviewerName of reviewerNames) {
+      // Create and run reviewers concurrently
+      const reviewerPromises = reviewerNames.map(async (reviewerName) => {
         const reviewerConfig = builtInSubagents.find(
           (agent) => agent.name === reviewerName,
         );
 
         if (!reviewerConfig) {
-          reviewerResults.push({
+          return {
             name: reviewerName,
             status: "error",
             error: "Reviewer configuration not found",
-          });
-          continue;
+          };
         }
 
         try {
           // Create a deep agent for this reviewer
-          const { createDeepAgent } = await import("deepagents");
           const agent = createDeepAgent({
             name: reviewerName,
             systemPrompt: reviewerConfig.systemPrompt,
@@ -139,42 +134,79 @@ export const runReviewersTool = tool(
 
           // Run the review
           const result = await agent.invoke(
-            { messages: [{ role: "user", content: `Review these files for quality, security, and maintainability:\n\n${files.join("\n")}` }] },
-            { configurable: { thread_id: threadId } }
+            {
+              messages: [
+                {
+                  role: "user",
+                  content: `Review these files for quality, security, and maintainability:\n\n${files.join("\n")}`,
+                },
+              ],
+            },
+            { configurable: { thread_id: `${threadId}-${reviewerName}` } },
           );
 
           // Parse the output
           const lastMsg = result.messages[result.messages.length - 1];
-          const reply = typeof lastMsg?.content === "string" ? lastMsg.content : "";
+          const reply =
+            typeof lastMsg?.content === "string" ? lastMsg.content : "";
           const issues = parseReviewerOutput(reply);
-          allIssues.push(...issues);
+          const hasCritical = hasCriticalIssues(issues);
 
-          if (hasCriticalIssues(issues)) {
-            criticalFound = true;
-          }
-
-          reviewerResults.push({
+          return {
             name: reviewerName,
             status: "success",
+            issues,
             issues_count: issues.length,
-            critical_issues: hasCriticalIssues(issues),
+            critical_issues: hasCritical,
             summary:
               issues.length === 0
                 ? "No issues found"
                 : `${issues.length} issues detected`,
-          });
+          };
         } catch (error) {
-          reviewerResults.push({
+          return {
             name: reviewerName,
             status: "error",
             error: error instanceof Error ? error.message : "Unknown error",
+          };
+        }
+      });
+
+      const reviewerResultsRaw = await Promise.all(reviewerPromises);
+
+      const reviewerResults = [];
+      let allIssues: ReviewIssue[] = [];
+      let criticalFound = false;
+
+      for (const result of reviewerResultsRaw) {
+        if (result.status === "success" && result.issues) {
+          allIssues.push(...result.issues);
+          if (result.critical_issues) {
+            criticalFound = true;
+          }
+          reviewerResults.push({
+            name: result.name,
+            status: result.status,
+            issues_count: result.issues_count,
+            critical_issues: result.critical_issues,
+            summary: result.summary,
+          });
+        } else {
+          reviewerResults.push({
+            name: result.name,
+            status: result.status,
+            error: result.error,
           });
         }
       }
 
       // Generate summary
       const summary = reviewerResults
-        .map((r) => `${r.name}: ${r.summary}`)
+        .map((r) =>
+          r.status === "error"
+            ? `${r.name}: Error - ${r.error}`
+            : `${r.name}: ${r.summary}`,
+        )
         .join("\n");
 
       return JSON.stringify({

@@ -23,3 +23,6 @@
 ## 2025-02-24 - Parallelize agent execution in commit-and-open-pr reviewers
 **Learning:** Sequential await loops over independent agent invocations introduce significant latency when calling out to LLMs or remote APIs. In this case, `await agent.invoke()` in a `for...of` loop caused reviewers to wait for the previous one to finish, resulting in an O(N) penalty.
 **Action:** Use `Promise.all` with `.map` to execute independent agent sub-tasks concurrently.
+## 2026-05-18 - Concurrent Subagent Execution State Corruption
+**Learning:** Parallelizing `agent.invoke()` in `run-reviewers.ts` via `Promise.all` caused a race condition because multiple concurrent subagents shared the exact same checkpointer `thread_id`. This corrupts message history or causes concurrent modification errors.
+**Action:** When running concurrent subagents using `Promise.all` and `agent.invoke()`, always ensure each parallel execution uses a unique `thread_id` (e.g., `thread_id: \`${threadId}-${uniqueSubagentId}\``) in its `configurable` options.
