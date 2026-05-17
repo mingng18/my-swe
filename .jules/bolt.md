@@ -23,3 +23,6 @@
 ## 2025-02-24 - Parallelize agent execution in commit-and-open-pr reviewers
 **Learning:** Sequential await loops over independent agent invocations introduce significant latency when calling out to LLMs or remote APIs. In this case, `await agent.invoke()` in a `for...of` loop caused reviewers to wait for the previous one to finish, resulting in an O(N) penalty.
 **Action:** Use `Promise.all` with `.map` to execute independent agent sub-tasks concurrently.
+## 2026-05-17 - Octokit Pagination Memory Efficiency
+**Learning:** Accumulating paginated GitHub API results using the spread operator inside a `for await...of` loop (e.g. `results.push(...response.data)`) can trigger maximum call stack size exceeded errors and degrades memory efficiency for repositories with large numbers of issues/comments.
+**Action:** Always prefer using `octokit.paginate(method, options, mapFn)` with a `mapFn` to transform and accumulate results natively when fetching large paginated datasets.
