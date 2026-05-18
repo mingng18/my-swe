@@ -19,3 +19,6 @@
 ## 2024-04-23 - Add ARIA labels to icon-only clear/close buttons
 **Learning:** Icon-only buttons (like those using a simple X icon for closing tabs or clearing inputs) often lack descriptive text. Without an explicit `aria-label`, screen readers might read them simply as "button", leaving users without context about what the button does.
 **Action:** Always ensure that icon-only interactive elements, especially common ones like clear inputs or close modals/tabs, have descriptive `aria-label` attributes.
+## 2026-04-29 - TooltipProvider for Radix Tooltips
+**Learning:** When adding Tooltip components built on Radix UI primitives to isolated or newly structured parts of a Next.js application, the application will crash or fail to display the tooltips if the global component tree isn't wrapped in a `TooltipProvider`. The context setup is easily missed when tooltips are nested deep within existing UI.
+**Action:** Always ensure that `TooltipProvider` is imported and wraps the parent provider tree (such as inside `providers.tsx`) when utilizing Radix UI Tooltip primitives for the first time or extending tooltip accessibility features across the app.

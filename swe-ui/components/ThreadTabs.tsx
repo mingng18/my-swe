@@ -6,6 +6,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Circle, CheckCircle2, AlertCircle, X, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ThreadTabsProps {
   className?: string;
@@ -86,18 +87,32 @@ export function ThreadTabs({ className }: ThreadTabsProps) {
               value={threadId}
               className="gap-2 pr-8 data-[icon=inline-end] transition-all hover:bg-background/50 relative group"
             >
-              <div className="flex items-center gap-2">
-                {getStatusIcon(thread.status)}
-                <span className="text-xs font-mono font-medium">{getShortThreadId(threadId)}</span>
-              </div>
-              <button
-                type="button"
-                aria-label="Close thread"
-                onClick={(e) => handleClose(e, threadId)}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 h-5 w-5 p-0 opacity-0 group-hover:opacity-100 hover:bg-destructive/20 hover:text-destructive focus-visible:opacity-100 focus-visible:ring-2 focus-visible:outline-none transition-all rounded-md flex items-center justify-center"
-              >
-                <X className="h-3 w-3" />
-              </button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-2 cursor-default">
+                    {getStatusIcon(thread.status)}
+                    <span className="text-xs font-mono font-medium">{getShortThreadId(threadId)}</span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="font-mono text-xs">ID: {threadId}</p>
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label="Close thread"
+                    onClick={(e) => handleClose(e, threadId)}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 h-5 w-5 p-0 opacity-0 group-hover:opacity-100 hover:bg-destructive/20 hover:text-destructive focus-visible:opacity-100 focus-visible:ring-2 focus-visible:outline-none transition-all rounded-md flex items-center justify-center"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-xs">Close thread</p>
+                </TooltipContent>
+              </Tooltip>
             </TabsTrigger>
           ))}
         </TabsList>
