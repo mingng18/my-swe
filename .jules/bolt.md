@@ -23,3 +23,11 @@
 ## 2025-02-24 - Parallelize agent execution in commit-and-open-pr reviewers
 **Learning:** Sequential await loops over independent agent invocations introduce significant latency when calling out to LLMs or remote APIs. In this case, `await agent.invoke()` in a `for...of` loop caused reviewers to wait for the previous one to finish, resulting in an O(N) penalty.
 **Action:** Use `Promise.all` with `.map` to execute independent agent sub-tasks concurrently.
+
+## 2024-05-18 - Octokit Pagination Memory Efficiency
+**Learning:** Using `octokit.paginate.iterator` and accumulating items manually with spread syntax (`results.push(...response.data)`) inside `for await` loops degrades memory efficiency and can cause "Maximum call stack size exceeded" errors with large datasets.
+**Action:** Always prefer `octokit.paginate(method, options, mapFn)` when retrieving paginated resources from GitHub. This uses the `mapFn` to transform items chunk-by-chunk without loading the entire unmapped raw array into memory at once.
+
+## 2024-05-18 - MCP Client Concurrency Optimization
+**Learning:** `getAllTools` and `getAllResources` in `src/mcp/client.ts` were doing sequential tool/resource reads using an `await` within a `for...of` loop iterating through connected MCP servers. This severely impacted performance when multiple MCP servers are connected as independent I/O requests blocked each other, resulting in an O(N) penalty.
+**Action:** Replaced the sequential `for...of` loops with concurrent mapping via `Array.map` and `Promise.all` to allow concurrent remote API calls for significantly better latency.
