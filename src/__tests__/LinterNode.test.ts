@@ -4,9 +4,14 @@ import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
 mock.module("../memory/repository", () => {
   return {
     MemoryRepository: class MockMemoryRepository {
-      saveBatch = mock();
-      getByThread = mock().mockReturnValue([]);
-      save = mock().mockImplementation(async (m) => ({ ...m, id: "mock-id" }));
+      memories: any[] = [];
+      saveBatch = mock().mockImplementation(async (m: any[]) => { this.memories.push(...m); return m; });
+      getByThread = mock().mockImplementation(async (threadId: string) => this.memories.filter(m => m.threadId === threadId));
+      save = mock().mockImplementation(async (m: any) => {
+        const mem = { ...m, id: "mock-id-" + Math.random(), isActive: true, accessCount: 0 };
+        this.memories.push(mem);
+        return mem;
+      });
       softDelete = mock();
     }
   };
@@ -15,7 +20,7 @@ mock.module("../memory/extractor", () => {
   return {
     MemoryExtractor: class MockMemoryExtractor {
       extractMemories = mock().mockReturnValue([]);
-      extractFromTurn = mock().mockImplementation((turn) => {
+      extractFromTurn = mock().mockImplementation((turn: any) => {
         if (!turn.input) return [];
         return [{ title: "test", content: turn.input, type: "user" }];
       });
@@ -26,11 +31,11 @@ mock.module("../memory/embeddings", () => {
   return {
     EmbeddingService: class MockEmbeddingService {
       embed = mock();
-      generateEmbedding = mock().mockImplementation(async (text) => {
+      generateEmbedding = mock().mockImplementation(async (text: string) => {
         const val = text.length > 0 ? text.charCodeAt(0) / 255 : 0;
         return Array(1536).fill(val);
       });
-      generateEmbeddingsBatch = mock().mockImplementation(async (texts) => {
+      generateEmbeddingsBatch = mock().mockImplementation(async (texts: string[]) => {
         return texts.map(text => {
           const val = text.length > 0 ? text.charCodeAt(0) / 255 : 0;
           return Array(1536).fill(val);
