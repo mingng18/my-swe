@@ -97,19 +97,26 @@ export const SchemaDisplayPath = ({
 }: SchemaDisplayPathProps) => {
   const { path } = useContext(SchemaDisplayContext);
 
-  // Highlight path parameters
-  const highlightedPath = path.replaceAll(
-    /\{([^}]+)\}/g,
-    '<span class="text-blue-600 dark:text-blue-400">{$1}</span>'
-  );
+  // 🛡️ Security Fix: Render path securely without dangerouslySetInnerHTML
+  // This prevents XSS attacks when rendering untrusted path parameters or children.
+  const renderPath = (pathStr: string) => {
+    const parts = pathStr.split(/(\{[^}]+\})/);
+    return parts.map((part, index) => {
+      if (part.startsWith("{") && part.endsWith("}")) {
+        return (
+          <span key={index} className="text-blue-600 dark:text-blue-400">
+            {part}
+          </span>
+        );
+      }
+      return <span key={index}>{part}</span>;
+    });
+  };
 
   return (
-    <span
-      className={cn("font-mono text-sm", className)}
-      // oxlint-disable-next-line eslint-plugin-react(no-danger)
-      dangerouslySetInnerHTML={{ __html: children ?? highlightedPath }}
-      {...props}
-    />
+    <span className={cn("font-mono text-sm", className)} {...props}>
+      {children ?? renderPath(path)}
+    </span>
   );
 };
 
