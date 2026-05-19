@@ -5,6 +5,7 @@ mock.module("../memory/repository", () => {
   return {
     MemoryRepository: class MockMemoryRepository {
       saveBatch = mock();
+      getByThread = mock();
     }
   };
 });
@@ -12,6 +13,7 @@ mock.module("../memory/extractor", () => {
   return {
     MemoryExtractor: class MockMemoryExtractor {
       extractMemories = mock();
+      extractFromTurn = mock();
     }
   };
 });
@@ -19,6 +21,8 @@ mock.module("../memory/embeddings", () => {
   return {
     EmbeddingService: class MockEmbeddingService {
       embed = mock();
+      generateEmbedding = mock();
+      generateEmbeddingsBatch = mock();
     }
   };
 });

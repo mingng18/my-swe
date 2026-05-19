@@ -340,6 +340,14 @@ class StreamRegistry {
   /**
    * Close stream for a thread
    */
+  hasActiveStream(threadId: string): boolean {
+    const connection = this.connections.get(threadId);
+    return connection ? connection.sseStream.isActive() : false;
+  }
+
+  /**
+   * Close stream for a thread
+   */
   closeStream(threadId: string): void {
     const connection = this.connections.get(threadId);
     if (connection) {
