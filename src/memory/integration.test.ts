@@ -5,7 +5,7 @@
  * Also tests duplicate detection and semantic search functionality.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect, beforeEach, afterEach, spyOn } from "bun:test";
 import { MemoryRepository } from "./repository";
 import { MemoryExtractor } from "./extractor";
 import { EmbeddingService } from "./embeddings";
@@ -132,6 +132,12 @@ describe("Memory System Integration", () => {
     repository = new MemoryRepository(mockClient as any);
     extractor = new MemoryExtractor();
     embeddingService = new EmbeddingService();
+    spyOn(embeddingService, "generateEmbedding").mockImplementation(async (text) => {
+      if (process.env.OPENAI_API_KEY === "invalid-key") {
+        throw new Error("OpenAI API error: 401 Unauthorized");
+      }
+      return new Array(1536).fill(0.1);
+    });
     searchService = new SearchService(repository, {
       generateEmbedding: (text: string) =>
         embeddingService.generateEmbedding(text),
