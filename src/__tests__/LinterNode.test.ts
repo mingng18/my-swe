@@ -5,15 +5,20 @@ mock.module("../memory/repository", () => {
   return {
     MemoryRepository: class MockMemoryRepository {
       saveBatch = mock();
-      getByThread = mock();
+      getByThread = mock().mockReturnValue([]);
+      save = mock().mockImplementation(async (m) => ({ ...m, id: "mock-id" }));
+      softDelete = mock();
     }
   };
 });
 mock.module("../memory/extractor", () => {
   return {
     MemoryExtractor: class MockMemoryExtractor {
-      extractMemories = mock();
-      extractFromTurn = mock();
+      extractMemories = mock().mockReturnValue([]);
+      extractFromTurn = mock().mockImplementation((turn) => {
+        if (!turn.input) return [];
+        return [{ title: "test", content: turn.input, type: "user" }];
+      });
     }
   };
 });
@@ -21,8 +26,16 @@ mock.module("../memory/embeddings", () => {
   return {
     EmbeddingService: class MockEmbeddingService {
       embed = mock();
-      generateEmbedding = mock();
-      generateEmbeddingsBatch = mock();
+      generateEmbedding = mock().mockImplementation(async (text) => {
+        const val = text.length > 0 ? text.charCodeAt(0) / 255 : 0;
+        return Array(1536).fill(val);
+      });
+      generateEmbeddingsBatch = mock().mockImplementation(async (texts) => {
+        return texts.map(text => {
+          const val = text.length > 0 ? text.charCodeAt(0) / 255 : 0;
+          return Array(1536).fill(val);
+        });
+      });
     }
   };
 });
