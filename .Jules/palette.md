@@ -19,3 +19,6 @@
 ## 2024-04-23 - Add ARIA labels to icon-only clear/close buttons
 **Learning:** Icon-only buttons (like those using a simple X icon for closing tabs or clearing inputs) often lack descriptive text. Without an explicit `aria-label`, screen readers might read them simply as "button", leaving users without context about what the button does.
 **Action:** Always ensure that icon-only interactive elements, especially common ones like clear inputs or close modals/tabs, have descriptive `aria-label` attributes.
+## 2026-05-19 - TooltipProvider Context Dependency
+**Learning:** Radix UI Tooltip components require a TooltipProvider to function properly. Additionally, hidden-by-default elements like the Close Thread button need specific hover interactions for testing visibility.
+**Action:** Always wrap the component tree with TooltipProvider in providers.tsx when introducing Tooltips, and simulate hover events on parent elements in verification scripts.
