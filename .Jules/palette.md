@@ -19,3 +19,6 @@
 ## 2024-04-23 - Add ARIA labels to icon-only clear/close buttons
 **Learning:** Icon-only buttons (like those using a simple X icon for closing tabs or clearing inputs) often lack descriptive text. Without an explicit `aria-label`, screen readers might read them simply as "button", leaving users without context about what the button does.
 **Action:** Always ensure that icon-only interactive elements, especially common ones like clear inputs or close modals/tabs, have descriptive `aria-label` attributes.
+## 2026-05-20 - [Tooltips on Disabled Buttons]
+**Learning:** Disabled buttons natively drop mouse events and block focus, preventing tooltips from functioning.
+**Action:** When adding tooltips to disabled buttons, wrap the button in an inline element (like a `<span>`) inside the TooltipTrigger. Use `<TooltipTrigger asChild>` to ensure standard accessibility propagation.

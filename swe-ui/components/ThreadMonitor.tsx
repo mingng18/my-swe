@@ -8,6 +8,7 @@ import { ThreadTabs } from "@/components/ThreadTabs";
 import { TodoSidebar } from "@/components/TodoSidebar";
 import { adaptEventsToMessages, groupLLMChunks } from "@/lib/event-adapter";
 import { Card } from "@/components/ui/card";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -233,24 +234,36 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
                 </Button>
               )}
             </div>
-            <Button
-              onClick={handleStartAgent}
-              disabled={isLoading || !userInput.trim()}
-              className="gap-2 shadow-md hover:shadow-lg transition-all disabled:opacity-50"
-              size="default"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Starting...
-                </>
-              ) : (
-                <>
-                  <Send className="h-4 w-4" />
-                  <span className="hidden sm:inline">Start Agent</span>
-                </>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-block">
+                  <Button
+                    onClick={handleStartAgent}
+                    disabled={isLoading || !userInput.trim()}
+                    className="gap-2 shadow-md hover:shadow-lg transition-all disabled:opacity-50"
+                    size="default"
+                    aria-label="Start Agent"
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Starting...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4" />
+                        <span className="hidden sm:inline">Start Agent</span>
+                      </>
+                    )}
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {(!userInput.trim() || isLoading) && (
+                <TooltipContent>
+                  <p>{isLoading ? "Agent is starting..." : "Enter a task to start"}</p>
+                </TooltipContent>
               )}
-            </Button>
+            </Tooltip>
           </div>
         </div>
       )}
@@ -365,24 +378,36 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
                     </Button>
                   )}
                 </div>
-                <Button
-                  onClick={handleStartAgent}
-                  disabled={isLoading || !userInput.trim()}
-                  size="sm"
-                  className="gap-2 shadow-md hover:shadow-lg transition-all disabled:opacity-50"
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span className="hidden sm:inline">Starting...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Send className="h-4 w-4" />
-                      Run
-                    </>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-block">
+                      <Button
+                        onClick={handleStartAgent}
+                        disabled={isLoading || !userInput.trim()}
+                        size="sm"
+                        className="gap-2 shadow-md hover:shadow-lg transition-all disabled:opacity-50"
+                        aria-label="Run"
+                      >
+                        {isLoading ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span className="hidden sm:inline">Starting...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Send className="h-4 w-4" />
+                            Run
+                          </>
+                        )}
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  {(!userInput.trim() || isLoading) && (
+                    <TooltipContent>
+                      <p>{isLoading ? "Agent is starting..." : "Enter a task to start"}</p>
+                    </TooltipContent>
                   )}
-                </Button>
+                </Tooltip>
               </div>
             </div>
 
