@@ -10,6 +10,7 @@ import { MemoryRepository } from "./repository";
 import { MemoryExtractor } from "./extractor";
 import { EmbeddingService } from "./embeddings";
 import { mock } from "bun:test";
+
 mock.module("./embeddings", () => ({
   EmbeddingService: class {
     constructor() {}
@@ -141,8 +142,6 @@ describe("Memory System Integration", () => {
     repository = new MemoryRepository(mockClient as any);
     extractor = new MemoryExtractor();
     embeddingService = new EmbeddingService();
-    embeddingService.generateEmbedding = async () => Array(1536).fill(0.1);
-    embeddingService.generateEmbeddingsBatch = async (texts) => texts.map(() => Array(1536).fill(0.1));
     searchService = new SearchService(repository, {
       generateEmbedding: (text: string) =>
         embeddingService.generateEmbedding(text),
