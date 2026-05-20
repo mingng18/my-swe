@@ -122,11 +122,35 @@ describe("Memory System Integration", () => {
   let searchService: SearchService;
   let consolidationService: ConsolidationService;
 
+  let originalFetchFn: typeof globalThis.fetch;
+
   beforeEach(() => {
     // Setup mock environment
     process.env.SUPABASE_URL = "https://test.supabase.co";
     process.env.SUPABASE_SERVICE_ROLE_KEY = "test-key";
     process.env.OPENAI_API_KEY = "test-key";
+
+    // Setup fetch mock for OpenAI API
+    originalFetchFn = globalThis.fetch;
+    globalThis.fetch = async (url: string | Request | URL, options?: RequestInit) => {
+      const urlStr = url.toString();
+      if (urlStr.includes('api.openai.com')) {
+        let numInputs = 1;
+        if (options?.body) {
+           const body = JSON.parse(options.body as string);
+           numInputs = Array.isArray(body.input) ? body.input.length : 1;
+        }
+
+        // Return dummy embeddings for testing
+        const dummyEmbedding = Array(1536).fill(0.1);
+        const data = Array.from({ length: numInputs }, (_, index) => ({
+          embedding: dummyEmbedding,
+          index
+        }));
+        return new Response(JSON.stringify({ data }), { status: 200 });
+      }
+      return originalFetchFn(url, options);
+    };
 
     mockClient = new MockSupabaseClient();
     repository = new MemoryRepository(mockClient as any);
@@ -151,6 +175,7 @@ describe("Memory System Integration", () => {
     delete process.env.SUPABASE_URL;
     delete process.env.SUPABASE_SERVICE_ROLE_KEY;
     delete process.env.OPENAI_API_KEY;
+    globalThis.fetch = originalFetchFn;
   });
 
   describe("Full Memory Flow", () => {

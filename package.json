@@ -37,6 +37,7 @@
     "@types/bun": "latest",
     "@types/js-yaml": "^4.0.9",
     "@types/lru-cache": "^7.10.10",
+    "@types/node": "^25.9.1",
     "@types/turndown": "^5.0.5",
     "mitata": "^1.0.34",
     "pino-pretty": "^13.1.3",
