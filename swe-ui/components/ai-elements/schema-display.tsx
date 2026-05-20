@@ -1,6 +1,7 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
+import DOMPurify from "isomorphic-dompurify";
 import {
   Collapsible,
   CollapsibleContent,
@@ -103,11 +104,22 @@ export const SchemaDisplayPath = ({
     '<span class="text-blue-600 dark:text-blue-400">{$1}</span>'
   );
 
+  const htmlContent = typeof children === "string" ? children : highlightedPath;
+  const sanitizedHtml = DOMPurify.sanitize(htmlContent);
+
+  if (children && typeof children !== "string") {
+    return (
+      <span className={cn("font-mono text-sm", className)} {...props}>
+        {children}
+      </span>
+    );
+  }
+
   return (
     <span
       className={cn("font-mono text-sm", className)}
       // oxlint-disable-next-line eslint-plugin-react(no-danger)
-      dangerouslySetInnerHTML={{ __html: children ?? highlightedPath }}
+      dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
       {...props}
     />
   );
