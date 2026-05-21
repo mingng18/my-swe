@@ -132,6 +132,10 @@ describe("Memory System Integration", () => {
     repository = new MemoryRepository(mockClient as any);
     extractor = new MemoryExtractor();
     embeddingService = new EmbeddingService();
+    // Mock the generateEmbedding method to return dummy embeddings
+    embeddingService.generateEmbedding = async (text: string) => {
+      return Array(1536).fill(0.1);
+    };
     searchService = new SearchService(repository, {
       generateEmbedding: (text: string) =>
         embeddingService.generateEmbedding(text),
