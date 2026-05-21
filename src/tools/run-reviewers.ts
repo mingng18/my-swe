@@ -52,7 +52,7 @@ export const runReviewersTool = tool(
       | { owner?: string; name?: string; workspaceDir?: string }
       | undefined;
     const workspaceDir = repoConfig?.workspaceDir;
-    
+
     if (!workspaceDir) {
       return JSON.stringify({
         error: "Unable to determine workspace directory",
@@ -109,72 +109,90 @@ export const runReviewersTool = tool(
       const { builtInSubagents } = await import("../subagents/registry");
 
       // Create and run reviewers
-      const reviewerResults = [];
       let allIssues: ReviewIssue[] = [];
       let criticalFound = false;
 
-      for (const reviewerName of reviewerNames) {
-        const reviewerConfig = builtInSubagents.find(
-          (agent) => agent.name === reviewerName,
-        );
+      const { createDeepAgent } = await import("deepagents");
 
-        if (!reviewerConfig) {
-          reviewerResults.push({
-            name: reviewerName,
-            status: "error",
-            error: "Reviewer configuration not found",
-          });
-          continue;
-        }
-
-        try {
-          // Create a deep agent for this reviewer
-          const { createDeepAgent } = await import("deepagents");
-          const agent = createDeepAgent({
-            name: reviewerName,
-            systemPrompt: reviewerConfig.systemPrompt,
-            tools: reviewerConfig.tools || [],
-            backend: sandbox as any,
-          });
-
-          // Run the review
-          const result = await agent.invoke(
-            { messages: [{ role: "user", content: `Review these files for quality, security, and maintainability:\n\n${files.join("\n")}` }] },
-            { configurable: { thread_id: threadId } }
+      // ⚡ Bolt Optimization: Replace sequential await loop with Promise.all and array mapping
+      // This runs independent reviewer agent invocations concurrently, significantly reducing overall latency.
+      const reviewerResults = await Promise.all(
+        reviewerNames.map((reviewerName) => {
+          const reviewerConfig = builtInSubagents.find(
+            (agent) => agent.name === reviewerName,
           );
 
-          // Parse the output
-          const lastMsg = result.messages[result.messages.length - 1];
-          const reply = typeof lastMsg?.content === "string" ? lastMsg.content : "";
-          const issues = parseReviewerOutput(reply);
-          allIssues.push(...issues);
-
-          if (hasCriticalIssues(issues)) {
-            criticalFound = true;
+          if (!reviewerConfig) {
+            return Promise.resolve({
+              name: reviewerName,
+              status: "error",
+              error: "Reviewer configuration not found",
+            });
           }
 
-          reviewerResults.push({
-            name: reviewerName,
-            status: "success",
-            issues_count: issues.length,
-            critical_issues: hasCriticalIssues(issues),
-            summary:
-              issues.length === 0
-                ? "No issues found"
-                : `${issues.length} issues detected`,
-          });
-        } catch (error) {
-          reviewerResults.push({
-            name: reviewerName,
-            status: "error",
-            error: error instanceof Error ? error.message : "Unknown error",
-          });
-        }
-      }
+          try {
+            const agent = createDeepAgent({
+              name: reviewerName,
+              systemPrompt: reviewerConfig.systemPrompt,
+              tools: reviewerConfig.tools || [],
+              backend: sandbox as any,
+            });
+
+            return agent
+              .invoke(
+                {
+                  messages: [
+                    {
+                      role: "user",
+                      content: `Review these files for quality, security, and maintainability:\n\n${files.join("\n")}`,
+                    },
+                  ],
+                },
+                { configurable: { thread_id: `${threadId}-${reviewerName}` } },
+              )
+              .then((result) => {
+                const lastMsg = result.messages[result.messages.length - 1];
+                const reply =
+                  typeof lastMsg?.content === "string" ? lastMsg.content : "";
+                const issues = parseReviewerOutput(reply);
+
+                allIssues.push(...issues);
+                if (hasCriticalIssues(issues)) {
+                  criticalFound = true;
+                }
+
+                return {
+                  name: reviewerName,
+                  status: "success",
+                  issues_count: issues.length,
+                  critical_issues: hasCriticalIssues(issues),
+                  summary:
+                    issues.length === 0
+                      ? "No issues found"
+                      : `${issues.length} issues detected`,
+                };
+              })
+              .catch((error) => {
+                return {
+                  name: reviewerName,
+                  status: "error",
+                  error:
+                    error instanceof Error ? error.message : "Unknown error",
+                };
+              });
+          } catch (error) {
+            return Promise.resolve({
+              name: reviewerName,
+              status: "error",
+              error: error instanceof Error ? error.message : "Unknown error",
+            });
+          }
+        }),
+      );
 
       // Generate summary
       const summary = reviewerResults
-        .map((r) => `${r.name}: ${r.summary}`)
+        .map((r) => `${r.name}: ${"summary" in r ? r.summary : r.error}`)
         .join("\n");
 
       return JSON.stringify({
