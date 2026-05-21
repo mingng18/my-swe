@@ -109,9 +109,6 @@ export const runReviewersTool = tool(
       const { builtInSubagents } = await import("../subagents/registry");
 
       // Create and run reviewers
-      let allIssues: ReviewIssue[] = [];
-      let criticalFound = false;
-
       const { createDeepAgent } = await import("deepagents");
 
       // ⚡ Bolt Optimization: Replace sequential await loop with Promise.all and array mapping
@@ -156,16 +153,12 @@ export const runReviewersTool = tool(
                   typeof lastMsg?.content === "string" ? lastMsg.content : "";
                 const issues = parseReviewerOutput(reply);
 
-                allIssues.push(...issues);
-                if (hasCriticalIssues(issues)) {
-                  criticalFound = true;
-                }
-
                 return {
                   name: reviewerName,
                   status: "success",
                   issues_count: issues.length,
                   critical_issues: hasCriticalIssues(issues),
+                  issues,
                   summary:
                     issues.length === 0
                       ? "No issues found"
@@ -189,6 +182,26 @@ export const runReviewersTool = tool(
           }
         }),
       );
+
+      // Aggregate all issues after Promise.all resolves to ensure deterministic order
+      let allIssues: ReviewIssue[] = [];
+      let criticalFound = false;
+
+      for (const result of reviewerResults) {
+        if (
+          result.status === "success" &&
+          "issues" in result &&
+          result.issues
+        ) {
+          allIssues.push(...(result.issues as ReviewIssue[]));
+        }
+      }
+
+      for (const issue of allIssues) {
+        if (hasCriticalIssues([issue])) {
+          criticalFound = true;
+        }
+      }
 
       // Generate summary
       const summary = reviewerResults
