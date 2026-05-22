@@ -19,3 +19,7 @@
 ## 2024-04-23 - Add ARIA labels to icon-only clear/close buttons
 **Learning:** Icon-only buttons (like those using a simple X icon for closing tabs or clearing inputs) often lack descriptive text. Without an explicit `aria-label`, screen readers might read them simply as "button", leaving users without context about what the button does.
 **Action:** Always ensure that icon-only interactive elements, especially common ones like clear inputs or close modals/tabs, have descriptive `aria-label` attributes.
+
+## 2024-05-18 - [Add Tooltips to Icon-Only Buttons]
+**Learning:** When adding tooltips to existing components using Radix UI/Shadcn primitives, the `Tooltip` component requires a `TooltipProvider` to be wrapping the component tree, otherwise the tooltips will not function and the UI may not render properly. Also, when wrapping an existing button that uses `asChild` with `TooltipTrigger`, it should directly receive the button component as a child.
+**Action:** When adding `Tooltip` components, always verify if `TooltipProvider` is already mounted (e.g., in a root `providers.tsx` file) and if not, add it at the layout level.

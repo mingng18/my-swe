@@ -1,0 +1,122 @@
+
+> swe-ui@0.1.0 dev /app/swe-ui
+> next dev
+
+▲ Next.js 16.2.4 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.0.2:3000
+✓ Ready in 630ms
+⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of /app/package-lock.json as the root directory.
+ To silence this warning, set `turbopack.root` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack#root-directory for more information.
+ Detected additional lockfiles:
+   * /app/swe-ui/bun.lockb
+
+
+○ Compiling / ...
+ GET / 200 in 7.4s (next.js: 6.7s, application-code: 722ms)
+ GET / 200 in 79ms (next.js: 5ms, application-code: 74ms)
+ GET / 200 in 70ms (next.js: 4ms, application-code: 66ms)
+ GET / 200 in 73ms (next.js: 4ms, application-code: 69ms)
+[browser] In HTML, <button> cannot be a descendant of <button>.
+This will cause a hydration error.
+
+  ...
+    <Primitive.div tabIndex={-1} data-orientation="horizontal" asChild={true} ref={function} style={{outline:"none"}} ...>
+      <Primitive.div.Slot tabIndex={-1} data-orientation="horizontal" style={{outline:"none"}} ...>
+        <Primitive.div.SlotClone tabIndex={-1} data-orientation="horizontal" style={{outline:"none"}} ...>
+          <Primitive.div role="tablist" aria-orientation="horizontal" data-slot="tabs-list" data-variant="line" ...>
+            <div role="tablist" aria-orientation="horizontal" data-slot="tabs-list" data-variant="line" ...>
+              <TabsTrigger value="8b47e6d8-c..." className="gap-2 pr-8...">
+                <TabsTrigger data-slot="tabs-trigger" className={"inline-f..."} value="8b47e6d8-c...">
+                  <RovingFocusGroupItem asChild={true} __scopeRovingFocusGroup={{...}} focusable={true} active={true}>
+                    <RovingFocusGroupCollectionItemSlot scope={{...}} id="radix-_r_2_" focusable={true} active={true}>
+                      <RovingFocusGroupCollectionItemSlot.Slot data-radix-collection-item="" ref={function}>
+                        <RovingFocusGroupCollectionItemSlot.SlotClone data-radix-collection-item="" ref={function}>
+                          <Primitive.span tabIndex={-1} data-orientation="horizontal" asChild={true} ref={function} ...>
+                            <Primitive.span.Slot tabIndex={-1} data-orientation="horizontal" ...>
+                              <Primitive.span.SlotClone tabIndex={-1} data-orientation="horizontal" ...>
+                                <Primitive.button type="button" role="tab" aria-selected={true} ...>
+>                                 <button
+>                                   type="button"
+>                                   role="tab"
+>                                   aria-selected={true}
+>                                   aria-controls="radix-_r_1_-content-8b47e6d8-c2c6-4eeb-9356-afe897c40772"
+>                                   data-state="active"
+>                                   data-disabled={undefined}
+>                                   disabled={false}
+>                                   id="radix-_r_1_-trigger-8b47e6d8-c2c6-4eeb-9356-afe897c40772"
+>                                   data-slot="tabs-trigger"
+>                                   className={"inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center rou..."}
+>                                   onMouseDown={function}
+>                                   onKeyDown={function}
+>                                   onFocus={function}
+>                                   tabIndex={-1}
+>                                   data-orientation="horizontal"
+>                                   data-radix-collection-item=""
+>                                   ref={function}
+>                                 >
+                                    <div>
+                                    ...
+                                      <Primitive.button aria-describedby={undefined} data-state="closed" ...>
+                                        <Primitive.button.Slot aria-describedby={undefined} data-state="closed" ...>
+                                          <Primitive.button.SlotClone aria-describedby={undefined} data-state="closed" ...>
+>                                           <button
+>                                             type="button"
+>                                             aria-label="Close thread"
+>                                             onClick={function}
+>                                             className="absolute right-1.5 top-1/2 -translate-y-1/2 h-5 w-5 p-0 opaci..."
+>                                             aria-describedby={undefined}
+>                                             data-state="closed"
+>                                             data-slot="tooltip-trigger"
+>                                             onPointerMove={function handleEvent}
+>                                             onPointerLeave={function handleEvent}
+>                                             onPointerDown={function handleEvent}
+>                                             onFocus={function handleEvent}
+>                                             onBlur={function handleEvent}
+>                                             ref={function}
+>                                           >
+
+[browser] <button> cannot contain a nested <button>.
+See this log for the ancestor stack trace.
+ GET /stream?threadId=8b47e6d8-c2c6-4eeb-9356-afe897c40772 404 in 784ms (next.js: 644ms, application-code: 140ms)
+[browser] [SSE] Error for thread 8b47e6d8-c2c6-4eeb-9356-afe897c40772: [object Event]
+    at eventSource.onerror (lib/bullhorse-client.ts:189:15)
+  187 |
+  188 |     eventSource.onerror = (error) => {
+> 189 |       console.error(`[SSE] Error for thread ${threadId}:`, error);
+      |               ^
+  190 |       console.error(`[SSE] EventSource readyState: ${eventSource.readyState}`);
+  191 |
+  192 |       // EventSource readyState: 0=connecting, 1=open, 2=closed (lib/bullhorse-client.ts:189:15)
+[browser] [SSE] EventSource readyState: 2
+    at eventSource.onerror (lib/bullhorse-client.ts:190:15)
+  188 |     eventSource.onerror = (error) => {
+  189 |       console.error(`[SSE] Error for thread ${threadId}:`, error);
+> 190 |       console.error(`[SSE] EventSource readyState: ${eventSource.readyState}`);
+      |               ^
+  191 |
+  192 |       // EventSource readyState: 0=connecting, 1=open, 2=closed
+  193 | (lib/bullhorse-client.ts:190:15)
+[browser] [useBullhorseStream] Error for 8b47e6d8-c2c6-4eeb-9356-afe897c40772: [object Event]
+    at useBullhorseStream.useEffect [as onError] (hooks/useBullhorseStream.ts:213:17)
+    at eventSource.onerror (lib/bullhorse-client.ts:218:26)
+  211 |       },
+  212 |       onError: (error) => {
+> 213 |         console.error(`[useBullhorseStream] Error for ${threadId}:`, error);
+      |                 ^
+  214 |         setConnectionState("error");
+  215 |         updateThread(threadId, { status: "error" });
+  216 |       }, (hooks/useBullhorseStream.ts:213:17)
+[browser] [ThreadMonitor] Error starting agent: Error: Failed to establish SSE connection. Please check your network.
+    at handleStartAgent (components/ThreadMonitor.tsx:106:15)
+  104 |
+  105 |       if (connectionStateRef.current !== "connected") {
+> 106 |         throw new Error("Failed to establish SSE connection. Please check your network.");
+      |               ^
+  107 |       }
+  108 |
+  109 |       console.log(`[ThreadMonitor] SSE connected! Starting agent for thread ${clientThrea... (components/ThreadMonitor.tsx:134:15)
+ ELIFECYCLE  Command failed.
+[?25h
