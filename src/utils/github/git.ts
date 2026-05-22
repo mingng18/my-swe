@@ -5,6 +5,8 @@
 import { SandboxService } from "../../integrations/sandbox-service";
 import { shellEscapeSingleQuotes } from "../shell";
 
+const logger = console;
+
 export interface ExecuteResponse {
   exitCode: number;
   output: string;
