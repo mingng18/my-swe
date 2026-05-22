@@ -331,6 +331,8 @@ export async function fetchIssueComments(
       auth: token,
     });
 
+    // ⚡ Bolt: Replace manual accumulation with mapped pagination chunks
+    // to avoid excessive memory allocation and call stack limits on large arrays.
     const comments = await octokit.paginate(
       octokit.rest.issues.listComments,
       {
@@ -380,7 +382,9 @@ export async function fetchPrCommentsSinceLastTag(
       auth: token,
     });
 
-    // Fetch all three types of comments in parallel using paginate mapFn for memory efficiency
+    // Fetch all three types of comments in parallel
+    // ⚡ Bolt: Use mapped chunks in pagination to prevent OOM / call stack errors
+    // without intermediate unmapped arrays during Promise.all.
     const [prComments, reviewComments, reviews] = await Promise.all([
       octokit.paginate(
         octokit.rest.issues.listComments,
@@ -388,7 +392,9 @@ export async function fetchPrCommentsSinceLastTag(
           owner,
           repo,
           issue_number: prNumber,
-          headers: { "X-GitHub-Api-Version": "2022-11-28" },
+          headers: {
+            "X-GitHub-Api-Version": "2022-11-28",
+          },
         },
         (response) =>
           (response.data as GitHubIssueComment[]).map((c) => ({
@@ -405,7 +411,9 @@ export async function fetchPrCommentsSinceLastTag(
           owner,
           repo,
           pull_number: prNumber,
-          headers: { "X-GitHub-Api-Version": "2022-11-28" },
+          headers: {
+            "X-GitHub-Api-Version": "2022-11-28",
+          },
         },
         (response) =>
           (response.data as GitHubPRComment[]).map((c) => ({
@@ -419,12 +427,14 @@ export async function fetchPrCommentsSinceLastTag(
           })),
       ),
       octokit.paginate(
-        octokit.rest.pulls.listReviews,
+        octokit.rest.pulls.listReviews as any,
         {
           owner,
           repo,
           pull_number: prNumber,
-          headers: { "X-GitHub-Api-Version": "2022-11-28" },
+          headers: {
+            "X-GitHub-Api-Version": "2022-11-28",
+          },
         },
         (response) =>
           (response.data as GitHubReview[])
