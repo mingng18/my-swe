@@ -53,7 +53,7 @@ export {
   invalidatePrCache,
 } from "./github-cache";
 
-// Git utilities and GitHub API
+// Git utilities
 export {
   isValidGitRepo,
   removeDirectory,
@@ -72,13 +72,17 @@ export {
   gitGetRemoteUrl,
   gitPush,
   gitRemoteBranchExists,
+  runGit,
+  type ExecuteResponse,
+  type RepoConfig as GitRepoConfig,
+} from "./git";
+
+// GitHub API operations
+export {
   createGithubPr,
   createGithubIssue,
-  runGit,
   findExistingPr,
   listGithubPrs,
   mergeGithubPr,
   getGithubDefaultBranch,
-  type ExecuteResponse,
-  type RepoConfig as GitRepoConfig,
-} from "./github";
+} from "./api";
