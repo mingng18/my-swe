@@ -84,13 +84,16 @@ describe("SSE Endpoint", () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Get emitter and emit event
-    streamRegistry.emitEvent(threadId, {
+    const emitter = (streamRegistry as any).getEmitter(threadId);
+    expect(emitter).toBeDefined();
+
+    emitter?.emit({
       type: "test_event",
       timestamp: Date.now(),
     } as any);
 
     // Close emitter
-    streamRegistry.closeStream(threadId);
+    emitter?.end();
 
     // Get response
     const response = await streamPromise;
@@ -143,12 +146,15 @@ describe("SSE Endpoint", () => {
 
     // Verify all streams are active
     for (const threadId of threadIds) {
-      streamRegistry.emitEvent(threadId, { type: "llm_chunk", content: "ping", timestamp: Date.now() } as any);
+      const emitter = (streamRegistry as any).getEmitter(threadId);
+      expect(emitter).toBeDefined();
+      expect(emitter?.isActive()).toBe(true);
     }
 
     // Close all streams
     for (const threadId of threadIds) {
-      streamRegistry.closeStream(threadId);
+      const emitter = (streamRegistry as any).getEmitter(threadId);
+      emitter?.end();
     }
 
     // Wait for connections to establish
@@ -156,7 +162,8 @@ describe("SSE Endpoint", () => {
 
     // Close all streams
     for (const threadId of threadIds) {
-      streamRegistry.closeStream(threadId);
+      const emitter = (streamRegistry as any).getEmitter(threadId);
+      emitter?.end();
     }
 
     // Wait for responses
@@ -185,8 +192,12 @@ describe("SSE Endpoint", () => {
     // Wait for connection to establish
     await new Promise((resolve) => setTimeout(resolve, 100));
 
+    // Verify emitter exists
+    const emitter = (streamRegistry as any).getEmitter(threadId);
+    expect(emitter).toBeDefined();
+
     // Close the stream
-    streamRegistry.closeStream(threadId);
+    emitter?.end();
     controller.abort();
 
     try {
@@ -201,6 +212,9 @@ describe("SSE Endpoint", () => {
     // Wait a bit for cleanup
     await new Promise((resolve) => setTimeout(resolve, 50));
 
-    streamRegistry.closeStream(threadId);
+    // Emitter should still be in registry but inactive
+    const afterEmitter = (streamRegistry as any).getEmitter(threadId);
+    expect(afterEmitter).toBeDefined();
+    expect(afterEmitter?.isActive()).toBe(false);
   });
 });
