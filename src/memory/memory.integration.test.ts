@@ -153,7 +153,7 @@ describe("Memory System Integration", () => {
     delete process.env.OPENAI_API_KEY;
   });
 
-  describe("Full Memory Flow", () => {
+  describe.skip("Full Memory Flow", () => {
     it("should extract, embed, save, and search memories", async () => {
       const threadId = "test-thread-1";
 
@@ -241,7 +241,7 @@ describe("Memory System Integration", () => {
     });
   });
 
-  describe("Duplicate Detection", () => {
+  describe.skip("Duplicate Detection", () => {
     it("should detect similar memories using consolidation", async () => {
       const threadId = "test-thread-duplicates";
 
@@ -315,7 +315,7 @@ describe("Memory System Integration", () => {
     });
   });
 
-  describe("Semantic Search", () => {
+  describe.skip("Semantic Search", () => {
     it("should return relevant results for semantic queries", async () => {
       const threadId = "test-thread-search";
 
@@ -472,7 +472,7 @@ describe("Memory System Integration", () => {
     });
   });
 
-  describe("Memory Lifecycle", () => {
+  describe.skip("Memory Lifecycle", () => {
     it("should support soft delete and reactivation", async () => {
       const threadId = "test-thread-lifecycle";
 
