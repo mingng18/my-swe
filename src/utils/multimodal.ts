@@ -58,7 +58,7 @@ export async function fetchImageBlock(
       );
 
       // Expose normalizedAddress to the outer scope so the Agent can use it
-      finalNormalizedAddress = normalizedAddress;
+      normalizedAddress = normalizedAddress;
 
       if (
         normalizedAddress.startsWith("127.") ||

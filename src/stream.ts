@@ -159,7 +159,10 @@ export class SSEStream {
   emit(event: SSEEvent): void {
     // If controller isn't ready yet, queue the event
     if (!this.controller || !this.initialized) {
-      logger.debug({ eventType: event.type }, "[SSE] Controller not ready, queuing event");
+      logger.debug(
+        { eventType: event.type },
+        "[SSE] Controller not ready, queuing event",
+      );
       this.pendingEvents.push(event);
       return;
     }
@@ -226,8 +229,14 @@ interface StreamConnection {
 }
 
 class StreamRegistry {
+  getEmitter(threadId: string) {
+    return this.connections.get(threadId)?.sseStream;
+  }
   private connections = new Map<string, StreamConnection>();
-  private eventBuffers = new Map<string, Array<{ event: SSEEvent; timestamp: number }>>();
+  private eventBuffers = new Map<
+    string,
+    Array<{ event: SSEEvent; timestamp: number }>
+  >();
   private readonly BUFFER_TTL = 5000; // 5 seconds
   private readonly MAX_BUFFER_SIZE = 100; // Max events to buffer per thread
 
@@ -260,15 +269,23 @@ class StreamRegistry {
     const connection = this.connections.get(threadId);
     if (connection && !connection.clientConnectedAt) {
       connection.clientConnectedAt = Date.now();
-      logger.debug({ threadId }, "[SSE] Client connected, replaying buffered events");
+      logger.debug(
+        { threadId },
+        "[SSE] Client connected, replaying buffered events",
+      );
 
       // Replay any buffered events
       const buffer = this.eventBuffers.get(threadId);
       if (buffer && buffer.length > 0) {
         const now = Date.now();
-        const validEvents = buffer.filter(e => now - e.timestamp < this.BUFFER_TTL);
+        const validEvents = buffer.filter(
+          (e) => now - e.timestamp < this.BUFFER_TTL,
+        );
 
-        logger.debug({ threadId, count: validEvents.length }, "[SSE] Replaying buffered events");
+        logger.debug(
+          { threadId, count: validEvents.length },
+          "[SSE] Replaying buffered events",
+        );
 
         for (const { event } of validEvents) {
           connection.sseStream.emit(event);
@@ -296,8 +313,9 @@ class StreamRegistry {
       return;
     }
 
-    const hasClient = connection.clientConnectedAt &&
-                        Date.now() - connection.clientConnectedAt < this.BUFFER_TTL;
+    const hasClient =
+      connection.clientConnectedAt &&
+      Date.now() - connection.clientConnectedAt < this.BUFFER_TTL;
 
     if (!hasClient) {
       // Stream exists but client not connected yet, buffer the event
@@ -324,7 +342,9 @@ class StreamRegistry {
 
     // Prune old events and enforce size limit
     const now = Date.now();
-    const validEvents = buffer.filter(e => now - e.timestamp < this.BUFFER_TTL);
+    const validEvents = buffer.filter(
+      (e) => now - e.timestamp < this.BUFFER_TTL,
+    );
 
     if (validEvents.length > this.MAX_BUFFER_SIZE) {
       // Keep only the most recent events
@@ -333,8 +353,10 @@ class StreamRegistry {
 
     this.eventBuffers.set(threadId, validEvents);
 
-    logger.debug({ threadId, eventType: event.type, bufferSize: validEvents.length },
-                  "[SSE] Buffered event (no client connected)");
+    logger.debug(
+      { threadId, eventType: event.type, bufferSize: validEvents.length },
+      "[SSE] Buffered event (no client connected)",
+    );
   }
 
   /**
@@ -368,7 +390,9 @@ class StreamRegistry {
     // Also clean up old event buffers for threads without connections
     for (const [threadId, buffer] of this.eventBuffers.entries()) {
       const hasConnection = this.connections.has(threadId);
-      const hasValidEvents = buffer.some(e => now - e.timestamp < this.BUFFER_TTL);
+      const hasValidEvents = buffer.some(
+        (e) => now - e.timestamp < this.BUFFER_TTL,
+      );
 
       if (!hasConnection && !hasValidEvents) {
         this.eventBuffers.delete(threadId);

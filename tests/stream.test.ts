@@ -182,12 +182,15 @@ describe("SSE Endpoint", () => {
     const controller = new AbortController();
 
     // Create a stream
-    const streamPromise = fetch(`${BULLHORSE_URL}/stream?threadId=${threadId}`, {
-      headers: {
-        Accept: "text/event-stream",
+    const streamPromise = fetch(
+      `${BULLHORSE_URL}/stream?threadId=${threadId}`,
+      {
+        headers: {
+          Accept: "text/event-stream",
+        },
+        signal: controller.signal,
       },
-      signal: controller.signal,
-    });
+    );
 
     // Wait for connection to establish
     await new Promise((resolve) => setTimeout(resolve, 100));

