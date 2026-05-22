@@ -122,9 +122,9 @@ describe("runVerificationPipeline", () => {
   it("should continue execution even if dependency installation fails or finds no package manager", async () => {
     mockInstallDependencies.mockImplementationOnce(async () => ({
       installed: false,
-      packageManager: "none",
+      packageManager: "unknown",
       output: "no package.json"
-    }));
+    } as any));
 
     const result = await runVerificationPipeline(defaultParams);
 
@@ -145,8 +145,8 @@ describe("runVerificationPipeline", () => {
   it("should return error if PR submission fails", async () => {
     mockEnforcePRSubmission.mockImplementationOnce(async () => ({
       prCreated: false,
-      error: "GitHub API rate limit", prUrl: ""
-    }));
+      error: "GitHub API rate limit"
+    } as any));
 
     const result = await runVerificationPipeline(defaultParams);
 
@@ -155,7 +155,7 @@ describe("runVerificationPipeline", () => {
       testsPassed: true,
       lintPassed: true,
       prCreated: false,
-      error: "GitHub API rate limit", prUrl: ""
+      error: "GitHub API rate limit"
     });
 
     expect(mockInstallDependencies).toHaveBeenCalledTimes(1);

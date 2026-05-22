@@ -83,7 +83,7 @@ describe("SSE Endpoint", () => {
     // Wait a bit for connection to establish
     await new Promise((resolve) => setTimeout(resolve, 100));
 
-    // Get emitter and emit event
+    // Emit event directly
     streamRegistry.emitEvent(threadId, {
       type: "test_event",
       timestamp: Date.now(),
@@ -141,17 +141,6 @@ describe("SSE Endpoint", () => {
     // Wait for connections to establish
     await new Promise((resolve) => setTimeout(resolve, 100));
 
-    // Wait for responses to ensure streams are fully registered
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
-    // Close all streams
-    for (const threadId of threadIds) {
-      streamRegistry.closeStream(threadId);
-    }
-
-    // Wait for connections to establish
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
     // Close all streams
     for (const threadId of threadIds) {
       streamRegistry.closeStream(threadId);
@@ -183,9 +172,6 @@ describe("SSE Endpoint", () => {
     // Wait for connection to establish
     await new Promise((resolve) => setTimeout(resolve, 100));
 
-    // Wait to ensure stream is registered
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
     // Close the stream
     streamRegistry.closeStream(threadId);
     controller.abort();
@@ -201,6 +187,5 @@ describe("SSE Endpoint", () => {
 
     // Wait a bit for cleanup
     await new Promise((resolve) => setTimeout(resolve, 50));
-
   });
 });
