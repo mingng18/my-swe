@@ -19,3 +19,7 @@
 **Vulnerability:** Resource Exhaustion (DoS) due to un-destroyed undici Agents
 **Learning:** When mitigating SSRF using custom DNS lookup via `undici.Agent`, failing to explicitly call `await agent.destroy()` leaks socket connections and file descriptors because custom Agents bypass global connection pooling.
 **Prevention:** Always destroy custom networking Agents in a `finally` block immediately after the response is fully consumed.
+## 2026-05-16 - Math.random() Cryptographic Weakness
+**Vulnerability:** The application used `Math.random()` to generate the temporary file path (`credPath`) for storing sensitive Git credentials.
+**Learning:** `Math.random()` is not cryptographically secure, and its output is predictable. An attacker could potentially predict the generated temporary file path and read the stored GitHub access token before the file is deleted.
+**Prevention:** Always use cryptographically secure random number generators like `randomUUID()` or `randomBytes()` from `node:crypto` or the Web Crypto API when generating identifiers for sensitive operations like temporary file paths containing credentials.
