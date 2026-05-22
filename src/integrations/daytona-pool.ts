@@ -172,6 +172,86 @@ export async function countIdleRepoSandboxes(args: {
 }
 
 /**
+ * Helper to build the parameters for creating a new Daytona sandbox.
+ * Factored out to share between acquireRepoSandbox and createRepoSandbox.
+ */
+function buildDaytonaCreateParams(
+  params: AcquireSandboxParams,
+  repo: string,
+  loggerInstance?: typeof logger,
+): Record<string, unknown> {
+  // Determine snapshot size based on requested resources
+  let snapshotName = "daytona-medium"; // Default
+  if (params.cpu && params.cpu >= 4) {
+    snapshotName = "daytona-large";
+  } else if (
+    params.cpu &&
+    params.cpu <= 1 &&
+    (!params.memory || params.memory <= 2)
+  ) {
+    snapshotName = "daytona-small";
+  }
+
+  // If custom image is explicitly provided, use it (overrides snapshot)
+  const useCustomImage = params.image !== undefined;
+
+  const resources =
+    params.cpu || params.memory || params.disk
+      ? { cpu: params.cpu, memory: params.memory, disk: params.disk }
+      : undefined;
+
+  const createParams: Record<string, unknown> = {
+    labels: buildLabels({
+      profile: params.profile,
+      repo,
+      status: "busy",
+      threadId: params.threadId,
+    }),
+    envVars: params.envVars,
+    resources,
+    autoStopInterval: params.autoStopInterval,
+    autoArchiveInterval: params.autoArchiveInterval,
+    autoDeleteInterval: params.autoDeleteInterval,
+    ephemeral: params.ephemeral,
+    networkBlockAll: params.networkBlockAll,
+    networkAllowList: params.networkAllowList,
+    public: params.public,
+    user: params.user,
+    volumes: params.volumes,
+  };
+
+  // Add snapshot or image based on configuration
+  if (useCustomImage) {
+    createParams.image = params.image;
+    createParams.language = params.language;
+    if (loggerInstance) {
+      loggerInstance.info(
+        { image: params.image, profile: params.profile },
+        "[daytona-pool] Using custom image (not snapshot)",
+      );
+    }
+  } else {
+    createParams.snapshot = snapshotName;
+    if (loggerInstance) {
+      loggerInstance.info(
+        { snapshot: snapshotName, profile: params.profile },
+        "[daytona-pool] Using Daytona default snapshot",
+      );
+    }
+  }
+
+  // ⚡ Bolt: Use for...in to create a new clean object instead of mutating with delete to avoid hidden class deoptimization
+  const cleanParams: Record<string, unknown> = {};
+  for (const k in createParams) {
+    if (createParams[k] !== undefined) {
+      cleanParams[k] = createParams[k];
+    }
+  }
+
+  return cleanParams;
+}
+
+/**
  * Acquire a sandbox for a given repo. If an idle one exists (already cloned),
  * reuse it; otherwise create a new sandbox and mark it busy.
  */
@@ -319,69 +399,7 @@ export async function acquireRepoSandbox(
       // Use Daytona's default snapshots (daytona-small, daytona-medium, daytona-large)
       // These have Node.js, Python, git, TypeScript, and language servers pre-installed
 
-      // Determine snapshot size based on requested resources
-      let snapshotName = "daytona-medium"; // Default
-      if (params.cpu && params.cpu >= 4) {
-        snapshotName = "daytona-large";
-      } else if (
-        params.cpu &&
-        params.cpu <= 1 &&
-        (!params.memory || params.memory <= 2)
-      ) {
-        snapshotName = "daytona-small";
-      }
-
-      // If custom image is explicitly provided, use it (overrides snapshot)
-      const useCustomImage = params.image !== undefined;
-
-      const resources =
-        params.cpu || params.memory || params.disk
-          ? { cpu: params.cpu, memory: params.memory, disk: params.disk }
-          : undefined;
-
-      const createParams: Record<string, unknown> = {
-        labels: buildLabels({
-          profile: params.profile,
-          repo,
-          status: "busy",
-          threadId: params.threadId,
-        }),
-        envVars: params.envVars,
-        resources,
-        autoStopInterval: params.autoStopInterval,
-        autoArchiveInterval: params.autoArchiveInterval,
-        autoDeleteInterval: params.autoDeleteInterval,
-        ephemeral: params.ephemeral,
-        networkBlockAll: params.networkBlockAll,
-        networkAllowList: params.networkAllowList,
-        public: params.public,
-        user: params.user,
-        volumes: params.volumes,
-      };
-
-      // Add snapshot or image based on configuration
-      if (useCustomImage) {
-        createParams.image = params.image;
-        createParams.language = params.language;
-        logger.info(
-          { image: params.image, profile: params.profile },
-          "[daytona-pool] Using custom image (not snapshot)",
-        );
-      } else {
-        createParams.snapshot = snapshotName;
-        logger.info(
-          { snapshot: snapshotName, profile: params.profile },
-          "[daytona-pool] Using Daytona default snapshot",
-        );
-      }
-
-      // ⚡ Bolt: Use for...in to create a new clean object instead of mutating with delete to avoid hidden class deoptimization
-      const cleanParams: Record<string, unknown> = {};
-      for (const k in createParams) {
-        if (createParams[k] !== undefined) {
-          cleanParams[k] = createParams[k];
-        }
-      }
+      const cleanParams = buildDaytonaCreateParams(params, repo, logger);
 
       const sandbox = await daytona.create(cleanParams as any);
       const sandboxId = sandbox.id;
@@ -418,60 +436,7 @@ export async function createRepoSandbox(
   const repo = repoKey(params.repoOwner, params.repoName);
 
   try {
-    // Use Daytona's default snapshots (same logic as acquireRepoSandbox)
-    let snapshotName = "daytona-medium";
-    if (params.cpu && params.cpu >= 4) {
-      snapshotName = "daytona-large";
-    } else if (
-      params.cpu &&
-      params.cpu <= 1 &&
-      (!params.memory || params.memory <= 2)
-    ) {
-      snapshotName = "daytona-small";
-    }
-
-    const useCustomImage = params.image !== undefined;
-
-    const resources =
-      params.cpu || params.memory || params.disk
-        ? { cpu: params.cpu, memory: params.memory, disk: params.disk }
-        : undefined;
-
-    const createParams: Record<string, unknown> = {
-      labels: buildLabels({
-        profile: params.profile,
-        repo,
-        status: "busy",
-        threadId: params.threadId,
-      }),
-      envVars: params.envVars,
-      resources,
-      autoStopInterval: params.autoStopInterval,
-      autoArchiveInterval: params.autoArchiveInterval,
-      autoDeleteInterval: params.autoDeleteInterval,
-      ephemeral: params.ephemeral,
-      networkBlockAll: params.networkBlockAll,
-      networkAllowList: params.networkAllowList,
-      public: params.public,
-      user: params.user,
-      volumes: params.volumes,
-    };
-
-    // Add snapshot or image based on configuration
-    if (useCustomImage) {
-      createParams.image = params.image;
-      createParams.language = params.language;
-    } else {
-      createParams.snapshot = snapshotName;
-    }
-
-    // ⚡ Bolt: Use for...in to create a new clean object instead of mutating with delete to avoid hidden class deoptimization
-    const cleanParams: Record<string, unknown> = {};
-    for (const k in createParams) {
-      if (createParams[k] !== undefined) {
-        cleanParams[k] = createParams[k];
-      }
-    }
+    const cleanParams = buildDaytonaCreateParams(params, repo);
 
     const sandbox = await daytona.create(cleanParams as any);
     return sandbox.id;
