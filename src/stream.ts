@@ -234,6 +234,13 @@ class StreamRegistry {
   /**
    * Create a new stream for a thread
    */
+  getEmitter(threadId: string): SSEStream | undefined {
+    return this.connections.get(threadId)?.sseStream;
+  }
+
+  /**
+   * Create a new stream for a thread
+   */
   createStream(threadId: string): ReadableStream<Uint8Array> {
     // Close existing stream for this thread if any
     this.closeStream(threadId);

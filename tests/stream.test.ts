@@ -84,16 +84,13 @@ describe("SSE Endpoint", () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Get emitter and emit event
-    const emitter = streamRegistry.getEmitter(threadId);
-    expect(emitter).toBeDefined();
-
-    emitter?.emit({
+    streamRegistry.emitEvent(threadId, {
       type: "test_event",
       timestamp: Date.now(),
     } as any);
 
     // Close emitter
-    emitter?.end();
+    streamRegistry.closeStream(threadId);
 
     // Get response
     const response = await streamPromise;

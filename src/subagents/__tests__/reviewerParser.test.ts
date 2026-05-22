@@ -301,7 +301,7 @@ describe("filterIssuesBySeverity", () => {
 
 describe("hasCriticalIssues", () => {
   it("returns true when CRITICAL issues exist among other severities", () => {
-    const issues: ReviewIssue[] = [
+    const issues: any[] = [
       { severity: "HIGH", file: "a.ts", issue: "High issue", fix: "Fix" },
       {
         severity: "CRITICAL",
@@ -316,7 +316,7 @@ describe("hasCriticalIssues", () => {
   });
 
   it("returns true when only CRITICAL issues exist", () => {
-    const issues: ReviewIssue[] = [
+    const issues: any[] = [
       { severity: "CRITICAL", file: "a.ts", issue: "Critical issue 1", fix: "Fix 1" },
       {
         severity: "CRITICAL",
@@ -331,7 +331,7 @@ describe("hasCriticalIssues", () => {
   });
 
   it("returns true when multiple CRITICAL issues exist among other severities", () => {
-    const issues: ReviewIssue[] = [
+    const issues: any[] = [
       { severity: "LOW", file: "c.ts", issue: "Low issue", fix: "Fix" },
       { severity: "CRITICAL", file: "a.ts", issue: "Critical issue 1", fix: "Fix 1" },
       { severity: "HIGH", file: "d.ts", issue: "High issue", fix: "Fix" },
@@ -342,7 +342,7 @@ describe("hasCriticalIssues", () => {
   });
 
   it("returns false when no CRITICAL issues", () => {
-    const issues: ReviewIssue[] = [
+    const issues: any[] = [
       { severity: "HIGH", file: "a.ts", issue: "High issue", fix: "Fix" },
       {
         severity: "MEDIUM",
@@ -357,7 +357,7 @@ describe("hasCriticalIssues", () => {
   });
 
   it("returns false when only non-critical issues (LOW, MEDIUM, HIGH) exist", () => {
-    const issues: ReviewIssue[] = [
+    const issues: any[] = [
       { severity: "LOW", file: "c.ts", issue: "Low issue", fix: "Fix" },
       { severity: "MEDIUM", file: "d.ts", issue: "Medium issue", fix: "Fix" },
       { severity: "HIGH", file: "a.ts", issue: "High issue", fix: "Fix" },
@@ -423,7 +423,7 @@ describe("formatIssues", () => {
 
 
   it("orders issues strictly by severity (CRITICAL > HIGH > MEDIUM > LOW)", () => {
-    const unorderedIssues = [
+    const unorderedIssues: any[] = [
       { severity: "LOW", file: "low.ts", issue: "Low", fix: "Fix" },
       { severity: "MEDIUM", file: "medium.ts", issue: "Medium", fix: "Fix" },
       { severity: "CRITICAL", file: "critical.ts", issue: "Critical", fix: "Fix" },
@@ -443,7 +443,7 @@ describe("formatIssues", () => {
   });
 
   it("groups multiple issues of the same severity together", () => {
-    const mixedIssues = [
+    const mixedIssues: any[] = [
       { severity: "HIGH", file: "high1.ts", issue: "High 1", fix: "Fix 1" },
       { severity: "LOW", file: "low1.ts", issue: "Low 1", fix: "Fix 1" },
       { severity: "HIGH", file: "high2.ts", issue: "High 2", fix: "Fix 2" },
