@@ -4,8 +4,7 @@
  */
 
 import { describe, test, expect, beforeEach } from "bun:test";
-// @ts-ignore - Export removed in later PR but test is still here. Let's just bypass it for now.
-import { shellEscapeSingleQuotes } from "./github";
+import { shellEscapeSingleQuotes } from "../shell";
 import {
   sanitizeUserPrompt,
   sanitizeThreadId,

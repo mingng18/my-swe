@@ -83,7 +83,7 @@ describe("SSE Endpoint", () => {
     // Wait a bit for connection to establish
     await new Promise((resolve) => setTimeout(resolve, 100));
 
-    // Emit event directly
+    // Get emitter and emit event
     streamRegistry.emitEvent(threadId, {
       type: "test_event",
       timestamp: Date.now(),
@@ -141,6 +141,19 @@ describe("SSE Endpoint", () => {
     // Wait for connections to establish
     await new Promise((resolve) => setTimeout(resolve, 100));
 
+    // Verify all streams are active
+    for (const threadId of threadIds) {
+      streamRegistry.emitEvent(threadId, { type: "llm_chunk", content: "ping", timestamp: Date.now() } as any);
+    }
+
+    // Close all streams
+    for (const threadId of threadIds) {
+      streamRegistry.closeStream(threadId);
+    }
+
+    // Wait for connections to establish
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
     // Close all streams
     for (const threadId of threadIds) {
       streamRegistry.closeStream(threadId);
@@ -187,5 +200,7 @@ describe("SSE Endpoint", () => {
 
     // Wait a bit for cleanup
     await new Promise((resolve) => setTimeout(resolve, 50));
+
+    streamRegistry.closeStream(threadId);
   });
 });
