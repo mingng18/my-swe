@@ -451,26 +451,31 @@ export class FilesystemSnapshotStore implements SnapshotStore {
         filePath.endsWith(METADATA_EXT),
       );
 
-      const readPromises = filteredFiles.map(async (filePath) => {
-        try {
-          const data = await readFile(filePath, "utf-8");
-          const metadata = JSON.parse(data) as SnapshotMetadata;
-          metadata.createdAt = new Date(metadata.createdAt);
-          metadata.refreshedAt = new Date(metadata.refreshedAt);
-          return metadata;
-        } catch (error) {
-          logger.warn(
-            { error, file: filePath },
-            `[snapshot-store] Failed to read snapshot file`,
-          );
-          return null;
-        }
-      });
+      // Process files in batches to avoid high memory usage and EMFILE errors
+      const BATCH_SIZE = 500;
+      for (let i = 0; i < filteredFiles.length; i += BATCH_SIZE) {
+        const chunk = filteredFiles.slice(i, i + BATCH_SIZE);
+        const readPromises = chunk.map(async (filePath) => {
+          try {
+            const data = await readFile(filePath, "utf-8");
+            const metadata = JSON.parse(data) as SnapshotMetadata;
+            metadata.createdAt = new Date(metadata.createdAt);
+            metadata.refreshedAt = new Date(metadata.refreshedAt);
+            return metadata;
+          } catch (error) {
+            logger.warn(
+              { error, file: filePath },
+              `[snapshot-store] Failed to read snapshot file`,
+            );
+            return null;
+          }
+        });
 
-      const results = await Promise.all(readPromises);
-      for (const metadata of results) {
-        if (metadata) {
-          snapshots.push(metadata);
+        const results = await Promise.all(readPromises);
+        for (const metadata of results) {
+          if (metadata) {
+            snapshots.push(metadata);
+          }
         }
       }
 
@@ -550,34 +555,39 @@ export class FilesystemSnapshotStore implements SnapshotStore {
 
       const filteredFiles = files.filter((file) => file.endsWith(METADATA_EXT));
 
-      const deletePromises = filteredFiles.map(async (file) => {
-        try {
-          const filePath = join(this.storageDir, file);
-          const data = await readFile(filePath, "utf-8");
-          const metadata = JSON.parse(data) as SnapshotMetadata;
-          metadata.createdAt = new Date(metadata.createdAt);
-          metadata.refreshedAt = new Date(metadata.refreshedAt);
+      // Process files in batches to avoid high memory usage and EMFILE errors
+      const BATCH_SIZE = 500;
+      for (let i = 0; i < filteredFiles.length; i += BATCH_SIZE) {
+        const chunk = filteredFiles.slice(i, i + BATCH_SIZE);
+        const deletePromises = chunk.map(async (file) => {
+          try {
+            const filePath = join(this.storageDir, file);
+            const data = await readFile(filePath, "utf-8");
+            const metadata = JSON.parse(data) as SnapshotMetadata;
+            metadata.createdAt = new Date(metadata.createdAt);
+            metadata.refreshedAt = new Date(metadata.refreshedAt);
 
-          if (isSnapshotExpired(metadata, maxAgeHours)) {
-            await unlink(filePath);
-            logger.debug(
-              { snapshotId: metadata.snapshotId, file },
-              `[snapshot-store] Deleted expired snapshot`,
+            if (isSnapshotExpired(metadata, maxAgeHours)) {
+              await unlink(filePath);
+              logger.debug(
+                { snapshotId: metadata.snapshotId, file },
+                `[snapshot-store] Deleted expired snapshot`,
+              );
+              return 1;
+            }
+            return 0;
+          } catch (error) {
+            logger.warn(
+              { error, file },
+              `[snapshot-store] Failed to process snapshot file`,
             );
-            return 1;
+            return 0;
           }
-          return 0;
-        } catch (error) {
-          logger.warn(
-            { error, file },
-            `[snapshot-store] Failed to process snapshot file`,
-          );
-          return 0;
-        }
-      });
+        });
 
-      const results = await Promise.all(deletePromises);
-      deleted = results.reduce((sum: number, count) => sum + count, 0);
+        const results = await Promise.all(deletePromises);
+        deleted += results.reduce((sum: number, count) => sum + count, 0);
+      }
     } catch (error) {
       logger.error({ error }, `[snapshot-store] Failed during cleanup`);
     }
