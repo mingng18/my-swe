@@ -380,47 +380,69 @@ export async function fetchPrCommentsSinceLastTag(
       auth: token,
     });
 
-    // Fetch all three types of comments in parallel
+    // Fetch all three types of comments in parallel using paginate mapFn for memory efficiency
     const [prComments, reviewComments, reviews] = await Promise.all([
-      fetchPaginatedComments<GitHubIssueComment>(
-        octokit,
+      octokit.paginate(
         octokit.rest.issues.listComments,
-        { owner, repo, issue_number: prNumber },
+        {
+          owner,
+          repo,
+          issue_number: prNumber,
+          headers: { "X-GitHub-Api-Version": "2022-11-28" },
+        },
+        (response) =>
+          (response.data as GitHubIssueComment[]).map((c) => ({
+            body: c.body ?? "",
+            author: c.user?.login ?? "unknown",
+            created_at: c.created_at,
+            type: "pr_comment" as const,
+            comment_id: c.id,
+          })),
       ),
-      fetchPaginatedComments<GitHubPRComment>(
-        octokit,
+      octokit.paginate(
         octokit.rest.pulls.listReviewComments,
-        { owner, repo, pull_number: prNumber },
+        {
+          owner,
+          repo,
+          pull_number: prNumber,
+          headers: { "X-GitHub-Api-Version": "2022-11-28" },
+        },
+        (response) =>
+          (response.data as GitHubPRComment[]).map((c) => ({
+            body: c.body ?? "",
+            author: c.user?.login ?? "unknown",
+            created_at: c.created_at,
+            type: "review_comment" as const,
+            comment_id: c.id,
+            path: c.path,
+            line: c.line ?? c.original_line,
+          })),
       ),
-      fetchPaginatedReviews(octokit, { owner, repo, pull_number: prNumber }),
+      octokit.paginate(
+        octokit.rest.pulls.listReviews,
+        {
+          owner,
+          repo,
+          pull_number: prNumber,
+          headers: { "X-GitHub-Api-Version": "2022-11-28" },
+        },
+        (response) =>
+          (response.data as GitHubReview[])
+            .filter((r) => r.body)
+            .map((r) => ({
+              body: r.body!,
+              author: r.user?.login ?? "unknown",
+              created_at: r.submitted_at!,
+              type: "review" as const,
+              comment_id: r.id,
+            })),
+      ),
     ]);
 
     const allComments: GitHubComment[] = [
-      ...prComments.map((c) => ({
-        body: c.body ?? "",
-        author: c.user?.login ?? "unknown",
-        created_at: c.created_at,
-        type: "pr_comment" as const,
-        comment_id: c.id,
-      })),
-      ...(reviewComments as GitHubPRComment[]).map((c) => ({
-        body: c.body ?? "",
-        author: c.user?.login ?? "unknown",
-        created_at: c.created_at,
-        type: "review_comment" as const,
-        comment_id: c.id,
-        path: c.path,
-        line: c.line ?? c.original_line,
-      })),
-      ...reviews
-        .filter((r) => r.body)
-        .map((r) => ({
-          body: r.body!,
-          author: r.user?.login ?? "unknown",
-          created_at: r.submitted_at!,
-          type: "review" as const,
-          comment_id: r.id,
-        })),
+      ...prComments,
+      ...reviewComments,
+      ...reviews,
     ];
 
     // Sort all comments chronologically
@@ -451,47 +473,6 @@ export async function fetchPrCommentsSinceLastTag(
     );
     return [];
   }
-}
-
-/**
- * Helper to fetch paginated comments.
- */
-async function fetchPaginatedComments<T>(
-  octokit: Octokit,
-  method: (...args: any[]) => any,
-  params: Record<string, unknown>,
-): Promise<T[]> {
-  const results = await octokit.paginate(
-    method as any,
-    {
-      ...params,
-      headers: {
-        "X-GitHub-Api-Version": "2022-11-28",
-      },
-    },
-    (response) => response.data as T[],
-  );
-  return results;
-}
-
-/**
- * Helper to fetch paginated reviews.
- */
-async function fetchPaginatedReviews(
-  octokit: Octokit,
-  params: Record<string, unknown>,
-): Promise<GitHubReview[]> {
-  const results = await octokit.paginate(
-    octokit.rest.pulls.listReviews as any,
-    {
-      ...params,
-      headers: {
-        "X-GitHub-Api-Version": "2022-11-28",
-      },
-    },
-    (response) => response.data as GitHubReview[],
-  );
-  return results;
 }
 
 /**
