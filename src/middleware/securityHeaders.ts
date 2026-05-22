@@ -182,6 +182,7 @@ export function apiSecurityHeaders(): MiddlewareHandler {
     c.res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
     c.res.headers.set("Cross-Origin-Resource-Policy", "same-origin");
     c.res.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+    c.res.headers.set("Cross-Origin-Resource-Policy", "same-origin");
 
     // API-specific headers
     c.res.headers.set("X-Content-Type-Options", "nosniff");
