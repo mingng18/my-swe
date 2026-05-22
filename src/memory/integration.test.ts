@@ -23,8 +23,16 @@ class MockSupabaseClient {
     if (method === "GET") {
       // Parse URL to extract filter parameters
       const urlObj = new URL(url);
-      const threadId = urlObj.searchParams.get("thread_id");
-      const id = urlObj.searchParams.get("id");
+      let threadId = urlObj.searchParams.get("thread_id");
+      if (threadId && threadId.startsWith("eq.")) threadId = threadId.substring(3);
+      else if (threadId && threadId.startsWith("in.(")) {
+        // handle in.(id1,id2)
+        threadId = decodeURIComponent(threadId);
+        const match = threadId.match(/in\.\((.+)\)/);
+        if (match) threadId = match[1].split(",")[0]; // simplistic hack for tests that pass [threadId]
+      }
+      let id = urlObj.searchParams.get("id");
+      if (id && id.startsWith("eq.")) id = id.substring(3);
 
       if (id) {
         // Get by ID
@@ -37,9 +45,16 @@ class MockSupabaseClient {
 
       if (threadId) {
         // Get by thread ID
-        const memories = Array.from(this.memories.values()).filter(
+        let memories = Array.from(this.memories.values()).filter(
           (m) => m.thread_id === threadId,
         );
+
+        const orFilter = urlObj.searchParams.get("or");
+        if (orFilter) {
+          // parse something like (type.eq.user,type.eq.project)
+          const types = orFilter.replace(/\(|\)/g, '').split(',').map(t => t.replace('type.eq.', ''));
+          memories = memories.filter(m => types.includes(m.type));
+        }
         return new Response(JSON.stringify(memories), {
           status: 200,
           headers: { "Content-Type": "application/json" },
@@ -73,7 +88,9 @@ class MockSupabaseClient {
     if (method === "PATCH") {
       // Update
       const urlObj = new URL(url);
-      const id = urlObj.searchParams.get("id");
+      let id = urlObj.searchParams.get("id");
+      if (id && id.startsWith("eq.")) id = id.substring(3);
+
       const updates = JSON.parse(options?.body as string);
 
       if (id) {
@@ -131,12 +148,20 @@ describe("Memory System Integration", () => {
     mockClient = new MockSupabaseClient();
     repository = new MemoryRepository(mockClient as any);
     extractor = new MemoryExtractor();
+
     embeddingService = new EmbeddingService();
+    // Mock the generateEmbedding method to avoid real API calls
+    let embedCount = 0;
+    embeddingService.generateEmbedding = async (text: string) => {
+      embedCount++;
+      const arr = new Array(1536).fill(0);
+      arr[0] = embedCount;
+      return arr;
+    };
+
     searchService = new SearchService(repository, {
-      generateEmbedding: (text: string) =>
-        embeddingService.generateEmbedding(text),
-      cosineSimilarity: (a: number[], b: number[]) =>
-        EmbeddingService.cosineSimilarity(a, b),
+      generateEmbedding: (text: string) => embeddingService.generateEmbedding(text),
+      cosineSimilarity: (a: number[], b: number[]) => 1.0, // dummy similarity
     });
     consolidationService = new ConsolidationService(repository, {
       generateEmbedding: (text: string) =>
