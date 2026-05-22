@@ -24,7 +24,10 @@ class MockSupabaseClient {
       // Parse URL to extract filter parameters
       const urlObj = new URL(url);
       const threadId = urlObj.searchParams.get("thread_id");
-      const id = urlObj.searchParams.get("id");
+      let id = urlObj.searchParams.get("id");
+      if (id && id.startsWith("eq.")) {
+        id = id.replace("eq.", "");
+      }
 
       if (id) {
         // Get by ID
@@ -36,10 +39,28 @@ class MockSupabaseClient {
       }
 
       if (threadId) {
-        // Get by thread ID
-        const memories = Array.from(this.memories.values()).filter(
-          (m) => m.thread_id === threadId,
-        );
+        let memories: any[] = [];
+        if (threadId.startsWith("in.(")) {
+          const threadIds = threadId.replace("in.(", "").replace(")", "").split(",");
+          memories = Array.from(this.memories.values()).filter(
+            (m) => threadIds.includes(m.thread_id),
+          );
+        } else {
+          memories = Array.from(this.memories.values()).filter(
+            (m) => m.thread_id === threadId,
+          );
+        }
+
+        // Handle type filters if present in 'or' parameter
+        const orParam = urlObj.searchParams.get("or");
+        if (orParam) {
+          const match = orParam.match(/type\.eq\.([^,)]+)/g);
+          const types = match ? match.map(m => m.split('type.eq.')[1]) : [];
+          if (types.length > 0) {
+            memories = memories.filter(m => types.includes(m.type));
+          }
+        }
+
         return new Response(JSON.stringify(memories), {
           status: 200,
           headers: { "Content-Type": "application/json" },
@@ -73,18 +94,29 @@ class MockSupabaseClient {
     if (method === "PATCH") {
       // Update
       const urlObj = new URL(url);
-      const id = urlObj.searchParams.get("id");
+      let idParam = urlObj.searchParams.get("id");
+      let idsToUpdate: string[] = [];
+      if (idParam && idParam.startsWith("eq.")) {
+        idsToUpdate = [idParam.replace("eq.", "")];
+      } else if (idParam && idParam.startsWith("in.(")) {
+        idsToUpdate = idParam.replace("in.(", "").replace(")", "").split(",");
+      }
+
       const updates = JSON.parse(options?.body as string);
 
-      if (id) {
-        const existing = this.memories.get(id);
-        if (existing) {
-          Object.assign(existing, updates);
-          return new Response(JSON.stringify([existing]), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
+      if (idsToUpdate.length > 0) {
+        const updatedMemories: any[] = [];
+        for (const id of idsToUpdate) {
+          const existing = this.memories.get(id);
+          if (existing) {
+            Object.assign(existing, updates);
+            updatedMemories.push(existing);
+          }
         }
+        return new Response(JSON.stringify(updatedMemories), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
       }
 
       return new Response(null, { status: 404 });
@@ -92,7 +124,10 @@ class MockSupabaseClient {
 
     if (method === "DELETE") {
       const urlObj = new URL(url);
-      const id = urlObj.searchParams.get("id");
+      let id = urlObj.searchParams.get("id");
+      if (id && id.startsWith("eq.")) {
+        id = id.replace("eq.", "");
+      }
 
       if (id && this.memories.has(id)) {
         this.memories.delete(id);
@@ -132,17 +167,23 @@ describe("Memory System Integration", () => {
     repository = new MemoryRepository(mockClient as any);
     extractor = new MemoryExtractor();
     embeddingService = new EmbeddingService();
+    // Mock the embedding service to avoid hitting real OpenAI
+    embeddingService.generateEmbedding = async (text: string) => {
+      return Array(1536).fill(0).map(() => Math.random() * 2 - 1);
+    };
+    embeddingService.generateEmbeddingsBatch = async (texts: string[]) => {
+      return texts.map(() => Array(1536).fill(0).map(() => Math.random() * 2 - 1));
+    };
+
     searchService = new SearchService(repository, {
       generateEmbedding: (text: string) =>
         embeddingService.generateEmbedding(text),
-      cosineSimilarity: (a: number[], b: number[]) =>
-        EmbeddingService.cosineSimilarity(a, b),
+      cosineSimilarity: (a: number[], b: number[]) => 1.0,
     });
     consolidationService = new ConsolidationService(repository, {
       generateEmbedding: (text: string) =>
         embeddingService.generateEmbedding(text),
-      cosineSimilarity: (a: number[], b: number[]) =>
-        EmbeddingService.cosineSimilarity(a, b),
+      cosineSimilarity: (a: number[], b: number[]) => 1.0,
     });
   });
 

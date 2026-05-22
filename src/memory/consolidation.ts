@@ -39,7 +39,7 @@ export class ConsolidationService {
 
     try {
       // Get all memories for the thread
-      const memories = await this.repository.getByThread(threadId);
+      const memories = await this.repository.getByThreads([threadId]);
       result.processed = memories.length;
 
       if (memories.length === 0) {
@@ -113,7 +113,7 @@ export class ConsolidationService {
     threadId: string,
     similarityThreshold: number = DEFAULT_SIMILARITY_THRESHOLD,
   ): Promise<Memory[][]> {
-    const memories = await this.repository.getByThread(threadId);
+    const memories = await this.repository.getByThreads([threadId]);
     const duplicateGroups: Memory[][] = [];
     const processed = new Set<string>();
 
@@ -309,7 +309,7 @@ export class ConsolidationService {
     threadId: string,
     staleDays: number = DEFAULT_STALE_DAYS,
   ): Promise<Memory[]> {
-    const memories = await this.repository.getByThread(threadId);
+    const memories = await this.repository.getByThreads([threadId]);
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - staleDays);
 
