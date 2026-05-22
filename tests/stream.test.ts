@@ -84,7 +84,8 @@ describe("SSE Endpoint", () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Get emitter and emit event
-    const emitter = streamRegistry.getEmitter(threadId);
+    const connection = (streamRegistry as any).connections.get(threadId);
+    const emitter = connection?.sseStream;
     expect(emitter).toBeDefined();
 
     emitter?.emit({
@@ -146,14 +147,16 @@ describe("SSE Endpoint", () => {
 
     // Verify all streams are active
     for (const threadId of threadIds) {
-      const emitter = streamRegistry.getEmitter(threadId);
+      const connection = (streamRegistry as any).connections.get(threadId);
+    const emitter = connection?.sseStream;
       expect(emitter).toBeDefined();
       expect(emitter?.isActive()).toBe(true);
     }
 
     // Close all streams
     for (const threadId of threadIds) {
-      const emitter = streamRegistry.getEmitter(threadId);
+      const connection = (streamRegistry as any).connections.get(threadId);
+    const emitter = connection?.sseStream;
       emitter?.end();
     }
 
@@ -162,7 +165,8 @@ describe("SSE Endpoint", () => {
 
     // Close all streams
     for (const threadId of threadIds) {
-      const emitter = streamRegistry.getEmitter(threadId);
+      const connection = (streamRegistry as any).connections.get(threadId);
+    const emitter = connection?.sseStream;
       emitter?.end();
     }
 
@@ -193,7 +197,8 @@ describe("SSE Endpoint", () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Verify emitter exists
-    const emitter = streamRegistry.getEmitter(threadId);
+    const connection = (streamRegistry as any).connections.get(threadId);
+    const emitter = connection?.sseStream;
     expect(emitter).toBeDefined();
 
     // Close the stream
@@ -213,7 +218,8 @@ describe("SSE Endpoint", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     // Emitter should still be in registry but inactive
-    const afterEmitter = streamRegistry.getEmitter(threadId);
+    const connectionAfter = (streamRegistry as any).connections.get(threadId);
+    const afterEmitter = connectionAfter?.sseStream;
     expect(afterEmitter).toBeDefined();
     expect(afterEmitter?.isActive()).toBe(false);
   });
