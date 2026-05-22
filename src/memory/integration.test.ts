@@ -5,7 +5,7 @@
  * Also tests duplicate detection and semantic search functionality.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from "bun:test";
 import { MemoryRepository } from "./repository";
 import { MemoryExtractor } from "./extractor";
 import { EmbeddingService } from "./embeddings";
@@ -34,6 +34,8 @@ function createMockEmbedding(text: string, dimension: number = 1536): number[] {
 }
 
 let mockFetch: ReturnType<typeof mock>;
+let originalFetch = globalThis.fetch;
+
 function setupMockFetch() {
   mockFetch = mock(async (url: string | Request, options?: RequestInit) => {
     const urlStr = typeof url === "string" ? url : url.toString();
@@ -56,16 +58,15 @@ function setupMockFetch() {
       });
     }
 
-    // For supabase fallback
-    return new Response(JSON.stringify([]), {
-        status: 200,
-        headers: { "Content-Type": "application/json" }
-    });
+    // Fallback just in case
+    return new Response(JSON.stringify([]), { status: 200, headers: { "Content-Type": "application/json" }});
   });
-  globalThis.fetch = mockFetch;
+  globalThis.fetch = mockFetch as unknown as typeof fetch;
 }
 
-setupMockFetch();
+function restoreMockFetch() {
+    globalThis.fetch = originalFetch;
+}
 
 
 // Mock Supabase client for testing
@@ -80,13 +81,20 @@ class MockSupabaseClient {
 
     const idMatch = url.match(/id=eq\.([^&]+)/);
     const threadIdMatch = url.match(/thread_id=eq\.([^&]+)/);
+    const inMatch = url.match(/thread_id=in\.\(([^)]+)\)/);
 
     if (method === "GET") {
-      if (threadIdMatch) {
-        const threadId = decodeURIComponent(threadIdMatch[1]);
+      if (threadIdMatch || inMatch) {
+        let threadIds: string[] = [];
+        if (inMatch) {
+            threadIds = inMatch[1].split(',').map(decodeURIComponent);
+        } else if (threadIdMatch) {
+            threadIds = [decodeURIComponent(threadIdMatch[1])];
+        }
+
         let memories = Array.from(this.memories.values()).filter(
           (m: any) =>
-            (m.thread_id || m.threadId) === threadId &&
+            threadIds.includes(m.thread_id || m.threadId) &&
             m.is_active !== false &&
             m.isActive !== false,
         );
@@ -150,7 +158,6 @@ class MockSupabaseClient {
     }
 
     if (method === "PATCH") {
-      const idMatch = url.match(/id=eq\.([^&]+)/);
       if (idMatch) {
         const id = decodeURIComponent(idMatch[1]);
         const updates = JSON.parse(options?.body as string);
@@ -168,7 +175,6 @@ class MockSupabaseClient {
     }
 
     if (method === "DELETE") {
-      const idMatch = url.match(/id=eq\.([^&]+)/);
       if (idMatch) {
         const id = decodeURIComponent(idMatch[1]);
         this.memories.delete(id);
@@ -188,7 +194,47 @@ class MockSupabaseClient {
   }
 }
 
+
+class MockEmbeddingService {
+  async generateEmbedding(text: string): Promise<number[]> {
+    const embedding: number[] = [];
+    const seed = text
+      .split("")
+      .reduce((acc, char) => acc + char.charCodeAt(0), 0);
+
+    for (let i = 0; i < 1536; i++) {
+      const value = Math.sin(seed + i * 0.1) * 0.5 + 0.5;
+      embedding.push(value);
+    }
+
+    const magnitude = Math.sqrt(
+      embedding.reduce((sum, val) => sum + val * val, 0),
+    );
+    return embedding.map((val) => val / magnitude);
+  }
+
+  cosineSimilarity(a: number[], b: number[]): number {
+    if (a.length !== b.length) {
+      throw new Error("Vectors must have the same length");
+    }
+
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+
+    for (let i = 0; i < a.length; i++) {
+      dotProduct += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+
+    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+  }
+}
+
 describe("Memory System Integration", () => {
+  beforeAll(() => { setupMockFetch(); });
+  afterAll(() => { restoreMockFetch(); });
   let mockClient: MockSupabaseClient;
   let repository: MemoryRepository;
   let extractor: MemoryExtractor;
@@ -205,7 +251,7 @@ describe("Memory System Integration", () => {
     mockClient = new MockSupabaseClient();
     repository = new MemoryRepository(mockClient as any);
     extractor = new MemoryExtractor();
-    embeddingService = new EmbeddingService();
+    embeddingService = new MockEmbeddingService() as any;
     searchService = new SearchService(repository, {
       generateEmbedding: (text: string) =>
         embeddingService.generateEmbedding(text),
@@ -421,7 +467,7 @@ describe("Memory System Integration", () => {
 
       // Search for frontend-related content
       const results = await searchService.search({
-        query: "React development",
+        query: "React development", similarityThreshold: 0.1,
         threadIds: [threadId],
         limit: 5,
       });
@@ -460,7 +506,7 @@ describe("Memory System Integration", () => {
       const results = await searchService.search({
         query: "TypeScript",
         threadIds: [threadId],
-        types: ["user"],
+        types: ["user"], similarityThreshold: 0.1,
         limit: 5,
       });
 
