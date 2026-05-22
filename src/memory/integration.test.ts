@@ -13,126 +13,170 @@ import { SearchService } from "./search";
 import { ConsolidationService } from "./consolidation";
 import type { Memory, TurnResult } from "./types";
 
-// Mock Supabase client for testing
-class MockSupabaseClient {
-  private memories: Map<string, any> = new Map();
+import { mock } from "bun:test";
 
-  async fetch(url: string, options?: RequestInit): Promise<Response> {
-    const method = options?.method || "GET";
+// Create deterministic embeddings based on text content
+function createMockEmbedding(text: string, dimension: number = 1536): number[] {
+  const embedding: number[] = [];
+  const seed = text
+    .split("")
+    .reduce((acc, char) => acc + char.charCodeAt(0), 0);
 
-    if (method === "GET") {
-      // Parse URL to extract filter parameters
-      const urlObj = new URL(url);
-      const threadId = urlObj.searchParams.get("thread_id");
-      const id = urlObj.searchParams.get("id");
+  for (let i = 0; i < dimension; i++) {
+    const value = Math.sin(seed + i * 0.1) * 0.5 + 0.5;
+    embedding.push(value);
+  }
 
-      let eqId = id;
-      if (eqId && eqId.startsWith("eq.")) eqId = eqId.substring(3);
-      if (eqId) {
-        // Get by ID
-        const memory = this.memories.get(eqId);
-        return new Response(JSON.stringify(memory ? [memory] : []), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
+  const magnitude = Math.sqrt(
+    embedding.reduce((sum, val) => sum + val * val, 0),
+  );
+  return embedding.map((val) => val / magnitude);
+}
 
+let mockFetch: ReturnType<typeof mock>;
+function setupMockFetch() {
+  mockFetch = mock(async (url: string | Request, options?: RequestInit) => {
+    const urlStr = typeof url === "string" ? url : url.toString();
 
-      const threadIdParams = urlObj.searchParams.getAll("thread_id");
-      if (threadIdParams.length > 0) {
-        // Handle select in Supabase where thread_id=in.(id1,id2)
-        // or simple eq. for backwards compatibility
-        const isSelect = urlObj.searchParams.has("select");
-        let queryThreads = threadIdParams;
+    if (urlStr.includes("/embeddings")) {
+      const body = options?.body as string;
+      const data = JSON.parse(body);
+      const texts = Array.isArray(data.input) ? data.input : [data.input];
 
-        // If it's a supabase-style in.() query
-        if (threadIdParams.length === 1 && threadIdParams[0].startsWith("in.(")) {
-          const inner = threadIdParams[0].substring(4, threadIdParams[0].length - 1);
-          queryThreads = inner.split(",");
-        } else if (threadIdParams.length === 1 && threadIdParams[0].startsWith("eq.")) {
-          queryThreads = [threadIdParams[0].substring(3)];
-        }
+      const responseData = {
+        data: texts.map((text: string, index: number) => ({
+          embedding: createMockEmbedding(text),
+          index,
+        })),
+      };
 
-        const memories = Array.from(this.memories.values()).filter(
-          (m) => queryThreads.includes(m.thread_id),
-        );
-        return new Response(JSON.stringify(memories), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
-
-      if (threadId) {
-        const memories = Array.from(this.memories.values()).filter(
-          (m) => m.thread_id === threadId,
-        );
-        return new Response(JSON.stringify(memories), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
-
-
-      return new Response(JSON.stringify([]), {
+      return new Response(JSON.stringify(responseData), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       });
     }
 
-    if (method === "POST") {
-      // Insert or upsert
-      const body = JSON.parse(options?.body as string);
-      const memories = Array.isArray(body) ? body : [body];
+    // For supabase fallback
+    return new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+    });
+  });
+  globalThis.fetch = mockFetch;
+}
 
-      for (const memory of memories) {
-        if (!memory.id) {
-          memory.id = crypto.randomUUID();
+setupMockFetch();
+
+
+// Mock Supabase client for testing
+class MockSupabaseClient {
+  private memories: Map<string, any> = new Map();
+  private nextId = 1;
+
+  async fetch(url: string, options?: RequestInit): Promise<Response> {
+    const method = options?.method || "GET";
+    const urlObj = new URL(url);
+    const params = urlObj.searchParams;
+
+    const idMatch = url.match(/id=eq\.([^&]+)/);
+    const threadIdMatch = url.match(/thread_id=eq\.([^&]+)/);
+
+    if (method === "GET") {
+      if (threadIdMatch) {
+        const threadId = decodeURIComponent(threadIdMatch[1]);
+        let memories = Array.from(this.memories.values()).filter(
+          (m: any) =>
+            (m.thread_id || m.threadId) === threadId &&
+            m.is_active !== false &&
+            m.isActive !== false,
+        );
+
+        const orParam = params.get("or");
+        if (orParam) {
+          const types = orParam
+            .match(/type\.eq\.([^,)]+)/g)
+            ?.map((t: string) => t.replace("type.eq.", ""));
+          if (types) {
+            memories = memories.filter((m: any) => types.includes(m.type));
+          }
         }
-        this.memories.set(memory.id, memory);
+
+        return new Response(JSON.stringify(memories), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
       }
 
-      return new Response(JSON.stringify(memories), {
+      if (idMatch) {
+        const id = decodeURIComponent(idMatch[1]);
+        const memory = this.memories.get(id);
+        if (!memory) {
+          return new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        return new Response(JSON.stringify([memory]), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+
+      return new Response(JSON.stringify([]), { status: 200, headers: { "content-type": "application/json" } });
+    }
+
+    if (method === "POST") {
+      const body = JSON.parse(options?.body as string);
+      const memories = Array.isArray(body) ? body : [body];
+      const savedMemories: any[] = [];
+
+      for (const memory of memories) {
+        const id = memory.id || `mock-${this.nextId++}`;
+        const saved = {
+          ...memory,
+          id,
+          created_at: memory.created_at || new Date().toISOString(),
+          is_active: memory.is_active !== undefined ? memory.is_active : true,
+          access_count: memory.access_count || 0,
+        };
+        this.memories.set(id, saved);
+        savedMemories.push(saved);
+      }
+
+      return new Response(JSON.stringify(savedMemories), {
         status: 200,
-        headers: { "Content-Type": "application/json" },
+        headers: { "content-type": "application/json" },
       });
     }
 
     if (method === "PATCH") {
-      // Update
-      const urlObj = new URL(url);
-      let id = urlObj.searchParams.get("id");
-      if (id && id.startsWith("eq.")) id = id.substring(3);
-
-      const updates = JSON.parse(options?.body as string);
-
-      if (id) {
+      const idMatch = url.match(/id=eq\.([^&]+)/);
+      if (idMatch) {
+        const id = decodeURIComponent(idMatch[1]);
+        const updates = JSON.parse(options?.body as string);
         const existing = this.memories.get(id);
+
         if (existing) {
-          Object.assign(existing, updates);
-          return new Response(JSON.stringify([existing]), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
+          const updated = { ...existing, ...updates };
+          if (updates.last_accessed_at) {
+            updated.access_count = (existing.access_count || 0) + 1;
+          }
+          this.memories.set(id, updated);
         }
       }
-
-      return new Response(null, { status: 404 });
+      return new Response(null, { status: 204 });
     }
 
     if (method === "DELETE") {
-      const urlObj = new URL(url);
-      let id = urlObj.searchParams.get("id");
-      if (id && id.startsWith("eq.")) id = id.substring(3);
-
-      if (id && this.memories.has(id)) {
+      const idMatch = url.match(/id=eq\.([^&]+)/);
+      if (idMatch) {
+        const id = decodeURIComponent(idMatch[1]);
         this.memories.delete(id);
-        return new Response(null, { status: 204 });
       }
-
-      return new Response(null, { status: 404 });
+      return new Response(null, { status: 204 });
     }
 
-    return new Response(null, { status: 400 });
+    return new Response("Not found", { status: 404 });
   }
 
   clear() {
@@ -162,35 +206,6 @@ describe("Memory System Integration", () => {
     repository = new MemoryRepository(mockClient as any);
     extractor = new MemoryExtractor();
     embeddingService = new EmbeddingService();
-
-    // Mock the embedding service to not make real API calls
-    embeddingService.generateEmbedding = async (text: string) => {
-      // Return a dummy embedding of length 1536
-      const embedding = new Array(1536).fill(0);
-      // Give it some values based on string length to make cosine similarity work basically
-      embedding[0] = text.length / 100;
-      // Add hash to make different strings have different embeddings
-      let hash = 0;
-      for (let i = 0; i < text.length; i++) {
-        hash = ((hash << 5) - hash) + text.charCodeAt(i);
-        hash |= 0;
-      }
-      embedding[1] = Math.abs(hash) / 1000000;
-      return embedding;
-    };
-
-    // Add getByThreads compatibility wrapper since tests were missing it but the error log says so
-    if (typeof (repository as any).getByThreads !== "function") {
-       (repository as any).getByThreads = async (threadIds: string[]) => {
-         const results = [];
-         for (const id of threadIds) {
-           const threadResults = await repository.getByThread(id);
-           results.push(...threadResults);
-         }
-         return results;
-       };
-    }
-
     searchService = new SearchService(repository, {
       generateEmbedding: (text: string) =>
         embeddingService.generateEmbedding(text),
