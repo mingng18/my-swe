@@ -95,7 +95,7 @@ jobs:
         run: bun test src/**/*.test.ts --coverage
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         if: always()
 
   # Integration tests
@@ -171,7 +171,7 @@ jobs:
           npm audit --audit-level=moderate || true
 
       - name: Upload audit results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: dependency-audit-results

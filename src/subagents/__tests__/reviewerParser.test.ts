@@ -49,14 +49,14 @@ Fix: Use parameterized queries instead of string interpolation
     });
 
     expect(issues[1]).toEqual({
-      severity: "HIGH",
+      severity: "HIGH" as any,
       file: "utils/validation.ts",
       issue: "Missing input validation",
       fix: "Add schema validation for incoming request",
     });
 
     expect(issues[2]).toEqual({
-      severity: "MEDIUM",
+      severity: "MEDIUM" as any,
       file: "components/Header.tsx",
       line: 25,
       issue: "Unused CSS class in component",
@@ -64,7 +64,7 @@ Fix: Use parameterized queries instead of string interpolation
     });
 
     expect(issues[3]).toEqual({
-      severity: "LOW",
+      severity: "LOW" as any,
       file: "README.md",
       issue: "Missing section in documentation",
       fix: "Add installation instructions",
@@ -218,21 +218,21 @@ describe("filterIssuesBySeverity", () => {
       fix: "Fix critical",
     },
     {
-      severity: "HIGH",
+      severity: "HIGH" as any,
       file: "b.ts",
       line: 2,
       issue: "High issue",
       fix: "Fix high",
     },
     {
-      severity: "MEDIUM",
+      severity: "MEDIUM" as any,
       file: "c.ts",
       line: 3,
       issue: "Medium issue",
       fix: "Fix medium",
     },
     {
-      severity: "LOW",
+      severity: "LOW" as any,
       file: "d.ts",
       line: 4,
       issue: "Low issue",
@@ -302,7 +302,7 @@ describe("filterIssuesBySeverity", () => {
 describe("hasCriticalIssues", () => {
   it("returns true when CRITICAL issues exist among other severities", () => {
     const issues: ReviewIssue[] = [
-      { severity: "HIGH", file: "a.ts", issue: "High issue", fix: "Fix" },
+      { severity: "HIGH" as any, file: "a.ts", issue: "High issue", fix: "Fix" },
       {
         severity: "CRITICAL",
         file: "b.ts",
@@ -332,9 +332,9 @@ describe("hasCriticalIssues", () => {
 
   it("returns true when multiple CRITICAL issues exist among other severities", () => {
     const issues: ReviewIssue[] = [
-      { severity: "LOW", file: "c.ts", issue: "Low issue", fix: "Fix" },
+      { severity: "LOW" as any, file: "c.ts", issue: "Low issue", fix: "Fix" },
       { severity: "CRITICAL", file: "a.ts", issue: "Critical issue 1", fix: "Fix 1" },
-      { severity: "HIGH", file: "d.ts", issue: "High issue", fix: "Fix" },
+      { severity: "HIGH" as any, file: "d.ts", issue: "High issue", fix: "Fix" },
       { severity: "CRITICAL", file: "b.ts", line: 1, issue: "Critical issue 2", fix: "Fix 2" },
     ];
 
@@ -343,9 +343,9 @@ describe("hasCriticalIssues", () => {
 
   it("returns false when no CRITICAL issues", () => {
     const issues: ReviewIssue[] = [
-      { severity: "HIGH", file: "a.ts", issue: "High issue", fix: "Fix" },
+      { severity: "HIGH" as any, file: "a.ts", issue: "High issue", fix: "Fix" },
       {
-        severity: "MEDIUM",
+        severity: "MEDIUM" as any,
         file: "b.ts",
         line: 1,
         issue: "Medium issue",
@@ -358,9 +358,9 @@ describe("hasCriticalIssues", () => {
 
   it("returns false when only non-critical issues (LOW, MEDIUM, HIGH) exist", () => {
     const issues: ReviewIssue[] = [
-      { severity: "LOW", file: "c.ts", issue: "Low issue", fix: "Fix" },
-      { severity: "MEDIUM", file: "d.ts", issue: "Medium issue", fix: "Fix" },
-      { severity: "HIGH", file: "a.ts", issue: "High issue", fix: "Fix" },
+      { severity: "LOW" as any, file: "c.ts", issue: "Low issue", fix: "Fix" },
+      { severity: "MEDIUM" as any, file: "d.ts", issue: "Medium issue", fix: "Fix" },
+      { severity: "HIGH" as any, file: "a.ts", issue: "High issue", fix: "Fix" },
     ];
 
     expect(hasCriticalIssues(issues)).toBe(false);
@@ -381,13 +381,13 @@ describe("formatIssues", () => {
       fix: "Use parameterized queries",
     },
     {
-      severity: "LOW",
+      severity: "LOW" as any,
       file: "style.css",
       issue: "Unused CSS rule",
       fix: "Remove unused style",
     },
     {
-      severity: "HIGH",
+      severity: "HIGH" as any,
       file: "auth.js",
       line: 5,
       issue: "Missing authentication",
@@ -424,10 +424,10 @@ describe("formatIssues", () => {
 
   it("orders issues strictly by severity (CRITICAL > HIGH > MEDIUM > LOW)", () => {
     const unorderedIssues = [
-      { severity: "LOW", file: "low.ts", issue: "Low", fix: "Fix" },
-      { severity: "MEDIUM", file: "medium.ts", issue: "Medium", fix: "Fix" },
+      { severity: "LOW" as any, file: "low.ts", issue: "Low", fix: "Fix" },
+      { severity: "MEDIUM" as any, file: "medium.ts", issue: "Medium", fix: "Fix" },
       { severity: "CRITICAL", file: "critical.ts", issue: "Critical", fix: "Fix" },
-      { severity: "HIGH", file: "high.ts", issue: "High", fix: "Fix" },
+      { severity: "HIGH" as any, file: "high.ts", issue: "High", fix: "Fix" },
     ];
 
     const formatted = formatIssues(unorderedIssues);
@@ -444,9 +444,9 @@ describe("formatIssues", () => {
 
   it("groups multiple issues of the same severity together", () => {
     const mixedIssues = [
-      { severity: "HIGH", file: "high1.ts", issue: "High 1", fix: "Fix 1" },
-      { severity: "LOW", file: "low1.ts", issue: "Low 1", fix: "Fix 1" },
-      { severity: "HIGH", file: "high2.ts", issue: "High 2", fix: "Fix 2" },
+      { severity: "HIGH" as any, file: "high1.ts", issue: "High 1", fix: "Fix 1" },
+      { severity: "LOW" as any, file: "low1.ts", issue: "Low 1", fix: "Fix 1" },
+      { severity: "HIGH" as any, file: "high2.ts", issue: "High 2", fix: "Fix 2" },
       { severity: "CRITICAL", file: "crit1.ts", issue: "Critical 1", fix: "Fix 1" },
     ];
 
@@ -464,7 +464,7 @@ describe("formatIssues", () => {
   it("handles single issue", () => {
     const singleIssue: ReviewIssue[] = [
       {
-        severity: "MEDIUM",
+        severity: "MEDIUM" as any,
         file: "test.ts",
         line: 1,
         issue: "Medium issue",
