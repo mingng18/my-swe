@@ -173,7 +173,7 @@ describe("Memory System Integration", () => {
       const memoriesWithEmbeddings = await Promise.all(
         extractedMemories.map(async (extracted) => {
           const text = `${extracted.title}. ${extracted.content}`;
-          const embedding = await embeddingService.generateEmbedding(text);
+          const embedding = await (embeddingService as any).generateEmbedding(text);
           return {
             threadId,
             type: extracted.type,
@@ -253,7 +253,7 @@ describe("Memory System Integration", () => {
           title: "[preference] I prefer TypeScript",
           content: "I prefer using TypeScript for all projects",
           metadata: {},
-          embedding: await embeddingService.generateEmbedding(
+          embedding: await (embeddingService as any).generateEmbedding(
             "I prefer using TypeScript for all projects",
           ),
         },
@@ -263,7 +263,7 @@ describe("Memory System Integration", () => {
           title: "[preference] I like TypeScript",
           content: "I like to use TypeScript in my code",
           metadata: {},
-          embedding: await embeddingService.generateEmbedding(
+          embedding: await (embeddingService as any).generateEmbedding(
             "I like to use TypeScript in my code",
           ),
         },
@@ -289,7 +289,7 @@ describe("Memory System Integration", () => {
           title: "[preference] TypeScript preference",
           content: "I prefer TypeScript",
           metadata: {},
-          embedding: await embeddingService.generateEmbedding(
+          embedding: await (embeddingService as any).generateEmbedding(
             "I prefer TypeScript",
           ),
         },
@@ -299,7 +299,7 @@ describe("Memory System Integration", () => {
           title: "[tech_stack] React usage",
           content: "We use React for frontend",
           metadata: {},
-          embedding: await embeddingService.generateEmbedding(
+          embedding: await (embeddingService as any).generateEmbedding(
             "We use React for frontend",
           ),
         },
@@ -327,7 +327,7 @@ describe("Memory System Integration", () => {
           title: "[expertise] Frontend developer",
           content: "I am a frontend developer specializing in React",
           metadata: {},
-          embedding: await embeddingService.generateEmbedding(
+          embedding: await (embeddingService as any).generateEmbedding(
             "I am a frontend developer specializing in React",
           ),
         },
@@ -337,7 +337,7 @@ describe("Memory System Integration", () => {
           title: "[architecture] Microservices",
           content: "The project uses microservices architecture",
           metadata: {},
-          embedding: await embeddingService.generateEmbedding(
+          embedding: await (embeddingService as any).generateEmbedding(
             "The project uses microservices architecture",
           ),
         },
@@ -366,7 +366,7 @@ describe("Memory System Integration", () => {
           title: "[preference] TypeScript",
           content: "I prefer TypeScript",
           metadata: {},
-          embedding: await embeddingService.generateEmbedding(
+          embedding: await (embeddingService as any).generateEmbedding(
             "I prefer TypeScript",
           ),
         },
@@ -376,7 +376,7 @@ describe("Memory System Integration", () => {
           title: "[tech_stack] React",
           content: "We use React",
           metadata: {},
-          embedding: await embeddingService.generateEmbedding("We use React"),
+          embedding: await (embeddingService as any).generateEmbedding("We use React"),
         },
       ];
 
@@ -404,7 +404,7 @@ describe("Memory System Integration", () => {
           title: "[preference] TypeScript",
           content: "I prefer TypeScript",
           metadata: {},
-          embedding: await embeddingService.generateEmbedding(
+          embedding: await (embeddingService as any).generateEmbedding(
             "I prefer TypeScript",
           ),
         },
@@ -482,7 +482,7 @@ describe("Memory System Integration", () => {
         title: "[test] Test memory",
         content: "Test content",
         metadata: {},
-        embedding: await embeddingService.generateEmbedding("Test content"),
+        embedding: await (embeddingService as any).generateEmbedding("Test content"),
       };
 
       // Save memory
@@ -512,7 +512,7 @@ describe("Memory System Integration", () => {
         title: "[test] Test memory",
         content: "Test content",
         metadata: {},
-        embedding: await embeddingService.generateEmbedding("Test content"),
+        embedding: await (embeddingService as any).generateEmbedding("Test content"),
       };
 
       const saved = await repository.save(memory);
