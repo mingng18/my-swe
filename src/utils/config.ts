@@ -1,3 +1,4 @@
+import type { SandboxProfile } from "../integrations/daytona-pool";
 import {
   detectProvider,
   type LlmProvider,
@@ -34,13 +35,9 @@ export function loadTelegramBackoffConfig(): {
   const maxDelayMsRaw = process.env.TELEGRAM_BACKOFF_MAX_MS;
 
   const baseDelayMs =
-    baseDelayMsRaw !== undefined
-      ? Number.parseInt(baseDelayMsRaw, 10)
-      : 1000;
+    baseDelayMsRaw !== undefined ? Number.parseInt(baseDelayMsRaw, 10) : 1000;
   const maxDelayMs =
-    maxDelayMsRaw !== undefined
-      ? Number.parseInt(maxDelayMsRaw, 10)
-      : 60000;
+    maxDelayMsRaw !== undefined ? Number.parseInt(maxDelayMsRaw, 10) : 60000;
 
   // Handle NaN from invalid input
   const finalBaseDelayMs = Number.isNaN(baseDelayMs) ? 1000 : baseDelayMs;
@@ -169,4 +166,42 @@ export function loadModelConfig(override?: {
 export function validateStartupConfig(): void {
   // Validate LLM configuration and optional fallback pairings.
   loadLlmConfig();
+}
+
+export function getSandboxProfileFromEnv(): SandboxProfile {
+  const p = (process.env.SANDBOX_PROFILE || "typescript").trim().toLowerCase();
+  if (
+    p === "typescript" ||
+    p === "javascript" ||
+    p === "python" ||
+    p === "java" ||
+    p === "polyglot"
+  ) {
+    return p as SandboxProfile;
+  }
+  return "typescript";
+}
+
+export function extractRepoFromInput(
+  input: string,
+): { owner: string; name: string; workspaceDir: string } | null {
+  // Mirror the deepagents wrapper parsing so DB memory matches the actual repo context.
+  const match = input.match(/--repo\s+([a-zA-Z0-9_.-]+(?:\/[a-zA-Z0-9_.-]+)?)/);
+  if (!match) return null;
+
+  // Strip trailing punctuation (common when users type `--repo foo/bar.` mid-sentence).
+  const repoStr = match[1].replace(/[.,;!?]+$/, "");
+
+  const defaultOwner = process.env.GITHUB_DEFAULT_OWNER || "";
+  if (!repoStr.includes("/")) {
+    if (!defaultOwner) return null;
+    return {
+      owner: defaultOwner,
+      name: repoStr,
+      workspaceDir: `/workspace/${repoStr}`,
+    };
+  }
+
+  const [owner, name] = repoStr.split("/", 2);
+  return { owner, name, workspaceDir: `/workspace/${name}` };
 }
