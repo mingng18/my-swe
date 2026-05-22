@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
+import { describe, it, expect, beforeEach, afterEach, mock, afterAll } from "bun:test";
 
 // Mock the dependencies
 mock.module("../memory/repository", () => {
@@ -31,6 +31,10 @@ describe("LinterNode memory services", () => {
   beforeEach(() => {
     // Save original environment
     process.env = { ...originalEnv };
+  });
+
+  afterAll(() => {
+    mock.restore();
   });
 
   afterEach(() => {

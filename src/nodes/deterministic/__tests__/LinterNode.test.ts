@@ -1,4 +1,4 @@
-import { test, expect, describe, mock, beforeEach, afterEach } from "bun:test";
+import { test, expect, describe, mock, beforeEach, afterEach, afterAll } from "bun:test";
 
 let mockSaveBatch = mock().mockResolvedValue(undefined);
 let mockExtractFromTurn = mock().mockReturnValue([]);
@@ -37,6 +37,10 @@ describe("extractAndSaveMemories", () => {
 
         initializeMemoryServices();
     });
+
+  afterAll(() => {
+    mock.restore();
+  });
 
     afterEach(() => {
         if (originalMemoryEnabled === undefined) {
