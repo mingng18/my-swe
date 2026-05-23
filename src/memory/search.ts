@@ -133,7 +133,7 @@ export class SearchService {
     try {
       // Find memories that need embeddings
       const memoriesToUpdate = memories.filter(
-        (m) => !m.embedding || m.embedding.length === 0
+        (m) => !m.embedding || m.embedding.length === 0,
       );
 
       // Generate missing embeddings in parallel
@@ -141,8 +141,11 @@ export class SearchService {
         if (memoriesToUpdate.length > 0) {
           try {
             if (this.embeddingService.generateEmbeddingsBatch) {
-              const texts = memoriesToUpdate.map((m) => `${m.title}. ${m.content}`);
-              const embeddings = await this.embeddingService.generateEmbeddingsBatch(texts);
+              const texts = memoriesToUpdate.map(
+                (m) => `${m.title}. ${m.content}`,
+              );
+              const embeddings =
+                await this.embeddingService.generateEmbeddingsBatch(texts);
 
               await Promise.all(
                 memoriesToUpdate.map(async (memory, index) => {
@@ -154,27 +157,28 @@ export class SearchService {
                   } catch (error) {
                     logger.warn(
                       { memoryId: memory.id, error },
-                      "Failed to save generated embedding to repository"
+                      "Failed to save generated embedding to repository",
                     );
                   }
-                })
+                }),
               );
             } else {
               await Promise.all(
                 memoriesToUpdate.map(async (memory) => {
                   try {
                     const text = `${memory.title}. ${memory.content}`;
-                    memory.embedding = await this.embeddingService.generateEmbedding(text);
+                    memory.embedding =
+                      await this.embeddingService.generateEmbedding(text);
                     await this.repository.update(memory.id!, {
                       embedding: memory.embedding,
                     });
                   } catch (error) {
                     logger.warn(
                       { memoryId: memory.id, error },
-                      "Failed to generate embedding for memory"
+                      "Failed to generate embedding for memory",
                     );
                   }
-                })
+                }),
               );
             }
           } catch (error) {
@@ -184,7 +188,8 @@ export class SearchService {
       })();
 
       // Start fetching query embedding
-      const queryEmbeddingPromise = this.embeddingService.generateEmbedding(query);
+      const queryEmbeddingPromise =
+        this.embeddingService.generateEmbedding(query);
 
       // Wait for both concurrent operations
       const [queryEmbedding] = await Promise.all([
@@ -235,21 +240,49 @@ export class SearchService {
 
     const results: MemorySearchResult[] = [];
 
+    // ⚡ Bolt Optimization: Use a single compiled regex to find all matching terms at once
+    // instead of scanning the full string multiple times with string.includes()
+    const escapedTerms = queryTerms.map((t) => {
+      let escaped = "";
+      for (let i = 0; i < t.length; i++) {
+        const c = t[i];
+        if (".*+?^$()|[]\\{}".includes(c)) escaped += "\\";
+        escaped += c;
+      }
+      return escaped;
+    });
+    const termRegex = new RegExp(escapedTerms.join("|"), "g");
+
     for (const memory of memories) {
       const titleLower = memory.title.toLowerCase();
       const contentLower = memory.content.toLowerCase();
-      const searchText = `${titleLower} ${contentLower}`;
 
       // Calculate keyword relevance score
       let score = 0;
       let matchedTerms = 0;
 
-      for (const term of queryTerms) {
-        if (titleLower.includes(term)) {
+      termRegex.lastIndex = 0;
+      const titleMatches = new Set<string>();
+      let match;
+      while ((match = termRegex.exec(titleLower)) !== null) {
+        titleMatches.add(match[0]);
+        if (titleMatches.size === queryTerms.length) break;
+      }
+
+      termRegex.lastIndex = 0;
+      const contentMatches = new Set<string>();
+      while ((match = termRegex.exec(contentLower)) !== null) {
+        contentMatches.add(match[0]);
+        if (contentMatches.size === queryTerms.length) break;
+      }
+
+      for (let i = 0; i < queryTerms.length; i++) {
+        const term = queryTerms[i];
+        if (titleMatches.has(term)) {
           score += 0.3; // Title matches are weighted higher
           matchedTerms++;
         }
-        if (contentLower.includes(term)) {
+        if (contentMatches.has(term)) {
           score += 0.1;
           matchedTerms++;
         }
