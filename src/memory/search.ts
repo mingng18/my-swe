@@ -46,12 +46,18 @@ export class SearchService {
       );
     } else {
       // Fallback for older repository implementations
-      for (const threadId of threadIds) {
-        const memories = await this.repository.getByThread(
-          threadId,
-          options.types,
-        );
-        allMemories.push(...memories);
+      const results = await Promise.all(
+        threadIds.map(async (threadId) => {
+          return await this.repository.getByThread(threadId);
+        })
+      );
+      for (const memories of results) {
+        // filter by types manually if needed
+        if (options.types && options.types.length > 0) {
+           allMemories.push(...memories.filter(m => m.type && options.types!.includes(m.type)));
+        } else {
+           allMemories.push(...memories);
+        }
       }
     }
 
