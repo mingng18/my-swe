@@ -40,6 +40,9 @@ describe("LinterNode memory services", () => {
 
     it("should return true when MEMORY_ENABLED is 'true' and initializeMemoryServices has been called", () => {
       process.env.MEMORY_ENABLED = "true";
+      process.env.SUPABASE_URL = "test";
+      process.env.SUPABASE_SERVICE_ROLE_KEY = "test";
+      process.env.OPENAI_API_KEY = "test";
       initializeMemoryServices();
 
       expect(isMemoryEnabled()).toBe(true);
