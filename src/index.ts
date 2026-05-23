@@ -266,10 +266,12 @@ async function startTelegramPolling() {
 
       const isError = error instanceof Error;
       const errorMsg = isError ? error.message : String(error);
-      const delayMs = Math.min(
+      const baseDelay = Math.min(
         baseDelayMs * Math.pow(2, consecutiveErrors - 1),
         maxDelayMs,
       );
+      const jitter = 0.75 + Math.random() * 0.5;
+      const delayMs = Math.floor(baseDelay * jitter);
 
       logger.error(
         {
