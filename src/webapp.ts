@@ -48,8 +48,8 @@ const rateLimiter = (limitPerMinute: number) => async (c: any, next: any) => {
     return c.json({ error: "Too Many Requests", retry_after: retryAfter }, 429);
   }
 
-  rateLimitCache.set(key, count + 1);
   await next();
+  rateLimitCache.set(key, count + 1);
 };
 
 const app = new Hono();
