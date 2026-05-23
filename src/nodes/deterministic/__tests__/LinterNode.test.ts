@@ -1,4 +1,7 @@
-import { test, expect, describe, mock, beforeEach, afterEach } from "bun:test";
+import { test, expect, describe, mock, beforeEach, afterEach, spyOn } from "bun:test";
+import { MemoryRepository } from "../../../memory/repository";
+import { MemoryExtractor } from "../../../memory/extractor";
+import { EmbeddingService } from "../../../memory/embeddings";
 
 let mockSaveBatch = mock().mockResolvedValue(undefined);
 let mockExtractFromTurn = mock().mockReturnValue([]);
@@ -30,6 +33,13 @@ describe("extractAndSaveMemories", () => {
     beforeEach(() => {
         originalMemoryEnabled = process.env.MEMORY_ENABLED;
         process.env.MEMORY_ENABLED = "true";
+        process.env.SUPABASE_URL = "http://test.com";
+        process.env.SUPABASE_SERVICE_ROLE_KEY = "test";
+
+        spyOn(MemoryRepository.prototype, "saveBatch").mockImplementation(mockSaveBatch as any);
+        spyOn(MemoryExtractor.prototype, "extractFromTurn").mockImplementation(mockExtractFromTurn as any);
+        spyOn(EmbeddingService.prototype, "generateEmbedding").mockImplementation(mockGenerateEmbedding as any);
+
 
         mockSaveBatch.mockClear();
         mockExtractFromTurn.mockClear();
@@ -38,7 +48,8 @@ describe("extractAndSaveMemories", () => {
         initializeMemoryServices();
     });
 
-    afterEach(() => {
+        afterEach(() => {
+        mock.restore();
         if (originalMemoryEnabled === undefined) {
             delete process.env.MEMORY_ENABLED;
         } else {
