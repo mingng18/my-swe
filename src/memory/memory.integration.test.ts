@@ -6,11 +6,11 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { MemoryRepository } from "./repository";
-import { MemoryExtractor } from "./extractor";
-import { EmbeddingService } from "./embeddings";
-import { SearchService } from "./search";
-import { ConsolidationService } from "./consolidation";
+import { MemoryRepository } from "./repository.ts";
+import { MemoryExtractor } from "./extractor.ts";
+import { EmbeddingService } from "./embeddings.ts";
+import { SearchService } from "./search.ts";
+import { ConsolidationService } from "./consolidation.ts";
 import type { Memory, TurnResult } from "./types";
 
 // Mock Supabase client for testing
