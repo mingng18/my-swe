@@ -89,10 +89,10 @@ jobs:
         run: bun install
 
       - name: Run unit tests
-        run: bun test $(find src -name '*.test.ts' -not -name '*.integration.test.ts')
+        run: bun test src/**/*.test.ts
 
       - name: Generate coverage report
-        run: bun test $(find src -name '*.test.ts' -not -name '*.integration.test.ts') --coverage
+        run: bun test src/**/*.test.ts --coverage
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
