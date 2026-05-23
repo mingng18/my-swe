@@ -7,6 +7,7 @@ import {
   deleteArtifact,
   retrieveArtifact,
   updateArtifact,
+  MAX_POINTER_SIZE_TOKENS,
   type QueryOptions,
   type ArtifactMetadata,
 } from "../utils/memory-pointer";
@@ -266,7 +267,7 @@ Returns:
     Confirmation of update with new size and timestamp.
 **/
 export const artifactUpdateTool = tool(
-  async ({ pointer_id, content, metadata, type }, config) => {
+  async ({ pointer_id, content, metadata, type, mode }, config) => {
     const threadId = config?.configurable?.thread_id;
     if (!threadId) {
       return JSON.stringify({
@@ -274,7 +275,6 @@ export const artifactUpdateTool = tool(
       });
     }
 
-    // Validate pointer_id format
     if (!pointer_id || !pointer_id.startsWith("ptr_")) {
       return JSON.stringify({
         error:
@@ -282,7 +282,6 @@ export const artifactUpdateTool = tool(
       });
     }
 
-    // Validate at least one update field is provided
     if (content === undefined && metadata === undefined && type === undefined) {
       return JSON.stringify({
         error:
@@ -290,13 +289,24 @@ export const artifactUpdateTool = tool(
       });
     }
 
+    // Size validation
+    if (content !== undefined) {
+      const estimatedTokens = Math.ceil(content.length / 4);
+      if (estimatedTokens > MAX_POINTER_SIZE_TOKENS) {
+        return JSON.stringify({
+          error: "Content exceeds maximum size",
+          estimated_tokens: estimatedTokens,
+          max_tokens: MAX_POINTER_SIZE_TOKENS,
+        });
+      }
+    }
+
     logger.info(
-      { pointerId: pointer_id, threadId, hasContent: content !== undefined, hasMetadata: metadata !== undefined, hasType: type !== undefined },
+      { pointerId: pointer_id, threadId, hasContent: content !== undefined, hasMetadata: metadata !== undefined, hasType: type !== undefined, mode: mode ?? "replace" },
       "[artifact-update] Updating artifact",
     );
 
     try {
-      // First verify the artifact belongs to this thread
       const existingArtifact = await retrieveArtifact(pointer_id, threadId);
       if (!existingArtifact) {
         return JSON.stringify({
@@ -305,15 +315,16 @@ export const artifactUpdateTool = tool(
         });
       }
 
-      // Build update options
       const updateOptions: {
         content?: string;
         metadata?: Record<string, unknown>;
         type?: string;
+        mode?: "replace" | "append" | "prepend";
       } = {};
 
       if (content !== undefined) {
         updateOptions.content = content;
+        updateOptions.mode = mode ?? "replace";
       }
 
       if (metadata !== undefined) {
@@ -324,7 +335,6 @@ export const artifactUpdateTool = tool(
         updateOptions.type = type;
       }
 
-      // Perform the update
       const updatedArtifact = await updateArtifact(
         pointer_id,
         threadId,
@@ -344,8 +354,6 @@ export const artifactUpdateTool = tool(
           threadId,
           oldSize: existingArtifact.metadata.size,
           newSize: updatedArtifact.metadata.size,
-          oldType: existingArtifact.metadata.type,
-          newType: updatedArtifact.metadata.type,
         },
         "[artifact-update] Artifact updated successfully",
       );
@@ -396,6 +404,11 @@ export const artifactUpdateTool = tool(
         .string()
         .optional()
         .describe("New artifact type"),
+      mode: z
+        .enum(["replace", "append", "prepend"])
+        .optional()
+        .default("replace")
+        .describe("Update mode: replace (default), append, or prepend content"),
     }),
   },
 );
