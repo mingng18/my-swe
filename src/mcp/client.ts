@@ -252,56 +252,62 @@ export class McpClientManager {
    * Get all available tools from all connected servers.
    */
   async getAllTools(): Promise<any[]> {
-    const tools: any[] = [];
+    const promises = this.getConnectedClients().map((client) => {
+      const p = client.client?.listTools();
+      if (!p) return Promise.resolve([]);
 
-    for (const client of this.getConnectedClients()) {
-      try {
-        const response = await client.client?.listTools();
-        if (response?.tools) {
-          for (const tool of response.tools) {
-            tools.push({
+      return p
+        .then((response: any) => {
+          if (response?.tools) {
+            return response.tools.map((tool: any) => ({
               ...tool,
               serverName: client.name,
-            });
+            }));
           }
-        }
-      } catch (err) {
-        logger.warn(
-          { server: client.name, err },
-          "[mcp-client] Failed to list tools",
-        );
-      }
-    }
+          return [];
+        })
+        .catch((err: any) => {
+          logger.warn(
+            { server: client.name, err },
+            "[mcp-client] Failed to list tools",
+          );
+          return [];
+        });
+    });
 
-    return tools;
+    const results = await Promise.all(promises);
+    return results.flat();
   }
 
   /**
    * Get all available resources from all connected servers.
    */
   async getAllResources(): Promise<any[]> {
-    const resources: any[] = [];
+    const promises = this.getConnectedClients().map((client) => {
+      const p = client.client?.listResources();
+      if (!p) return Promise.resolve([]);
 
-    for (const client of this.getConnectedClients()) {
-      try {
-        const response = await client.client?.listResources();
-        if (response?.resources) {
-          for (const resource of response.resources) {
-            resources.push({
+      return p
+        .then((response: any) => {
+          if (response?.resources) {
+            return response.resources.map((resource: any) => ({
               ...resource,
               serverName: client.name,
-            });
+            }));
           }
-        }
-      } catch (err) {
-        logger.warn(
-          { server: client.name, err },
-          "[mcp-client] Failed to list resources",
-        );
-      }
-    }
+          return [];
+        })
+        .catch((err: any) => {
+          logger.warn(
+            { server: client.name, err },
+            "[mcp-client] Failed to list resources",
+          );
+          return [];
+        });
+    });
 
-    return resources;
+    const results = await Promise.all(promises);
+    return results.flat();
   }
 
   /**
