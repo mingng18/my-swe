@@ -136,7 +136,7 @@ export class SearchService {
         (m) => !m.embedding || m.embedding.length === 0
       );
 
-            // Generate missing embeddings in parallel
+      // Generate missing embeddings in parallel
       const updateMemoriesPromise = (async () => {
         if (memoriesToUpdate.length > 0) {
           try {
@@ -178,7 +178,7 @@ export class SearchService {
               );
             }
           } catch (error) {
-             logger.error({ error }, "Failed to batch generate embeddings");
+            logger.error({ error }, "Failed to batch generate embeddings");
           }
         }
       })();

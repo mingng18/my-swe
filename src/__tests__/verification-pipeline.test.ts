@@ -155,6 +155,7 @@ describe("runVerificationPipeline", () => {
       testsPassed: true,
       lintPassed: true,
       prCreated: false,
+      prUrl: "",
       error: "GitHub API rate limit"
     });
 
