@@ -1,9 +1,6 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { closeGithubIssue } from "../utils/github";
-import { createLogger } from "../utils/logger";
-
-const logger = createLogger("close-github-issue-tool");
 
 export const closeGithubIssueTool = tool(
   async ({ issue_number }, config) => {

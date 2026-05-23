@@ -1,9 +1,6 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { reopenGithubIssue } from "../utils/github/index";
-import { createLogger } from "../utils/logger";
-
-const logger = createLogger("reopen-github-issue-tool");
+import { reopenGithubIssue } from "../utils/github";
 
 export const reopenGithubIssueTool = tool(
   async ({ issue_number }, config) => {
