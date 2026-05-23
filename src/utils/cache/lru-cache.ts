@@ -44,7 +44,7 @@ import type {
   CacheKeyFunction,
   SizeCalculationFunction,
 } from "./types";
-import { DEFAULT_CACHE_OPTIONS, mergeCacheOptions } from "./cache-options";
+import { mergeCacheOptions } from "./cache-options";
 
 /**
  * Default cache key generation function.
