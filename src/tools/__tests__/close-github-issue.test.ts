@@ -71,8 +71,7 @@ describe("closeGithubIssueTool", () => {
     process.env.GITHUB_TOKEN = "env_token";
 
     const resultJson = await closeGithubIssueTool.invoke(validArgs, validConfig as any);
-    const jsonMatch = (resultJson as string).match(/\{[\s\S]*?\}/);
-    const result = JSON.parse(jsonMatch ? jsonMatch[0] : (resultJson as string));
+    const result = JSON.parse((resultJson as string).split('\n\nIMPORTANT:')[0]);
 
     expect(result.success).toBe(true);
     expect(result.issue_url).toBe("https://github.com/test-owner/test-repo/issues/42");

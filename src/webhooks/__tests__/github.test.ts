@@ -39,13 +39,13 @@ describe("handleGithubWebhook", () => {
     handleGithubWebhook(
       {
         ref: "refs/heads/main",
-        repository: { full_name: "test/repo" },
+        repository: { full_name: "test/repo", default_branch: "main" },
         commits: [{}],
       },
       "push",
     );
 
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
     const { runCodeagentTurn } = await import("../../server");
     expect(runCodeagentTurn).toHaveBeenCalled();
@@ -61,7 +61,7 @@ describe("handleGithubWebhook", () => {
       "pull_request",
     );
 
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
     const { runCodeagentTurn } = await import("../../server");
     expect(runCodeagentTurn).toHaveBeenCalled();
@@ -85,7 +85,7 @@ describe("handleGithubWebhook", () => {
       "issues",
     );
 
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
     const { runCodeagentTurn } = await import("../../server");
     expect(runCodeagentTurn).toHaveBeenCalled();
