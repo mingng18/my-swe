@@ -19,7 +19,7 @@ class MockSupabaseClient {
 
   async fetch(url: string, options?: RequestInit): Promise<Response> {
     const method = options?.method || "GET";
-    const urlObj = new URL(url);
+    const urlObj = new URL(url.startsWith('http') ? url : `http://localhost/${url}`);
 
     if (method === "GET") {
       const idParam = urlObj.searchParams.get("id");
@@ -105,15 +105,28 @@ class MockSupabaseClient {
       const updates = JSON.parse(options?.body as string);
 
       if (idParam) {
-        const id = idParam.startsWith("eq.") ? idParam.slice(3) : idParam;
-        const existing = this.memories.get(id);
-        if (existing) {
-          Object.assign(existing, updates);
-          return new Response(JSON.stringify([existing]), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
+        let ids = [];
+        if (idParam.startsWith("eq.")) {
+          ids = [idParam.slice(3)];
+        } else if (idParam.startsWith("in.(")) {
+          ids = idParam.slice(4, -1).split(',');
+        } else {
+          ids = [idParam];
         }
+
+        const updatedItems = [];
+        for (const id of ids) {
+            const existing = this.memories.get(id);
+            if (existing) {
+              Object.assign(existing, updates);
+              updatedItems.push(existing);
+            }
+        }
+
+        return new Response(JSON.stringify(updatedItems), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
       }
 
       return new Response(null, { status: 404 });
