@@ -153,21 +153,16 @@ describe("Memory System Integration", () => {
   let searchService: SearchService;
   let consolidationService: ConsolidationService;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     // Setup mock environment
     process.env.SUPABASE_URL = "https://test.supabase.co";
     process.env.SUPABASE_SERVICE_ROLE_KEY = "test-key";
     process.env.OPENAI_API_KEY = "test-key";
 
-    try {
-      mockClient = new MockSupabaseClient();
-      repository = new MemoryRepository(mockClient as any);
-      extractor = new MemoryExtractor();
-      embeddingService = new EmbeddingService();
-    } catch (e) {
-      console.error("[beforeEach] Setup failed:", e);
-      throw e;
-    }
+    mockClient = new MockSupabaseClient();
+    repository = new MemoryRepository(mockClient as any);
+    extractor = new MemoryExtractor();
+    embeddingService = new EmbeddingService();
 
     // Mock the embedding service to not call the real API
     embeddingService.generateEmbedding = async () => {
@@ -196,6 +191,10 @@ describe("Memory System Integration", () => {
 
   describe("Full Memory Flow", () => {
     it("should extract, embed, save, and search memories", async () => {
+      expect(extractor).toBeDefined();
+      expect(repository).toBeDefined();
+      expect(typeof extractor.extractFromTurn).toBe("function");
+
       const threadId = "test-thread-1";
 
       // Step 1: Extract memories from a turn
