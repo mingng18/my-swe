@@ -179,15 +179,15 @@ export const runReviewersTool = tool(
           reviewerResults.push({
             name: res.name,
             status: res.status,
-            issues_count: res.issues_count,
-            critical_issues: res.critical_issues,
-            summary: res.summary,
+            issues_count: res.issues_count as number,
+            critical_issues: res.critical_issues as boolean,
+            summary: res.summary as string,
           });
         } else {
           reviewerResults.push({
             name: res.name,
             status: res.status,
-            error: "error" in res ? res.error : "Unknown error",
+            error: "error" in res ? (res.error as string) : "Unknown error",
           });
         }
       }
