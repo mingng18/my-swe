@@ -82,6 +82,7 @@ export {
   createGithubPr,
   createGithubIssue,
   closeGithubIssue,
+  reopenGithubIssue,
   findExistingPr,
   listGithubPrs,
   mergeGithubPr,
