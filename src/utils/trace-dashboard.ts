@@ -73,8 +73,7 @@ function generateTokenUsageHTML(tokenUsage: any, metrics: any): string {
         <dt class="stat-label">Avg Latency</dt>
         <dd class="stat-value">${metrics.llmCalls.avgLatency.toFixed(0)}ms</dd>
       </div>
-    </dl>
-  `;
+    </dl>`;
 }
 
 function generateCompressionMetricsHTML(telemetry: any): string {
@@ -97,8 +96,7 @@ function generateCompressionMetricsHTML(telemetry: any): string {
         <dt class="stat-label">Avg Savings</dt>
         <dd class="stat-value">${getCompressionAvgSavings(telemetry.metrics).toFixed(1)}%</dd>
       </div>
-    </dl>
-  `;
+    </dl>`;
 }
 
 function generateToolStatsHTML(metrics: any, telemetry: any): string {
@@ -137,8 +135,7 @@ function generateToolStatsHTML(metrics: any, telemetry: any): string {
             .join("")}
         </tbody>
       </table>
-    </div>
-  `;
+    </div>`;
 }
 
 function generatePerformanceMetricsHTML(metrics: any, telemetry: any): string {
@@ -157,8 +154,7 @@ function generatePerformanceMetricsHTML(metrics: any, telemetry: any): string {
         <dt class="stat-label">Metrics Recorded</dt>
         <dd class="stat-value">${telemetry.metrics.length}</dd>
       </div>
-    </dl>
-  `;
+    </dl>`;
 }
 
 function generateRecentActivityHTML(telemetry: any): string {
@@ -181,8 +177,7 @@ function generateRecentActivityHTML(telemetry: any): string {
           .join("")}
         ${telemetry.spans.length === 0 ? '<p role="status" style="color: #94a3b8; text-align: center; padding: 20px;">No spans recorded yet</p>' : ""}
       </div>
-    </div>
-  `;
+    </div>`;
 }
 
 export function generateTraceDashboardHTML(threadId: string): string {
@@ -208,17 +203,11 @@ ${generateStyles()}
       <p style="color: #94a3b8; margin-bottom: 20px;">Thread ID: <code style="background: #334155; padding: 4px 8px; border-radius: 4px;">${threadId}</code></p>
     </header>
     <main>
-
 ${generateTokenUsageHTML(tokenUsage, metrics)}
-
 ${generateCompressionMetricsHTML(telemetry)}
-
 ${generateToolStatsHTML(metrics, telemetry)}
-
 ${generatePerformanceMetricsHTML(metrics, telemetry)}
-
 ${generateRecentActivityHTML(telemetry)}
-
     </main>
     <footer>
       <p style="text-align: center; color: #94a3b8; margin-top: 40px; font-size: 0.85rem;">
