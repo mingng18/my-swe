@@ -235,30 +235,8 @@ export function getThreadTelemetry(threadId: string): {
 /**
  * Get aggregated metrics for a thread.
  */
-export function getThreadMetrics(threadId: string): {
-  llmCalls: {
-    count: number;
-    totalTokens: number;
-    totalInputTokens: number;
-    totalOutputTokens: number;
-    avgLatency: number;
-    model: string;
-  };
-  tools: Record<
-    string,
-    {
-      count: number;
-      successRate: number;
-      avgDuration: number;
-      avgOutputSize: number;
-    }
-  >;
-  totalDuration: number;
-} {
-  const telemetry = getThreadTelemetry(threadId);
-  const metrics = telemetry.metrics;
 
-  // Aggregate LLM metrics
+function aggregateLlmMetrics(metrics: Metric[]) {
   const llmMetrics = metrics.filter((m) => m.name.startsWith("llm."));
   const llmCalls = {
     count: 0,
@@ -291,111 +269,17 @@ export function getThreadMetrics(threadId: string): {
     llmCalls.avgLatency = llmCalls.totalLatency / llmCalls.count;
   }
 
-  // Aggregate tool metrics
-  const toolMetrics = metrics.filter((m) => m.name.startsWith("tool."));
-  const tools: Record<
-    string,
-    {
-      count: number;
-      successRate: number;
-      avgDuration: number;
-      avgOutputSize: number;
-    }
-  > = {};
-
-  // First pass: collect data
-  const toolData: Record<
-    string,
-    {
-      totalDuration: number;
-      successCount: number;
-      totalCount: number;
-      totalOutputSize: number;
-    }
-  > = {};
-
-  for (const metric of toolMetrics) {
-    const tool = metric.attributes.tool as string;
-    if (!tool) continue;
-
-    if (!toolData[tool]) {
-      toolData[tool] = {
-        totalDuration: 0,
-        successCount: 0,
-        totalCount: 0,
-        totalOutputSize: 0,
-      };
-    }
-
-    if (metric.name === "tool.duration_ms") {
-      toolData[tool].totalDuration += metric.value;
-      toolData[tool].totalCount++;
-    }
-    if (metric.name === "tool.success") {
-      toolData[tool].totalCount++;
-      if (metric.value === 1) {
-        toolData[tool].successCount++;
-      }
-    }
-    if (metric.name === "tool.output_size") {
-      toolData[tool].totalOutputSize += metric.value;
-    }
-  }
-
-  // Second pass: compute averages
-  // ⚡ Bolt: Replace Object.entries with for...in to avoid intermediate array allocations
-  for (const tool in toolData) {
-    if (!Object.prototype.hasOwnProperty.call(toolData, tool)) continue;
-    const data = toolData[tool];
-    tools[tool] = {
-      count: data.totalCount,
-      successRate:
-        data.totalCount > 0 ? data.successCount / data.totalCount : 0,
-      avgDuration:
-        data.totalCount > 0 ? data.totalDuration / data.totalCount : 0,
-      avgOutputSize:
-        data.totalCount > 0 ? data.totalOutputSize / data.totalCount : 0,
-    };
-  }
-
-  // Calculate total duration from spans
-  const spans = telemetry.spans;
-  let totalDuration = 0;
-  for (const span of spans) {
-    if (span.endTime) {
-      totalDuration += span.endTime - span.startTime;
-    }
-  }
-
   return {
-    llmCalls: {
-      count: llmCalls.count,
-      totalTokens: llmCalls.totalTokens,
-      totalInputTokens: llmCalls.totalInputTokens,
-      totalOutputTokens: llmCalls.totalOutputTokens,
-      avgLatency: llmCalls.avgLatency,
-      model: llmCalls.model,
-    },
-    tools,
-    totalDuration,
+    count: llmCalls.count,
+    totalTokens: llmCalls.totalTokens,
+    totalInputTokens: llmCalls.totalInputTokens,
+    totalOutputTokens: llmCalls.totalOutputTokens,
+    avgLatency: llmCalls.avgLatency,
+    model: llmCalls.model,
   };
 }
 
-/**
- * Get aggregated tool metrics across all threads.
- */
-export function getGlobalToolMetrics(): Record<
-  string,
-  {
-    count: number;
-    successRate: number;
-    avgDuration: number;
-    avgOutputSize: number;
-  }
-> {
-  const allMetrics = inMemoryTelemetry.getMetrics();
-  const toolMetrics = allMetrics.filter((m) => m.name.startsWith("tool."));
-
+function aggregateToolMetrics(toolMetrics: Metric[]) {
   // First pass: collect data
   const toolData: Record<
     string,
@@ -462,6 +346,65 @@ export function getGlobalToolMetrics(): Record<
   }
 
   return tools;
+}
+
+function calculateTotalDuration(spans: Span[]) {
+  let totalDuration = 0;
+  for (const span of spans) {
+    if (span.endTime) {
+      totalDuration += span.endTime - span.startTime;
+    }
+  }
+  return totalDuration;
+}
+
+export function getThreadMetrics(threadId: string): {
+  llmCalls: {
+    count: number;
+    totalTokens: number;
+    totalInputTokens: number;
+    totalOutputTokens: number;
+    avgLatency: number;
+    model: string;
+  };
+  tools: Record<
+    string,
+    {
+      count: number;
+      successRate: number;
+      avgDuration: number;
+      avgOutputSize: number;
+    }
+  >;
+  totalDuration: number;
+} {
+  const telemetry = getThreadTelemetry(threadId);
+
+  return {
+    llmCalls: aggregateLlmMetrics(telemetry.metrics),
+    tools: aggregateToolMetrics(
+      telemetry.metrics.filter((m) => m.name.startsWith("tool.")),
+    ),
+    totalDuration: calculateTotalDuration(telemetry.spans),
+  };
+}
+
+/**
+ * Get aggregated tool metrics across all threads.
+ */
+export function getGlobalToolMetrics(): Record<
+  string,
+  {
+    count: number;
+    successRate: number;
+    avgDuration: number;
+    avgOutputSize: number;
+  }
+> {
+  const allMetrics = inMemoryTelemetry.getMetrics();
+  const toolMetrics = allMetrics.filter((m) => m.name.startsWith("tool."));
+
+  return aggregateToolMetrics(toolMetrics);
 }
 
 /**
