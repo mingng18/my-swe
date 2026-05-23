@@ -46,13 +46,13 @@ export class SearchService {
       );
     } else {
       // Fallback for older repository implementations
-      for (const threadId of threadIds) {
-        const memories = await this.repository.getByThread(
-          threadId,
-          options.types,
-        );
-        allMemories.push(...memories);
-      }
+      // ⚡ Bolt: Parallelize independent I/O-bound tasks to reduce latency
+      const memoryArrays = await Promise.all(
+        threadIds.map((threadId) =>
+          this.repository.getByThread(threadId, options.types),
+        ),
+      );
+      allMemories = memoryArrays.flat();
     }
 
     if (allMemories.length === 0) {
