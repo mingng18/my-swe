@@ -2,6 +2,7 @@
 
 import { execFile } from "child_process";
 import { promisify } from "util";
+import { parseArgsStringToArgv } from "string-argv";
 import type {
   DeterministicAction,
   ActionResult,
@@ -19,19 +20,11 @@ export function parseCommandArgs(commandStr: string): {
   command: string;
   args: string[];
 } {
-  const match = commandStr.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || [];
-  if (match.length === 0) return { command: "", args: [] };
+  const parsed = parseArgsStringToArgv(commandStr);
+  if (parsed.length === 0) return { command: "", args: [] };
 
-  let command = match[0]!;
-  let args = match.slice(1).map((arg) => {
-    if (
-      (arg.startsWith('"') && arg.endsWith('"')) ||
-      (arg.startsWith("'") && arg.endsWith("'"))
-    ) {
-      return arg.slice(1, -1);
-    }
-    return arg;
-  });
+  let command = parsed[0]!;
+  let args = parsed.slice(1);
 
   // Security: prevent PATH manipulation by using the absolute process.execPath for bun/bunx
   if (command === "bun") {
@@ -80,7 +73,15 @@ export const actionRegistry = new ActionRegistry();
 /**
  * Commands allowed to be executed by builtin actions.
  */
-export const ALLOWED_COMMANDS = new Set(["bun", "bunx", "npm", "npx", "yarn", "pnpm", "node"]);
+export const ALLOWED_COMMANDS = new Set([
+  "bun",
+  "bunx",
+  "npm",
+  "npx",
+  "yarn",
+  "pnpm",
+  "node",
+]);
 
 /**
  * Builtin action: Run configured linters.
@@ -98,7 +99,10 @@ const runLintersAction: DeterministicAction = {
         return { success: false, error: "Empty linter command" };
       }
       if (!ALLOWED_COMMANDS.has(command)) {
-        return { success: false, error: `Command "${command}" is not allowed for security reasons` };
+        return {
+          success: false,
+          error: `Command "${command}" is not allowed for security reasons`,
+        };
       }
       const { stdout, stderr } = await execFileAsync(command, args);
       return { success: true, output: stdout || "Linters passed" };
@@ -128,7 +132,10 @@ const runTestsAction: DeterministicAction = {
         return { success: false, error: "Empty test command" };
       }
       if (!ALLOWED_COMMANDS.has(command)) {
-        return { success: false, error: `Command "${command}" is not allowed for security reasons` };
+        return {
+          success: false,
+          error: `Command "${command}" is not allowed for security reasons`,
+        };
       }
       const { stdout, stderr } = await execFileAsync(command, args);
       return { success: true, output: stdout || "Tests passed" };
@@ -154,7 +161,10 @@ const runTypecheckAction: DeterministicAction = {
     try {
       const { command, args } = parseCommandArgs("bunx tsc --noEmit");
       if (!command || !ALLOWED_COMMANDS.has(command)) {
-        return { success: false, error: `Command "${command}" is not allowed for security reasons` };
+        return {
+          success: false,
+          error: `Command "${command}" is not allowed for security reasons`,
+        };
       }
       const { stdout, stderr } = await execFileAsync(command, args);
       return { success: true, output: "Type check passed" };
