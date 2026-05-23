@@ -4,14 +4,14 @@ import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
 mock.module("../memory/repository", () => {
   return {
     MemoryRepository: class MockMemoryRepository {
-      saveBatch = mock();
+      saveBatch = mock(); getByThread = mock(); save = mock();
     }
   };
 });
 mock.module("../memory/extractor", () => {
   return {
     MemoryExtractor: class MockMemoryExtractor {
-      extractMemories = mock();
+      extractFromTurn = mock();
     }
   };
 });

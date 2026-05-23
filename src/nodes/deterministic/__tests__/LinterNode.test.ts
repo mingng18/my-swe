@@ -6,7 +6,7 @@ let mockGenerateEmbedding = mock().mockResolvedValue([0.1, 0.2]);
 
 mock.module("../../../memory/repository", () => ({
   MemoryRepository: class {
-    saveBatch = mockSaveBatch;
+    saveBatch = mockSaveBatch; getByThread = mock(); save = mock();
   }
 }));
 
