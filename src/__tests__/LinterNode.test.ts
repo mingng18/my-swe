@@ -1,27 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
 
-// Mock the dependencies
-mock.module("../memory/repository", () => {
-  return {
-    MemoryRepository: class MockMemoryRepository {
-      saveBatch = mock();
-    }
-  };
-});
-mock.module("../memory/extractor", () => {
-  return {
-    MemoryExtractor: class MockMemoryExtractor {
-      extractMemories = mock();
-    }
-  };
-});
-mock.module("../memory/embeddings", () => {
-  return {
-    EmbeddingService: class MockEmbeddingService {
-      embed = mock();
-    }
-  };
-});
+// Dependencies are not mocked via mock.module anymore because it breaks memory.integration.test.ts globally.
+// The LinterNode tests only test isMemoryEnabled and initializeMemoryServices which just instantiate these classes.
+// The real classes can be safely instantiated since they don't do anything harmful on construction.
 
 import { isMemoryEnabled, initializeMemoryServices } from "../nodes/deterministic/LinterNode";
 
