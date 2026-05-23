@@ -526,18 +526,18 @@ describe("Memory System Integration", () => {
       };
 
       // Save memory
-      const saved = await repository.save(memory);
-      expect(saved.isActive).toBe(true);
+      const saved = await repository.saveBatch([memory]);
+      expect(saved[0].isActive).toBe(true);
 
       // Soft delete
-      await repository.softDelete(saved.id!);
+      await repository.softDelete(saved[0].id!);
 
       // Verify it's marked inactive
-      const updated = await repository.update(saved.id!, { isActive: false });
+      const updated = await repository.update(saved[0].id!, { isActive: false });
       expect(updated?.isActive).toBe(false);
 
       // Reactivate
-      const reactivated = await repository.update(saved.id!, {
+      const reactivated = await repository.update(saved[0].id!, {
         isActive: true,
       });
       expect(reactivated?.isActive).toBe(true);
@@ -555,11 +555,11 @@ describe("Memory System Integration", () => {
         embedding: await embeddingService.generateEmbedding("Test content"),
       };
 
-      const saved = await repository.save(memory);
-      expect(saved.accessCount).toBe(0);
+      const saved = await repository.saveBatch([memory]);
+      expect(saved[0].accessCount).toBe(0);
 
       // Access the memory
-      const retrieved = await repository.getById(saved.id!);
+      const retrieved = await repository.getById(saved[0].id!);
       expect(retrieved).toBeDefined();
     });
   });
