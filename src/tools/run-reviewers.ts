@@ -171,7 +171,7 @@ export const runReviewersTool = tool(
       );
 
       for (const res of promiseResults) {
-        if (res.status === "success" && res.issues) {
+        if (res.status === "success" && "issues" in res && Array.isArray(res.issues)) {
           allIssues.push(...res.issues);
           if (res.critical_issues) {
             criticalFound = true;
@@ -187,7 +187,7 @@ export const runReviewersTool = tool(
           reviewerResults.push({
             name: res.name,
             status: res.status,
-            error: res.error,
+            error: "error" in res ? res.error : "Unknown error",
           });
         }
       }
