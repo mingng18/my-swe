@@ -45,12 +45,13 @@ export class SearchService {
         options.types,
       );
     } else {
-      // Fallback for older repository implementations
-      for (const threadId of threadIds) {
-        const memories = await this.repository.getByThread(
-          threadId,
-          options.types,
-        );
+      // Fallback for older repository implementations using parallel processing
+      const arrays = await Promise.all(
+        threadIds.map((threadId) =>
+          this.repository.getByThread(threadId, options.types),
+        ),
+      );
+      for (const memories of arrays) {
         allMemories.push(...memories);
       }
     }
@@ -133,7 +134,7 @@ export class SearchService {
     try {
       // Find memories that need embeddings
       const memoriesToUpdate = memories.filter(
-        (m) => !m.embedding || m.embedding.length === 0
+        (m) => !m.embedding || m.embedding.length === 0,
       );
 
       // Generate missing embeddings in parallel
@@ -141,8 +142,11 @@ export class SearchService {
         if (memoriesToUpdate.length > 0) {
           try {
             if (this.embeddingService.generateEmbeddingsBatch) {
-              const texts = memoriesToUpdate.map((m) => `${m.title}. ${m.content}`);
-              const embeddings = await this.embeddingService.generateEmbeddingsBatch(texts);
+              const texts = memoriesToUpdate.map(
+                (m) => `${m.title}. ${m.content}`,
+              );
+              const embeddings =
+                await this.embeddingService.generateEmbeddingsBatch(texts);
 
               await Promise.all(
                 memoriesToUpdate.map(async (memory, index) => {
@@ -154,27 +158,28 @@ export class SearchService {
                   } catch (error) {
                     logger.warn(
                       { memoryId: memory.id, error },
-                      "Failed to save generated embedding to repository"
+                      "Failed to save generated embedding to repository",
                     );
                   }
-                })
+                }),
               );
             } else {
               await Promise.all(
                 memoriesToUpdate.map(async (memory) => {
                   try {
                     const text = `${memory.title}. ${memory.content}`;
-                    memory.embedding = await this.embeddingService.generateEmbedding(text);
+                    memory.embedding =
+                      await this.embeddingService.generateEmbedding(text);
                     await this.repository.update(memory.id!, {
                       embedding: memory.embedding,
                     });
                   } catch (error) {
                     logger.warn(
                       { memoryId: memory.id, error },
-                      "Failed to generate embedding for memory"
+                      "Failed to generate embedding for memory",
                     );
                   }
-                })
+                }),
               );
             }
           } catch (error) {
@@ -184,7 +189,8 @@ export class SearchService {
       })();
 
       // Start fetching query embedding
-      const queryEmbeddingPromise = this.embeddingService.generateEmbedding(query);
+      const queryEmbeddingPromise =
+        this.embeddingService.generateEmbedding(query);
 
       // Wait for both concurrent operations
       const [queryEmbedding] = await Promise.all([
