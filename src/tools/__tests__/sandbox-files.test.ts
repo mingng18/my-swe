@@ -248,10 +248,12 @@ describe("Sandbox Files Tools", () => {
           matches: ["/workspace/file1.txt:line1", "/workspace/file2.txt:line2"],
           count: 2
         });
-        // Verify the exact command format
+        // Verify the exact command format (now uses find | xargs grep)
         expect(mockExecute).toHaveBeenCalledTimes(1);
         const actualCall = mockExecute.mock.calls[0][0];
-        expect(actualCall).toMatch(/grep.*'test'.*'\/workspace'/);
+        expect(actualCall).toContain("find '/workspace' -type f");
+        expect(actualCall).toContain("| xargs grep");
+        expect(actualCall).toContain("'test'");
       });
 
       test("successfully searches with case-insensitive flag", async () => {
@@ -387,6 +389,76 @@ describe("Sandbox Files Tools", () => {
         const actualCall = mockExecute.mock.calls[0][0];
         expect(actualCall).toContain("'test'");
         expect(actualCall).toContain("'/workspace'");
+      });
+
+      test("searches with include filter", async () => {
+        mockExecute.mockResolvedValue({ exitCode: 0, output: "/workspace/file.ts:const x = 1" });
+        const result = await sandboxGrepTool.invoke({
+          pattern: "const",
+          path: "/workspace",
+          include: "*.ts",
+        }, validConfig);
+
+        expect(result).toEqual({
+          path: "/workspace",
+          pattern: "const",
+          matches: ["/workspace/file.ts:const x = 1"],
+          count: 1,
+        });
+        const actualCall = mockExecute.mock.calls[0][0];
+        expect(actualCall).toContain("--include='*.ts'");
+        expect(actualCall).toContain("--binary-files=without-match");
+      });
+
+      test("searches with exclude filter", async () => {
+        mockExecute.mockResolvedValue({ exitCode: 0, output: "/workspace/file.ts:match" });
+        const result = await sandboxGrepTool.invoke({
+          pattern: "test",
+          path: "/workspace",
+          exclude: "*.log",
+        }, validConfig);
+
+        expect(result.count).toBe(1);
+        const actualCall = mockExecute.mock.calls[0][0];
+        expect(actualCall).toContain("--exclude='*.log'");
+      });
+
+      test("searches with maxFileSize uses find pipe", async () => {
+        mockExecute.mockResolvedValue({ exitCode: 0, output: "/workspace/small.txt:match" });
+        const result = await sandboxGrepTool.invoke({
+          pattern: "test",
+          path: "/workspace",
+          maxFileSize: 1024,
+        }, validConfig);
+
+        expect(result.count).toBe(1);
+        const actualCall = mockExecute.mock.calls[0][0];
+        expect(actualCall).toContain("find '/workspace' -type f -size -1024c");
+        expect(actualCall).toContain("| xargs grep");
+      });
+
+      test("always skips binary files", async () => {
+        mockExecute.mockResolvedValue({ exitCode: 0, output: "match" });
+        await sandboxGrepTool.invoke({
+          pattern: "test",
+          path: "/workspace",
+        }, validConfig);
+
+        const actualCall = mockExecute.mock.calls[0][0];
+        expect(actualCall).toContain("--binary-files=without-match");
+      });
+
+      test("backward compatible without new params", async () => {
+        mockExecute.mockResolvedValue({ exitCode: 0, output: "/workspace/file.ts:match" });
+        const result = await sandboxGrepTool.invoke({
+          pattern: "test",
+          path: "/workspace",
+        }, validConfig);
+
+        expect(result.count).toBe(1);
+        const actualCall = mockExecute.mock.calls[0][0];
+        expect(actualCall).toContain("find '/workspace' -type f -size -1048576c");
+        expect(actualCall).toContain("| xargs grep");
       });
     });
   });
