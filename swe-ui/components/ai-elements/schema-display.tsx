@@ -98,18 +98,23 @@ export const SchemaDisplayPath = ({
   const { path } = useContext(SchemaDisplayContext);
 
   // Highlight path parameters
-  const highlightedPath = path.replaceAll(
-    /\{([^}]+)\}/g,
-    '<span class="text-blue-600 dark:text-blue-400">{$1}</span>'
-  );
+  const renderedPathSegments = path
+    .split(/(\{[^}]+\})/g)
+    .map((segment, index) => {
+      if (segment.startsWith("{") && segment.endsWith("}")) {
+        return (
+          <span key={index} className="text-blue-600 dark:text-blue-400">
+            {segment}
+          </span>
+        );
+      }
+      return segment;
+    });
 
   return (
-    <span
-      className={cn("font-mono text-sm", className)}
-      // oxlint-disable-next-line eslint-plugin-react(no-danger)
-      dangerouslySetInnerHTML={{ __html: children ?? highlightedPath }}
-      {...props}
-    />
+    <span className={cn("font-mono text-sm", className)} {...props}>
+      {children ?? renderedPathSegments}
+    </span>
   );
 };
 
@@ -127,7 +132,7 @@ export const SchemaDisplayDescription = ({
     <p
       className={cn(
         "border-b px-4 py-3 text-muted-foreground text-sm",
-        className
+        className,
       )}
       {...props}
     >
@@ -241,7 +246,7 @@ export const SchemaDisplayProperty = ({
         <CollapsibleTrigger
           className={cn(
             "group flex w-full items-center gap-2 py-3 text-left transition-colors hover:bg-muted/50",
-            className
+            className,
           )}
           style={{ paddingLeft }}
         >
@@ -401,7 +406,7 @@ export const SchemaDisplay = ({
       requestBody,
       responseBody,
     }),
-    [description, method, parameters, path, requestBody, responseBody]
+    [description, method, parameters, path, requestBody, responseBody],
   );
 
   return (
@@ -409,7 +414,7 @@ export const SchemaDisplay = ({
       <div
         className={cn(
           "overflow-hidden rounded-lg border bg-background",
-          className
+          className,
         )}
         {...props}
       >
@@ -462,7 +467,7 @@ export const SchemaDisplayExample = ({
   <pre
     className={cn(
       "mx-4 mb-4 overflow-auto rounded-md bg-muted p-4 font-mono text-sm",
-      className
+      className,
     )}
     {...props}
   >
