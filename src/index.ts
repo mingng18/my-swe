@@ -1,4 +1,3 @@
-import { createHash } from "crypto";
 import { createLogger } from "./utils/logger";
 import { serve } from "bun";
 
@@ -16,132 +15,53 @@ import { isDuplicateMessage, formatTelegramMarkdownV2 } from "./utils/telegram";
 // Memory system integration
 import { getMemoryDaemon } from "./memory/daemon";
 
-// Message queue for concurrent requests
-interface QueuedMessage {
+// Shared queue utility for Telegram message processing
+import { generateThreadId, TelegramMessageQueue } from "./utils/telegram-queue";
+
+const logger = createLogger("index");
+
+const PORT = Number.parseInt(process.env.PORT || "7860", 10);
+
+// Telegram polling queue with identity enrichment
+interface PollingMessage {
   enrichedText: string;
   chatId: number;
   telegramBotToken: string;
   userId?: string;
-}
-const messageQueue = new Map<string, QueuedMessage[]>();
-const activeThreads = new Set<string>();
-
-const logger = createLogger("index");
-
-/**
- * Generate a deterministic thread ID from a Telegram chat ID.
- * This ensures each chat has its own conversation history.
- */
-function generateThreadId(chatId: number): string {
-  return createHash("sha256")
-    .update(chatId.toString())
-    .digest("hex")
-    .substring(0, 16);
+  parseMode: string;
 }
 
-/**
- * Check if a thread is currently processing a request.
- */
-function isThreadActive(threadId: string): boolean {
-  return activeThreads.has(threadId);
-}
-
-/**
- * Enqueue a message for processing when the thread becomes available.
- */
-function enqueueMessage(
-  threadId: string,
-  enrichedText: string,
-  chatId: number,
-  telegramBotToken: string,
-  userId?: string,
-): void {
-  if (!messageQueue.has(threadId)) {
-    messageQueue.set(threadId, []);
-  }
-  messageQueue.get(threadId)!.push({
-    enrichedText,
-    chatId,
-    telegramBotToken,
-    userId,
-  });
-}
-
-/**
- * Process queued messages for a thread.
- */
-async function processQueue(threadId: string): Promise<void> {
-  const queue = messageQueue.get(threadId);
-  if (!queue || queue.length === 0) return;
-
-  const message = queue.shift()!;
-  if (queue.length === 0) {
-    messageQueue.delete(threadId);
-  }
-
-  await processMessage(
-    threadId,
-    message.enrichedText,
-    message.chatId,
-    message.telegramBotToken,
-    message.userId,
-  );
-
-  // Continue processing if there are more messages
-  if (messageQueue.has(threadId) && messageQueue.get(threadId)!.length > 0) {
-    await processQueue(threadId);
-  }
-}
-
-/**
- * Process a single message for a thread.
- */
-async function processMessage(
-  threadId: string,
-  enrichedText: string,
-  chatId: number,
-  telegramBotToken: string,
-  userId?: string,
-): Promise<string> {
-  activeThreads.add(threadId);
+const telegramQueue = new TelegramMessageQueue<PollingMessage>(async (threadId, msg) => {
+  // Show typing indicator while processing
   try {
-    // Show typing indicator while processing
-    await sendChatAction(chatId, "typing", telegramBotToken);
-
-    const reply = await runCodeagentTurn(enrichedText, threadId, userId, "telegram");
-    return reply;
-  } finally {
-    activeThreads.delete(threadId);
-  }
-}
-
-const PORT = Number.parseInt(process.env.PORT || "7860", 10);
-
-/**
- * Send a chat action to show the bot is working (e.g., typing).
- */
-async function sendChatAction(
-  chatId: number,
-  action: string,
-  telegramBotToken: string,
-): Promise<void> {
-  try {
-    await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendChatAction`, {
+    await fetch(`https://api.telegram.org/bot${msg.telegramBotToken}/sendChatAction`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: chatId,
-        action: action,
-      }),
+      body: JSON.stringify({ chat_id: msg.chatId, action: "typing" }),
     });
-  } catch (error) {
-    // Log but don't fail - typing indicator is optional
-    logger.warn(
-      { error, chatId, action },
-      "[codeagent][telegram] failed to send chat action",
-    );
+  } catch {
+    // Typing indicator is optional
   }
-}
+
+  const reply = await runCodeagentTurn(msg.enrichedText, threadId, msg.userId, "telegram");
+
+  // Format reply for Telegram MarkdownV2
+  const formattedReply = msg.parseMode === "MarkdownV2"
+    ? formatTelegramMarkdownV2(reply)
+    : reply;
+
+  await fetch(`https://api.telegram.org/bot${msg.telegramBotToken}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: msg.chatId,
+      text: formattedReply,
+      parse_mode: msg.parseMode,
+    }),
+  });
+
+  logger.info("[codeagent][telegram] reply sent");
+});
 
 async function handleTelegramMessage(msg: any, telegramBotToken: string, parseMode: string) {
   if (!("text" in msg) || !msg.text) {
@@ -177,12 +97,12 @@ async function handleTelegramMessage(msg: any, telegramBotToken: string, parseMo
   const threadId = generateThreadId(msg.chat.id);
 
   // Check if thread is active, queue if busy
-  if (isThreadActive(threadId)) {
+  if (telegramQueue.isThreadActive(threadId)) {
     logger.info(
       { threadId, chatId: msg.chat.id },
       "[codeagent][telegram] thread busy, queuing message",
     );
-    enqueueMessage(threadId, enrichedText, msg.chat.id, telegramBotToken, userId);
+    telegramQueue.enqueue(threadId, { enrichedText, chatId: msg.chat.id, telegramBotToken, userId, parseMode });
     // Send acknowledgment
     await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
       method: "POST",
@@ -196,31 +116,8 @@ async function handleTelegramMessage(msg: any, telegramBotToken: string, parseMo
     return;
   }
 
-  // Process the message and send reply
-  const reply = await processMessage(threadId, enrichedText, msg.chat.id, telegramBotToken, userId);
-
-  // Format reply for Telegram MarkdownV2 (only when parseMode is MarkdownV2)
-  const formattedReply = parseMode === "MarkdownV2"
-    ? formatTelegramMarkdownV2(reply)
-    : reply;
-
-  // Send reply back to Telegram
-  await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: msg.chat.id,
-      text: formattedReply,
-      parse_mode: parseMode,
-    }),
-  });
-
-  logger.info("[codeagent][telegram] reply sent");
-
-  // Process any queued messages
-  if (messageQueue.has(threadId)) {
-    void processQueue(threadId);
-  }
+  // Enqueue and process
+  telegramQueue.enqueue(threadId, { enrichedText, chatId: msg.chat.id, telegramBotToken, userId, parseMode });
 }
 
 // Telegram polling for local development

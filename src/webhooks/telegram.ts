@@ -1,94 +1,35 @@
-import { createHash } from "crypto";
 import { createLogger } from "../utils/logger";
 import { runCodeagentTurn } from "../server";
 import { loadTelegramConfig } from "../utils/config";
 import { isDuplicateMessage, sendChatAction } from "../utils/telegram";
+import { generateThreadId, TelegramMessageQueue } from "../utils/telegram-queue";
 
 const log = createLogger("webhooks/telegram");
 
-// Per-instance message queue for concurrent Telegram requests
 interface QueueItem {
   chatId: number;
   text: string;
 }
-const messageQueue = new Map<string, QueueItem[]>();
-const activeThreads = new Set<string>();
 
-function generateThreadId(chatId: number): string {
-  return createHash("sha256")
-    .update(chatId.toString())
-    .digest("hex")
-    .substring(0, 16);
-}
+const queue = new TelegramMessageQueue<QueueItem>(async (threadId, item) => {
+  const { telegramBotToken, telegramParseMode } = loadTelegramConfig();
+  const reply = await runCodeagentTurn(item.text, threadId, undefined, "telegram");
 
-function enqueueMessage(
-  threadId: string,
-  chatId: number,
-  text: string,
-): void {
-  if (!messageQueue.has(threadId)) {
-    messageQueue.set(threadId, []);
+  if (telegramBotToken) {
+    await fetch(
+      `https://api.telegram.org/bot${telegramBotToken}/sendMessage`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: item.chatId,
+          text: reply,
+          parse_mode: telegramParseMode,
+        }),
+      },
+    );
   }
-  messageQueue.get(threadId)!.push({ chatId, text });
-
-  if (!activeThreads.has(threadId)) {
-    processThreadQueue(threadId).catch((err) => {
-      log.error({ err, threadId }, "[telegram] Error in processThreadQueue");
-    });
-  }
-}
-
-async function processThreadQueue(threadId: string): Promise<void> {
-  if (activeThreads.has(threadId)) return;
-  activeThreads.add(threadId);
-
-  try {
-    const { telegramBotToken, telegramParseMode } = loadTelegramConfig();
-    const queue = messageQueue.get(threadId);
-
-    while (queue && queue.length > 0) {
-      const item = queue.shift();
-      if (!item) continue;
-
-      try {
-        const reply = await runCodeagentTurn(
-          item.text,
-          threadId,
-          undefined,
-          "telegram",
-        );
-
-        if (telegramBotToken) {
-          await fetch(
-            `https://api.telegram.org/bot${telegramBotToken}/sendMessage`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                chat_id: item.chatId,
-                text: reply,
-                parse_mode: telegramParseMode,
-              }),
-            },
-          );
-        }
-      } catch (err) {
-        log.error(
-          { err, chatId: item.chatId },
-          "[telegram] Error processing message",
-        );
-      }
-    }
-  } finally {
-    activeThreads.delete(threadId);
-  }
-
-  // Clean up empty queue
-  const remaining = messageQueue.get(threadId);
-  if (!remaining || remaining.length === 0) {
-    messageQueue.delete(threadId);
-  }
-}
+});
 
 /**
  * Handle a Telegram webhook update.
@@ -118,12 +59,12 @@ export async function handleTelegramWebhook(
       const threadId = generateThreadId(msg.chat.id);
       const { telegramBotToken, telegramParseMode } = loadTelegramConfig();
 
-      if (activeThreads.has(threadId)) {
+      if (queue.isThreadActive(threadId)) {
         log.info(
           { threadId, chatId: msg.chat.id },
           "[telegram] thread busy, queuing message",
         );
-        enqueueMessage(threadId, msg.chat.id, msg.text);
+        queue.enqueue(threadId, { chatId: msg.chat.id, text: msg.text });
         await fetch(
           `https://api.telegram.org/bot${telegramBotToken}/sendMessage`,
           {
@@ -140,7 +81,7 @@ export async function handleTelegramWebhook(
       }
 
       await sendChatAction(telegramBotToken, msg.chat.id, "typing");
-      enqueueMessage(threadId, msg.chat.id, msg.text);
+      queue.enqueue(threadId, { chatId: msg.chat.id, text: msg.text });
       return { ok: true, message: "Message processing started" };
     }
   }
