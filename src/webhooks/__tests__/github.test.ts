@@ -74,7 +74,7 @@ describe("handleGithubWebhook", () => {
         issue: {
           number: 42,
           title: "Bug report",
-          body: "Something is broken",
+          body: "Something is broken @openswe",
         },
         repository: {
           full_name: "test/repo",

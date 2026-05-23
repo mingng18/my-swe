@@ -151,6 +151,14 @@ function handleIssuesEvent(payload: any): void {
   if (action === "opened" && issue && repository) {
     const issueTitle = issue.title || "";
     const issueBody = issue.body || "";
+    // Only respond when bot is mentioned
+    const botMention = process.env.GITHUB_BOT_MENTION || "@openswe";
+    const isMentioned = issueBody.toLowerCase().includes(botMention.toLowerCase()) ||
+      issueTitle.toLowerCase().includes(botMention.toLowerCase());
+    if (!isMentioned) {
+      return;
+    }
+
     const repoOwner = repository.owner?.login;
     const repoName = repository.name;
     const issueNumber = issue.number;
@@ -192,8 +200,15 @@ function handleIssuesEvent(payload: any): void {
 function handlePushEvent(payload: any): void {
   const repoName = payload.repository?.full_name || "unknown repository";
   const ref = payload.ref || "unknown ref";
+  const defaultBranch = payload.repository?.default_branch || "main";
   const commitsCount =
     payload.commits?.length || payload.push?.commits?.length || 0;
+
+  // Only process pushes to the default branch
+  if (ref !== `refs/heads/${defaultBranch}`) {
+    log.debug({ ref, defaultBranch }, "[github] Push event skipped (non-default branch)");
+    return;
+  }
 
   log.info(
     {
