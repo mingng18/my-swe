@@ -5,9 +5,7 @@ import { cors } from "hono/cors";
 import { logger as httpLogger } from "hono/logger";
 
 import { runCodeagentTurn } from "./server";
-import { streamRegistry, type SSEEvent } from "./stream";
-
-import { secureHeaders } from "hono/secure-headers";
+import { streamRegistry } from "./stream";
 import { LRUCache } from "lru-cache";
 
 // Security headers

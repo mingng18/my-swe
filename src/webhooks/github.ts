@@ -205,7 +205,11 @@ function handlePushEvent(payload: any): void {
 
   const input = `A push event was received on repository ${repoName} for ref ${ref} with ${commitsCount} commits.`;
 
-  runCodeagentTurn(input, undefined, undefined, "github").catch((err) => {
-    log.error({ error: err }, "[github] Error running agent on push event");
-  });
+  void (async () => {
+    try {
+      await runCodeagentTurn(input, undefined, undefined, "github");
+    } catch (err) {
+      log.error({ error: err }, "[github] Error running agent on push event");
+    }
+  })();
 }
