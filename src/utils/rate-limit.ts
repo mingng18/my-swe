@@ -4,7 +4,6 @@
  */
 
 import { createLogger } from "./logger";
-import { LRUCache } from "lru-cache";
 
 const logger = createLogger("rate-limit");
 
@@ -115,13 +114,23 @@ export class MultiDimensionalRateLimiter {
 
     // Check per-thread limit (if specified)
     if (config.perThread && key.threadId) {
-      const threadKey = this.serializeKey({ ...key, endpoint: `${key.endpoint}:thread` });
+      const threadKey = this.serializeKey({
+        ...key,
+        endpoint: `${key.endpoint}:thread`,
+      });
       const threadTimestamps = this.windows.get(threadKey) || [];
-      const recentThreadMinute = threadTimestamps.filter((t) => t > oneMinuteAgo);
+      const recentThreadMinute = threadTimestamps.filter(
+        (t) => t > oneMinuteAgo,
+      );
 
       if (recentThreadMinute.length >= config.perThread) {
         logger.warn(
-          { ip: key.ip, threadId: key.threadId, endpoint: key.endpoint, limit: config.perThread },
+          {
+            ip: key.ip,
+            threadId: key.threadId,
+            endpoint: key.endpoint,
+            limit: config.perThread,
+          },
           "[rate-limit] Per-thread limit exceeded",
         );
 
@@ -137,13 +146,21 @@ export class MultiDimensionalRateLimiter {
 
     // Check per-user limit (if specified)
     if (config.perUser && key.userId) {
-      const userKey = this.serializeKey({ ...key, endpoint: `${key.endpoint}:user` });
+      const userKey = this.serializeKey({
+        ...key,
+        endpoint: `${key.endpoint}:user`,
+      });
       const userTimestamps = this.windows.get(userKey) || [];
       const recentUserMinute = userTimestamps.filter((t) => t > oneMinuteAgo);
 
       if (recentUserMinute.length >= config.perUser) {
         logger.warn(
-          { ip: key.ip, userId: key.userId, endpoint: key.endpoint, limit: config.perUser },
+          {
+            ip: key.ip,
+            userId: key.userId,
+            endpoint: key.endpoint,
+            limit: config.perUser,
+          },
           "[rate-limit] Per-user limit exceeded",
         );
 
@@ -163,14 +180,20 @@ export class MultiDimensionalRateLimiter {
 
     // Also record in thread/user specific windows
     if (config.perThread && key.threadId) {
-      const threadKey = this.serializeKey({ ...key, endpoint: `${key.endpoint}:thread` });
+      const threadKey = this.serializeKey({
+        ...key,
+        endpoint: `${key.endpoint}:thread`,
+      });
       const threadTimestamps = this.windows.get(threadKey) || [];
       threadTimestamps.push(now);
       this.windows.set(threadKey, threadTimestamps);
     }
 
     if (config.perUser && key.userId) {
-      const userKey = this.serializeKey({ ...key, endpoint: `${key.endpoint}:user` });
+      const userKey = this.serializeKey({
+        ...key,
+        endpoint: `${key.endpoint}:user`,
+      });
       const userTimestamps = this.windows.get(userKey) || [];
       userTimestamps.push(now);
       this.windows.set(userKey, userTimestamps);
@@ -240,12 +263,7 @@ export class MultiDimensionalRateLimiter {
    * Serialize a rate limit key to a string.
    */
   private serializeKey(key: RateLimitKey): string {
-    const parts = [
-      key.ip,
-      key.endpoint,
-      key.threadId || "",
-      key.userId || "",
-    ];
+    const parts = [key.ip, key.endpoint, key.threadId || "", key.userId || ""];
     return parts.join(":");
   }
 }
@@ -264,9 +282,7 @@ export function createRateLimitMiddleware(
 ) {
   return async (c: any, next: any) => {
     const ip =
-      c.req.header("x-forwarded-for") ||
-      c.req.header("x-real-ip") ||
-      "unknown";
+      c.req.header("x-forwarded-for") || c.req.header("x-real-ip") || "unknown";
 
     const threadId = c.req.header("X-Thread-Id") || c.req.query("threadId");
     const userId = c.req.header("X-User-Id") || c.req.query("userId");
