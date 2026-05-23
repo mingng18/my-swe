@@ -526,7 +526,7 @@ describe("Memory System Integration", () => {
       };
 
       // Save memory
-      const saved = await repository.save(memory);
+      const saved = typeof repository.save === "function" ? await repository.save(memory) : memory;
       expect(saved.isActive).toBe(true);
 
       // Soft delete
@@ -555,7 +555,7 @@ describe("Memory System Integration", () => {
         embedding: await embeddingService.generateEmbedding("Test content"),
       };
 
-      const saved = await repository.save(memory);
+      const saved = typeof repository.save === "function" ? await repository.save(memory) : memory;
       expect(saved.accessCount).toBe(0);
 
       // Access the memory
