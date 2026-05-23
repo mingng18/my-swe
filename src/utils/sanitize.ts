@@ -45,7 +45,7 @@ const DEFAULT_LIMITS = {
 /**
  * Control characters that should be stripped.
  */
-const CONTROL_CHARS = /[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g;
+const CONTROL_CHARS = /[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/;
 
 /**
  * Dangerous patterns that could indicate injection attacks.
