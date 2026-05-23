@@ -101,9 +101,9 @@ export async function checkMessageQueueBeforeModel(
         "Found queued message(s), injecting into state",
       );
 
-      const contentBlocks: ContentBlock[] = [];
-
-      for (const msg of queuedMessages) {
+      // Parallelize processing of queued messages
+      // This is especially important for messages with image URLs which require network requests
+      const blockPromises = queuedMessages.map(async (msg) => {
         const content = msg.content;
 
         // Handle payload with text + image URLs
@@ -114,9 +114,7 @@ export async function checkMessageQueueBeforeModel(
           ("text" in content || "image_urls" in content)
         ) {
           logger.debug("Queued message contains text + image URLs");
-          const blocks = await buildBlocksFromPayload(content);
-          contentBlocks.push(...blocks);
-          continue;
+          return buildBlocksFromPayload(content);
         }
 
         // Handle array of content blocks
@@ -124,16 +122,20 @@ export async function checkMessageQueueBeforeModel(
           logger.debug(
             `Queued message contains ${content.length} content block(s)`,
           );
-          contentBlocks.push(...content);
-          continue;
+          return content;
         }
 
         // Handle plain string content
         if (typeof content === "string" && content) {
           logger.debug("Queued message contains text content");
-          contentBlocks.push({ type: "text", text: content });
+          return [{ type: "text", text: content } as ContentBlock];
         }
-      }
+
+        return [];
+      });
+
+      const allBlocks = await Promise.all(blockPromises);
+      const contentBlocks = allBlocks.flat();
 
       if (contentBlocks.length === 0) {
         return null;
