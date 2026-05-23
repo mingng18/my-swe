@@ -7,19 +7,8 @@ const logger = createLogger("trace-dashboard");
 /**
  * Generate HTML for trace analysis dashboard.
  */
-export function generateTraceDashboardHTML(threadId: string): string {
-  const telemetry = getThreadTelemetry(threadId);
-  const metrics = getThreadMetrics(threadId);
-  const tokenUsage = getTokenUsage(threadId);
-
+function generateStyles(): string {
   return `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Trace Dashboard - ${threadId}</title>
-  <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a1a2e; color: #eee; line-height: 1.6; }
     .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
@@ -53,16 +42,11 @@ export function generateTraceDashboardHTML(threadId: string): string {
     .timeline-item.error { border-left-color: #f87171; }
     .timeline-item.error::before { background: #f87171; }
     .timestamp { font-size: 0.8rem; color: #94a3b8; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <header>
-      <h1>🔍 Trace Dashboard</h1>
-      <p style="color: #94a3b8; margin-bottom: 20px;">Thread ID: <code style="background: #334155; padding: 4px 8px; border-radius: 4px;">${threadId}</code></p>
-    </header>
-    <main>
+  `;
+}
 
+function generateTokenUsageHTML(tokenUsage: any, metrics: any): string {
+  return `
     <h2>📊 Token Usage</h2>
     <dl class="stats-grid">
       <div class="stat-card" role="group">
@@ -90,7 +74,11 @@ export function generateTraceDashboardHTML(threadId: string): string {
         <dd class="stat-value">${metrics.llmCalls.avgLatency.toFixed(0)}ms</dd>
       </div>
     </dl>
+  `;
+}
 
+function generateCompressionMetricsHTML(telemetry: any): string {
+  return `
     <h2>🗜️ Compression Metrics</h2>
     <dl class="stats-grid">
       <div class="stat-card" role="group">
@@ -110,7 +98,11 @@ export function generateTraceDashboardHTML(threadId: string): string {
         <dd class="stat-value">${getCompressionAvgSavings(telemetry.metrics).toFixed(1)}%</dd>
       </div>
     </dl>
+  `;
+}
 
+function generateToolStatsHTML(metrics: any, telemetry: any): string {
+  return `
     <h2>🔧 Tool Statistics</h2>
     <div class="table-container" tabindex="0">
       <table>
@@ -130,14 +122,14 @@ export function generateTraceDashboardHTML(threadId: string): string {
               ([tool, stats]) => `
             <tr>
               <td><code>${tool}</code></td>
-              <td>${stats.count}</td>
+              <td>${(stats as any).count}</td>
               <td>
-                <span class="badge ${stats.successRate > 0.8 ? "success" : stats.successRate > 0.5 ? "warning" : "error"}">
-                  ${(stats.successRate * 100).toFixed(0)}%
+                <span class="badge ${(stats as any).successRate > 0.8 ? "success" : (stats as any).successRate > 0.5 ? "warning" : "error"}">
+                  ${((stats as any).successRate * 100).toFixed(0)}%
                 </span>
               </td>
-              <td>${stats.avgDuration.toFixed(0)}ms</td>
-              <td>${stats.avgOutputSize.toFixed(0)} chars</td>
+              <td>${(stats as any).avgDuration.toFixed(0)}ms</td>
+              <td>${(stats as any).avgOutputSize.toFixed(0)} chars</td>
               <td>${getToolCompressionSavings(telemetry.metrics, tool)}</td>
             </tr>
           `,
@@ -146,7 +138,11 @@ export function generateTraceDashboardHTML(threadId: string): string {
         </tbody>
       </table>
     </div>
+  `;
+}
 
+function generatePerformanceMetricsHTML(metrics: any, telemetry: any): string {
+  return `
     <h2>⚡ Performance Metrics</h2>
     <dl class="stats-grid">
       <div class="stat-card" role="group">
@@ -162,7 +158,11 @@ export function generateTraceDashboardHTML(threadId: string): string {
         <dd class="stat-value">${telemetry.metrics.length}</dd>
       </div>
     </dl>
+  `;
+}
 
+function generateRecentActivityHTML(telemetry: any): string {
+  return `
     <h2>📈 Recent Activity</h2>
     <div class="table-container" tabindex="0">
       <div style="padding: 15px;" role="list">
@@ -170,7 +170,7 @@ export function generateTraceDashboardHTML(threadId: string): string {
           .slice(-10)
           .reverse()
           .map(
-            (span) => `
+            (span: any) => `
           <div role="listitem" class="timeline-item ${span.status === "error" ? "error" : ""}">
             <div style="font-weight: 600; margin-bottom: 4px;">${span.name}</div>
             <div class="timestamp">${new Date(span.startTime).toISOString()}</div>
@@ -182,6 +182,42 @@ export function generateTraceDashboardHTML(threadId: string): string {
         ${telemetry.spans.length === 0 ? '<p role="status" style="color: #94a3b8; text-align: center; padding: 20px;">No spans recorded yet</p>' : ""}
       </div>
     </div>
+  `;
+}
+
+export function generateTraceDashboardHTML(threadId: string): string {
+  const telemetry = getThreadTelemetry(threadId);
+  const metrics = getThreadMetrics(threadId);
+  const tokenUsage = getTokenUsage(threadId);
+
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trace Dashboard - ${threadId}</title>
+  <style>
+${generateStyles()}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🔍 Trace Dashboard</h1>
+      <p style="color: #94a3b8; margin-bottom: 20px;">Thread ID: <code style="background: #334155; padding: 4px 8px; border-radius: 4px;">${threadId}</code></p>
+    </header>
+    <main>
+
+${generateTokenUsageHTML(tokenUsage, metrics)}
+
+${generateCompressionMetricsHTML(telemetry)}
+
+${generateToolStatsHTML(metrics, telemetry)}
+
+${generatePerformanceMetricsHTML(metrics, telemetry)}
+
+${generateRecentActivityHTML(telemetry)}
 
     </main>
     <footer>
