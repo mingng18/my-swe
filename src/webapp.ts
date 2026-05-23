@@ -13,11 +13,23 @@ import { LRUCache } from "lru-cache";
 // Security headers
 // (Moved below app declaration)
 
-// In-memory rate limiter
+import { handleGithubWebhook } from "./webhooks/github";
+import { handleTelegramWebhook } from "./webhooks/telegram";
+import { verifyGithubSignature } from "./utils/github";
+
+const log = createLogger("webapp");
+
+// In-memory rate limiter with configurable limits
 const rateLimitCache = new LRUCache<string, number>({
   max: 5000,
   ttl: 60 * 1000, // 1 minute window
 });
+
+// Configurable rate limits from environment
+const rateLimitRun = Number.parseInt(process.env.RATE_LIMIT_RUN || "20", 10);
+const rateLimitChat = Number.parseInt(process.env.RATE_LIMIT_CHAT || "20", 10);
+const rateLimitWebhook = Number.parseInt(process.env.RATE_LIMIT_WEBHOOK || "60", 10);
+const rateLimitHealth = Number.parseInt(process.env.RATE_LIMIT_HEALTH || "120", 10);
 
 const rateLimiter = (limitPerMinute: number) => async (c: any, next: any) => {
   const ip =
@@ -26,21 +38,21 @@ const rateLimiter = (limitPerMinute: number) => async (c: any, next: any) => {
   const key = `${ip}:${path}`;
 
   const count = rateLimitCache.get(key) || 0;
+
+  // Set rate limit headers on every response
+  c.header("X-RateLimit-Limit", String(limitPerMinute));
+  c.header("X-RateLimit-Remaining", String(Math.max(0, limitPerMinute - count - 1)));
+
   if (count >= limitPerMinute) {
-    log.warn({ ip, path }, "[webapp] Rate limit exceeded");
-    return c.json({ error: "Too Many Requests" }, 429);
+    const retryAfter = 60;
+    c.header("Retry-After", String(retryAfter));
+    log.warn({ ip, path, limit: limitPerMinute }, "[webapp] Rate limit exceeded");
+    return c.json({ error: "Too Many Requests", retry_after: retryAfter }, 429);
   }
+
   rateLimitCache.set(key, count + 1);
   await next();
 };
-
-// (Rate limiter applied below app declaration)
-
-import { handleGithubWebhook } from "./webhooks/github";
-import { handleTelegramWebhook } from "./webhooks/telegram";
-import { verifyGithubSignature } from "./utils/github";
-
-const log = createLogger("webapp");
 
 const app = new Hono();
 
@@ -60,9 +72,14 @@ app.use("*", async (c, next) => {
 app.use("*", httpLogger());
 
 // Apply rate limits to public webhooks and expensive endpoints
-app.use("/webhook/*", rateLimiter(60));
-app.use("/run", rateLimiter(20));
-app.use("/v1/chat/completions", rateLimiter(20));
+app.use("/webhook/*", rateLimiter(rateLimitWebhook));
+app.use("/run", rateLimiter(rateLimitRun));
+app.use("/v1/chat/completions", rateLimiter(rateLimitChat));
+app.use("/health", rateLimiter(rateLimitHealth));
+app.use("/info", rateLimiter(rateLimitHealth));
+app.use("/dashboard/*", rateLimiter(rateLimitHealth));
+app.use("/metrics", rateLimiter(rateLimitHealth));
+app.use("/metrics/*", rateLimiter(rateLimitHealth));
 app.use(
   "*",
   cors({
