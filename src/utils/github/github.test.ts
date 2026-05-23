@@ -51,7 +51,7 @@ describe("github utils", () => {
     const backend = new FakeSandbox([
       { exitCode: 0, output: "sha\trefs/heads/feat" },
     ]);
-    const { gitRemoteBranchExists } = await import("./github");
+    const { gitRemoteBranchExists } = await import("./index");
     const exists = await gitRemoteBranchExists(
       backend as unknown as SandboxService,
       "/tmp/repo",
@@ -64,7 +64,7 @@ describe("github utils", () => {
     const backend = new FakeSandbox([
       { exitCode: 1, output: "permission denied" },
     ]);
-    const { gitPush } = await import("./github");
+    const { gitPush } = await import("./index");
     await expect(
       gitPush(backend as unknown as SandboxService, "/tmp/repo", "feat"),
     ).rejects.toThrow("Git command failed");
@@ -78,7 +78,7 @@ describe("github utils", () => {
       { exitCode: 0, output: "" }, // git push
       { exitCode: 0, output: "" }, // git remote set-url (restore)
     ]);
-    const { gitPush } = await import("./github");
+    const { gitPush } = await import("./index");
     const result = await gitPush(
       backend as unknown as SandboxService,
       "/tmp/repo",
@@ -91,7 +91,7 @@ describe("github utils", () => {
 });
 
 describe("createGithubPr", () => {
-  let createGithubPr: typeof import("./github").createGithubPr;
+  let createGithubPr: typeof import("./index").createGithubPr;
 
   beforeEach(async () => {
     // Reset mocks
@@ -104,7 +104,7 @@ describe("createGithubPr", () => {
     pullsListMock.mockResolvedValue({ data: [] });
 
     // Import dynamically after mocking
-    const module = await import("./github");
+    const module = await import("./index");
     createGithubPr = module.createGithubPr;
   });
 
@@ -150,7 +150,9 @@ describe("createGithubPr", () => {
 
     expect(result).toEqual(["https://github.com/owner/repo/pull/1", 1, false]);
     expect(pullsCreateMock).toHaveBeenCalledTimes(2);
-    expect((pullsCreateMock.mock.calls[0]![0] as any).head).toBe("headOwner:feature");
+    expect((pullsCreateMock.mock.calls[0]![0] as any).head).toBe(
+      "headOwner:feature",
+    );
     expect((pullsCreateMock.mock.calls[1]![0] as any).head).toBe("feature");
   });
 
@@ -158,7 +160,6 @@ describe("createGithubPr", () => {
     reposGetMock.mockResolvedValue({
       data: {
         default_branch: "main",
-
       },
     });
 
@@ -182,7 +183,13 @@ describe("createGithubPr", () => {
       }
       // Post-422 fallback: return the existing PR
       return Promise.resolve({
-        data: [{ html_url: "https://github.com/owner/repo/pull/2", number: 2, head: { ref: "feature", repo: { full_name: "headOwner/headRepo" } } }],
+        data: [
+          {
+            html_url: "https://github.com/owner/repo/pull/2",
+            number: 2,
+            head: { ref: "feature", repo: { full_name: "headOwner/headRepo" } },
+          },
+        ],
       });
     });
 
@@ -204,7 +211,6 @@ describe("createGithubPr", () => {
     reposGetMock.mockResolvedValue({
       data: {
         default_branch: "main",
-
       },
     });
 
@@ -235,7 +241,13 @@ describe("createGithubPr", () => {
         return Promise.resolve({ data: [] });
       }
       return Promise.resolve({
-        data: [{ html_url: "https://github.com/owner/repo/pull/3", number: 3, head: { ref: "feature", repo: { full_name: "headOwner/headRepo" } } }],
+        data: [
+          {
+            html_url: "https://github.com/owner/repo/pull/3",
+            number: 3,
+            head: { ref: "feature", repo: { full_name: "headOwner/headRepo" } },
+          },
+        ],
       });
     });
 

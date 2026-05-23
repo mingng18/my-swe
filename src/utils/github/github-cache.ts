@@ -41,7 +41,11 @@ class GitHubApiCache {
   /**
    * Set a cached value.
    */
-  set<T>(endpoint: string, data: T, params: Record<string, unknown> = {}): void {
+  set<T>(
+    endpoint: string,
+    data: T,
+    params: Record<string, unknown> = {},
+  ): void {
     this.cache.set(endpoint, data, params);
   }
 
@@ -78,7 +82,7 @@ export async function cachedGithubApiCall<T>(
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
   endpoint: string,
   params: Record<string, unknown>,
-  fn: () => Promise<T>
+  fn: () => Promise<T>,
 ): Promise<T> {
   // Only cache GET requests
   if (method !== "GET") {
@@ -105,10 +109,7 @@ export async function cachedGithubApiCall<T>(
  * Invalidate cache entries for a specific repository.
  * Call this after creating/updating PRs, comments, etc.
  */
-export function invalidateRepoCache(
-  owner: string,
-  repo: string
-): void {
+export function invalidateRepoCache(owner: string, repo: string): void {
   githubApiCache.invalidate(`${owner}/${repo}`);
 }
 
@@ -117,5 +118,7 @@ export function invalidateRepoCache(
  */
 export function invalidatePrCache(owner: string, repo: string): void {
   // Cache keys use JSON.stringify for values: owner="headOwner"&repo="repoName"
-  githubApiCache.invalidate(`pulls.*owner=${JSON.stringify(owner)}.*repo=${JSON.stringify(repo)}`);
+  githubApiCache.invalidate(
+    `pulls.*owner=${JSON.stringify(owner)}.*repo=${JSON.stringify(repo)}`,
+  );
 }
