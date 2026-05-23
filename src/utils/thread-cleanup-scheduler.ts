@@ -137,7 +137,10 @@ export class ThreadCleanupScheduler {
 
     // Run initial cycle
     this.runCycle().catch((error) => {
-      logger.error({ error }, `[thread-cleanup-scheduler] Initial cycle failed`);
+      logger.error(
+        { error },
+        `[thread-cleanup-scheduler] Initial cycle failed`,
+      );
     });
   }
 
@@ -189,20 +192,21 @@ export class ThreadCleanupScheduler {
       }
 
       // Run registered cleanup functions
-      for (const cleanupFn of this.cleanupFns) {
-        try {
-          const cleaned = await cleanupFn(
-            this.metadataStore,
-            this.config.ttlMs,
-          );
-          // Track total cleaned (we don't know which map cleaned what)
-          stats.cleanedAgents += cleaned;
-        } catch (error) {
-          logger.error(
-            { error },
-            `[thread-cleanup-scheduler] Cleanup function failed`,
-          );
-        }
+      const cleanupPromises = this.cleanupFns.map((cleanupFn) => {
+        return cleanupFn(this.metadataStore, this.config.ttlMs).catch(
+          (error) => {
+            logger.error(
+              { error },
+              `[thread-cleanup-scheduler] Cleanup function failed`,
+            );
+            return 0;
+          },
+        );
+      });
+
+      const results = await Promise.all(cleanupPromises);
+      for (const cleaned of results) {
+        stats.cleanedAgents += cleaned;
       }
 
       // Remove expired threads from metadata store

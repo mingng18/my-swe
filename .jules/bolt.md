@@ -23,3 +23,6 @@
 ## 2025-02-24 - Parallelize agent execution in commit-and-open-pr reviewers
 **Learning:** Sequential await loops over independent agent invocations introduce significant latency when calling out to LLMs or remote APIs. In this case, `await agent.invoke()` in a `for...of` loop caused reviewers to wait for the previous one to finish, resulting in an O(N) penalty.
 **Action:** Use `Promise.all` with `.map` to execute independent agent sub-tasks concurrently.
+## 2025-02-25 - Parallelize ThreadCleanupScheduler functions
+**Learning:** Sequential await loops over independent registered cleanup functions in `ThreadCleanupScheduler.runCycle` caused long overall cycle times.
+**Action:** Use `Promise.all` with `.map` to execute independent background cleanup functions concurrently.
