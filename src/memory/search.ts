@@ -47,7 +47,7 @@ export class SearchService {
     } else {
       // Fallback for older repository implementations
       for (const threadId of threadIds) {
-        const memories = await this.repository.getByThread(
+        const memories = await this.repository.getByThreadId(
           threadId,
           options.types,
         );
