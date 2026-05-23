@@ -11,7 +11,8 @@ const logger = console;
 
 const GITHUB_APP_ID = process.env.GITHUB_APP_ID?.trim() ?? "";
 const GITHUB_APP_PRIVATE_KEY = process.env.GITHUB_APP_PRIVATE_KEY?.trim() ?? "";
-const GITHUB_APP_INSTALLATION_ID = process.env.GITHUB_APP_INSTALLATION_ID?.trim() ?? "";
+const GITHUB_APP_INSTALLATION_ID =
+  process.env.GITHUB_APP_INSTALLATION_ID?.trim() ?? "";
 
 interface InstallationTokenResponse {
   token: string;
@@ -80,8 +81,14 @@ function generateAppJwt(): string {
  * @returns Installation access token string, or null if unavailable
  */
 export async function getGithubAppInstallationToken(): Promise<string | null> {
-  if (!GITHUB_APP_ID || !GITHUB_APP_PRIVATE_KEY || !GITHUB_APP_INSTALLATION_ID) {
-    logger.debug("[github_app] GitHub App env vars not fully configured, skipping app token");
+  if (
+    !GITHUB_APP_ID ||
+    !GITHUB_APP_PRIVATE_KEY ||
+    !GITHUB_APP_INSTALLATION_ID
+  ) {
+    logger.debug(
+      "[github_app] GitHub App env vars not fully configured, skipping app token",
+    );
     return null;
   }
 
@@ -102,14 +109,20 @@ export async function getGithubAppInstallationToken(): Promise<string | null> {
 
     if (!response.ok) {
       const errorData = (await response.json()) as GitHubErrorResponse;
-      logger.error(`[github_app] Failed to get installation token: ${response.status}`, errorData);
+      logger.error(
+        `[github_app] Failed to get installation token: ${response.status}`,
+        errorData,
+      );
       return null;
     }
 
     const data = (await response.json()) as InstallationTokenResponse;
     return data.token;
   } catch (error) {
-    logger.error("[github_app] Failed to get GitHub App installation token:", error);
+    logger.error(
+      "[github_app] Failed to get GitHub App installation token:",
+      error,
+    );
     return null;
   }
 }

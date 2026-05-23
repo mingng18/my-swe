@@ -2,7 +2,7 @@ import { tool } from "@langchain/core/tools";
 import { threadRepoMap } from "../harness/thread-manager";
 import { z } from "zod";
 import { getSandboxBackendSync } from "../utils/sandboxState";
-import { runGit } from "../utils/github/github";
+import { runGit } from "../utils/github/index";
 import { getReviewersForFiles } from "../subagents/reviewerMapping";
 import {
   parseReviewerOutput,

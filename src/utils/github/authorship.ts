@@ -47,18 +47,22 @@ export function resolveTriggeringUserIdentity(
 
   // Try to resolve from explicit metadata fields
   const identity: UserIdentity = {
-    githubUsername: getStringField(metadata, "github_username") ||
-                    getStringField(metadata, "github_user") ||
-                    getStringField(metadata, "githubUsername"),
-    telegramUsername: getStringField(metadata, "telegram_username") ||
-                     getStringField(metadata, "telegram_user") ||
-                     getStringField(metadata, "telegramUsername"),
-    linearUsername: getStringField(metadata, "linear_username") ||
-                   getStringField(metadata, "linear_user") ||
-                   getStringField(metadata, "linearUsername"),
-    name: getStringField(metadata, "user_name") ||
-          getStringField(metadata, "userName") ||
-          getStringField(metadata, "name"),
+    githubUsername:
+      getStringField(metadata, "github_username") ||
+      getStringField(metadata, "github_user") ||
+      getStringField(metadata, "githubUsername"),
+    telegramUsername:
+      getStringField(metadata, "telegram_username") ||
+      getStringField(metadata, "telegram_user") ||
+      getStringField(metadata, "telegramUsername"),
+    linearUsername:
+      getStringField(metadata, "linear_username") ||
+      getStringField(metadata, "linear_user") ||
+      getStringField(metadata, "linearUsername"),
+    name:
+      getStringField(metadata, "user_name") ||
+      getStringField(metadata, "userName") ||
+      getStringField(metadata, "name"),
   };
 
   // Try to resolve email from known mappings
@@ -157,7 +161,9 @@ function getStringField(
   fieldName: string,
 ): string | undefined {
   const value = metadata[fieldName];
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+  return typeof value === "string" && value.trim().length > 0
+    ? value.trim()
+    : undefined;
 }
 
 export { OPEN_SWE_BOT_NAME, OPEN_SWE_BOT_EMAIL };
