@@ -48,7 +48,7 @@ const activeThreads = new Set<string>();
  * Generate a deterministic thread ID from a Telegram chat ID.
  */
 function generateThreadId(chatId: number): string {
-  return createHash("md5")
+  return createHash("sha256")
     .update(chatId.toString())
     .digest("hex")
     .substring(0, 16);
@@ -183,7 +183,10 @@ app.use(
       if (process.env.NODE_ENV === "production") {
         return allowedOrigin && origin === allowedOrigin ? origin : "";
       }
-      if (!origin || /^http:\/\/(localhost|127\.0\.0\.1):(3000|3001)$/.test(origin)) {
+      if (
+        !origin ||
+        /^http:\/\/(localhost|127\.0\.0\.1):(3000|3001)$/.test(origin)
+      ) {
         return origin;
       }
       return allowedOrigin && origin === allowedOrigin ? origin : "";
@@ -197,7 +200,12 @@ app.use(
 app.use(async (c, next) => {
   const path = c.req.path;
   // Skip auth for public endpoints like webhooks, health checks, and stream
-  if (path.startsWith("/webhook/") || path === "/health" || path === "/info" || path === "/stream") {
+  if (
+    path.startsWith("/webhook/") ||
+    path === "/health" ||
+    path === "/info" ||
+    path === "/stream"
+  ) {
     return next();
   }
   const secret = process.env.API_SECRET_KEY;
@@ -690,8 +698,10 @@ app.post("/webhook/github", async (c) => {
  */
 app.get("/metrics/thread/:threadId", async (c) => {
   const { threadId } = c.req.param();
-  const { getThreadMetrics } = await import("./utils/telemetry");
-  const { getTokenUsage } = await import("./utils/token-tracker");
+  const [{ getThreadMetrics }, { getTokenUsage }] = await Promise.all([
+    import("./utils/telemetry"),
+    import("./utils/token-tracker"),
+  ]);
 
   try {
     const telemetryMetrics = getThreadMetrics(threadId);
@@ -725,9 +735,11 @@ app.get("/metrics/thread/:threadId", async (c) => {
  * GET /metrics
  */
 app.get("/metrics", async (c) => {
-  const { getTelemetryStatus } = await import("./utils/telemetry");
-  const { getTokenStats, getAllThreadUsage } =
-    await import("./utils/token-tracker");
+  const [{ getTelemetryStatus }, { getTokenStats, getAllThreadUsage }] =
+    await Promise.all([
+      import("./utils/telemetry"),
+      import("./utils/token-tracker"),
+    ]);
 
   try {
     const telemetryStatus = getTelemetryStatus();
@@ -782,10 +794,10 @@ app.get("/stream", async (c) => {
     headers: {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
-      "Connection": "keep-alive",
+      Connection: "keep-alive",
       "X-Accel-Buffering": "no", // Disable nginx buffering
       "Access-Control-Allow-Origin": c.req.header("Origin") || "*",
-      "Vary": "Origin",
+      Vary: "Origin",
     },
   });
 });

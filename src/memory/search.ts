@@ -12,6 +12,7 @@ export class SearchService {
     private repository: MemoryRepository,
     private embeddingService: {
       generateEmbedding(text: string): Promise<number[]>;
+      generateEmbeddingsBatch?(texts: string[]): Promise<number[][]>;
       cosineSimilarity(a: number[], b: number[]): number;
     },
   ) {}
@@ -130,33 +131,73 @@ export class SearchService {
     memories: Memory[],
   ): Promise<MemorySearchResult[]> {
     try {
-      // Generate embedding for query
-      const queryEmbedding =
-        await this.embeddingService.generateEmbedding(query);
+      // Find memories that need embeddings
+      const memoriesToUpdate = memories.filter(
+        (m) => !m.embedding || m.embedding.length === 0
+      );
+
+      // Generate missing embeddings in parallel
+      const updateMemoriesPromise = (async () => {
+        if (memoriesToUpdate.length > 0) {
+          try {
+            if (this.embeddingService.generateEmbeddingsBatch) {
+              const texts = memoriesToUpdate.map((m) => `${m.title}. ${m.content}`);
+              const embeddings = await this.embeddingService.generateEmbeddingsBatch(texts);
+
+              await Promise.all(
+                memoriesToUpdate.map(async (memory, index) => {
+                  memory.embedding = embeddings[index];
+                  try {
+                    await this.repository.update(memory.id!, {
+                      embedding: memory.embedding,
+                    });
+                  } catch (error) {
+                    logger.warn(
+                      { memoryId: memory.id, error },
+                      "Failed to save generated embedding to repository"
+                    );
+                  }
+                })
+              );
+            } else {
+              await Promise.all(
+                memoriesToUpdate.map(async (memory) => {
+                  try {
+                    const text = `${memory.title}. ${memory.content}`;
+                    memory.embedding = await this.embeddingService.generateEmbedding(text);
+                    await this.repository.update(memory.id!, {
+                      embedding: memory.embedding,
+                    });
+                  } catch (error) {
+                    logger.warn(
+                      { memoryId: memory.id, error },
+                      "Failed to generate embedding for memory"
+                    );
+                  }
+                })
+              );
+            }
+          } catch (error) {
+            logger.error({ error }, "Failed to batch generate embeddings");
+          }
+        }
+      })();
+
+      // Start fetching query embedding
+      const queryEmbeddingPromise = this.embeddingService.generateEmbedding(query);
+
+      // Wait for both concurrent operations
+      const [queryEmbedding] = await Promise.all([
+        queryEmbeddingPromise,
+        updateMemoriesPromise,
+      ]);
 
       // Calculate similarity for each memory
       const results: MemorySearchResult[] = [];
 
       for (const memory of memories) {
-        // Skip memories without embeddings
-        if (!memory.embedding || memory.embedding.length === 0) {
-          // Generate embedding on-the-fly if not available
-          try {
-            const text = `${memory.title}. ${memory.content}`;
-            memory.embedding =
-              await this.embeddingService.generateEmbedding(text);
-            // Save the embedding back to the repository
-            await this.repository.update(memory.id!, {
-              embedding: memory.embedding,
-            });
-          } catch (error) {
-            logger.warn(
-              { memoryId: memory.id },
-              "Failed to generate embedding for memory",
-            );
-            continue;
-          }
-        }
+        // Skip if still no embedding (e.g., generation failed)
+        if (!memory.embedding || memory.embedding.length === 0) continue;
 
         const similarity = this.embeddingService.cosineSimilarity(
           queryEmbedding,

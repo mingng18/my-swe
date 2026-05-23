@@ -16,6 +16,25 @@ export type SandboxProfile =
   | "java"
   | "polyglot";
 
+export function normalizeProfile(profile?: string): SandboxProfile {
+  const p = (profile || "").trim().toLowerCase();
+  if (
+    p === "typescript" ||
+    p === "javascript" ||
+    p === "python" ||
+    p === "java" ||
+    p === "polyglot"
+  ) {
+    return p as SandboxProfile;
+  }
+  return "typescript";
+}
+
+export function getSandboxProfileFromEnv(): SandboxProfile {
+  return normalizeProfile(process.env.SANDBOX_PROFILE);
+}
+
+
 export type PoolStatus = "idle" | "busy";
 
 export const BULLHORSE_LABELS = {

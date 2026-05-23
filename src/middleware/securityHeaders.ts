@@ -70,12 +70,18 @@ interface SecurityHeadersOptions {
    * Default: restrictive policy
    */
   permissionsPolicy?: string;
+
+  /**
+   * Cross-Origin-Resource-Policy header
+   * Default: same-origin
+   */
+  crossOriginResourcePolicy?: "same-site" | "same-origin" | "cross-origin";
 }
 
 const DEFAULT_CSP =
   "default-src 'self'; " +
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
-  "style-src 'self' 'unsafe-inline'; " +
+  "script-src 'self'; " +
+  "style-src 'self'; " +
   "img-src 'self' data: https:; " +
   "font-src 'self'; " +
   "connect-src 'self'; " +
@@ -106,6 +112,7 @@ export function securityHeaders(options: SecurityHeadersOptions = {}): Middlewar
     frameOptions = "DENY",
     referrerPolicy = "strict-origin-when-cross-origin",
     permissionsPolicy = DEFAULT_PERMISSIONS_POLICY,
+    crossOriginResourcePolicy = "same-origin",
   } = options;
 
   return async (c, next) => {
@@ -116,6 +123,7 @@ export function securityHeaders(options: SecurityHeadersOptions = {}): Middlewar
     c.res.headers.set("Content-Security-Policy", contentSecurityPolicy);
     c.res.headers.set("Referrer-Policy", referrerPolicy);
     c.res.headers.set("Permissions-Policy", permissionsPolicy);
+    c.res.headers.set("Cross-Origin-Resource-Policy", crossOriginResourcePolicy);
 
     // HSTS only for HTTPS
     if (hsts && c.req.header("x-forwarded-proto") === "https") {
@@ -136,9 +144,9 @@ export function securityHeaders(options: SecurityHeadersOptions = {}): Middlewar
 export function devSecurityHeaders(): MiddlewareHandler {
   return securityHeaders({
     contentSecurityPolicy:
-      "default-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; " +
-      "style-src 'self' 'unsafe-inline'; " +
+      "default-src 'self'; " +
+      "script-src 'self' blob:; " +
+      "style-src 'self'; " +
       "img-src 'self' data: https: http:; " +
       "connect-src 'self' ws: wss:; " +
       "frame-ancestors 'self';",
@@ -172,10 +180,8 @@ export function apiSecurityHeaders(): MiddlewareHandler {
     c.res.headers.set("X-Frame-Options", "DENY");
     c.res.headers.set("X-XSS-Protection", "1; mode=block");
     c.res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+    c.res.headers.set("Cross-Origin-Resource-Policy", "same-origin");
     c.res.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
-
-    // API-specific headers
-    c.res.headers.set("X-Content-Type-Options", "nosniff");
     c.res.headers.delete("X-Powered-By");
 
     await next();

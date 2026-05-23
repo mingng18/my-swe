@@ -13,16 +13,20 @@ import {
   randomBytes,
 } from "node:crypto";
 
-const logger = console;
+import { createLogger } from "../logger";
+
+const logger = createLogger("github-token");
 
 const GITHUB_TOKEN_METADATA_KEY = "github_token_encrypted";
 const TOKEN_KEY_ENV = "GITHUB_TOKEN_ENCRYPTION_KEY";
 const IV_LENGTH = 12;
+const SALT_LENGTH = 16;
+const V2_PREFIX = "v2:";
 
-function getEncryptionKey(): Buffer | null {
+function getEncryptionKey(salt: Buffer | string = "bullhorse-token-salt"): Buffer | null {
   const raw = process.env[TOKEN_KEY_ENV]?.trim();
   if (!raw) return null;
-  return scryptSync(raw, "bullhorse-token-salt", 32);
+  return scryptSync(raw, salt, 32);
 }
 
 /**
@@ -51,6 +55,25 @@ function decryptGithubToken(encryptedToken: string | null): string | null {
   }
 
   try {
+    if (encryptedToken.startsWith(V2_PREFIX)) {
+      const payload = Buffer.from(encryptedToken.slice(V2_PREFIX.length), "base64");
+      const salt = payload.subarray(0, SALT_LENGTH);
+      const iv = payload.subarray(SALT_LENGTH, SALT_LENGTH + IV_LENGTH);
+      const authTag = payload.subarray(SALT_LENGTH + IV_LENGTH, SALT_LENGTH + IV_LENGTH + 16);
+      const ciphertext = payload.subarray(SALT_LENGTH + IV_LENGTH + 16);
+
+      const key = getEncryptionKey(salt);
+      if (!key) {
+        logger.warn(
+          `[github_token] ${TOKEN_KEY_ENV} is not set; refusing to decrypt thread metadata token`,
+        );
+        return null;
+      }
+      const decipher = createDecipheriv("aes-256-gcm", key, iv);
+      decipher.setAuthTag(authTag);
+      return decipher.update(ciphertext, undefined, "utf8") + decipher.final("utf8");
+    }
+
     const key = getEncryptionKey();
     if (!key) {
       logger.warn(
@@ -68,7 +91,7 @@ function decryptGithubToken(encryptedToken: string | null): string | null {
       decipher.update(ciphertext, undefined, "utf8") + decipher.final("utf8")
     );
   } catch (error) {
-    logger.error("[github_token] Failed to decrypt GitHub token:", error);
+    logger.error({ error }, "[github_token] Failed to decrypt GitHub token:");
     return null;
   }
 }
@@ -94,8 +117,8 @@ export function getGithubToken(): string | null {
     return token ?? null;
   } catch (error) {
     logger.error(
+      { error },
       "[github_token] Failed to get GitHub token from config:",
-      error,
     );
     return null;
   }
@@ -135,8 +158,8 @@ export async function getGithubTokenFromThread(
       );
     } else {
       logger.error(
+        { error },
         `[github_token] Failed to fetch thread metadata for ${threadId}:`,
-        error,
       );
     }
     return [null, null];
@@ -165,8 +188,8 @@ export async function setGithubTokenInThread(
     return true;
   } catch (error) {
     logger.error(
+      { error },
       `[github_token] Failed to set GitHub token in thread ${threadId}:`,
-      error,
     );
     return false;
   }
@@ -183,7 +206,8 @@ export async function storeGithubTokenInThread(
   token: string,
 ): Promise<boolean> {
   try {
-    const key = getEncryptionKey();
+    const salt = randomBytes(SALT_LENGTH);
+    const key = getEncryptionKey(salt);
     if (!key) {
       logger.error(
         `[github_token] ${TOKEN_KEY_ENV} is required to store GitHub token in thread metadata`,
@@ -197,15 +221,15 @@ export async function storeGithubTokenInThread(
       cipher.final(),
     ]);
     const authTag = cipher.getAuthTag();
-    const encryptedToken = Buffer.concat([iv, authTag, ciphertext]).toString(
+    const encryptedToken = V2_PREFIX + Buffer.concat([salt, iv, authTag, ciphertext]).toString(
       "base64",
     );
 
     return await setGithubTokenInThread(threadId, encryptedToken);
   } catch (error) {
     logger.error(
+      { error },
       `[github_token] Failed to encrypt and store GitHub token:`,
-      error,
     );
     return false;
   }

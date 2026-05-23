@@ -1,6 +1,7 @@
 import { randomUUID, createHash } from "node:crypto";
 import { Agent, fetch as undiciFetch } from "undici";
 import { createLogger } from "../utils/logger";
+import { type SandboxProfile, getSandboxProfileFromEnv } from "../integrations/daytona-pool";
 
 const logger = createLogger("repo-memory");
 
@@ -18,12 +19,6 @@ async function supabaseFetch(url: string | URL, init: RequestInit) {
   } as any);
 }
 
-type SandboxProfile =
-  | "typescript"
-  | "javascript"
-  | "python"
-  | "java"
-  | "polyglot";
 
 export interface RepoMemoryTurnResult {
   threadId: string;
@@ -52,19 +47,6 @@ export interface RepoMemoryTurnResult {
   };
 }
 
-function getSandboxProfileFromEnv(): SandboxProfile {
-  const p = (process.env.SANDBOX_PROFILE || "typescript").trim().toLowerCase();
-  if (
-    p === "typescript" ||
-    p === "javascript" ||
-    p === "python" ||
-    p === "java" ||
-    p === "polyglot"
-  ) {
-    return p;
-  }
-  return "typescript";
-}
 
 function extractRepoFromInput(
   input: string,

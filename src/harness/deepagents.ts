@@ -53,6 +53,7 @@ import {
   acquireRepoSandbox,
   releaseRepoSandbox,
   type SandboxProfile,
+  getSandboxProfileFromEnv,
 } from "../integrations/daytona-pool";
 import {
   loadPersistedThreadRepos,
@@ -572,19 +573,6 @@ function extractRepoFromInput(
 // if the user doesn't re-type `--repo foo/bar`.
 
 
-function getSandboxProfileFromEnv(): SandboxProfile {
-  const p = (process.env.SANDBOX_PROFILE || "typescript").trim().toLowerCase();
-  if (
-    p === "typescript" ||
-    p === "javascript" ||
-    p === "python" ||
-    p === "java" ||
-    p === "polyglot"
-  ) {
-    return p;
-  }
-  return "typescript";
-}
 
 async function acquireDaytonaSandboxForThreadRepo(args: {
   threadId: string;

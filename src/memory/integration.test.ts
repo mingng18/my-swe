@@ -19,15 +19,15 @@ class MockSupabaseClient {
 
   async fetch(url: string, options?: RequestInit): Promise<Response> {
     const method = options?.method || "GET";
+    const urlObj = new URL(url);
 
     if (method === "GET") {
-      // Parse URL to extract filter parameters
-      const urlObj = new URL(url);
-      const threadId = urlObj.searchParams.get("thread_id");
-      const id = urlObj.searchParams.get("id");
+      const idParam = urlObj.searchParams.get("id");
+      const threadParam = urlObj.searchParams.get("thread_id");
 
-      if (id) {
-        // Get by ID
+      if (idParam) {
+        // PostgREST: id=eq.<value>
+        const id = idParam.startsWith("eq.") ? idParam.slice(3) : idParam;
         const memory = this.memories.get(id);
         return new Response(JSON.stringify(memory ? [memory] : []), {
           status: 200,
@@ -35,11 +35,40 @@ class MockSupabaseClient {
         });
       }
 
-      if (threadId) {
-        // Get by thread ID
-        const memories = Array.from(this.memories.values()).filter(
-          (m) => m.thread_id === threadId,
+      if (threadParam) {
+        let threadIds: string[];
+        if (threadParam.startsWith("in.(")) {
+          // PostgREST: thread_id=in.(val1,val2)
+          threadIds = threadParam.slice(4, -1).split(",");
+        } else if (threadParam.startsWith("eq.")) {
+          // PostgREST: thread_id=eq.<value>
+          threadIds = [threadParam.slice(3)];
+        } else {
+          threadIds = [threadParam];
+        }
+
+        let memories = Array.from(this.memories.values()).filter(
+          (m) => threadIds.includes(m.thread_id),
         );
+
+        // Handle PostgREST type filter: or=(type.eq.user,type.eq.project,...)
+        const orParam = urlObj.searchParams.get("or");
+        if (orParam) {
+          const match = orParam.match(/^\((.+)\)$/);
+          if (match) {
+            const allowedTypes = match[1]
+              .split(",")
+              .map((f: string) => {
+                const typeMatch = f.match(/^type\.eq\.(.+)$/);
+                return typeMatch ? typeMatch[1] : null;
+              })
+              .filter(Boolean) as string[];
+            if (allowedTypes.length > 0) {
+              memories = memories.filter((m) => allowedTypes.includes(m.type));
+            }
+          }
+        }
+
         return new Response(JSON.stringify(memories), {
           status: 200,
           headers: { "Content-Type": "application/json" },
@@ -72,11 +101,11 @@ class MockSupabaseClient {
 
     if (method === "PATCH") {
       // Update
-      const urlObj = new URL(url);
-      const id = urlObj.searchParams.get("id");
+      const idParam = urlObj.searchParams.get("id");
       const updates = JSON.parse(options?.body as string);
 
-      if (id) {
+      if (idParam) {
+        const id = idParam.startsWith("eq.") ? idParam.slice(3) : idParam;
         const existing = this.memories.get(id);
         if (existing) {
           Object.assign(existing, updates);
@@ -91,12 +120,14 @@ class MockSupabaseClient {
     }
 
     if (method === "DELETE") {
-      const urlObj = new URL(url);
-      const id = urlObj.searchParams.get("id");
+      const idParam = urlObj.searchParams.get("id");
 
-      if (id && this.memories.has(id)) {
-        this.memories.delete(id);
-        return new Response(null, { status: 204 });
+      if (idParam) {
+        const id = idParam.startsWith("eq.") ? idParam.slice(3) : idParam;
+        if (this.memories.has(id)) {
+          this.memories.delete(id);
+          return new Response(null, { status: 204 });
+        }
       }
 
       return new Response(null, { status: 404 });
@@ -122,7 +153,7 @@ describe("Memory System Integration", () => {
   let searchService: SearchService;
   let consolidationService: ConsolidationService;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     // Setup mock environment
     process.env.SUPABASE_URL = "https://test.supabase.co";
     process.env.SUPABASE_SERVICE_ROLE_KEY = "test-key";
@@ -132,6 +163,11 @@ describe("Memory System Integration", () => {
     repository = new MemoryRepository(mockClient as any);
     extractor = new MemoryExtractor();
     embeddingService = new EmbeddingService();
+
+    // Mock the embedding service to not call the real API
+    embeddingService.generateEmbedding = async () => {
+      return Array(1536).fill(0.1);
+    };
     searchService = new SearchService(repository, {
       generateEmbedding: (text: string) =>
         embeddingService.generateEmbedding(text),
@@ -155,6 +191,10 @@ describe("Memory System Integration", () => {
 
   describe("Full Memory Flow", () => {
     it("should extract, embed, save, and search memories", async () => {
+      expect(extractor).toBeDefined();
+      expect(repository).toBeDefined();
+      expect(typeof extractor.extractFromTurn).toBe("function");
+
       const threadId = "test-thread-1";
 
       // Step 1: Extract memories from a turn

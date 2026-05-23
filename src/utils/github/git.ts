@@ -3,6 +3,7 @@
  */
 
 import { SandboxService } from "../../integrations/sandbox-service";
+import { randomUUID } from "node:crypto";
 import { shellEscapeSingleQuotes } from "../shell";
 
 const logger = console;
@@ -354,7 +355,7 @@ export async function gitPush(
     throw new Error("Could not get git remote URL");
   }
 
-  const credPath = `/tmp/git-creds-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  const credPath = `/tmp/git-creds-${randomUUID()}`;
 
   try {
     // Use credential store file instead of embedding token in remote URL

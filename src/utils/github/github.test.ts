@@ -265,3 +265,70 @@ describe("createGithubPr", () => {
     expect(pullsListMock).toHaveBeenCalledTimes(4); // 2 pre-check + 2 post-422 fallback
   });
 });
+
+
+describe("github token encryption (v2)", () => {
+  let oldEnv: string | undefined;
+
+  beforeEach(() => {
+    oldEnv = process.env.GITHUB_TOKEN_ENCRYPTION_KEY;
+    process.env.GITHUB_TOKEN_ENCRYPTION_KEY = "test-secret-key-123";
+  });
+
+  afterEach(() => {
+    if (oldEnv !== undefined) {
+      process.env.GITHUB_TOKEN_ENCRYPTION_KEY = oldEnv;
+    } else {
+      delete process.env.GITHUB_TOKEN_ENCRYPTION_KEY;
+    }
+  });
+
+  test("should decrypt legacy v1 tokens and create random v2 tokens", async () => {
+    const { storeGithubTokenInThread, getGithubTokenFromThread } = await import("./github-token");
+    const { Client } = await import("@langchain/langgraph-sdk");
+
+    // Generate a legacy token
+    const { createCipheriv, scryptSync, randomBytes } = await import("node:crypto");
+    const key = scryptSync("test-secret-key-123", "bullhorse-token-salt", 32);
+    const iv = randomBytes(12);
+    const cipher = createCipheriv("aes-256-gcm", key, iv);
+    const legacyToken = "my-legacy-token";
+    const ciphertext = Buffer.concat([cipher.update(legacyToken, "utf8"), cipher.final()]);
+    const authTag = cipher.getAuthTag();
+    const encryptedLegacyToken = Buffer.concat([iv, authTag, ciphertext]).toString("base64");
+
+    // Mock Client threads.get and threads.update
+    let currentMetadata: any = {
+       github_token_encrypted: encryptedLegacyToken
+    };
+
+    const mockClient = {
+      threads: {
+        get: mock(() => Promise.resolve({ metadata: currentMetadata })),
+        update: mock(async (threadId: string, data: any) => {
+           currentMetadata = { ...currentMetadata, ...data.metadata };
+        }),
+      }
+    };
+
+    // Override the import
+    mock.module("@langchain/langgraph-sdk", () => ({
+      Client: mock(() => mockClient)
+    }));
+
+    // 1. Decrypt legacy token
+    const [token, encrypted] = await getGithubTokenFromThread("thread-1");
+    expect(token).toBe("my-legacy-token");
+    expect(encrypted).toBe(encryptedLegacyToken);
+
+    // 2. Encrypt a new token and store it
+    await storeGithubTokenInThread("thread-1", "my-new-token-v2");
+
+    expect(currentMetadata.github_token_encrypted).toStartWith("v2:");
+
+    // 3. Decrypt the new v2 token
+    const [newToken, newEncrypted] = await getGithubTokenFromThread("thread-1");
+    expect(newToken).toBe("my-new-token-v2");
+    expect(newEncrypted).toStartWith("v2:");
+  });
+});

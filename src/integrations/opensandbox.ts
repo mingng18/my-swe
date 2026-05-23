@@ -388,41 +388,43 @@ export class OpenSandboxBackend extends BaseSandboxBackend {
         "[opensandbox] Batch upload failed, falling back to sequential",
       );
 
-      // Fallback: sequential upload for granular error reporting
-      for (const [path, data] of files) {
-        try {
-          // Create directory if needed
-          const dirPath = path.substring(0, path.lastIndexOf("/"));
-          if (dirPath) {
-            await this.sandbox!.files.createDirectories([
-              { path: dirPath, mode: 755 },
+      // Fallback: concurrent upload for granular error reporting
+      const fallbackResults = await Promise.all(
+        files.map(async ([path, data]) => {
+          try {
+            // Create directory if needed
+            const dirPath = path.substring(0, path.lastIndexOf("/"));
+            if (dirPath) {
+              await this.sandbox!.files.createDirectories([
+                { path: dirPath, mode: 755 },
+              ]);
+            }
+
+            // Convert Uint8Array to string
+            const content = new TextDecoder().decode(data);
+            await this.sandbox!.files.writeFiles([
+              { path, data: content, mode: 644 },
             ]);
+
+            return { path, error: null as null };
+          } catch (err) {
+            // Map to FileOperationError
+            const error:
+              | "file_not_found"
+              | "permission_denied"
+              | "is_directory"
+              | "invalid_path" =
+              err instanceof Error && err.message.includes("not found")
+                ? "file_not_found"
+                : err instanceof Error && err.message.includes("permission")
+                  ? "permission_denied"
+                  : "invalid_path";
+            return { path, error };
           }
+        })
+      );
 
-          // Convert Uint8Array to string
-          const content = new TextDecoder().decode(data);
-          await this.sandbox!.files.writeFiles([
-            { path, data: content, mode: 644 },
-          ]);
-
-          results.push({ path, error: null });
-        } catch (err) {
-          // Map to FileOperationError
-          const error:
-            | "file_not_found"
-            | "permission_denied"
-            | "is_directory"
-            | "invalid_path" =
-            err instanceof Error && err.message.includes("not found")
-              ? "file_not_found"
-              : err instanceof Error && err.message.includes("permission")
-                ? "permission_denied"
-                : "invalid_path";
-          results.push({ path, error });
-        }
-      }
-
-      return results;
+      return fallbackResults;
     }
   }
 
