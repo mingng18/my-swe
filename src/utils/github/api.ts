@@ -553,3 +553,71 @@ export async function createGithubIssue(
     );
   }
 }
+
+export async function closeGithubIssue(
+  repoOwner: string,
+  repoName: string,
+  githubToken: string,
+  issueNumber: number,
+): Promise<{ url: string | null; number: number | null; state: string }> {
+  const octokit = new Octokit({ auth: githubToken });
+
+  logger.info(
+    { repo: `${repoOwner}/${repoName}`, issueNumber },
+    "[github] Closing issue",
+  );
+
+  const { data: issue } = await octokit.rest.issues.update({
+    owner: repoOwner,
+    repo: repoName,
+    issue_number: issueNumber,
+    state: "closed",
+  });
+
+  invalidateRepoCache(repoOwner, repoName);
+
+  logger.info(
+    { issueUrl: issue.html_url, issueNumber: issue.number, state: issue.state },
+    "[github] Issue closed successfully",
+  );
+
+  return {
+    url: issue.html_url ?? null,
+    number: issue.number ?? null,
+    state: issue.state,
+  };
+}
+
+export async function reopenGithubIssue(
+  repoOwner: string,
+  repoName: string,
+  githubToken: string,
+  issueNumber: number,
+): Promise<{ url: string | null; number: number | null; state: string }> {
+  const octokit = new Octokit({ auth: githubToken });
+
+  logger.info(
+    { repo: `${repoOwner}/${repoName}`, issueNumber },
+    "[github] Reopening issue",
+  );
+
+  const { data: issue } = await octokit.rest.issues.update({
+    owner: repoOwner,
+    repo: repoName,
+    issue_number: issueNumber,
+    state: "open",
+  });
+
+  invalidateRepoCache(repoOwner, repoName);
+
+  logger.info(
+    { issueUrl: issue.html_url, issueNumber: issue.number, state: issue.state },
+    "[github] Issue reopened successfully",
+  );
+
+  return {
+    url: issue.html_url ?? null,
+    number: issue.number ?? null,
+    state: issue.state,
+  };
+}

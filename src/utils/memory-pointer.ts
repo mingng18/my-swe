@@ -12,7 +12,7 @@ const MEMORY_POINTER_TTL_HOURS = Number.parseInt(
   10,
 );
 const MEMORY_POINTER_DIR = process.env.MEMORY_POINTER_DIR || ".memory-pointers";
-const MAX_POINTER_SIZE_TOKENS = Number.parseInt(
+export const MAX_POINTER_SIZE_TOKENS = Number.parseInt(
   process.env.MAX_POINTER_SIZE_TOKENS || "5000",
   10,
 );
@@ -68,6 +68,7 @@ export interface UpdateOptions {
   content?: string;
   metadata?: Record<string, unknown>;
   type?: string;
+  mode?: "replace" | "append" | "prepend";
 }
 
 /**
@@ -325,7 +326,19 @@ export async function updateArtifact(
 
     // Update content if provided
     if (options.content !== undefined) {
-      artifact.content = options.content;
+      const mode = options.mode ?? "replace";
+      switch (mode) {
+        case "append":
+          artifact.content = artifact.content + "\n" + options.content;
+          break;
+        case "prepend":
+          artifact.content = options.content + "\n" + artifact.content;
+          break;
+        case "replace":
+        default:
+          artifact.content = options.content;
+          break;
+      }
     }
 
     // Merge metadata if provided

@@ -558,6 +558,9 @@ export const sandboxGrepTool = tool(
       lineNumbers,
       contextLines,
       maxMatches,
+      include,
+      exclude,
+      maxFileSize,
     }: {
       pattern: string;
       path?: string;
@@ -566,6 +569,9 @@ export const sandboxGrepTool = tool(
       lineNumbers?: boolean;
       contextLines?: number;
       maxMatches?: number;
+      include?: string;
+      exclude?: string;
+      maxFileSize?: number;
     },
     config,
   ) => {
@@ -578,12 +584,11 @@ export const sandboxGrepTool = tool(
 
     const searchPath = path || "/workspace";
     logger.debug(
-      { path: searchPath, pattern, caseInsensitive, recursive },
+      { path: searchPath, pattern, caseInsensitive, recursive, include, exclude },
       "[sandbox-grep] Searching content",
     );
 
     try {
-      // Build grep flags
       const flags: string[] = [];
 
       if (caseInsensitive) {
@@ -599,20 +604,42 @@ export const sandboxGrepTool = tool(
       }
 
       if (contextLines !== undefined) {
-        flags.push(`-C ${contextLines}`);
+        flags.push(`-C ${Math.max(0, Math.floor(contextLines))}`);
       }
 
       if (maxMatches !== undefined) {
-        flags.push(`-m ${maxMatches}`);
+        flags.push(`-m ${Math.max(1, Math.floor(maxMatches))}`);
       }
 
-      const flagsStr = flags.length > 0 ? flags.join(" ") : "";
-      const result = await backend.execute(
-        `grep ${flagsStr} ${shellEscapeSingleQuotes(pattern)} ${shellEscapeSingleQuotes(searchPath)}`,
-      );
+      if (include) {
+        flags.push(`--include=${shellEscapeSingleQuotes(include)}`);
+      }
+
+      if (exclude) {
+        flags.push(`--exclude=${shellEscapeSingleQuotes(exclude)}`);
+      }
+
+      // Always skip binary files
+      flags.push("--binary-files=without-match");
+
+      const flagsStr = flags.join(" ");
+
+      let result;
+      const effectiveMaxSize = maxFileSize ?? 1048576; // 1MB default
+
+      if (effectiveMaxSize > 0) {
+        // Use find to pre-filter by size, then pipe to grep
+        const findCmd = `find ${shellEscapeSingleQuotes(searchPath)} -type f -size -${effectiveMaxSize}c`;
+        result = await backend.execute(
+          `${findCmd} | xargs -r grep ${flagsStr} ${shellEscapeSingleQuotes(pattern)}`,
+        );
+      } else {
+        result = await backend.execute(
+          `grep ${flagsStr} ${shellEscapeSingleQuotes(pattern)} ${shellEscapeSingleQuotes(searchPath)}`,
+        );
+      }
 
       if (result.exitCode !== 0 && result.exitCode !== 1) {
-        // Exit code 1 means no matches found, which is not an error
         return {
           path: searchPath,
           pattern,
@@ -643,7 +670,8 @@ export const sandboxGrepTool = tool(
     description:
       "Search for text patterns within files in the sandbox. " +
       "Similar to the Unix 'grep' command. " +
-      "Useful for finding specific content, function definitions, or text patterns in code.",
+      "Useful for finding specific content, function definitions, or text patterns in code. " +
+      "Supports file type filtering with include/exclude globs and binary file skipping.",
     schema: z.object({
       pattern: z
         .string()
@@ -676,6 +704,18 @@ export const sandboxGrepTool = tool(
         .number()
         .optional()
         .describe("Maximum number of matches to return"),
+      include: z
+        .string()
+        .optional()
+        .describe("Glob pattern for files to include (e.g., '*.ts', '*.py')"),
+      exclude: z
+        .string()
+        .optional()
+        .describe("Glob pattern for files to exclude (e.g., '*.log', 'node_modules')"),
+      maxFileSize: z
+        .number()
+        .optional()
+        .describe("Skip files larger than this many bytes (default: 1048576 = 1MB)"),
     }),
   },
 );

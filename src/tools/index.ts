@@ -6,6 +6,8 @@ import { searchTool } from "./search";
 import { githubCommentTool } from "./github-comment";
 import { createGithubIssueTool } from "./create-github-issue";
 import { commentGithubIssueTool } from "./comment-github-issue";
+import { closeGithubIssueTool } from "./close-github-issue";
+import { reopenGithubIssueTool } from "./reopen-github-issue";
 import { sandboxTools } from "./sandbox-shell";
 import { sandboxGrepTool } from "./sandbox-files";
 import {
@@ -50,6 +52,8 @@ export const allToolsUncompressed = [
   githubCommentTool,
   createGithubIssueTool,
   commentGithubIssueTool,
+  closeGithubIssueTool,
+  reopenGithubIssueTool,
   sandboxGrepTool,
   artifactQueryTool,
   artifactListTool,
