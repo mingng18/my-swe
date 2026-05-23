@@ -159,10 +159,16 @@ describe("Memory System Integration", () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = "test-key";
     process.env.OPENAI_API_KEY = "test-key";
 
-    mockClient = new MockSupabaseClient();
-    repository = new MemoryRepository(mockClient as any);
-    extractor = new MemoryExtractor();
-    embeddingService = new EmbeddingService();
+    try {
+      mockClient = new MockSupabaseClient();
+      repository = new MemoryRepository(mockClient as any);
+      extractor = new MemoryExtractor();
+      embeddingService = new EmbeddingService();
+    } catch (e) {
+      console.error("[beforeEach] Setup failed:", e);
+      throw e;
+    }
+
     // Mock the embedding service to not call the real API
     embeddingService.generateEmbedding = async () => {
       return Array(1536).fill(0.1);
