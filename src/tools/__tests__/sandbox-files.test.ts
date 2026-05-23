@@ -248,11 +248,11 @@ describe("Sandbox Files Tools", () => {
           matches: ["/workspace/file1.txt:line1", "/workspace/file2.txt:line2"],
           count: 2
         });
-        // Verify the exact command format (now uses find | xargs grep)
+        // Verify the exact command format (now uses find | xargs -r grep to prevent hang)
         expect(mockExecute).toHaveBeenCalledTimes(1);
         const actualCall = mockExecute.mock.calls[0][0];
         expect(actualCall).toContain("find '/workspace' -type f");
-        expect(actualCall).toContain("| xargs grep");
+        expect(actualCall).toContain("| xargs -r grep");
         expect(actualCall).toContain("'test'");
       });
 
@@ -434,7 +434,7 @@ describe("Sandbox Files Tools", () => {
         expect(result.count).toBe(1);
         const actualCall = mockExecute.mock.calls[0][0];
         expect(actualCall).toContain("find '/workspace' -type f -size -1024c");
-        expect(actualCall).toContain("| xargs grep");
+        expect(actualCall).toContain("| xargs -r grep");
       });
 
       test("always skips binary files", async () => {
@@ -458,7 +458,7 @@ describe("Sandbox Files Tools", () => {
         expect(result.count).toBe(1);
         const actualCall = mockExecute.mock.calls[0][0];
         expect(actualCall).toContain("find '/workspace' -type f -size -1048576c");
-        expect(actualCall).toContain("| xargs grep");
+        expect(actualCall).toContain("| xargs -r grep");
       });
     });
   });

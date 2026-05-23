@@ -604,11 +604,11 @@ export const sandboxGrepTool = tool(
       }
 
       if (contextLines !== undefined) {
-        flags.push(`-C ${contextLines}`);
+        flags.push(`-C ${Math.max(0, Math.floor(contextLines))}`);
       }
 
       if (maxMatches !== undefined) {
-        flags.push(`-m ${maxMatches}`);
+        flags.push(`-m ${Math.max(1, Math.floor(maxMatches))}`);
       }
 
       if (include) {
@@ -631,7 +631,7 @@ export const sandboxGrepTool = tool(
         // Use find to pre-filter by size, then pipe to grep
         const findCmd = `find ${shellEscapeSingleQuotes(searchPath)} -type f -size -${effectiveMaxSize}c`;
         result = await backend.execute(
-          `${findCmd} | xargs grep ${flagsStr} ${shellEscapeSingleQuotes(pattern)}`,
+          `${findCmd} | xargs -r grep ${flagsStr} ${shellEscapeSingleQuotes(pattern)}`,
         );
       } else {
         result = await backend.execute(
