@@ -1,27 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
-
-// Mock the dependencies
-mock.module("../memory/repository", () => {
-  return {
-    MemoryRepository: class MockMemoryRepository {
-      saveBatch = mock(); getByThread = mock(); save = mock();
-    }
-  };
-});
-mock.module("../memory/extractor", () => {
-  return {
-    MemoryExtractor: class MockMemoryExtractor {
-      extractFromTurn = mock();
-    }
-  };
-});
-mock.module("../memory/embeddings", () => {
-  return {
-    EmbeddingService: class MockEmbeddingService {
-      embed = mock();
-    }
-  };
-});
+import { describe, it, expect, beforeEach, afterEach, mock, spyOn } from "bun:test";
+import { MemoryRepository } from "../memory/repository";
+import { MemoryExtractor } from "../memory/extractor";
+import { EmbeddingService } from "../memory/embeddings";
 
 import { isMemoryEnabled, initializeMemoryServices } from "../nodes/deterministic/LinterNode";
 
@@ -52,6 +32,9 @@ describe("LinterNode memory services", () => {
 
     it("should return false when MEMORY_ENABLED is 'true' but memoryRepository is null", () => {
       process.env.MEMORY_ENABLED = "true";
+      process.env.SUPABASE_URL = "http://localhost:54321";
+      process.env.SUPABASE_SERVICE_ROLE_KEY = "test-key";
+      process.env.OPENAI_API_KEY = "test-key";
       // memoryRepository starts as null before initializeMemoryServices is called with MEMORY_ENABLED="true"
       // we make sure we reset it to null in afterEach
       expect(isMemoryEnabled()).toBe(false);
@@ -59,6 +42,9 @@ describe("LinterNode memory services", () => {
 
     it("should return true when MEMORY_ENABLED is 'true' and initializeMemoryServices has been called", () => {
       process.env.MEMORY_ENABLED = "true";
+      process.env.SUPABASE_URL = "http://localhost:54321";
+      process.env.SUPABASE_SERVICE_ROLE_KEY = "test-key";
+      process.env.OPENAI_API_KEY = "test-key";
       initializeMemoryServices();
 
       expect(isMemoryEnabled()).toBe(true);
