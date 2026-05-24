@@ -10,11 +10,14 @@ let mockGenerateEmbedding = mock().mockResolvedValue([0.1, 0.2]);
 mock.module("../../../memory/repository", () => ({
   MemoryRepository: class {
     saveBatch = mockSaveBatch;
+    getByThread = mock();
+    save = mock();
   }
 }));
 
+import { MemoryExtractor as ActualMemoryExtractor } from "../../../memory/extractor";
 mock.module("../../../memory/extractor", () => ({
-  MemoryExtractor: class {
+  MemoryExtractor: class extends ActualMemoryExtractor {
     extractFromTurn = mockExtractFromTurn;
   }
 }));
