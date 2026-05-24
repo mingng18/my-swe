@@ -380,7 +380,6 @@ describe("ConsolidationService", () => {
 
     const saved = await repository.saveBatch(memories);
 
-
     // With high threshold (0.95), should find duplicates since similarity is 1.0
     const highThreshold = await consolidationService.findDuplicates(
       testThreadId,

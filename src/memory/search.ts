@@ -48,8 +48,8 @@ export class SearchService {
       // Fallback for older repository implementations using parallel processing
       const arrays = await Promise.all(
         threadIds.map((threadId) =>
-          this.repository.getByThread(threadId, options.types),
-        ),
+          this.repository.getByThread(threadId, options.types)
+        )
       );
       for (const memories of arrays) {
         allMemories.push(...memories);

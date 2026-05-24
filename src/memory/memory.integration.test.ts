@@ -47,8 +47,8 @@ class MockSupabaseClient {
           threadIds = [threadParam];
         }
 
-        let memories = Array.from(this.memories.values()).filter(
-          (m) => threadIds.includes(m.thread_id),
+        let memories = Array.from(this.memories.values()).filter((m) =>
+          threadIds.includes(m.thread_id),
         );
 
         // Handle PostgREST type filter: or=(type.eq.user,type.eq.project,...)

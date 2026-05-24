@@ -48,16 +48,19 @@ The memory system is inspired by Claude Code's Auto Memory feature and provides:
 ## Memory Types
 
 ### User Memories
+
 - **Preferences**: "I prefer TypeScript over JavaScript"
 - **Expertise**: "I am a frontend developer"
 - **Context**: Information about the user's background and preferences
 
 ### Feedback Memories
+
 - **Positive**: "Great, that's exactly what I needed"
 - **Negative**: "No, that's not what I asked for"
 - **Corrections**: User corrections and refinements
 
 ### Project Memories
+
 - **Architecture**: Design patterns and architectural decisions
 - **Tech Stack**: Frameworks and libraries used
 - **Errors**: Common errors and their solutions
@@ -65,6 +68,7 @@ The memory system is inspired by Claude Code's Auto Memory feature and provides:
 - **Testing**: Test failures and patterns
 
 ### Reference Memories
+
 - **External Systems**: GitHub, Linear, Jira, Slack, etc.
 - **Documentation**: Links to relevant docs
 - **Resources**: External references and dependencies
@@ -155,6 +159,7 @@ The memory system integrates seamlessly into the agent pipeline:
 The agent also has access to manual memory tools:
 
 #### `memory_search`
+
 Search for memories by query text.
 
 ```typescript
@@ -162,32 +167,35 @@ Search for memories by query text.
 memory_search({
   query: "TypeScript preferences",
   types: ["user"],
-  limit: 5
-})
+  limit: 5,
+});
 ```
 
 #### `memory_get`
+
 Retrieve a specific memory by ID.
 
 ```typescript
 memory_get({
-  id: "uuid-here"
-})
+  id: "uuid-here",
+});
 ```
 
 #### `memory_forget`
+
 Delete or archive a memory.
 
 ```typescript
 memory_forget({
   id: "uuid-here",
-  permanent: false  // soft delete by default
-})
+  permanent: false, // soft delete by default
+});
 ```
 
 ## API Endpoints
 
 ### Health Check
+
 ```http
 GET /health
 ```
@@ -195,17 +203,20 @@ GET /health
 Returns memory system status.
 
 ### Memory Statistics
+
 ```http
 GET /memory/stats/:threadId
 ```
 
 Returns memory statistics for a thread:
+
 - Total memories
 - Memories by type
 - Most recent memories
 - Active vs archived count
 
 ### Trigger Consolidation
+
 ```http
 POST /memory/consolidate
 ```
@@ -219,11 +230,13 @@ Manually trigger consolidation for a thread.
 ```
 
 ### Daemon Status
+
 ```http
 GET /memory/daemon/status
 ```
 
 Returns daemon status:
+
 - Running state
 - Last consolidation time
 - Next consolidation time
@@ -312,6 +325,7 @@ Limits how many memories are injected per turn:
 **User**: "I prefer using TypeScript strict mode and never use any types"
 
 **Memory Extracted**:
+
 ```json
 {
   "type": "user",
@@ -328,6 +342,7 @@ Limits how many memories are injected per turn:
 **Agent**: "I'll implement this using React with TypeScript and the Context API for state management"
 
 **Memory Extracted**:
+
 ```json
 {
   "type": "project",
@@ -344,6 +359,7 @@ Limits how many memories are injected per turn:
 **User**: "No, that's wrong. We use Redux, not Context API"
 
 **Memory Extracted**:
+
 ```json
 {
   "type": "feedback",
@@ -362,6 +378,7 @@ Limits how many memories are injected per turn:
 OpenAI's `text-embedding-3-small` costs ~$0.00002 per 1K tokens.
 
 **Estimated costs**:
+
 - 100 memories: ~$0.002
 - 1,000 memories: ~$0.02
 - 10,000 memories: ~$0.20
@@ -369,6 +386,7 @@ OpenAI's `text-embedding-3-small` costs ~$0.00002 per 1K tokens.
 ### Database Storage
 
 Each memory with embedding (~3KB):
+
 - 1,000 memories: ~3MB
 - 10,000 memories: ~30MB
 - 100,000 memories: ~300MB
@@ -376,6 +394,7 @@ Each memory with embedding (~3KB):
 ### Search Latency
 
 Typical search times:
+
 - 10 memories: ~50ms
 - 100 memories: ~100ms
 - 1,000 memories: ~200ms
