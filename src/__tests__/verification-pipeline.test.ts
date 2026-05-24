@@ -1,10 +1,16 @@
-import { describe, it, expect, mock, beforeEach } from "bun:test";
+import { describe, it, expect, mock, beforeEach, afterAll } from "bun:test";
 
 // Mock dependencies before importing the module under test
-const mockInstallDependencies = mock(async () => ({ installed: true, packageManager: "npm" }));
+const mockInstallDependencies = mock(async () => ({
+  installed: true,
+  packageManager: "npm",
+}));
 const mockRunTests = mock(async () => ({ testPassed: true }));
 const mockRunLinter = mock(async () => ({ lintPassed: true }));
-const mockEnforcePRSubmission = mock(async () => ({ prCreated: true, prUrl: "http://pr" }));
+const mockEnforcePRSubmission = mock(async () => ({
+  prCreated: true,
+  prUrl: "http://pr",
+}));
 
 mock.module("../nodes/deterministic/DependencyInstallerNode", () => ({
   installDependencies: mockInstallDependencies,
@@ -33,10 +39,16 @@ describe("runVerificationPipeline", () => {
     mockEnforcePRSubmission.mockClear();
 
     // Reset mocks to their default successful states
-    mockInstallDependencies.mockImplementation(async () => ({ installed: true, packageManager: "npm" }));
+    mockInstallDependencies.mockImplementation(async () => ({
+      installed: true,
+      packageManager: "npm",
+    }));
     mockRunTests.mockImplementation(async () => ({ testPassed: true }));
     mockRunLinter.mockImplementation(async () => ({ lintPassed: true }));
-    mockEnforcePRSubmission.mockImplementation(async () => ({ prCreated: true, prUrl: "http://pr" }));
+    mockEnforcePRSubmission.mockImplementation(async () => ({
+      prCreated: true,
+      prUrl: "http://pr",
+    }));
   });
 
   const defaultParams = {
@@ -45,7 +57,7 @@ describe("runVerificationPipeline", () => {
     repoOwner: "owner",
     repoName: "name",
     threadId: "thread1",
-    messages: []
+    messages: [],
   };
 
   it("should successfully execute all steps on the happy path", async () => {
@@ -56,7 +68,7 @@ describe("runVerificationPipeline", () => {
       testsPassed: true,
       lintPassed: true,
       prCreated: true,
-      prUrl: "http://pr"
+      prUrl: "http://pr",
     });
 
     expect(mockInstallDependencies).toHaveBeenCalledTimes(1);
@@ -69,13 +81,13 @@ describe("runVerificationPipeline", () => {
     const result = await runVerificationPipeline({
       ...defaultParams,
       requireTests: false,
-      requireLint: false
+      requireLint: false,
     });
 
     expect(result).toEqual({
       dependenciesInstalled: true,
       prCreated: true,
-      prUrl: "http://pr"
+      prUrl: "http://pr",
     });
 
     expect(mockInstallDependencies).toHaveBeenCalledTimes(1);
@@ -92,7 +104,7 @@ describe("runVerificationPipeline", () => {
     expect(result).toEqual({
       dependenciesInstalled: true,
       testsPassed: false,
-      error: "Tests failed"
+      error: "Tests failed",
     });
 
     expect(mockInstallDependencies).toHaveBeenCalledTimes(1);
@@ -110,7 +122,7 @@ describe("runVerificationPipeline", () => {
       dependenciesInstalled: true,
       testsPassed: true,
       lintPassed: false,
-      error: "Linter failed"
+      error: "Linter failed",
     });
 
     expect(mockInstallDependencies).toHaveBeenCalledTimes(1);
@@ -123,7 +135,7 @@ describe("runVerificationPipeline", () => {
     mockInstallDependencies.mockImplementationOnce(async () => ({
       installed: false,
       packageManager: "",
-      output: "no package.json"
+      output: "no package.json",
     }));
 
     const result = await runVerificationPipeline(defaultParams);
@@ -133,7 +145,7 @@ describe("runVerificationPipeline", () => {
       testsPassed: true,
       lintPassed: true,
       prCreated: true,
-      prUrl: "http://pr"
+      prUrl: "http://pr",
     });
 
     expect(mockInstallDependencies).toHaveBeenCalledTimes(1);
@@ -145,7 +157,8 @@ describe("runVerificationPipeline", () => {
   it("should return error if PR submission fails", async () => {
     mockEnforcePRSubmission.mockImplementationOnce(async () => ({
       prCreated: false,
-      prUrl: "", error: "GitHub API rate limit"
+      prUrl: "",
+      error: "GitHub API rate limit",
     }));
 
     const result = await runVerificationPipeline(defaultParams);
@@ -156,7 +169,7 @@ describe("runVerificationPipeline", () => {
       lintPassed: true,
       prCreated: false,
       prUrl: "",
-      error: "GitHub API rate limit"
+      error: "GitHub API rate limit",
     });
 
     expect(mockInstallDependencies).toHaveBeenCalledTimes(1);
@@ -164,4 +177,8 @@ describe("runVerificationPipeline", () => {
     expect(mockRunLinter).toHaveBeenCalledTimes(1);
     expect(mockEnforcePRSubmission).toHaveBeenCalledTimes(1);
   });
+});
+
+afterAll(() => {
+  mock.restore();
 });

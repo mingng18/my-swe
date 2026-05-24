@@ -1,4 +1,12 @@
-import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
+import {
+  describe,
+  it,
+  expect,
+  mock,
+  beforeEach,
+  afterEach,
+  afterAll,
+} from "bun:test";
 import { commitAndOpenPrTool } from "../commit-and-open-pr";
 
 import { spyOn } from "bun:test";
@@ -10,11 +18,15 @@ describe("commit_and_open_pr tool", () => {
   let mockGetSandboxBackendSync: any;
 
   beforeEach(() => {
-    mockGetGithubTokenFromThread = spyOn(githubToken, "getGithubTokenFromThread").mockResolvedValue(["ghp_test_token"] as any);
+    mockGetGithubTokenFromThread = spyOn(
+      githubToken,
+      "getGithubTokenFromThread",
+    ).mockResolvedValue(["ghp_test_token"] as any);
   });
 
   afterEach(() => {
-    if (mockGetGithubTokenFromThread) mockGetGithubTokenFromThread.mockRestore();
+    if (mockGetGithubTokenFromThread)
+      mockGetGithubTokenFromThread.mockRestore();
     if (mockGetSandboxBackendSync) mockGetSandboxBackendSync.mockRestore();
   });
 
@@ -39,7 +51,10 @@ describe("commit_and_open_pr tool", () => {
       };
 
       // Mock sandbox state using spyOn
-      mockGetSandboxBackendSync = spyOn(sandboxState, "getSandboxBackendSync").mockReturnValue(mockSandbox as any);
+      mockGetSandboxBackendSync = spyOn(
+        sandboxState,
+        "getSandboxBackendSync",
+      ).mockReturnValue(mockSandbox as any);
 
       // The branch name should be `open-swe/test-thread-123` without timestamp
       // This is tested implicitly by the tool execution
@@ -150,4 +165,8 @@ describe("commit_and_open_pr tool", () => {
       expect(hasUncommittedChanges || hasUnpushedCommits).toBe(false);
     });
   });
+});
+
+afterAll(() => {
+  mock.restore();
 });

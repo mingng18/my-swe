@@ -1,4 +1,12 @@
-import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
+import {
+  describe,
+  it,
+  expect,
+  mock,
+  beforeEach,
+  afterEach,
+  afterAll,
+} from "bun:test";
 
 describe("prReviewTool", () => {
   const originalEnv = process.env;
@@ -63,7 +71,8 @@ Fix: Fix the issue`,
               additions: 10,
               deletions: 5,
               changes: 15,
-              patch: "@@ -1,5 +1,10 @@\n+export function test() {\n+  return true;\n+}",
+              patch:
+                "@@ -1,5 +1,10 @@\n+export function test() {\n+  return true;\n+}",
             },
           ],
         };
@@ -83,7 +92,8 @@ Fix: Fix the issue`,
                   additions: 10,
                   deletions: 5,
                   changes: 15,
-                  patch: "@@ -1,5 +1,10 @@\n+export function test() {\n+  return true;\n+}",
+                  patch:
+                    "@@ -1,5 +1,10 @@\n+export function test() {\n+  return true;\n+}",
                 },
               ],
             })),
@@ -185,7 +195,9 @@ Fix: Fix the issue`,
     const result = JSON.parse(resultJson as string);
 
     expect(result.success).toBe(true);
-    expect(result.message).toBe("No applicable reviewers found for the files in this PR");
+    expect(result.message).toBe(
+      "No applicable reviewers found for the files in this PR",
+    );
     expect(result.issues).toEqual([]);
     expect(result.has_critical).toBe(false);
   });
@@ -217,7 +229,9 @@ Fix: Fix the issue`,
     const result = JSON.parse(resultJson as string);
 
     expect(result.success).toBe(true);
-    expect(result.message).toBe("No file patches available for review (files may be binary or too large)");
+    expect(result.message).toBe(
+      "No file patches available for review (files may be binary or too large)",
+    );
     expect(result.issues).toEqual([]);
     expect(result.has_critical).toBe(false);
   });
@@ -445,7 +459,8 @@ describe("fetchPrFiles", () => {
                   additions: 10,
                   deletions: 5,
                   changes: 15,
-                  patch: "@@ -1,5 +1,10 @@\n+export function test() {\n+  return true;\n+}",
+                  patch:
+                    "@@ -1,5 +1,10 @@\n+export function test() {\n+  return true;\n+}",
                 },
               ],
             })),
@@ -470,7 +485,12 @@ describe("fetchPrFiles", () => {
   it("should fetch PR files successfully", async () => {
     const { fetchPrFiles } = await import("../pr-review");
 
-    const files = await fetchPrFiles("test-owner", "test-repo", 123, "test-token");
+    const files = await fetchPrFiles(
+      "test-owner",
+      "test-repo",
+      123,
+      "test-token",
+    );
 
     expect(files).toHaveLength(1);
     expect(files[0]).toMatchObject({
@@ -508,7 +528,12 @@ describe("fetchPrFiles", () => {
 
     const { fetchPrFiles } = await import("../pr-review");
 
-    const files = await fetchPrFiles("test-owner", "test-repo", 123, "test-token");
+    const files = await fetchPrFiles(
+      "test-owner",
+      "test-repo",
+      123,
+      "test-token",
+    );
 
     expect(files).toHaveLength(1);
     expect(files[0].patch).toBeUndefined();
@@ -531,7 +556,11 @@ describe("fetchPrFiles", () => {
     const { fetchPrFiles } = await import("../pr-review");
 
     await expect(
-      fetchPrFiles("test-owner", "test-repo", 123, "test-token")
+      fetchPrFiles("test-owner", "test-repo", 123, "test-token"),
     ).rejects.toThrow("API error");
   });
+});
+
+afterAll(() => {
+  mock.restore();
 });
