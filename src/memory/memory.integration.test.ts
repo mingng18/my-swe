@@ -174,7 +174,8 @@ describe("Memory System Integration", () => {
 
     mockClient = new MockSupabaseClient();
     repository = new MemoryRepository(mockClient as any);
-    extractor = new MemoryExtractor();
+    const { MemoryExtractor: Extractor } = await import("./extractor");
+    extractor = new Extractor();
     embeddingService = new EmbeddingService();
 
     // Mock the embedding service to not call the real API
