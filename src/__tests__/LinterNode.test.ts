@@ -36,6 +36,8 @@ describe("LinterNode memory services", () => {
       process.env.MEMORY_ENABLED = "true";
       process.env.SUPABASE_URL = "http://test.example";
       process.env.SUPABASE_SERVICE_ROLE_KEY = "test-key";
+      process.env.OPENAI_API_KEY = "test-key";
+      process.env.OPENAI_BASE_URL = "http://localhost";
       initializeMemoryServices();
 
       expect(isMemoryEnabled()).toBe(true);

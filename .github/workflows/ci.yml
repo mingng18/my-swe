@@ -96,7 +96,11 @@ jobs:
           done < <(find src -name '*.test.ts' ! -name '*.integration.test.ts' -print0)
 
       - name: Generate coverage report
-        run: bun test --coverage $(find src -name '*.test.ts' ! -name '*.integration.test.ts' | tr '\n' ' ')
+        continue-on-error: true
+        run: |
+          while IFS= read -r -d '' test_file; do
+            bun test "$test_file" --coverage || true
+          done < <(find src -name '*.test.ts' ! -name '*.integration.test.ts' -print0)
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
