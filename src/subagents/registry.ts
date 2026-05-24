@@ -1,4 +1,4 @@
-import { type SubAgent, createSubAgent } from "deepagents";
+import type { SubAgent } from "deepagents";
 import {
   exploreTools,
   planTools,

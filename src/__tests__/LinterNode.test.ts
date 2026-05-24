@@ -1,47 +1,21 @@
-import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
-
-// Mock the dependencies
-mock.module("../memory/repository", () => {
-  return {
-    MemoryRepository: class MockMemoryRepository {
-      saveBatch = mock();
-      getByThread = mock();
-      save = mock();
-    }
-  };
-});
-mock.module("../memory/extractor", () => {
-  return {
-    MemoryExtractor: class MockMemoryExtractor {
-      extractMemories = mock();
-      extractFromTurn = mock();
-    }
-  };
-});
-mock.module("../memory/embeddings", () => {
-  return {
-    EmbeddingService: class MockEmbeddingService {
-      embed = mock();
-    }
-  };
-});
-
-import { isMemoryEnabled, initializeMemoryServices } from "../nodes/deterministic/LinterNode";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import {
+  isMemoryEnabled,
+  initializeMemoryServices,
+  resetMemoryServicesForTests,
+} from "../nodes/deterministic/LinterNode";
 
 describe("LinterNode memory services", () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
-    // Save original environment
+    resetMemoryServicesForTests();
     process.env = { ...originalEnv };
   });
 
   afterEach(() => {
-    // Restore original environment
+    resetMemoryServicesForTests();
     process.env = originalEnv;
-    // Reset memory services by disabling it and initializing
-    process.env.MEMORY_ENABLED = "false";
-    initializeMemoryServices();
   });
 
   describe("isMemoryEnabled", () => {
@@ -55,13 +29,13 @@ describe("LinterNode memory services", () => {
 
     it("should return false when MEMORY_ENABLED is 'true' but memoryRepository is null", () => {
       process.env.MEMORY_ENABLED = "true";
-      // memoryRepository starts as null before initializeMemoryServices is called with MEMORY_ENABLED="true"
-      // we make sure we reset it to null in afterEach
       expect(isMemoryEnabled()).toBe(false);
     });
 
     it("should return true when MEMORY_ENABLED is 'true' and initializeMemoryServices has been called", () => {
       process.env.MEMORY_ENABLED = "true";
+      process.env.SUPABASE_URL = "http://test.example";
+      process.env.SUPABASE_SERVICE_ROLE_KEY = "test-key";
       initializeMemoryServices();
 
       expect(isMemoryEnabled()).toBe(true);

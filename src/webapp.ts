@@ -116,17 +116,14 @@ app.use(async (c, next) => {
     const authHeader = c.req.header("Authorization");
     const token = authHeader
       ? authHeader.replace(/^Bearer\s+/i, "")
-      : c.req.query("token");
+      : c.req.query("token") ?? "";
 
-    if (!token) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    // Hash both to prevent timing side-channels via early length exit or string comparison
     const expectedHash = createHash("sha256").update(secret).digest();
     const providedHash = createHash("sha256").update(token).digest();
 
     if (!timingSafeEqual(expectedHash, providedHash)) {
+      const delay = 50 + Math.floor(Math.random() * 50);
+      await new Promise((resolve) => setTimeout(resolve, delay));
       return c.json({ error: "Unauthorized" }, 401);
     }
   }

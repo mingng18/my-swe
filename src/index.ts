@@ -17,10 +17,13 @@ import { getMemoryDaemon } from "./memory/daemon";
 
 // Shared queue utility for Telegram message processing
 import { generateThreadId, TelegramMessageQueue } from "./utils/telegram-queue";
+import { setupGracefulShutdown } from "./utils/shutdown";
 
 const logger = createLogger("index");
 
 const PORT = Number.parseInt(process.env.PORT || "7860", 10);
+
+setupGracefulShutdown();
 
 // Telegram polling queue with identity enrichment
 interface PollingMessage {

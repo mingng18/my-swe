@@ -1,42 +1,36 @@
-import { describe, it, expect, mock, beforeEach } from "bun:test";
-
-// Mock dependencies before importing the module under test
-const mockInstallDependencies = mock(async () => ({ installed: true, packageManager: "npm" }));
-const mockRunTests = mock(async () => ({ testPassed: true }));
-const mockRunLinter = mock(async () => ({ lintPassed: true }));
-const mockEnforcePRSubmission = mock(async () => ({ prCreated: true, prUrl: "http://pr" }));
-
-mock.module("../nodes/deterministic/DependencyInstallerNode", () => ({
-  installDependencies: mockInstallDependencies,
-}));
-
-mock.module("../nodes/deterministic/TestRunnerNode", () => ({
-  runTests: mockRunTests,
-}));
-
-mock.module("../nodes/deterministic/LinterNode", () => ({
-  runLinter: mockRunLinter,
-}));
-
-mock.module("../nodes/deterministic/PRSubmitNode", () => ({
-  enforcePRSubmission: mockEnforcePRSubmission,
-}));
-
-// Now import the module under test
+import { describe, it, expect, mock, beforeEach, afterEach, spyOn } from "bun:test";
 import { runVerificationPipeline } from "../nodes/deterministic/index";
+import * as DependencyInstallerNode from "../nodes/deterministic/DependencyInstallerNode";
+import * as TestRunnerNode from "../nodes/deterministic/TestRunnerNode";
+import * as LinterNode from "../nodes/deterministic/LinterNode";
+import * as PRSubmitNode from "../nodes/deterministic/PRSubmitNode";
 
 describe("runVerificationPipeline", () => {
   beforeEach(() => {
-    mockInstallDependencies.mockClear();
-    mockRunTests.mockClear();
-    mockRunLinter.mockClear();
-    mockEnforcePRSubmission.mockClear();
+    spyOn(DependencyInstallerNode, "installDependencies").mockResolvedValue({
+      installed: true,
+      packageManager: "npm",
+      output: "",
+    });
+    spyOn(TestRunnerNode, "runTests").mockResolvedValue({
+      testPassed: true,
+      testExitCode: 0,
+      testOutput: "",
+    });
+    spyOn(LinterNode, "runLinter").mockResolvedValue({
+      lintPassed: true,
+      lintExitCode: 0,
+      lintOutput: "",
+    });
+    spyOn(PRSubmitNode, "enforcePRSubmission").mockResolvedValue({
+      hasChanges: true,
+      prCreated: true,
+      prUrl: "http://pr",
+    });
+  });
 
-    // Reset mocks to their default successful states
-    mockInstallDependencies.mockImplementation(async () => ({ installed: true, packageManager: "npm" }));
-    mockRunTests.mockImplementation(async () => ({ testPassed: true }));
-    mockRunLinter.mockImplementation(async () => ({ lintPassed: true }));
-    mockEnforcePRSubmission.mockImplementation(async () => ({ prCreated: true, prUrl: "http://pr" }));
+  afterEach(() => {
+    mock.restore();
   });
 
   const defaultParams = {
@@ -45,7 +39,7 @@ describe("runVerificationPipeline", () => {
     repoOwner: "owner",
     repoName: "name",
     threadId: "thread1",
-    messages: []
+    messages: [],
   };
 
   it("should successfully execute all steps on the happy path", async () => {
@@ -56,53 +50,61 @@ describe("runVerificationPipeline", () => {
       testsPassed: true,
       lintPassed: true,
       prCreated: true,
-      prUrl: "http://pr"
+      prUrl: "http://pr",
     });
 
-    expect(mockInstallDependencies).toHaveBeenCalledTimes(1);
-    expect(mockRunTests).toHaveBeenCalledTimes(1);
-    expect(mockRunLinter).toHaveBeenCalledTimes(1);
-    expect(mockEnforcePRSubmission).toHaveBeenCalledTimes(1);
+    expect(DependencyInstallerNode.installDependencies).toHaveBeenCalledTimes(1);
+    expect(TestRunnerNode.runTests).toHaveBeenCalledTimes(1);
+    expect(LinterNode.runLinter).toHaveBeenCalledTimes(1);
+    expect(PRSubmitNode.enforcePRSubmission).toHaveBeenCalledTimes(1);
   });
 
   it("should skip tests and linter if explicitly not required", async () => {
     const result = await runVerificationPipeline({
       ...defaultParams,
       requireTests: false,
-      requireLint: false
+      requireLint: false,
     });
 
     expect(result).toEqual({
       dependenciesInstalled: true,
       prCreated: true,
-      prUrl: "http://pr"
+      prUrl: "http://pr",
     });
 
-    expect(mockInstallDependencies).toHaveBeenCalledTimes(1);
-    expect(mockRunTests).not.toHaveBeenCalled();
-    expect(mockRunLinter).not.toHaveBeenCalled();
-    expect(mockEnforcePRSubmission).toHaveBeenCalledTimes(1);
+    expect(DependencyInstallerNode.installDependencies).toHaveBeenCalledTimes(1);
+    expect(TestRunnerNode.runTests).not.toHaveBeenCalled();
+    expect(LinterNode.runLinter).not.toHaveBeenCalled();
+    expect(PRSubmitNode.enforcePRSubmission).toHaveBeenCalledTimes(1);
   });
 
   it("should stop execution and return error if tests fail", async () => {
-    mockRunTests.mockImplementationOnce(async () => ({ testPassed: false }));
+    spyOn(TestRunnerNode, "runTests").mockResolvedValueOnce({
+      testPassed: false,
+      testExitCode: 1,
+      testOutput: "tests failed",
+    });
 
     const result = await runVerificationPipeline(defaultParams);
 
     expect(result).toEqual({
       dependenciesInstalled: true,
       testsPassed: false,
-      error: "Tests failed"
+      error: "Tests failed",
     });
 
-    expect(mockInstallDependencies).toHaveBeenCalledTimes(1);
-    expect(mockRunTests).toHaveBeenCalledTimes(1);
-    expect(mockRunLinter).not.toHaveBeenCalled();
-    expect(mockEnforcePRSubmission).not.toHaveBeenCalled();
+    expect(DependencyInstallerNode.installDependencies).toHaveBeenCalledTimes(1);
+    expect(TestRunnerNode.runTests).toHaveBeenCalledTimes(1);
+    expect(LinterNode.runLinter).not.toHaveBeenCalled();
+    expect(PRSubmitNode.enforcePRSubmission).not.toHaveBeenCalled();
   });
 
   it("should stop execution and return error if linter fails", async () => {
-    mockRunLinter.mockImplementationOnce(async () => ({ lintPassed: false }));
+    spyOn(LinterNode, "runLinter").mockResolvedValueOnce({
+      lintPassed: false,
+      lintExitCode: 1,
+      lintOutput: "lint failed",
+    });
 
     const result = await runVerificationPipeline(defaultParams);
 
@@ -110,21 +112,21 @@ describe("runVerificationPipeline", () => {
       dependenciesInstalled: true,
       testsPassed: true,
       lintPassed: false,
-      error: "Linter failed"
+      error: "Linter failed",
     });
 
-    expect(mockInstallDependencies).toHaveBeenCalledTimes(1);
-    expect(mockRunTests).toHaveBeenCalledTimes(1);
-    expect(mockRunLinter).toHaveBeenCalledTimes(1);
-    expect(mockEnforcePRSubmission).not.toHaveBeenCalled();
+    expect(DependencyInstallerNode.installDependencies).toHaveBeenCalledTimes(1);
+    expect(TestRunnerNode.runTests).toHaveBeenCalledTimes(1);
+    expect(LinterNode.runLinter).toHaveBeenCalledTimes(1);
+    expect(PRSubmitNode.enforcePRSubmission).not.toHaveBeenCalled();
   });
 
   it("should continue execution even if dependency installation fails or finds no package manager", async () => {
-    mockInstallDependencies.mockImplementationOnce(async () => ({
+    spyOn(DependencyInstallerNode, "installDependencies").mockResolvedValueOnce({
       installed: false,
       packageManager: "",
-      output: "no package.json"
-    }));
+      output: "no package.json",
+    });
 
     const result = await runVerificationPipeline(defaultParams);
 
@@ -133,20 +135,22 @@ describe("runVerificationPipeline", () => {
       testsPassed: true,
       lintPassed: true,
       prCreated: true,
-      prUrl: "http://pr"
+      prUrl: "http://pr",
     });
 
-    expect(mockInstallDependencies).toHaveBeenCalledTimes(1);
-    expect(mockRunTests).toHaveBeenCalledTimes(1);
-    expect(mockRunLinter).toHaveBeenCalledTimes(1);
-    expect(mockEnforcePRSubmission).toHaveBeenCalledTimes(1);
+    expect(DependencyInstallerNode.installDependencies).toHaveBeenCalledTimes(1);
+    expect(TestRunnerNode.runTests).toHaveBeenCalledTimes(1);
+    expect(LinterNode.runLinter).toHaveBeenCalledTimes(1);
+    expect(PRSubmitNode.enforcePRSubmission).toHaveBeenCalledTimes(1);
   });
 
   it("should return error if PR submission fails", async () => {
-    mockEnforcePRSubmission.mockImplementationOnce(async () => ({
+    spyOn(PRSubmitNode, "enforcePRSubmission").mockResolvedValueOnce({
+      hasChanges: true,
       prCreated: false,
-      prUrl: "", error: "GitHub API rate limit"
-    }));
+      prUrl: "",
+      error: "GitHub API rate limit",
+    });
 
     const result = await runVerificationPipeline(defaultParams);
 
@@ -156,12 +160,12 @@ describe("runVerificationPipeline", () => {
       lintPassed: true,
       prCreated: false,
       prUrl: "",
-      error: "GitHub API rate limit"
+      error: "GitHub API rate limit",
     });
 
-    expect(mockInstallDependencies).toHaveBeenCalledTimes(1);
-    expect(mockRunTests).toHaveBeenCalledTimes(1);
-    expect(mockRunLinter).toHaveBeenCalledTimes(1);
-    expect(mockEnforcePRSubmission).toHaveBeenCalledTimes(1);
+    expect(DependencyInstallerNode.installDependencies).toHaveBeenCalledTimes(1);
+    expect(TestRunnerNode.runTests).toHaveBeenCalledTimes(1);
+    expect(LinterNode.runLinter).toHaveBeenCalledTimes(1);
+    expect(PRSubmitNode.enforcePRSubmission).toHaveBeenCalledTimes(1);
   });
 });

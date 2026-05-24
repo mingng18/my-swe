@@ -225,3 +225,10 @@ export async function extractAndSaveMemories(
 export function isMemoryEnabled(): boolean {
   return process.env.MEMORY_ENABLED === "true" && memoryRepository !== null;
 }
+
+/** Reset memory singletons between tests (test-only). */
+export function resetMemoryServicesForTests(): void {
+  memoryRepository = null;
+  memoryExtractor = null;
+  embeddingService = null;
+}

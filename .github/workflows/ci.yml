@@ -89,10 +89,14 @@ jobs:
         run: bun install
 
       - name: Run unit tests
-        run: find src -name '*.test.ts' ! -name '*.integration.test.ts' -print0 | xargs -0 --no-run-if-empty bun test
+        run: |
+          while IFS= read -r -d '' test_file; do
+            echo "Running $test_file"
+            bun test "$test_file" || exit 1
+          done < <(find src -name '*.test.ts' ! -name '*.integration.test.ts' -print0)
 
       - name: Generate coverage report
-        run: find src -name '*.test.ts' ! -name '*.integration.test.ts' -print0 | xargs -0 --no-run-if-empty bun test --coverage
+        run: bun test --coverage $(find src -name '*.test.ts' ! -name '*.integration.test.ts' | tr '\n' ' ')
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
