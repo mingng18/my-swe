@@ -1,17 +1,18 @@
 import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
 
-// Dependencies are not mocked via mock.module anymore because it breaks memory.integration.test.ts globally.
-// The LinterNode tests only test isMemoryEnabled and initializeMemoryServices which just instantiate these classes.
-// The real classes can be safely instantiated since they don't do anything harmful on construction.
+// Mock the dependencies
 
 import { isMemoryEnabled, initializeMemoryServices } from "../nodes/deterministic/LinterNode";
 
 describe("LinterNode memory services", () => {
   const originalEnv = process.env;
 
-  beforeEach(() => {
+      beforeEach(() => {
     // Save original environment
     process.env = { ...originalEnv };
+    process.env.SUPABASE_URL = "http://test.com";
+    process.env.SUPABASE_SERVICE_ROLE_KEY = "test";
+    process.env.OPENAI_API_KEY = "test";
   });
 
   afterEach(() => {
@@ -40,9 +41,6 @@ describe("LinterNode memory services", () => {
 
     it("should return true when MEMORY_ENABLED is 'true' and initializeMemoryServices has been called", () => {
       process.env.MEMORY_ENABLED = "true";
-      process.env.SUPABASE_URL = "test";
-      process.env.SUPABASE_SERVICE_ROLE_KEY = "test";
-      process.env.OPENAI_API_KEY = "test";
       initializeMemoryServices();
 
       expect(isMemoryEnabled()).toBe(true);

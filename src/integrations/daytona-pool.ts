@@ -34,7 +34,6 @@ export function getSandboxProfileFromEnv(): SandboxProfile {
   return normalizeProfile(process.env.SANDBOX_PROFILE);
 }
 
-
 export type PoolStatus = "idle" | "busy";
 
 export const BULLHORSE_LABELS = {
@@ -394,11 +393,14 @@ export async function acquireRepoSandbox(
         );
       }
 
-      // ⚡ Bolt: Use for...in to create a new clean object instead of mutating with delete to avoid hidden class deoptimization
+      // ⚡ Bolt: Use Object.keys and a basic for loop for maximum performance over for...in
       const cleanParams: Record<string, unknown> = {};
-      for (const k in createParams) {
-        if (createParams[k] !== undefined) {
-          cleanParams[k] = createParams[k];
+      const keys = Object.keys(createParams);
+      for (let i = 0; i < keys.length; i++) {
+        const k = keys[i];
+        const v = (createParams as any)[k];
+        if (v !== undefined) {
+          cleanParams[k] = v;
         }
       }
 
@@ -484,11 +486,14 @@ export async function createRepoSandbox(
       createParams.snapshot = snapshotName;
     }
 
-    // ⚡ Bolt: Use for...in to create a new clean object instead of mutating with delete to avoid hidden class deoptimization
+    // ⚡ Bolt: Use Object.keys and a basic for loop for maximum performance over for...in
     const cleanParams: Record<string, unknown> = {};
-    for (const k in createParams) {
-      if (createParams[k] !== undefined) {
-        cleanParams[k] = createParams[k];
+    const keys = Object.keys(createParams);
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i];
+      const v = (createParams as any)[k];
+      if (v !== undefined) {
+        cleanParams[k] = v;
       }
     }
 

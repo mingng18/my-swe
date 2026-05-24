@@ -1,17 +1,29 @@
-import { test, expect, describe, mock, spyOn, beforeEach, afterEach } from "bun:test";
+import { test, expect, describe, mock, beforeEach, afterEach, spyOn } from "bun:test";
 import { MemoryRepository } from "../../../memory/repository";
 import { MemoryExtractor } from "../../../memory/extractor";
 import { EmbeddingService } from "../../../memory/embeddings";
 
-let mockSaveBatch: any;
-let mockExtractFromTurn: any;
-let mockGenerateEmbedding: any;
+let mockSaveBatch = mock().mockResolvedValue(undefined);
+let mockExtractFromTurn = mock().mockReturnValue([]);
+let mockGenerateEmbedding = mock().mockResolvedValue([0.1, 0.2]);
 
+mock.module("../../../memory/repository", () => ({
+  MemoryRepository: class {
+    saveBatch = mockSaveBatch;
+  }
+}));
 
+mock.module("../../../memory/extractor", () => ({
+  MemoryExtractor: class {
+    extractFromTurn = mockExtractFromTurn;
+  }
+}));
 
-
-
-
+mock.module("../../../memory/embeddings", () => ({
+  EmbeddingService: class {
+    generateEmbedding = mockGenerateEmbedding;
+  }
+}));
 
 import { extractAndSaveMemories, initializeMemoryServices } from "../LinterNode";
 
@@ -21,22 +33,23 @@ describe("extractAndSaveMemories", () => {
     beforeEach(() => {
         originalMemoryEnabled = process.env.MEMORY_ENABLED;
         process.env.MEMORY_ENABLED = "true";
-        process.env.SUPABASE_URL = "http://localhost:54321";
-        process.env.SUPABASE_SERVICE_ROLE_KEY = "test-key";
-        process.env.OPENAI_API_KEY = "test-key";
+        process.env.SUPABASE_URL = "http://test.com";
+        process.env.SUPABASE_SERVICE_ROLE_KEY = "test";
 
-        mockSaveBatch = spyOn(MemoryRepository.prototype, "saveBatch").mockResolvedValue(undefined as any);
-        mockExtractFromTurn = spyOn(MemoryExtractor.prototype, "extractFromTurn").mockReturnValue([]);
-        mockGenerateEmbedding = spyOn(EmbeddingService.prototype, "generateEmbedding").mockResolvedValue([0.1, 0.2]);
+        spyOn(MemoryRepository.prototype, "saveBatch").mockImplementation(mockSaveBatch as any);
+        spyOn(MemoryExtractor.prototype, "extractFromTurn").mockImplementation(mockExtractFromTurn as any);
+        spyOn(EmbeddingService.prototype, "generateEmbedding").mockImplementation(mockGenerateEmbedding as any);
+
+
+        mockSaveBatch.mockClear();
+        mockExtractFromTurn.mockClear();
+        mockGenerateEmbedding.mockClear();
 
         initializeMemoryServices();
     });
 
-    afterEach(() => {
-        mockSaveBatch.mockRestore();
-        mockExtractFromTurn.mockRestore();
-        mockGenerateEmbedding.mockRestore();
-
+        afterEach(() => {
+        mock.restore();
         if (originalMemoryEnabled === undefined) {
             delete process.env.MEMORY_ENABLED;
         } else {
