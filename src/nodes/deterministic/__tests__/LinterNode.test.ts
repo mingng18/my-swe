@@ -7,18 +7,26 @@ let mockGenerateEmbedding = mock().mockResolvedValue([0.1, 0.2]);
 mock.module("../../../memory/repository", () => ({
   MemoryRepository: class {
     saveBatch = mockSaveBatch;
+    getByThread = mock().mockResolvedValue([]);
+    getByThreads = mock().mockResolvedValue([]);
+    save = mock().mockResolvedValue({});
+    update = mock().mockResolvedValue({});
   }
 }));
 
 mock.module("../../../memory/extractor", () => ({
   MemoryExtractor: class {
     extractFromTurn = mockExtractFromTurn;
+    extractMemories = mock();
   }
 }));
 
 mock.module("../../../memory/embeddings", () => ({
   EmbeddingService: class {
     generateEmbedding = mockGenerateEmbedding;
+    embed = mock();
+    generateEmbeddingsBatch = mock().mockResolvedValue([]);
+    cosineSimilarity = mock().mockReturnValue(1);
   }
 }));
 

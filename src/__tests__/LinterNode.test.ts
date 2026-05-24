@@ -1,27 +1,29 @@
 import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
 
 // Mock the dependencies
-mock.module("../memory/repository", () => {
-  return {
-    MemoryRepository: class MockMemoryRepository {
-      saveBatch = mock();
-    }
-  };
-});
-mock.module("../memory/extractor", () => {
-  return {
-    MemoryExtractor: class MockMemoryExtractor {
-      extractMemories = mock();
-    }
-  };
-});
-mock.module("../memory/embeddings", () => {
-  return {
-    EmbeddingService: class MockEmbeddingService {
-      embed = mock();
-    }
-  };
-});
+mock.module("../memory/repository", () => ({
+  MemoryRepository: class MockMemoryRepository {
+    saveBatch = mock();
+    getByThread = mock().mockResolvedValue([]);
+    getByThreads = mock().mockResolvedValue([]);
+    save = mock().mockResolvedValue({});
+    update = mock().mockResolvedValue({});
+  }
+}));
+mock.module("../memory/extractor", () => ({
+  MemoryExtractor: class MockMemoryExtractor {
+    extractMemories = mock();
+    extractFromTurn = mock().mockReturnValue([]);
+  }
+}));
+mock.module("../memory/embeddings", () => ({
+  EmbeddingService: class MockEmbeddingService {
+    embed = mock();
+    generateEmbedding = mock().mockResolvedValue([0.1, 0.2]);
+    generateEmbeddingsBatch = mock().mockResolvedValue([]);
+    cosineSimilarity = mock().mockReturnValue(1);
+  }
+}));
 
 import { isMemoryEnabled, initializeMemoryServices } from "../nodes/deterministic/LinterNode";
 
