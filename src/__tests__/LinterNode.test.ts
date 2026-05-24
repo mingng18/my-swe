@@ -11,7 +11,7 @@ mock.module("../memory/repository", () => {
 mock.module("../memory/extractor", () => {
   return {
     MemoryExtractor: class MockMemoryExtractor {
-      extractMemories = mock();
+      extractFromTurn = mock();
     }
   };
 });
