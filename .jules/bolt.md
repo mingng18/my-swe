@@ -31,3 +31,7 @@
 ## 2026-05-23 - Type casting and array checks for concurrent map results
 **Learning:** When refactoring sequential execution with `Promise.all` and extracting typings, `any[]` return arrays can cause nested `issues` properties (such as those from `res.issues`) to not be recognized by TypeScript. Additionally, modifying type expectations inside test functions (such as removing an outer array encapsulation) can inadvertently cause method signatures like `extractFromTurn` to complain without a proper generic or mocked type conversion.
 **Action:** Always strictly verify returned properties (e.g. `res.issues`) with standard type guards (e.g. `'issues' in res && Array.isArray(res.issues)`) before mutating or array unpacking (`...res.issues`). Provide appropriate TypeScript explicit casting (`as number`, `as boolean`) when mapping `Promise.all` results out of `any[]` bounds.
+
+## 2025-02-25 - Parallelize ThreadCleanupScheduler functions
+**Learning:** Sequential await loops over independent registered cleanup functions in `ThreadCleanupScheduler.runCycle` caused long overall cycle times.
+**Action:** Use `Promise.all` with `.map` to execute independent background cleanup functions concurrently.
