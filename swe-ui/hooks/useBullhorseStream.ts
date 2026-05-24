@@ -1,11 +1,9 @@
-// hooks/useBullhorseStream.ts
-
 "use client";
 
 import { useEffect, useRef, useCallback, useState } from "react";
 import { useThreadStore } from "@/store/thread-store";
 import { getBullhorseClient, type ConnectionState } from "@/lib/bullhorse-client";
-import type { SSEEvent, Todo } from "@/lib/types";
+import type { SSEEvent, Todo, ThreadState } from "@/lib/types";
 import { useToast } from "@/components/ui/toast";
 
 export interface UseBullhorseStreamOptions {
@@ -59,6 +57,95 @@ function clearEventsFromStorage(threadId: string): void {
   }
 }
 
+/**
+ * Helper to process Todo-related SSE events and update the thread store appropriately.
+ */
+function processTodoEvent(
+  threadId: string,
+  event: SSEEvent,
+  updateTodo: (threadId: string, todo: Todo) => void,
+  getThreads: () => Record<string, ThreadState>
+) {
+  if (event.type === "todo_added") {
+    const todo: Todo = {
+      id: event.id,
+      subject: event.subject,
+      status: event.status,
+    };
+    updateTodo(threadId, todo);
+  } else if (event.type === "todo_updated") {
+    const currentThread = getThreads()[threadId];
+    if (currentThread) {
+      const existingTodo = currentThread.todos.find((t: Todo) => t.id === event.id);
+      if (existingTodo) {
+        updateTodo(threadId, {
+          ...existingTodo,
+          status: event.status,
+        });
+      }
+    }
+  } else if (event.type === "todo_completed") {
+    const currentThread = getThreads()[threadId];
+    if (currentThread) {
+      const todo = currentThread.todos.find((t: Todo) => t.id === event.id);
+      if (todo) {
+        updateTodo(threadId, { ...todo, status: "completed" });
+      }
+    }
+  }
+}
+
+/**
+ * Helper to restore events from sessionStorage and add them to the thread if missing.
+ */
+function restoreThreadHistory(
+  threadId: string,
+  threads: Record<string, ThreadState>,
+  addEvent: (threadId: string, event: SSEEvent) => void
+) {
+  console.log(`[useBullhorseStream] Attempting to restore thread history for ${threadId}`);
+
+  try {
+    // Try to restore events from sessionStorage
+    const storedEvents = loadEventsFromStorage(threadId);
+    if (storedEvents.length > 0) {
+      console.log(`[useBullhorseStream] Restored ${storedEvents.length} events from session storage`);
+
+      // Add stored events to the thread
+      const currentThread = threads[threadId];
+      if (currentThread) {
+        // Only add events that aren't already in the thread
+        // Use index as part of ID since not all events have timestamps
+        const existingEventIds = new Set(currentThread.events.map((e: SSEEvent, i: number) => `${e.type}-${i}`));
+        let addedCount = 0;
+
+        for (let i = 0; i < storedEvents.length; i++) {
+          const event = storedEvents[i];
+          // Generate a unique ID for the event based on type and index
+          const eventId = `${event.type}-${i}`;
+          if (!existingEventIds.has(eventId)) {
+            addEvent(threadId, event);
+            addedCount++;
+          }
+        }
+
+        if (addedCount > 0) {
+          console.log(`[useBullhorseStream] Added ${addedCount} historical events to thread`);
+        }
+      }
+    } else {
+      console.log("[useBullhorseStream] No stored events found for thread");
+    }
+
+    // TODO: The /trace endpoint returns metrics, not actual events
+    // For full event history from the server, a backend endpoint needs to be added
+    // that returns the complete SSE event history for a thread.
+    // See: https://github.com/your-repo/issues/XXX
+  } catch (error) {
+    console.error("[useBullhorseStream] Failed to restore thread history:", error);
+  }
+}
+
 export function useBullhorseStream({
   threadId,
   enabled = true,
@@ -69,6 +156,7 @@ export function useBullhorseStream({
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
   const [showReconnectingBanner, setShowReconnectingBanner] = useState(false);
   const [sseError, setSseError] = useState<string | null>(null);
+
   const { addThread, addEvent, updateTodo, updateThread, threads } = useThreadStore();
   const { addToast } = useToast();
 
@@ -79,6 +167,7 @@ export function useBullhorseStream({
 
   const handleEvent = useCallback((event: SSEEvent) => {
     console.log(`[useBullhorseStream] Received event for ${threadId}:`, event.type, event);
+
     // Add event to thread
     addEvent(threadId, event);
 
@@ -88,34 +177,13 @@ export function useBullhorseStream({
       saveEventsToStorage(threadId, thread.events);
     }
 
-    // Handle todo events separately
-    if (event.type === "todo_added") {
-      const todo: Todo = {
-        id: event.id,
-        subject: event.subject,
-        status: event.status,
-      };
-      updateTodo(threadId, todo);
-    } else if (event.type === "todo_updated") {
-      const currentThread = useThreadStore.getState().threads[threadId];
-      if (currentThread) {
-        const existingTodo = currentThread.todos.find((t) => t.id === event.id);
-        if (existingTodo) {
-          updateTodo(threadId, {
-            ...existingTodo,
-            status: event.status,
-          });
-        }
-      }
-    } else if (event.type === "todo_completed") {
-      const currentThread = useThreadStore.getState().threads[threadId];
-      if (currentThread) {
-        const todo = currentThread.todos.find((t) => t.id === event.id);
-        if (todo) {
-          updateTodo(threadId, { ...todo, status: "completed" });
-        }
-      }
-    }
+    // Process specific events
+    processTodoEvent(
+      threadId,
+      event,
+      updateTodo,
+      () => useThreadStore.getState().threads
+    );
 
     // Handle error events
     if (event.type === "error") {
@@ -125,50 +193,10 @@ export function useBullhorseStream({
         error: event.message,
       });
     }
-  }, [threadId, addEvent, updateTodo, updateThread, threads, addToast]);
+  }, [threadId, addEvent, updateTodo, updateThread, threads]);
 
   const handleReconnect = useCallback(async () => {
-    console.log(`[useBullhorseStream] Attempting to restore thread history for ${threadId}`);
-
-    try {
-      // Try to restore events from sessionStorage
-      const storedEvents = loadEventsFromStorage(threadId);
-      if (storedEvents.length > 0) {
-        console.log(`[useBullhorseStream] Restored ${storedEvents.length} events from session storage`);
-
-        // Add stored events to the thread
-        const currentThread = threads[threadId];
-        if (currentThread) {
-          // Only add events that aren't already in the thread
-          // Use index as part of ID since not all events have timestamps
-          const existingEventIds = new Set(currentThread.events.map((e, i) => `${e.type}-${i}`));
-          let addedCount = 0;
-
-          for (let i = 0; i < storedEvents.length; i++) {
-            const event = storedEvents[i];
-            // Generate a unique ID for the event based on type and index
-            const eventId = `${event.type}-${i}`;
-            if (!existingEventIds.has(eventId)) {
-              addEvent(threadId, event);
-              addedCount++;
-            }
-          }
-
-          if (addedCount > 0) {
-            console.log(`[useBullhorseStream] Added ${addedCount} historical events to thread`);
-          }
-        }
-      } else {
-        console.log("[useBullhorseStream] No stored events found for thread");
-      }
-
-      // TODO: The /trace endpoint returns metrics, not actual events
-      // For full event history from the server, a backend endpoint needs to be added
-      // that returns the complete SSE event history for a thread.
-      // See: https://github.com/your-repo/issues/XXX
-    } catch (error) {
-      console.error("[useBullhorseStream] Failed to restore thread history:", error);
-    }
+    restoreThreadHistory(threadId, threads, addEvent);
   }, [threadId, threads, addEvent]);
 
   useEffect(() => {
@@ -288,5 +316,7 @@ export function useBullhorseStream({
     sseError,
     manualReconnect,
     clearError: () => setSseError(null),
+    loadEventsFromStorage,
+    clearEventsFromStorage,
   };
 }

@@ -18,20 +18,23 @@ export async function discoverSkills(rootDir: string): Promise<Skill[]> {
   const entries = await readdir(skillsDir, { withFileTypes: true });
   const skills: Skill[] = [];
 
-  for (const entry of entries) {
-    if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
+  const promises = entries.map((entry) => {
+    if (!entry.isDirectory() || entry.name.startsWith(".")) return null;
 
     const skillPath = join(skillsDir, entry.name);
     const skillFile = join(skillPath, "SKILL.md");
 
-    if (!existsSync(skillFile)) continue;
+    if (!existsSync(skillFile)) return null;
 
-    try {
-      const skill = await parseSkillFile(skillFile, skillPath);
-      if (skill) skills.push(skill);
-    } catch (err) {
+    return parseSkillFile(skillFile, skillPath).catch((err) => {
       logger.warn({ err, skill: entry.name }, "[skills] Parse error");
-    }
+      return null;
+    });
+  });
+
+  const resolvedSkills = await Promise.all(promises);
+  for (const skill of resolvedSkills) {
+    if (skill) skills.push(skill);
   }
 
   logger.info({ discovered: skills.length }, "[skills] Discovery completed");

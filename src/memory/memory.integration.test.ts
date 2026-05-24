@@ -19,7 +19,7 @@ class MockSupabaseClient {
 
   async fetch(url: string, options?: RequestInit): Promise<Response> {
     const method = options?.method || "GET";
-    const urlObj = new URL(url);
+    const urlObj = new URL(url.startsWith('http') ? url : `http://localhost/${url}`);
 
     if (method === "GET") {
       const idParam = urlObj.searchParams.get("id");
@@ -105,15 +105,28 @@ class MockSupabaseClient {
       const updates = JSON.parse(options?.body as string);
 
       if (idParam) {
-        const id = idParam.startsWith("eq.") ? idParam.slice(3) : idParam;
-        const existing = this.memories.get(id);
-        if (existing) {
-          Object.assign(existing, updates);
-          return new Response(JSON.stringify([existing]), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
+        let ids = [];
+        if (idParam.startsWith("eq.")) {
+          ids = [idParam.slice(3)];
+        } else if (idParam.startsWith("in.(")) {
+          ids = idParam.slice(4, -1).split(',');
+        } else {
+          ids = [idParam];
         }
+
+        const updatedItems = [];
+        for (const id of ids) {
+            const existing = this.memories.get(id);
+            if (existing) {
+              Object.assign(existing, updates);
+              updatedItems.push(existing);
+            }
+        }
+
+        return new Response(JSON.stringify(updatedItems), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
       }
 
       return new Response(null, { status: 404 });
@@ -206,7 +219,7 @@ describe("Memory System Integration", () => {
           "I'll implement this using TypeScript with strict mode enabled",
       };
 
-      const extractedMemories = extractor.extractFromTurn(turn);
+            const extractedMemories = extractor.extractFromTurn(turn as any);
       expect(extractedMemories.length).toBeGreaterThan(0);
 
       // Step 2: Generate embeddings
@@ -251,7 +264,7 @@ describe("Memory System Integration", () => {
         input: "",
       };
 
-      const extractedMemories = extractor.extractFromTurn(turn);
+            const extractedMemories = extractor.extractFromTurn(turn as any);
       expect(extractedMemories.length).toBe(0);
     });
 
@@ -271,7 +284,7 @@ describe("Memory System Integration", () => {
         },
       };
 
-      const extractedMemories = extractor.extractFromTurn(turn);
+            const extractedMemories = extractor.extractFromTurn(turn as any);
 
       // Should extract from user text, agent reply, error, and linter results
       expect(extractedMemories.length).toBeGreaterThan(0);
@@ -526,18 +539,18 @@ describe("Memory System Integration", () => {
       };
 
       // Save memory
-      const saved = await repository.save(memory);
-      expect(saved.isActive).toBe(true);
+      const saved = await repository.saveBatch([memory]);
+      expect(saved[0].isActive).toBe(true);
 
       // Soft delete
-      await repository.softDelete(saved.id!);
+      await repository.softDelete(saved[0].id!);
 
       // Verify it's marked inactive
-      const updated = await repository.update(saved.id!, { isActive: false });
+      const updated = await repository.update(saved[0].id!, { isActive: false });
       expect(updated?.isActive).toBe(false);
 
       // Reactivate
-      const reactivated = await repository.update(saved.id!, {
+      const reactivated = await repository.update(saved[0].id!, {
         isActive: true,
       });
       expect(reactivated?.isActive).toBe(true);
@@ -555,11 +568,11 @@ describe("Memory System Integration", () => {
         embedding: await embeddingService.generateEmbedding("Test content"),
       };
 
-      const saved = await repository.save(memory);
-      expect(saved.accessCount).toBe(0);
+      const saved = await repository.saveBatch([memory]);
+      expect(saved[0].accessCount).toBe(0);
 
       // Access the memory
-      const retrieved = await repository.getById(saved.id!);
+      const retrieved = await repository.getById(saved[0].id!);
       expect(retrieved).toBeDefined();
     });
   });

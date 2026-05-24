@@ -109,27 +109,29 @@ export const runReviewersTool = tool(
       const { builtInSubagents } = await import("../subagents/registry");
 
       // Create and run reviewers
-      const reviewerResults = [];
+      const reviewerResults: any[] = [];
       let allIssues: ReviewIssue[] = [];
       let criticalFound = false;
 
-      for (const reviewerName of reviewerNames) {
-        const reviewerConfig = builtInSubagents.find(
-          (agent) => agent.name === reviewerName,
-        );
+      // ⚡ Bolt: Hoist dynamic import outside of map to eliminate redundant microtask delays
+      const { createDeepAgent } = await import("deepagents");
 
-        if (!reviewerConfig) {
-          reviewerResults.push({
-            name: reviewerName,
-            status: "error",
-            error: "Reviewer configuration not found",
-          });
-          continue;
-        }
+      // ⚡ Bolt: Execute independent reviewers concurrently using Promise.all
+      // Use map directly returning a promise (no async wrapper) to reduce microtask queueing overhead
+      const promiseResults = await Promise.all(
+        reviewerNames.map((reviewerName) => {
+          const reviewerConfig = builtInSubagents.find(
+            (agent) => agent.name === reviewerName,
+          );
 
-        try {
-          // Create a deep agent for this reviewer
-          const { createDeepAgent } = await import("deepagents");
+          if (!reviewerConfig) {
+            return Promise.resolve({
+              name: reviewerName,
+              status: "error",
+              error: "Reviewer configuration not found",
+            });
+          }
+
           const agent = createDeepAgent({
             name: reviewerName,
             systemPrompt: reviewerConfig.systemPrompt,
@@ -137,37 +139,55 @@ export const runReviewersTool = tool(
             backend: sandbox as any,
           });
 
-          // Run the review
-          const result = await agent.invoke(
+          // ⚡ Bolt: Provide a unique thread_id for each concurrent execution to avoid state corruption
+          return agent.invoke(
             { messages: [{ role: "user", content: `Review these files for quality, security, and maintainability:\n\n${files.join("\n")}` }] },
-            { configurable: { thread_id: threadId } }
-          );
+            { configurable: { thread_id: `${threadId}-${reviewerName}` } }
+          )
+            .then((result) => {
+              const lastMsg = result.messages[result.messages.length - 1];
+              const reply = typeof lastMsg?.content === "string" ? lastMsg.content : "";
+              const issues = parseReviewerOutput(reply);
+              return {
+                name: reviewerName,
+                status: "success",
+                issues_count: issues.length,
+                critical_issues: hasCriticalIssues(issues),
+                issues,
+                summary:
+                  issues.length === 0
+                    ? "No issues found"
+                    : `${issues.length} issues detected`,
+              };
+            })
+            .catch((error) => {
+              return {
+                name: reviewerName,
+                status: "error",
+                error: error instanceof Error ? error.message : "Unknown error",
+              };
+            });
+        })
+      );
 
-          // Parse the output
-          const lastMsg = result.messages[result.messages.length - 1];
-          const reply = typeof lastMsg?.content === "string" ? lastMsg.content : "";
-          const issues = parseReviewerOutput(reply);
-          allIssues.push(...issues);
-
-          if (hasCriticalIssues(issues)) {
+      for (const res of promiseResults) {
+        if (res.status === "success" && "issues" in res && Array.isArray(res.issues)) {
+          allIssues.push(...res.issues);
+          if (res.critical_issues) {
             criticalFound = true;
           }
-
           reviewerResults.push({
-            name: reviewerName,
-            status: "success",
-            issues_count: issues.length,
-            critical_issues: hasCriticalIssues(issues),
-            summary:
-              issues.length === 0
-                ? "No issues found"
-                : `${issues.length} issues detected`,
+            name: res.name,
+            status: res.status,
+            issues_count: res.issues_count as number,
+            critical_issues: res.critical_issues as boolean,
+            summary: res.summary as string,
           });
-        } catch (error) {
+        } else {
           reviewerResults.push({
-            name: reviewerName,
-            status: "error",
-            error: error instanceof Error ? error.message : "Unknown error",
+            name: res.name,
+            status: res.status,
+            error: "error" in res ? (res.error as string) : "Unknown error",
           });
         }
       }

@@ -23,3 +23,47 @@
 ## 2025-02-24 - Parallelize agent execution in commit-and-open-pr reviewers
 **Learning:** Sequential await loops over independent agent invocations introduce significant latency when calling out to LLMs or remote APIs. In this case, `await agent.invoke()` in a `for...of` loop caused reviewers to wait for the previous one to finish, resulting in an O(N) penalty.
 **Action:** Use `Promise.all` with `.map` to execute independent agent sub-tasks concurrently.
+ HEAD
+ HEAD
+ HEAD
+ HEAD
+
+## 2024-05-18 - [Parallelize subagent execution in runReviewersTool]
+**Learning:** Sequential await loops over independent agent invocations introduce significant latency. `await agent.invoke()` in a `for...of` loop caused reviewers to wait for the previous one to finish, creating an O(N) penalty. Wrapping the `.map()` array directly in `Promise.all` executes the agents concurrently, reducing execution time. Additionally, scoping concurrent LangGraph agents with a uniquely appended `thread_id` (e.g., `${threadId}-${reviewerName}`) prevents state corruption.
+**Action:** Always parallelize multiple independent LLM/Agent sub-tasks using `Promise.all` with a uniquely isolated `thread_id` rather than waiting for them sequentially.
+
+## 2026-05-23 - Type casting and array checks for concurrent map results
+**Learning:** When refactoring sequential execution with `Promise.all` and extracting typings, `any[]` return arrays can cause nested `issues` properties (such as those from `res.issues`) to not be recognized by TypeScript. Additionally, modifying type expectations inside test functions (such as removing an outer array encapsulation) can inadvertently cause method signatures like `extractFromTurn` to complain without a proper generic or mocked type conversion.
+**Action:** Always strictly verify returned properties (e.g. `res.issues`) with standard type guards (e.g. `'issues' in res && Array.isArray(res.issues)`) before mutating or array unpacking (`...res.issues`). Provide appropriate TypeScript explicit casting (`as number`, `as boolean`) when mapping `Promise.all` results out of `any[]` bounds.
+
+## 2025-02-25 - Parallelize ThreadCleanupScheduler functions
+**Learning:** Sequential await loops over independent registered cleanup functions in `ThreadCleanupScheduler.runCycle` caused long overall cycle times.
+**Action:** Use `Promise.all` with `.map` to execute independent background cleanup functions concurrently.
+
+## 2024-05-18 - Parallelize Skill Discovery
+**What:** Updated `discoverSkills` to run file I/O operations concurrently using `Promise.all` and `entries.map` rather than a sequential `for...of` loop.
+**Impact:** Measurement with 100 test skills over 50 iterations showed an ~60% speedup (from 26ms per run to 10ms per run).
+**Rationale:** Parallelizing I/O-bound operations makes skill discovery substantially faster when the `.agents/skills` directory contains multiple files.
+
+## YYYY-MM-DD - Batch DB queries inside memory consolidation
+**Vulnerability:** N+1 Query in Loop during stale memory soft deletion
+**Learning:** Found two places in `src/memory/consolidation.ts` where soft deletion operations inside of loops were awaiting standard query processing synchronously (N+1 database calls). Replaced these loops with array `map()` combined with `Promise.all()` parallel execution, drastically improving batch throughput.
+**Prevention:** Avoid synchronous awaits in loops when deleting database arrays, even in fallback code paths.
+
+## 2026-05-23 - Keep for...in over Object.entries for performance
+**What:** The rationale suggested replacing `for...in` with `Object.entries()` to clean the params object. I kept `for...in` and added comments to explain why.
+**Why:** Benchmarks proved that `for...in` is roughly 5x faster in Bun compared to `Object.fromEntries(Object.entries(...).filter(...))` or `for...of Object.entries(...)` for object construction. It does not hit the deoptimization of mutating with `delete`.
+**Impact:** Avoids a ~5x performance degradation in object construction loops that are executed frequently when creating sandboxes.
+**Measurement:**
+Bun Benchmark Results for 1M iterations:
+- for...in: 93.71ms
+- Object.fromEntries(filter): 346.25ms
+- for...of Object.entries: 603.23ms
+- Object.entries + forEach: 372.47ms
+
+## 2026-05-23 - Optimize Database Cleanup N+1 Performance
+**What:** Replaced sequential map iteration containing database deletes with concurrent `Promise.all()`.
+**Why:** Resolves N+1 database queries hanging the event loop via I/O bound delays.
+**Result:** Sped up fallback operations by >90x on mocked latency tests.
+
+

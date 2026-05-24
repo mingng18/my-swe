@@ -19,3 +19,7 @@
 **Vulnerability:** Resource Exhaustion (DoS) due to un-destroyed undici Agents
 **Learning:** When mitigating SSRF using custom DNS lookup via `undici.Agent`, failing to explicitly call `await agent.destroy()` leaks socket connections and file descriptors because custom Agents bypass global connection pooling.
 **Prevention:** Always destroy custom networking Agents in a `finally` block immediately after the response is fully consumed.
+## 2025-02-28 - Fix Timing Attack Vulnerability in Webhook Verification
+**Vulnerability:** Double-hashing of variable-length user input during GitHub webhook verification could leak timing information and the length mismatch check was non-standard.
+**Learning:** Using `crypto.timingSafeEqual` directly on Buffers after validating their lengths are identical is the standard, secure way to compare signatures without leaking timing info or throwing errors on mismatched lengths.
+**Prevention:** Always compare known-length hashes directly using Buffers and length checks, avoiding HMAC updates on untrusted user signatures.

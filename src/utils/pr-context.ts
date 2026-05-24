@@ -7,7 +7,7 @@
  */
 
 import { createLogger } from "./logger";
-import { findExistingPr, getGithubDefaultBranch } from "./github/index";
+import { findExistingPr } from "./github/index";
 import { threadRepoMap } from "../harness/thread-manager";
 
 const logger = createLogger("pr-context");

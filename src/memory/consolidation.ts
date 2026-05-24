@@ -73,10 +73,11 @@ export class ConsolidationService {
             }
           } else {
             // Fallback for older repository implementations
-            for (const memory of staleMemories) {
-              await this.repository.softDelete(memory.id!);
-              result.archived++;
-            }
+            // ⚡ Bolt: Use Promise.all to prevent N+1 sequential I/O waiting during fallback deletions
+            await Promise.all(
+              staleMemories.map((memory) => this.repository.softDelete(memory.id!))
+            );
+            result.archived += staleMemories.length;
           }
         } catch (error) {
           const errorMsg =
@@ -279,9 +280,10 @@ export class ConsolidationService {
         }
       } else {
         // Fallback
-        for (const memory of toDelete) {
-          await this.repository.softDelete(memory.id!);
-        }
+        // ⚡ Bolt: Use Promise.all to prevent N+1 sequential I/O waiting during fallback deletions
+        await Promise.all(
+          toDelete.map((memory) => this.repository.softDelete(memory.id!))
+        );
       }
 
       result.merged = toDelete.length;

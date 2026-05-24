@@ -229,11 +229,12 @@ function searchToolsByKeywords(
     candidateTools = tools.filter((tool) => {
       const parsed = parseToolName(tool.name);
       const descLower = (tool.description || "").toLowerCase();
+      const partsSet = new Set(parsed.parts);
 
       return requiredTerms.every((term) => {
         const pattern = termPatterns.get(term)!;
         return (
-          parsed.parts.includes(term) ||
+          partsSet.has(term) ||
           parsed.parts.some((p) => p.includes(term)) ||
           pattern.test(descLower)
         );
@@ -245,13 +246,14 @@ function searchToolsByKeywords(
   const scored = candidateTools.map((tool) => {
     const parsed = parseToolName(tool.name);
     const descLower = (tool.description || "").toLowerCase();
+    const partsSet = new Set(parsed.parts);
 
     let score = 0;
     for (const term of allScoringTerms) {
       const pattern = termPatterns.get(term)!;
 
       // Exact part match (highest weight)
-      if (parsed.parts.includes(term)) {
+      if (partsSet.has(term)) {
         score += 10;
       } else if (parsed.parts.some((p) => p.includes(term))) {
         score += 5;
