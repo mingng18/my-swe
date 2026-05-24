@@ -24,6 +24,7 @@
 **Learning:** Sequential await loops over independent agent invocations introduce significant latency when calling out to LLMs or remote APIs. In this case, `await agent.invoke()` in a `for...of` loop caused reviewers to wait for the previous one to finish, resulting in an O(N) penalty.
 **Action:** Use `Promise.all` with `.map` to execute independent agent sub-tasks concurrently.
  HEAD
+ HEAD
 
 ## 2024-05-18 - [Parallelize subagent execution in runReviewersTool]
 **Learning:** Sequential await loops over independent agent invocations introduce significant latency. `await agent.invoke()` in a `for...of` loop caused reviewers to wait for the previous one to finish, creating an O(N) penalty. Wrapping the `.map()` array directly in `Promise.all` executes the agents concurrently, reducing execution time. Additionally, scoping concurrent LangGraph agents with a uniquely appended `thread_id` (e.g., `${threadId}-${reviewerName}`) prevents state corruption.
@@ -41,5 +42,10 @@
 **What:** Updated `discoverSkills` to run file I/O operations concurrently using `Promise.all` and `entries.map` rather than a sequential `for...of` loop.
 **Impact:** Measurement with 100 test skills over 50 iterations showed an ~60% speedup (from 26ms per run to 10ms per run).
 **Rationale:** Parallelizing I/O-bound operations makes skill discovery substantially faster when the `.agents/skills` directory contains multiple files.
+
+## YYYY-MM-DD - Batch DB queries inside memory consolidation
+**Vulnerability:** N+1 Query in Loop during stale memory soft deletion
+**Learning:** Found two places in `src/memory/consolidation.ts` where soft deletion operations inside of loops were awaiting standard query processing synchronously (N+1 database calls). Replaced these loops with array `map()` combined with `Promise.all()` parallel execution, drastically improving batch throughput.
+**Prevention:** Avoid synchronous awaits in loops when deleting database arrays, even in fallback code paths.
 
 

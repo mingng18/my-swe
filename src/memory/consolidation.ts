@@ -72,10 +72,13 @@ export class ConsolidationService {
               result.archived += ids.length;
             }
           } else {
-            // Fallback for older repository implementations
-            for (const memory of staleMemories) {
-              await this.repository.softDelete(memory.id!);
-              result.archived++;
+            // Fallback for older repository implementations using parallel processing
+            const ids = staleMemories.map((m) => m.id!).filter(Boolean);
+            if (ids.length > 0) {
+              await Promise.all(
+                ids.map((id) => this.repository.softDelete(id)),
+              );
+              result.archived += ids.length;
             }
           }
         } catch (error) {
@@ -123,7 +126,8 @@ export class ConsolidationService {
         if (!memory.embedding || memory.embedding.length === 0) {
           try {
             const text = `${memory.title}. ${memory.content}`;
-            memory.embedding = await this.embeddingService.generateEmbedding(text);
+            memory.embedding =
+              await this.embeddingService.generateEmbedding(text);
             await this.repository.update(memory.id!, {
               embedding: memory.embedding,
             });
@@ -134,7 +138,7 @@ export class ConsolidationService {
             );
           }
         }
-      })
+      }),
     );
 
     // Find duplicate groups
@@ -278,9 +282,10 @@ export class ConsolidationService {
           await (this.repository as any).softDeleteMany(ids);
         }
       } else {
-        // Fallback
-        for (const memory of toDelete) {
-          await this.repository.softDelete(memory.id!);
+        // Fallback using parallel processing
+        const ids = toDelete.map((m) => m.id!).filter(Boolean);
+        if (ids.length > 0) {
+          await Promise.all(ids.map((id) => this.repository.softDelete(id)));
         }
       }
 
