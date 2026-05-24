@@ -5,7 +5,8 @@
     "start": "bun run src/index.ts",
     "langgraph": "langgraph dev",
     "langgraph:build": "langgraph build",
-    "prewarm": "bun run src/prewarm.ts"
+    "prewarm": "bun run src/prewarm.ts",
+    "build": "bun build src/index.ts --outdir dist --target bun"
   },
   "dependencies": {
     "@alibaba-group/opensandbox": "^0.1.5",

@@ -14,3 +14,4 @@ node_modules/
 .claude_settings.json
 .security-key
 logs/security/
+dist/
