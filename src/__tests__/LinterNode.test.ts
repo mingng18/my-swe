@@ -1,27 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
 
 // Mock the dependencies
-mock.module("../memory/repository", () => {
-  return {
-    MemoryRepository: class MockMemoryRepository {
-      saveBatch = mock();
-    }
-  };
-});
-mock.module("../memory/extractor", () => {
-  return {
-    MemoryExtractor: class MockMemoryExtractor {
-      extractMemories = mock();
-    }
-  };
-});
-mock.module("../memory/embeddings", () => {
-  return {
-    EmbeddingService: class MockEmbeddingService {
-      embed = mock();
-    }
-  };
-});
 
 import { isMemoryEnabled, initializeMemoryServices } from "../nodes/deterministic/LinterNode";
 
@@ -31,6 +10,9 @@ describe("LinterNode memory services", () => {
   beforeEach(() => {
     // Save original environment
     process.env = { ...originalEnv };
+    process.env.SUPABASE_URL = "http://localhost:8000";
+    process.env.SUPABASE_SERVICE_ROLE_KEY = "test";
+    process.env.OPENAI_API_KEY = "test";
   });
 
   afterEach(() => {
