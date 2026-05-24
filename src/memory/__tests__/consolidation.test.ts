@@ -12,7 +12,7 @@ class MockSupabaseClient implements SupabaseClient {
 
   async fetch(url: string, options?: RequestInit): Promise<Response> {
     const method = options?.method || "GET";
-    const urlObj = new URL(url);
+    const urlObj = new URL(url.startsWith('http') ? url : `http://localhost/${url}`);
     const params = urlObj.searchParams;
 
     const idMatch = url.match(/id=eq\.([^&]+)/);
@@ -98,6 +98,20 @@ class MockSupabaseClient implements SupabaseClient {
             updated.access_count = (existing.access_count || 0) + 1;
           }
           this.memories.set(id, updated);
+        }
+      } else {
+        const inMatch = url.match(/id=in\.\(([^)]+)\)/);
+        if (inMatch) {
+          const ids = decodeURIComponent(inMatch[1]).split(',');
+          const updates = JSON.parse(options?.body as string);
+
+          for (const id of ids) {
+            const existing = this.memories.get(id);
+            if (existing) {
+              const updated = { ...existing, ...updates };
+              this.memories.set(id, updated);
+            }
+          }
         }
       }
       return new Response(null, { status: 204 });
