@@ -206,7 +206,7 @@ describe("Memory System Integration", () => {
           "I'll implement this using TypeScript with strict mode enabled",
       };
 
-      const extractedMemories = extractor.extractFromTurn(turn);
+            const extractedMemories = extractor.extractFromTurn(turn as any);
       expect(extractedMemories.length).toBeGreaterThan(0);
 
       // Step 2: Generate embeddings
@@ -251,7 +251,7 @@ describe("Memory System Integration", () => {
         input: "",
       };
 
-      const extractedMemories = extractor.extractFromTurn(turn);
+            const extractedMemories = extractor.extractFromTurn(turn as any);
       expect(extractedMemories.length).toBe(0);
     });
 
@@ -271,7 +271,7 @@ describe("Memory System Integration", () => {
         },
       };
 
-      const extractedMemories = extractor.extractFromTurn(turn);
+            const extractedMemories = extractor.extractFromTurn(turn as any);
 
       // Should extract from user text, agent reply, error, and linter results
       expect(extractedMemories.length).toBeGreaterThan(0);

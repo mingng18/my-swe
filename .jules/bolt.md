@@ -23,3 +23,11 @@
 ## 2025-02-24 - Parallelize agent execution in commit-and-open-pr reviewers
 **Learning:** Sequential await loops over independent agent invocations introduce significant latency when calling out to LLMs or remote APIs. In this case, `await agent.invoke()` in a `for...of` loop caused reviewers to wait for the previous one to finish, resulting in an O(N) penalty.
 **Action:** Use `Promise.all` with `.map` to execute independent agent sub-tasks concurrently.
+
+## 2024-05-18 - [Parallelize subagent execution in runReviewersTool]
+**Learning:** Sequential await loops over independent agent invocations introduce significant latency. `await agent.invoke()` in a `for...of` loop caused reviewers to wait for the previous one to finish, creating an O(N) penalty. Wrapping the `.map()` array directly in `Promise.all` executes the agents concurrently, reducing execution time. Additionally, scoping concurrent LangGraph agents with a uniquely appended `thread_id` (e.g., `${threadId}-${reviewerName}`) prevents state corruption.
+**Action:** Always parallelize multiple independent LLM/Agent sub-tasks using `Promise.all` with a uniquely isolated `thread_id` rather than waiting for them sequentially.
+
+## 2026-05-23 - Type casting and array checks for concurrent map results
+**Learning:** When refactoring sequential execution with `Promise.all` and extracting typings, `any[]` return arrays can cause nested `issues` properties (such as those from `res.issues`) to not be recognized by TypeScript. Additionally, modifying type expectations inside test functions (such as removing an outer array encapsulation) can inadvertently cause method signatures like `extractFromTurn` to complain without a proper generic or mocked type conversion.
+**Action:** Always strictly verify returned properties (e.g. `res.issues`) with standard type guards (e.g. `'issues' in res && Array.isArray(res.issues)`) before mutating or array unpacking (`...res.issues`). Provide appropriate TypeScript explicit casting (`as number`, `as boolean`) when mapping `Promise.all` results out of `any[]` bounds.
