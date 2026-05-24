@@ -67,3 +67,7 @@ Bun Benchmark Results for 1M iterations:
 **Result:** Sped up fallback operations by >90x on mocked latency tests.
 
 
+
+## 2026-05-24 - Parallelize Memory Daemon Consolidation
+**Learning:** Sequential `await` in `runConsolidationCycle` inside `src/memory/daemon.ts` over sessions caused long overall delays in the cleanup loop as the number of memory threads grows.
+**Action:** Use `Promise.all` with `Array.from(sessions.entries()).map` to process all thread consolidations concurrently, reducing bottlenecking in the periodic cleanup process.

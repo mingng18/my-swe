@@ -190,32 +190,38 @@ export class MemoryDaemon {
       errors: 0,
     };
 
-    for (const [threadId, session] of this.sessions.entries()) {
-      try {
-        logger.debug({ threadId }, "Consolidating thread");
+    // ⚡ Bolt: Use Promise.all with .map to process multiple sessions concurrently
+    // instead of awaiting them sequentially, preventing long consolidation cycle times.
+    await Promise.all(
+      Array.from(this.sessions.entries()).map(async ([threadId, session]) => {
+        try {
+          logger.debug({ threadId }, "Consolidating thread");
 
-        const result = await this.consolidationService.consolidate(threadId);
+          const result = await this.consolidationService.consolidate(threadId);
 
-        results.processed += result.processed;
-        results.merged += result.merged;
-        results.archived += result.archived;
-        results.errors += result.errors.length;
+          // Note: While updating results is synchronous here and thus thread-safe in Node.js,
+          // when using web workers this might need atomics. Safe in current environment.
+          results.processed += result.processed;
+          results.merged += result.merged;
+          results.archived += result.archived;
+          results.errors += result.errors.length;
 
-        // Update session activity
-        session.lastActivityAt = new Date();
+          // Update session activity
+          session.lastActivityAt = new Date();
 
-        if (result.errors.length > 0) {
-          logger.warn(
-            { threadId, errors: result.errors },
-            "Consolidation completed with errors",
-          );
+          if (result.errors.length > 0) {
+            logger.warn(
+              { threadId, errors: result.errors },
+              "Consolidation completed with errors",
+            );
+          }
+        } catch (error) {
+          results.errors++;
+          this.totalErrors++;
+          logger.error({ error, threadId }, "Consolidation failed for thread");
         }
-      } catch (error) {
-        results.errors++;
-        this.totalErrors++;
-        logger.error({ error, threadId }, "Consolidation failed for thread");
-      }
-    }
+      })
+    );
 
     this.lastConsolidationAt = new Date();
     this.totalConsolidations++;
