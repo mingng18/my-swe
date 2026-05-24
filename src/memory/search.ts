@@ -48,16 +48,14 @@ export class SearchService {
       // Fallback for older repository implementations
       const results = await Promise.all(
         threadIds.map(async (threadId) => {
-          return await this.repository.getByThread(threadId);
-        })
+          if (typeof this.repository.getByThread !== "function") {
+            return [];
+          }
+          return await this.repository.getByThread(threadId, options.types);
+        }),
       );
       for (const memories of results) {
-        // filter by types manually if needed
-        if (options.types && options.types.length > 0) {
-           allMemories.push(...memories.filter(m => m.type && options.types!.includes(m.type)));
-        } else {
-           allMemories.push(...memories);
-        }
+        allMemories.push(...memories);
       }
     }
 

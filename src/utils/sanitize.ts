@@ -336,7 +336,7 @@ export function parseJsonSafely<T = unknown>(
   // Block prototype pollution
   if (blockProto) {
     const sanitized = JSON.parse(JSON.stringify(parsed));
-    if ("__proto__" in sanitized || "constructor" in sanitized) {
+    if (Object.prototype.hasOwnProperty.call(sanitized, "__proto__") || Object.prototype.hasOwnProperty.call(sanitized, "constructor")) {
       throw new Error("Prototype pollution detected in JSON input");
     }
     parsed = sanitized;
