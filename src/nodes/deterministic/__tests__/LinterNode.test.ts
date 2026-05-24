@@ -1,49 +1,41 @@
 import { test, expect, describe, mock, beforeEach, afterEach } from "bun:test";
 
-let mockSaveBatch = mock().mockResolvedValue(undefined);
-let mockExtractFromTurn = mock().mockReturnValue([]);
-let mockGenerateEmbedding = mock().mockResolvedValue([0.1, 0.2]);
 
-mock.module("../../../memory/repository", () => ({
-  MemoryRepository: class {
-    saveBatch = mockSaveBatch;
-  }
-}));
-
-mock.module("../../../memory/extractor", () => ({
-  MemoryExtractor: class {
-    extractFromTurn = mockExtractFromTurn;
-  }
-}));
-
-mock.module("../../../memory/embeddings", () => ({
-  EmbeddingService: class {
-    generateEmbedding = mockGenerateEmbedding;
-  }
-}));
+import { MemoryRepository } from "../../../memory/repository";
+import { MemoryExtractor } from "../../../memory/extractor";
+import { EmbeddingService } from "../../../memory/embeddings";
+import { spyOn } from "bun:test";
 
 import { extractAndSaveMemories, initializeMemoryServices } from "../LinterNode";
 
 describe("extractAndSaveMemories", () => {
-    let originalMemoryEnabled: string | undefined;
+    let mockSaveBatch: ReturnType<typeof spyOn>;
+    let mockExtractFromTurn: ReturnType<typeof spyOn>;
+    let mockGenerateEmbedding: ReturnType<typeof spyOn>;
+
+
 
     beforeEach(() => {
-        originalMemoryEnabled = process.env.MEMORY_ENABLED;
         process.env.MEMORY_ENABLED = "true";
+        process.env.SUPABASE_URL = "https://test.supabase.co";
+        process.env.SUPABASE_SERVICE_ROLE_KEY = "test";
+        process.env.OPENAI_API_KEY = "test";
 
-        mockSaveBatch.mockClear();
-        mockExtractFromTurn.mockClear();
-        mockGenerateEmbedding.mockClear();
+        mockSaveBatch = spyOn(MemoryRepository.prototype, "saveBatch").mockResolvedValue(undefined as any);
+        mockExtractFromTurn = spyOn(MemoryExtractor.prototype, "extractFromTurn").mockReturnValue([]);
+        mockGenerateEmbedding = spyOn(EmbeddingService.prototype, "generateEmbedding").mockResolvedValue([0.1, 0.2] as any);
 
         initializeMemoryServices();
     });
 
     afterEach(() => {
-        if (originalMemoryEnabled === undefined) {
-            delete process.env.MEMORY_ENABLED;
-        } else {
-            process.env.MEMORY_ENABLED = originalMemoryEnabled;
-        }
+        mockSaveBatch.mockRestore();
+        mockExtractFromTurn.mockRestore();
+        mockGenerateEmbedding.mockRestore();
+        process.env.MEMORY_ENABLED = "true";
+        process.env.SUPABASE_URL = "";
+        process.env.SUPABASE_SERVICE_ROLE_KEY = "";
+        process.env.OPENAI_API_KEY = "";
     });
 
     test("does nothing if memory is disabled", async () => {

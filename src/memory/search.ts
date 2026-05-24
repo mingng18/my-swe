@@ -47,10 +47,10 @@ export class SearchService {
     } else {
       // Fallback for older repository implementations
       for (const threadId of threadIds) {
-        const memories = typeof this.repository.getByThread === "function" ? await this.repository.getByThread(
+        const memories = await this.repository.getByThread(
           threadId,
           options.types,
-        ) : [];
+        );
         allMemories.push(...memories);
       }
     }
