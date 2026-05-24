@@ -1,4 +1,0 @@
-🎯 **What:** Removed commented out code related to the `/trace` endpoint.
-💡 **Why:** Removes dead/commented out code, improving code readability.
-✅ **Verification:** Formatted file, ran linter, and executed root test suite to ensure no issues were introduced. (Note: CI unit test failures are unrelated to `useBullhorseStream.ts` UI changes).
-✨ **Result:** A cleaner file without unnecessary commented out code.
