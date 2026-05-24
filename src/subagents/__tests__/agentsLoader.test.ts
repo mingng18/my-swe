@@ -33,8 +33,9 @@ Test system prompt`;
     writeFileSync(join(testAgentsDir, "test-agent.md"), testContent);
 
     const agents = await loadRepoAgents(testAgentsDir);
-    expect(agents.length).toBeGreaterThan(0);
-    expect(agents[0].name).toBe("test-agent");
+    const testAgent = agents.find((agent) => agent.name === "test-agent");
+    expect(testAgent).toBeDefined();
+    expect(testAgent?.name).toBe("test-agent");
   });
 
   it("should handle missing directory gracefully", async () => {
