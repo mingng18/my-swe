@@ -1,14 +1,9 @@
-// hooks/useBullhorseStream.ts
-
 "use client";
 
 import { useEffect, useRef, useCallback, useState } from "react";
 import { useThreadStore } from "@/store/thread-store";
-import {
-  getBullhorseClient,
-  type ConnectionState,
-} from "@/lib/bullhorse-client";
-import type { SSEEvent, Todo } from "@/lib/types";
+import { getBullhorseClient, type ConnectionState } from "@/lib/bullhorse-client";
+import type { SSEEvent, Todo, ThreadState } from "@/lib/types";
 import { useToast } from "@/components/ui/toast";
 
 export interface UseBullhorseStreamOptions {
@@ -30,10 +25,7 @@ function saveEventsToStorage(threadId: string, events: SSEEvent[]): void {
     const key = `${EVENT_STORAGE_PREFIX}${threadId}`;
     sessionStorage.setItem(key, JSON.stringify(events));
   } catch (error) {
-    console.error(
-      "[useBullhorseStream] Failed to save events to storage:",
-      error,
-    );
+    console.error("[useBullhorseStream] Failed to save events to storage:", error);
   }
 }
 
@@ -48,12 +40,110 @@ function loadEventsFromStorage(threadId: string): SSEEvent[] {
       return JSON.parse(stored) as SSEEvent[];
     }
   } catch (error) {
-    console.error(
-      "[useBullhorseStream] Failed to load events from storage:",
-      error,
-    );
+    console.error("[useBullhorseStream] Failed to load events from storage:", error);
   }
   return [];
+}
+
+/**
+ * Clear events from sessionStorage
+ */
+function clearEventsFromStorage(threadId: string): void {
+  try {
+    const key = `${EVENT_STORAGE_PREFIX}${threadId}`;
+    sessionStorage.removeItem(key);
+  } catch (error) {
+    console.error("[useBullhorseStream] Failed to clear events from storage:", error);
+  }
+}
+
+/**
+ * Helper to process Todo-related SSE events and update the thread store appropriately.
+ */
+function processTodoEvent(
+  threadId: string,
+  event: SSEEvent,
+  updateTodo: (threadId: string, todo: Todo) => void,
+  getThreads: () => Record<string, ThreadState>
+) {
+  if (event.type === "todo_added") {
+    const todo: Todo = {
+      id: event.id,
+      subject: event.subject,
+      status: event.status,
+    };
+    updateTodo(threadId, todo);
+  } else if (event.type === "todo_updated") {
+    const currentThread = getThreads()[threadId];
+    if (currentThread) {
+      const existingTodo = currentThread.todos.find((t: Todo) => t.id === event.id);
+      if (existingTodo) {
+        updateTodo(threadId, {
+          ...existingTodo,
+          status: event.status,
+        });
+      }
+    }
+  } else if (event.type === "todo_completed") {
+    const currentThread = getThreads()[threadId];
+    if (currentThread) {
+      const todo = currentThread.todos.find((t: Todo) => t.id === event.id);
+      if (todo) {
+        updateTodo(threadId, { ...todo, status: "completed" });
+      }
+    }
+  }
+}
+
+/**
+ * Helper to restore events from sessionStorage and add them to the thread if missing.
+ */
+function restoreThreadHistory(
+  threadId: string,
+  threads: Record<string, ThreadState>,
+  addEvent: (threadId: string, event: SSEEvent) => void
+) {
+  console.log(`[useBullhorseStream] Attempting to restore thread history for ${threadId}`);
+
+  try {
+    // Try to restore events from sessionStorage
+    const storedEvents = loadEventsFromStorage(threadId);
+    if (storedEvents.length > 0) {
+      console.log(`[useBullhorseStream] Restored ${storedEvents.length} events from session storage`);
+
+      // Add stored events to the thread
+      const currentThread = threads[threadId];
+      if (currentThread) {
+        // Only add events that aren't already in the thread
+        // Use index as part of ID since not all events have timestamps
+        const existingEventIds = new Set(currentThread.events.map((e: SSEEvent, i: number) => `${e.type}-${i}`));
+        let addedCount = 0;
+
+        for (let i = 0; i < storedEvents.length; i++) {
+          const event = storedEvents[i];
+          // Generate a unique ID for the event based on type and index
+          const eventId = `${event.type}-${i}`;
+          if (!existingEventIds.has(eventId)) {
+            addEvent(threadId, event);
+            addedCount++;
+          }
+        }
+
+        if (addedCount > 0) {
+          console.log(`[useBullhorseStream] Added ${addedCount} historical events to thread`);
+        }
+      }
+    } else {
+      console.log("[useBullhorseStream] No stored events found for thread");
+    }
+
+    // TODO: The /trace endpoint returns metrics, not actual events
+    // For full event history from the server, a backend endpoint needs to be added
+    // that returns the complete SSE event history for a thread.
+    // See: https://github.com/your-repo/issues/XXX
+  } catch (error) {
+    console.error("[useBullhorseStream] Failed to restore thread history:", error);
+  }
 }
 
 export function useBullhorseStream({
@@ -62,13 +152,12 @@ export function useBullhorseStream({
 }: UseBullhorseStreamOptions) {
   const unsubscribeRef = useRef<(() => void) | null>(null);
   const connectionStateRef = useRef<ConnectionState>("disconnected");
-  const [connectionState, setConnectionState] =
-    useState<ConnectionState>("disconnected");
+  const [connectionState, setConnectionState] = useState<ConnectionState>("disconnected");
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
   const [showReconnectingBanner, setShowReconnectingBanner] = useState(false);
   const [sseError, setSseError] = useState<string | null>(null);
-  const { addThread, addEvent, updateTodo, updateThread, threads } =
-    useThreadStore();
+
+  const { addThread, addEvent, updateTodo, updateThread, threads } = useThreadStore();
   const { addToast } = useToast();
 
   // Update ref when state changes
@@ -76,113 +165,38 @@ export function useBullhorseStream({
     connectionStateRef.current = connectionState;
   }, [connectionState]);
 
-  const handleEvent = useCallback(
-    (event: SSEEvent) => {
-      console.log(
-        `[useBullhorseStream] Received event for ${threadId}:`,
-        event.type,
-        event,
-      );
-      // Add event to thread
-      addEvent(threadId, event);
+  const handleEvent = useCallback((event: SSEEvent) => {
+    console.log(`[useBullhorseStream] Received event for ${threadId}:`, event.type, event);
 
-      // Persist events to sessionStorage for history restoration on reconnect
-      const thread = threads[threadId];
-      if (thread) {
-        saveEventsToStorage(threadId, thread.events);
-      }
+    // Add event to thread
+    addEvent(threadId, event);
 
-      // Handle todo events separately
-      if (event.type === "todo_added") {
-        const todo: Todo = {
-          id: event.id,
-          subject: event.subject,
-          status: event.status,
-        };
-        updateTodo(threadId, todo);
-      } else if (event.type === "todo_updated") {
-        const currentThread = useThreadStore.getState().threads[threadId];
-        if (currentThread) {
-          const existingTodo = currentThread.todos.find(
-            (t) => t.id === event.id,
-          );
-          if (existingTodo) {
-            updateTodo(threadId, {
-              ...existingTodo,
-              status: event.status,
-            });
-          }
-        }
-      } else if (event.type === "todo_completed") {
-        const currentThread = useThreadStore.getState().threads[threadId];
-        if (currentThread) {
-          const todo = currentThread.todos.find((t) => t.id === event.id);
-          if (todo) {
-            updateTodo(threadId, { ...todo, status: "completed" });
-          }
-        }
-      }
+    // Persist events to sessionStorage for history restoration on reconnect
+    const thread = threads[threadId];
+    if (thread) {
+      saveEventsToStorage(threadId, thread.events);
+    }
 
-      // Handle error events
-      if (event.type === "error") {
-        setSseError(event.message);
-        updateThread(threadId, {
-          status: "error",
-          error: event.message,
-        });
-      }
-    },
-    [threadId, addEvent, updateTodo, updateThread, threads],
-  );
-
-  const handleReconnect = useCallback(async () => {
-    console.log(
-      `[useBullhorseStream] Attempting to restore thread history for ${threadId}`,
+    // Process specific events
+    processTodoEvent(
+      threadId,
+      event,
+      updateTodo,
+      () => useThreadStore.getState().threads
     );
 
-    try {
-      // Try to restore events from sessionStorage
-      const storedEvents = loadEventsFromStorage(threadId);
-      if (storedEvents.length > 0) {
-        console.log(
-          `[useBullhorseStream] Restored ${storedEvents.length} events from session storage`,
-        );
-
-        // Add stored events to the thread
-        const currentThread = threads[threadId];
-        if (currentThread) {
-          // Only add events that aren't already in the thread
-          // Use index as part of ID since not all events have timestamps
-          const existingEventIds = new Set(
-            currentThread.events.map((e, i) => `${e.type}-${i}`),
-          );
-          let addedCount = 0;
-
-          for (let i = 0; i < storedEvents.length; i++) {
-            const event = storedEvents[i];
-            // Generate a unique ID for the event based on type and index
-            const eventId = `${event.type}-${i}`;
-            if (!existingEventIds.has(eventId)) {
-              addEvent(threadId, event);
-              addedCount++;
-            }
-          }
-
-          if (addedCount > 0) {
-            console.log(
-              `[useBullhorseStream] Added ${addedCount} historical events to thread`,
-            );
-          }
-        }
-      } else {
-        console.log("[useBullhorseStream] No stored events found for thread");
-      }
-    } catch (error) {
-      console.error(
-        "[useBullhorseStream] Failed to restore thread history:",
-        error,
-      );
+    // Handle error events
+    if (event.type === "error") {
+      setSseError(event.message);
+      updateThread(threadId, {
+        status: "error",
+        error: event.message,
+      });
     }
+  }, [threadId, addEvent, updateTodo, updateThread, threads]);
+
+  const handleReconnect = useCallback(async () => {
+    restoreThreadHistory(threadId, threads, addEvent);
   }, [threadId, threads, addEvent]);
 
   useEffect(() => {
@@ -191,9 +205,7 @@ export function useBullhorseStream({
       return;
     }
 
-    console.log(
-      `[useBullhorseStream] Subscribing to SSE for thread: ${threadId}`,
-    );
+    console.log(`[useBullhorseStream] Subscribing to SSE for thread: ${threadId}`);
 
     // Add thread to store if it doesn't exist
     const existingThread = useThreadStore.getState().threads[threadId];
@@ -206,9 +218,7 @@ export function useBullhorseStream({
     unsubscribeRef.current = client.subscribeToThread(threadId, {
       onEvent: handleEvent,
       onOpen: () => {
-        console.log(
-          `[useBullhorseStream] SSE connection opened for thread: ${threadId}`,
-        );
+        console.log(`[useBullhorseStream] SSE connection opened for thread: ${threadId}`);
         const previousState = connectionStateRef.current;
         setConnectionState("connected");
         setShowReconnectingBanner(false);
@@ -262,8 +272,8 @@ export function useBullhorseStream({
         setShowReconnectingBanner(false);
       }
     };
-    // Only depend on threadId and enabled - use refs for callbacks to avoid re-runs
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Only depend on threadId and enabled - use refs for callbacks to avoid re-runs
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threadId, enabled]);
 
   const manualReconnect = useCallback(() => {
@@ -287,19 +297,16 @@ export function useBullhorseStream({
         handleReconnect();
       },
       onError: (error) => {
-        console.error(
-          `[useBullhorseStream] Error during manual reconnect:`,
-          error,
-        );
+        console.error(`[useBullhorseStream] Error during manual reconnect:`, error);
         setConnectionState("error");
       },
       onConnecting: () => {
         setConnectionState("connecting");
       },
     });
-    // Note: intentionally excluding handleReconnect from deps to avoid infinite loop
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [threadId, handleEvent, updateThread]);
+  // Note: intentionally excluding handleReconnect from deps to avoid infinite loop
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [threadId, handleEvent, updateThread, addToast]);
 
   return {
     isConnected: connectionState === "connected",
@@ -309,5 +316,7 @@ export function useBullhorseStream({
     sseError,
     manualReconnect,
     clearError: () => setSseError(null),
+    loadEventsFromStorage,
+    clearEventsFromStorage,
   };
 }
