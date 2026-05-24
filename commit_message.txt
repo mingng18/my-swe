@@ -1,0 +1,5 @@
+🧹 Remove commented out code in useBullhorseStream
+
+- Removed commented out code related to the /trace endpoint.
+- Removed unused `clearEventsFromStorage` function.
+- Fixed unused `addToast` dependencies in `useCallback` hooks to pass linter.
