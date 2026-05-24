@@ -1,42 +1,25 @@
-import { test, expect, describe, mock, beforeEach, afterEach } from "bun:test";
-
-let mockSaveBatch = mock().mockResolvedValue(undefined);
-let mockExtractFromTurn = mock().mockReturnValue([]);
-let mockGenerateEmbedding = mock().mockResolvedValue([0.1, 0.2]);
-
-mock.module("../../../memory/repository", () => ({
-  MemoryRepository: class {
-    saveBatch = mockSaveBatch;
-    getByThread = mock();
-    save = mock();
-  }
-}));
-
-import { MemoryExtractor as ActualMemoryExtractor } from "../../../memory/extractor";
-mock.module("../../../memory/extractor", () => ({
-  MemoryExtractor: class extends ActualMemoryExtractor {
-    extractFromTurn = mockExtractFromTurn;
-  }
-}));
-
-mock.module("../../../memory/embeddings", () => ({
-  EmbeddingService: class {
-    generateEmbedding = mockGenerateEmbedding;
-  }
-}));
-
+import { test, expect, describe, mock, beforeEach, afterEach, spyOn } from "bun:test";
+import { MemoryRepository } from "../../../memory/repository";
+import { MemoryExtractor } from "../../../memory/extractor";
+import { EmbeddingService } from "../../../memory/embeddings";
 import { extractAndSaveMemories, initializeMemoryServices } from "../LinterNode";
 
 describe("extractAndSaveMemories", () => {
-    let originalMemoryEnabled: string | undefined;
+    let originalMemoryEnabled;
+    let saveBatchSpy;
+    let extractFromTurnSpy;
+    let generateEmbeddingSpy;
 
     beforeEach(() => {
         originalMemoryEnabled = process.env.MEMORY_ENABLED;
         process.env.MEMORY_ENABLED = "true";
+        process.env.SUPABASE_URL = "http://localhost:1234";
+        process.env.SUPABASE_SERVICE_ROLE_KEY = "dummy";
+        process.env.OPENAI_API_KEY = "dummy";
 
-        mockSaveBatch.mockClear();
-        mockExtractFromTurn.mockClear();
-        mockGenerateEmbedding.mockClear();
+        saveBatchSpy = spyOn(MemoryRepository.prototype, "saveBatch").mockResolvedValue(undefined);
+        extractFromTurnSpy = spyOn(MemoryExtractor.prototype, "extractFromTurn").mockReturnValue([]);
+        generateEmbeddingSpy = spyOn(EmbeddingService.prototype, "generateEmbedding").mockResolvedValue([0.1, 0.2]);
 
         initializeMemoryServices();
     });
@@ -47,26 +30,28 @@ describe("extractAndSaveMemories", () => {
         } else {
             process.env.MEMORY_ENABLED = originalMemoryEnabled;
         }
+
+        saveBatchSpy.mockRestore();
+        extractFromTurnSpy.mockRestore();
+        generateEmbeddingSpy.mockRestore();
     });
 
     test("does nothing if memory is disabled", async () => {
         process.env.MEMORY_ENABLED = "false";
-
         await extractAndSaveMemories({ threadId: "test", userText: "hi", input: "hi" }, "test-thread");
-        expect(mockExtractFromTurn).not.toHaveBeenCalled();
+        expect(extractFromTurnSpy).not.toHaveBeenCalled();
     });
 
     test("early returns if no memories extracted", async () => {
-        mockExtractFromTurn.mockReturnValue([]);
-
+        extractFromTurnSpy.mockReturnValue([]);
         await extractAndSaveMemories({ threadId: "test", userText: "hi", input: "hi" }, "test-thread");
-        expect(mockExtractFromTurn).toHaveBeenCalled();
-        expect(mockGenerateEmbedding).not.toHaveBeenCalled();
-        expect(mockSaveBatch).not.toHaveBeenCalled();
+        expect(extractFromTurnSpy).toHaveBeenCalled();
+        expect(generateEmbeddingSpy).not.toHaveBeenCalled();
+        expect(saveBatchSpy).not.toHaveBeenCalled();
     });
 
     test("processes and saves extracted memories", async () => {
-        mockExtractFromTurn.mockReturnValue([
+        extractFromTurnSpy.mockReturnValue([
             {
                 type: "user",
                 title: "Test Memory",
@@ -77,9 +62,9 @@ describe("extractAndSaveMemories", () => {
 
         await extractAndSaveMemories({ threadId: "test", userText: "hi", input: "hi" }, "test-thread");
 
-        expect(mockExtractFromTurn).toHaveBeenCalled();
-        expect(mockGenerateEmbedding).toHaveBeenCalledWith("Test Memory. This is a test memory");
-        expect(mockSaveBatch).toHaveBeenCalledWith([{
+        expect(extractFromTurnSpy).toHaveBeenCalled();
+        expect(generateEmbeddingSpy).toHaveBeenCalledWith("Test Memory. This is a test memory");
+        expect(saveBatchSpy).toHaveBeenCalledWith([{
             threadId: "test-thread",
             type: "user",
             title: "Test Memory",
@@ -90,11 +75,9 @@ describe("extractAndSaveMemories", () => {
     });
 
     test("handles errors gracefully without throwing", async () => {
-        mockExtractFromTurn.mockImplementation(() => {
+        extractFromTurnSpy.mockImplementation(() => {
             throw new Error("Extraction failed");
         });
-
-        // This should not throw
         await extractAndSaveMemories({ threadId: "test", userText: "hi", input: "hi" }, "test-thread");
     });
 });
