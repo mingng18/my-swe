@@ -107,11 +107,14 @@ export function verifyGithubSignature(
   const expected =
     "sha256=" + createHmac("sha256", secret).update(bodyStr).digest("hex");
 
-  // Hash both strings to prevent timing attacks based on length
-  const expectedHash = createHmac("sha256", secret).update(expected).digest();
-  const signatureHash = createHmac("sha256", secret).update(signature).digest();
+  const expectedBuffer = Buffer.from(expected, "utf-8");
+  const signatureBuffer = Buffer.from(signature, "utf-8");
 
-  return timingSafeEqual(expectedHash, signatureHash);
+  if (expectedBuffer.length !== signatureBuffer.length) {
+    return false;
+  }
+
+  return timingSafeEqual(expectedBuffer, signatureBuffer);
 }
 
 /**
