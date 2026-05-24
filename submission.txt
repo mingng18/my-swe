@@ -1,0 +1,6 @@
+🧹 [Code Health] Remove unused imports in check-message-queue
+
+🎯 **What:** Verified that unused imports (`BaseMessage`, `BaseChatModel`, `createTrace`, `flushLangfuse`, and `ContentBlock` from `ensure-no-empty-msg`) have been removed from `src/middleware/check-message-queue.ts`. The actual codebase was already cleaned up prior to this task, but full validation was performed to confirm this.
+💡 **Why:** Removing unused imports improves code maintainability, prevents confusion, and reduces potential namespace clutter.
+✅ **Verification:** Ran `bun x tsc --noEmit` and the full `bun test` suite across the root repository. Verified type checks pass and test functionality remains intact.
+✨ **Result:** The `check-message-queue.ts` file is confirmed to be healthy and free of unused imports.
