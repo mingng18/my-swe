@@ -1,29 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
 
 // Mock the dependencies
-mock.module("../memory/repository", () => {
-  return {
-    MemoryRepository: class MockMemoryRepository {
-      saveBatch = mock();
-    }
-  };
-});
-mock.module("../memory/extractor", () => {
-  return {
-    MemoryExtractor: class MockMemoryExtractor {
-      extractMemories = mock();
-    }
-  };
-});
-mock.module("../memory/embeddings", () => {
-  return {
-    EmbeddingService: class MockEmbeddingService {
-      embed = mock();
-    }
-  };
-});
 
-import { isMemoryEnabled, initializeMemoryServices } from "../nodes/deterministic/LinterNode";
+import {
+  isMemoryEnabled,
+  initializeMemoryServices,
+} from "../nodes/deterministic/LinterNode";
 
 describe("LinterNode memory services", () => {
   const originalEnv = process.env;
@@ -59,6 +41,9 @@ describe("LinterNode memory services", () => {
 
     it("should return true when MEMORY_ENABLED is 'true' and initializeMemoryServices has been called", () => {
       process.env.MEMORY_ENABLED = "true";
+      process.env.SUPABASE_URL = "http://dummy";
+      process.env.SUPABASE_SERVICE_ROLE_KEY = "dummy";
+      process.env.OPENAI_API_KEY = "dummy";
       initializeMemoryServices();
 
       expect(isMemoryEnabled()).toBe(true);

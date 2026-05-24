@@ -75,23 +75,16 @@ class InMemoryTelemetry {
 const inMemoryTelemetry = new InMemoryTelemetry();
 
 /**
- * Create a span for tracking an operation.
- *
- * Usage:
- * ```ts
- * const span = createSpan("tool.call", { tool: "code_search" });
- * try {
- *   // do work
- *   span.end({ status: "ok" });
- * } catch (err) {
- *   span.end({ status: "error", error: String(err) });
- * }
- * ```
+ * Start a new span to track an operation.
  */
-export function createSpan(
+export function startSpan(
   name: string,
   attributes: Record<string, unknown> = {},
-): Span & { end: (attrs?: Record<string, unknown>) => void } {
+): Span & { end: (endAttrs?: Record<string, unknown>) => void } {
+  if (OTEL_ENABLED) {
+    logger.debug({ spanName: name, attributes }, "[telemetry] Span started");
+  }
+
   const span: Span = {
     name,
     startTime: Date.now(),
@@ -232,10 +225,6 @@ export function getThreadTelemetry(threadId: string): {
   };
 }
 
-/**
- * Get aggregated metrics for a thread.
- */
-
 function aggregateLlmMetrics(metrics: Metric[]) {
   const llmMetrics = metrics.filter((m) => m.name.startsWith("llm."));
   const llmCalls = {
@@ -358,6 +347,9 @@ function calculateTotalDuration(spans: Span[]) {
   return totalDuration;
 }
 
+/**
+ * Get aggregated metrics for a thread.
+ */
 export function getThreadMetrics(threadId: string): {
   llmCalls: {
     count: number;
