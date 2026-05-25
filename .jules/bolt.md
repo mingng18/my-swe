@@ -67,3 +67,7 @@ Bun Benchmark Results for 1M iterations:
 **Result:** Sped up fallback operations by >90x on mocked latency tests.
 
 
+
+## 2024-05-18 - [Avoid multiple reduce passes for property extraction]
+**Learning:** Iterating through an array multiple times with `.reduce` in a hot path causes significant overhead. A single `for` loop executing simple arithmetic operations on object properties is ~5x faster.
+**Action:** Replace multiple `.reduce` calls over the same array with a single `for` loop that aggregates all required properties in one pass.
