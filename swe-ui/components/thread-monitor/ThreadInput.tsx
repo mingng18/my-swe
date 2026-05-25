@@ -41,7 +41,15 @@ export const ThreadInput = forwardRef<HTMLInputElement, ThreadInputProps>(
                     variant="ghost"
                     size="icon-xs"
                     aria-label="Clear input"
-                    onClick={() => setUserInput("")}
+                    onClick={() => {
+                      setUserInput("");
+                      // Ensure focus returns to input after button unmounts
+                      if (typeof ref === 'function') {
+                        // Function ref case shouldn't need focusing this way normally
+                      } else if (ref && 'current' in ref) {
+                        setTimeout(() => ref.current?.focus(), 0);
+                      }
+                    }}
                     className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 opacity-50 hover:opacity-100 focus-visible:opacity-100 transition-opacity"
                   >
                     <X className="h-3 w-3" />
@@ -54,6 +62,7 @@ export const ThreadInput = forwardRef<HTMLInputElement, ThreadInputProps>(
           <Button
             onClick={onStartAgent}
             disabled={isLoading || !userInput.trim()}
+            aria-label={isLoading ? "Starting agent run" : "Run agent"}
             className="gap-2 shadow-md hover:shadow-lg transition-all disabled:opacity-50"
             size="default"
           >
