@@ -23,3 +23,7 @@
 **Vulnerability:** Double-hashing of variable-length user input during GitHub webhook verification could leak timing information and the length mismatch check was non-standard.
 **Learning:** Using `crypto.timingSafeEqual` directly on Buffers after validating their lengths are identical is the standard, secure way to compare signatures without leaking timing info or throwing errors on mismatched lengths.
 **Prevention:** Always compare known-length hashes directly using Buffers and length checks, avoiding HMAC updates on untrusted user signatures.
+## 2026-04-26 - XSS vulnerability in schema parameter highlighting
+**Vulnerability:** Found `dangerouslySetInnerHTML` being used to render path strings where `{parameter}` sequences were dynamically replaced with span tags. This is highly risky if the schema or path is derived from external/untrusted input.
+**Learning:** Even internal UI components intended for "displaying schemas" must treat their input as potentially unsafe, especially when performing string replacements that generate HTML.
+**Prevention:** Avoid `dangerouslySetInnerHTML` entirely for simple string replacements. Use string `.split()` with regex and standard JSX mapping to interleave styled elements safely.
