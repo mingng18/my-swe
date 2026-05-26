@@ -105,6 +105,7 @@ export function TodoSidebar({ threadId, className }: TodoSidebarProps) {
                   checked={todo.status === "completed"}
                   disabled
                   className="mt-0.5"
+                  aria-label={`Task: ${todo.subject}`}
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
