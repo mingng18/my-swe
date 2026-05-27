@@ -23,3 +23,7 @@
 **Vulnerability:** Double-hashing of variable-length user input during GitHub webhook verification could leak timing information and the length mismatch check was non-standard.
 **Learning:** Using `crypto.timingSafeEqual` directly on Buffers after validating their lengths are identical is the standard, secure way to compare signatures without leaking timing info or throwing errors on mismatched lengths.
 **Prevention:** Always compare known-length hashes directly using Buffers and length checks, avoiding HMAC updates on untrusted user signatures.
+## 2025-05-27 - [Fix XSS Vulnerability in SchemaDisplayPath]
+**Vulnerability:** Found `dangerouslySetInnerHTML` in `swe-ui/components/ai-elements/schema-display.tsx` used to parse and highlight URL path parameters, which could lead to an XSS vulnerability if the path content contains malicious data. Additionally, it causes a TypeScript mismatch error when React elements are passed as children.
+**Learning:** `dangerouslySetInnerHTML` was used as a shortcut to inject HTML span tags into a string. A much safer and more reliable approach in React is to split the string into segments using a Regex with capture groups (`String.split(/(pattern)/g)`) and map over the parts to construct native React elements (like `<span key={index}>...</span>`).
+**Prevention:** Avoid `dangerouslySetInnerHTML` entirely unless absolutely necessary for rendering trusted legacy HTML. Use native React string splitting and mapping for highlighting or styling parts of text.
