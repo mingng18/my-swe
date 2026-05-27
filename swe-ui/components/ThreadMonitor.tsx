@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useThreadStore } from "@/store/thread-store";
 import { useBullhorseStream } from "@/hooks/useBullhorseStream";
 import { useKeyboardShortcut } from "@/hooks/useKeyboardShortcut";
@@ -144,7 +144,10 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
   };
 
   // Convert events to messages for display
-  const messages = thread ? groupLLMChunks(adaptEventsToMessages(thread.events)) : [];
+  // Use useMemo to prevent expensive recalculation of adapted and grouped messages on every re-render (e.g., when the user types in the input).
+  const messages = useMemo(() => {
+    return thread ? groupLLMChunks(adaptEventsToMessages(thread.events)) : [];
+  }, [thread]);
 
   return (
     <div className={cn("flex flex-col h-screen bg-background", className)}>

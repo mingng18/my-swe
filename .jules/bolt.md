@@ -67,3 +67,7 @@ Bun Benchmark Results for 1M iterations:
 **Result:** Sped up fallback operations by >90x on mocked latency tests.
 
 
+
+## 2025-05-18 - ThreadMonitor cascading re-renders
+**Learning:** In Zustand stores handling frequent real-time events (like LLM SSE chunks updating `thread.events`), pulling large objects (e.g., `const thread = state.threads[threadId]`) in components with user inputs causes input lag because every typed keystroke recalculates derived state for the entire history.
+**Action:** Wrap expensive transformations (like `adaptEventsToMessages`) in `useMemo` and be careful with ESLint exhaustive-deps (use the base object `thread` instead of `thread?.events`).
