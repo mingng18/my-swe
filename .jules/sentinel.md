@@ -23,3 +23,7 @@
 **Vulnerability:** Double-hashing of variable-length user input during GitHub webhook verification could leak timing information and the length mismatch check was non-standard.
 **Learning:** Using `crypto.timingSafeEqual` directly on Buffers after validating their lengths are identical is the standard, secure way to compare signatures without leaking timing info or throwing errors on mismatched lengths.
 **Prevention:** Always compare known-length hashes directly using Buffers and length checks, avoiding HMAC updates on untrusted user signatures.
+## 2025-05-18 - Prevent XSS in Bullhorse React Components
+**Vulnerability:** The application was using `dangerouslySetInnerHTML` to render a highlighted API path string in `swe-ui/components/ai-elements/schema-display.tsx`. This exposed the UI to a Cross-Site Scripting (XSS) vulnerability, as an attacker could supply a malicious path containing unsanitized HTML or script tags, which would be injected directly into the DOM.
+**Learning:** Even internal tool UI components can be vectors for XSS if they render untrusted data (like API schema paths or responses) using `dangerouslySetInnerHTML`. React normally escapes text content natively, so it's safer to avoid `dangerouslySetInnerHTML` entirely.
+**Prevention:** Instead of manipulating strings with HTML tags and injecting them via `dangerouslySetInnerHTML`, parse strings into segments and map over them to render native React elements (e.g., wrapping segments in `<span>` components). React will automatically sanitize and escape the text content.
