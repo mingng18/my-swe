@@ -56,6 +56,7 @@ export const ThreadInput = forwardRef<HTMLInputElement, ThreadInputProps>(
             disabled={isLoading || !userInput.trim()}
             className="gap-2 shadow-md hover:shadow-lg transition-all disabled:opacity-50"
             size="default"
+            aria-label={isLoading ? "Starting..." : "Run"}
           >
             {isLoading ? (
               <>
