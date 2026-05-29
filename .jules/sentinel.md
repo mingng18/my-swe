@@ -23,3 +23,7 @@
 **Vulnerability:** Double-hashing of variable-length user input during GitHub webhook verification could leak timing information and the length mismatch check was non-standard.
 **Learning:** Using `crypto.timingSafeEqual` directly on Buffers after validating their lengths are identical is the standard, secure way to compare signatures without leaking timing info or throwing errors on mismatched lengths.
 **Prevention:** Always compare known-length hashes directly using Buffers and length checks, avoiding HMAC updates on untrusted user signatures.
+## 2025-05-24 - XSS Vulnerability in UI Components via dangerouslySetInnerHTML
+**Vulnerability:** The application used `dangerouslySetInnerHTML` to render path strings containing user-provided or external data. Although attempts were made to sanitize strings via regex `.replaceAll` prior to rendering, leveraging `__html` interpolation always carries significant XSS risks if an attacker can inject malicious `children` payloads or bypass the naive regex check.
+**Learning:** Naively constructing HTML strings and interpolating them into React components via `dangerouslySetInnerHTML` fundamentally bypasses React's built-in contextual auto-escaping.
+**Prevention:** Avoid `dangerouslySetInnerHTML` entirely for structural string manipulation. Instead, parse dynamic strings into arrays and render them iteratively as safe, native React nodes (e.g., using `.split()` and `.map()`), thereby ensuring all injected data is safely escaped by React by default.
