@@ -67,3 +67,7 @@ Bun Benchmark Results for 1M iterations:
 **Result:** Sped up fallback operations by >90x on mocked latency tests.
 
 
+
+## 2025-05-18 - Optimize Zustand Store Subscriptions
+**Learning:** Found a performance bottleneck in the frontend (`swe-ui`) when components subscribe to large parent objects in Zustand stores (like `state.threads[threadId]`). Because the LLM stream frequently updates nested properties (such as appending to the `events` array), subscribing to the parent object causes cascading re-renders in components that only need specific nested data (like `todos`).
+**Action:** When a component only needs a subset of data from a Zustand store, always select targeted properties (e.g., `state.threads[threadId]?.todos`) instead of the entire parent object to prevent unnecessary re-render bottlenecks caused by frequent stream updates.
