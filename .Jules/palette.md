@@ -19,3 +19,6 @@
 ## 2024-04-23 - Add ARIA labels to icon-only clear/close buttons
 **Learning:** Icon-only buttons (like those using a simple X icon for closing tabs or clearing inputs) often lack descriptive text. Without an explicit `aria-label`, screen readers might read them simply as "button", leaving users without context about what the button does.
 **Action:** Always ensure that icon-only interactive elements, especially common ones like clear inputs or close modals/tabs, have descriptive `aria-label` attributes.
+## 2024-05-30 - Add ARIA labels to speech-input components
+**Learning:** Icon-only recording buttons in standard speech inputs can lack context for screen reader users, confusing them as to whether clicking the button will start or stop recording.
+**Action:** Always provide dynamic `aria-label`s on recording buttons that update based on their state (e.g., "Start recording", "Stop recording") to give screen readers proper context.
