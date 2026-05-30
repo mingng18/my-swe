@@ -97,21 +97,26 @@ export const SchemaDisplayPath = ({
 }: SchemaDisplayPathProps) => {
   const { path } = useContext(SchemaDisplayContext);
 
-  const parts = path.split(/(\{[^}]+\})/);
+  // Highlight path parameters using safe React elements instead of HTML string
+  const renderPath = () => {
+    if (children) return children;
+
+    const parts = path.split(/(\{.*?\})/);
+    return parts.map((part, index) => {
+      if (part.startsWith("{") && part.endsWith("}")) {
+        return (
+          <span key={index} className="text-blue-600 dark:text-blue-400">
+            {part}
+          </span>
+        );
+      }
+      return part;
+    });
+  };
 
   return (
     <span className={cn("font-mono text-sm", className)} {...props}>
-      {children ??
-        parts.map((part, index) => {
-          if (part.startsWith("{") && part.endsWith("}")) {
-            return (
-              <span key={index} className="text-blue-600 dark:text-blue-400">
-                {part}
-              </span>
-            );
-          }
-          return <span key={index}>{part}</span>;
-        })}
+      {renderPath()}
     </span>
   );
 };
