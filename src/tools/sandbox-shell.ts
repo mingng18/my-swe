@@ -10,16 +10,10 @@ import { createLogger } from "../utils/logger";
 import { tool } from "langchain";
 import { z } from "zod";
 import { getSandboxBackendFromConfig } from "../utils/sandboxState";
+import { shellEscapeSingleQuotes } from "../utils/shell"; // 🛡️ Sentinel: Security Enhancement - Reusing secure shell escaping function
 
 const logger = createLogger("sandbox-shell-tool");
 
-/**
- * Safely embed an arbitrary string into a POSIX shell command.
- * Produces: 'foo'"'"'bar' style quoting.
- */
-function shellEscapeSingleQuotes(input: string): string {
-  return `'${input.replace(/'/g, `'"'"'`)}'}`;
-}
 
 /**
  * Extended shell command tool with enhanced capabilities.
