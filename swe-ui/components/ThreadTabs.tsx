@@ -61,6 +61,7 @@ export function ThreadTabs({ className }: ThreadTabsProps) {
           <p className="text-sm text-muted-foreground font-medium">No active threads</p>
         </div>
         <Button
+          aria-label="New Run"
           variant="ghost"
           size="sm"
           onClick={handleNewThread}
@@ -109,6 +110,7 @@ export function ThreadTabs({ className }: ThreadTabsProps) {
         </TabsList>
       </Tabs>
       <Button
+        aria-label="New Run"
         variant="ghost"
         size="sm"
         onClick={handleNewThread}

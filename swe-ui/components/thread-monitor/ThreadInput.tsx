@@ -52,6 +52,7 @@ export const ThreadInput = forwardRef<HTMLInputElement, ThreadInputProps>(
             )}
           </div>
           <Button
+            aria-label={isLoading ? "Starting" : "Run"}
             onClick={onStartAgent}
             disabled={isLoading || !userInput.trim()}
             className="gap-2 shadow-md hover:shadow-lg transition-all disabled:opacity-50"

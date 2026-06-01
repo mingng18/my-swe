@@ -19,3 +19,6 @@
 ## 2024-04-23 - Add ARIA labels to icon-only clear/close buttons
 **Learning:** Icon-only buttons (like those using a simple X icon for closing tabs or clearing inputs) often lack descriptive text. Without an explicit `aria-label`, screen readers might read them simply as "button", leaving users without context about what the button does.
 **Action:** Always ensure that icon-only interactive elements, especially common ones like clear inputs or close modals/tabs, have descriptive `aria-label` attributes.
+## 2024-06-01 - Hidden Text Accessibility
+**Learning:** Using Tailwind hidden classes (hidden sm:inline) hides text from screen readers on small screens, causing buttons with icons to become unlabelled icon-only buttons.
+**Action:** Always add an aria-label to buttons where the primary text is visually hidden on certain screen sizes.
