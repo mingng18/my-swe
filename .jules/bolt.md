@@ -67,3 +67,6 @@ Bun Benchmark Results for 1M iterations:
 **Result:** Sped up fallback operations by >90x on mocked latency tests.
 
 
+## 2024-05-30 - Memory Initialization Testing
+**Learning:** ESM hoisting in testing tools like Bun and Jest moves static imports before `mock.module` statements. This causes dependencies to be resolved normally, breaking the mock mechanism for dynamically injected/initialized singleton services.
+**Action:** When mocking dependencies of a module that performs initializations via side-effects or singletons, always use dynamic imports (`await import(...)`) inside the `beforeEach` block to ensure the modules are imported strictly *after* `mock.module` has been called. Also ensure environment variables like `process.env.ENABLE_MEMORY` align correctly between implementation and instructions.

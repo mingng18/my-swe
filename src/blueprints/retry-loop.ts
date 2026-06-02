@@ -410,7 +410,7 @@ let embeddingService: EmbeddingService | null = null;
  * Initialize memory services (called on server startup if enabled)
  */
 export function initializeMemoryServices(): void {
-  const memoryEnabled = process.env.MEMORY_ENABLED === "true";
+  const memoryEnabled = process.env.ENABLE_MEMORY === "true";
 
   if (!memoryEnabled) {
     return;
@@ -447,7 +447,7 @@ export async function injectMemoryContext(
   threadId: string,
 ): Promise<string> {
   // Check if memory is enabled
-  const memoryEnabled = process.env.MEMORY_ENABLED === "true";
+  const memoryEnabled = process.env.ENABLE_MEMORY === "true";
   if (!memoryEnabled || !searchService) {
     return userText;
   }
@@ -541,5 +541,5 @@ function formatMemoryContext(results: MemorySearchResult[]): string {
  * Check if memory services are available
  */
 export function isMemoryEnabled(): boolean {
-  return process.env.MEMORY_ENABLED === "true" && searchService !== null;
+  return process.env.ENABLE_MEMORY === "true" && searchService !== null;
 }
