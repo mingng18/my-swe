@@ -125,5 +125,44 @@ describe("Skill Compaction Protection Middleware", () => {
       expect(result[0].id).toBe(1);
       expect(result[1].id).toBe(3);
     });
+
+    it("should return an empty array when given an empty array", () => {
+      expect(getProtectedMessages([])).toEqual([]);
+    });
+
+    it("should return all messages if all are protected", () => {
+      const messages = [
+        { id: 1, additional_kwargs: { _protected: true } },
+        { id: 2, kwargs: { _protected: true } }
+      ];
+
+      const result = getProtectedMessages(messages);
+      expect(result).toHaveLength(2);
+      expect(result).toEqual(messages);
+    });
+
+    it("should return an empty array if none are protected", () => {
+      const messages = [
+        { id: 1 },
+        { id: 2, additional_kwargs: { _protected: false } }
+      ];
+
+      const result = getProtectedMessages(messages);
+      expect(result).toEqual([]);
+    });
+
+    it("should handle null or undefined elements gracefully", () => {
+      const messages = [
+        null,
+        undefined,
+        { id: 1, additional_kwargs: { _protected: true } },
+        "string element",
+        123
+      ];
+
+      const result = getProtectedMessages(messages);
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({ id: 1, additional_kwargs: { _protected: true } });
+    });
   });
 });
