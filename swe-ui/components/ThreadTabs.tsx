@@ -48,9 +48,7 @@ export function ThreadTabs({ className }: ThreadTabsProps) {
   };
 
   const handleNewThread = () => {
-    console.log("Start new agent run");
-    // TODO: Open modal/input for new agent run
-    // This will be implemented in ThreadMonitor
+    setActiveThread(null);
   };
 
   if (threadEntries.length === 0) {
