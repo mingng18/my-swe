@@ -19,7 +19,9 @@ class MockSupabaseClient {
 
   async fetch(url: string, options?: RequestInit): Promise<Response> {
     const method = options?.method || "GET";
-    const urlObj = new URL(url.startsWith('http') ? url : `http://localhost/${url}`);
+    const urlObj = new URL(
+      url.startsWith("http") ? url : `http://localhost/${url}`,
+    );
 
     if (method === "GET") {
       const idParam = urlObj.searchParams.get("id");
@@ -47,13 +49,21 @@ class MockSupabaseClient {
           threadIds = [threadParam];
         }
 
-        let memories = Array.from(this.memories.values()).filter(
-          (m) => threadIds.includes(m.thread_id),
+        let memories = Array.from(this.memories.values()).filter((m) =>
+          threadIds.includes(m.thread_id),
         );
 
         // Handle PostgREST type filter: or=(type.eq.user,type.eq.project,...)
+        // OR type=in.(val1,val2)
         const orParam = urlObj.searchParams.get("or");
-        if (orParam) {
+        const typeParam = urlObj.searchParams.get("type");
+
+        if (typeParam && typeParam.startsWith("in.(")) {
+          const allowedTypes = typeParam.slice(4, -1).split(",");
+          if (allowedTypes.length > 0) {
+            memories = memories.filter((m) => allowedTypes.includes(m.type));
+          }
+        } else if (orParam) {
           const match = orParam.match(/^\((.+)\)$/);
           if (match) {
             const allowedTypes = match[1]
@@ -109,18 +119,18 @@ class MockSupabaseClient {
         if (idParam.startsWith("eq.")) {
           ids = [idParam.slice(3)];
         } else if (idParam.startsWith("in.(")) {
-          ids = idParam.slice(4, -1).split(',');
+          ids = idParam.slice(4, -1).split(",");
         } else {
           ids = [idParam];
         }
 
         const updatedItems = [];
         for (const id of ids) {
-            const existing = this.memories.get(id);
-            if (existing) {
-              Object.assign(existing, updates);
-              updatedItems.push(existing);
-            }
+          const existing = this.memories.get(id);
+          if (existing) {
+            Object.assign(existing, updates);
+            updatedItems.push(existing);
+          }
         }
 
         return new Response(JSON.stringify(updatedItems), {
@@ -219,7 +229,7 @@ describe("Memory System Integration", () => {
           "I'll implement this using TypeScript with strict mode enabled",
       };
 
-            const extractedMemories = extractor.extractFromTurn(turn as any);
+      const extractedMemories = extractor.extractFromTurn(turn as any);
       expect(extractedMemories.length).toBeGreaterThan(0);
 
       // Step 2: Generate embeddings
@@ -264,7 +274,7 @@ describe("Memory System Integration", () => {
         input: "",
       };
 
-            const extractedMemories = extractor.extractFromTurn(turn as any);
+      const extractedMemories = extractor.extractFromTurn(turn as any);
       expect(extractedMemories.length).toBe(0);
     });
 
@@ -284,7 +294,7 @@ describe("Memory System Integration", () => {
         },
       };
 
-            const extractedMemories = extractor.extractFromTurn(turn as any);
+      const extractedMemories = extractor.extractFromTurn(turn as any);
 
       // Should extract from user text, agent reply, error, and linter results
       expect(extractedMemories.length).toBeGreaterThan(0);
@@ -546,7 +556,9 @@ describe("Memory System Integration", () => {
       await repository.softDelete(saved[0].id!);
 
       // Verify it's marked inactive
-      const updated = await repository.update(saved[0].id!, { isActive: false });
+      const updated = await repository.update(saved[0].id!, {
+        isActive: false,
+      });
       expect(updated?.isActive).toBe(false);
 
       // Reactivate

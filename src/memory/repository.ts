@@ -292,10 +292,7 @@ export class MemoryRepository {
     let url = `${this.supabaseUrl}/rest/v1/${this.tableName}?thread_id=eq.${encodeURIComponent(threadId)}`;
 
     if (types && types.length > 0) {
-      const typeFilter = types
-        .map((t) => `type.eq.${encodeURIComponent(t)}`)
-        .join(",");
-      url += `&or=(${typeFilter})`;
+      url += `&type=in.(${types.join(",")})`;
     }
 
     url += "&order=created_at.desc";
@@ -326,10 +323,7 @@ export class MemoryRepository {
     let url = `${this.supabaseUrl}/rest/v1/${this.tableName}?thread_id=in.(${threadFilter})`;
 
     if (types && types.length > 0) {
-      const typeFilter = types
-        .map((t) => `type.eq.${encodeURIComponent(t)}`)
-        .join(",");
-      url += `&or=(${typeFilter})`;
+      url += `&type=in.(${types.join(",")})`;
     }
 
     url += "&order=created_at.desc";

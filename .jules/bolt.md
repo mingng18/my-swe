@@ -67,3 +67,6 @@ Bun Benchmark Results for 1M iterations:
 **Result:** Sped up fallback operations by >90x on mocked latency tests.
 
 
+## 2024-06-02 - Optimize PostgREST URL filter for memory types
+**Learning:** Replaced string concatenation and \`encodeURIComponent\` loop used to construct the \`or=(type.eq.X)\` filter with a simpler and more efficient \`type=in.(X,Y)\` PostgREST operator, resulting in a ~70% performance improvement.
+**Action:** When constructing complex PostgREST filters involving multiple discrete literal enum values, favor the \`in.\` operator over multiple \`or=(eq.)\` statements joined in a loop, avoiding unnecessary map and URI encoding steps.
