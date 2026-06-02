@@ -2,7 +2,7 @@ import { describe, it, expect, spyOn, mock, afterEach } from "bun:test";
 import { compileBlueprint, loadBlueprints } from "../index";
 import { ActionRegistry } from "../actions";
 import { BlueprintCompiler } from "../compiler";
-import { BlueprintLoader } from "../loader";
+import { BlueprintLoader, type LoaderOptions } from "../loader";
 import type { Blueprint } from "../types";
 
 describe("index exports", () => {
@@ -41,7 +41,7 @@ describe("index exports", () => {
     it("should instantiate BlueprintLoader and load all blueprints", async () => {
       const loadAllSpy = spyOn(BlueprintLoader.prototype, "loadAll").mockResolvedValue([]);
 
-      const options = { directory: "some-dir" };
+      const options: LoaderOptions = { blueprintsDir: "some-dir" };
       const blueprints = await loadBlueprints(options);
 
       expect(loadAllSpy).toHaveBeenCalled();
