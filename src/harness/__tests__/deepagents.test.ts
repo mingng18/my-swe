@@ -1,4 +1,4 @@
-import { describe, test, expect, mock, beforeEach, afterEach } from "bun:test";
+import { describe, test, expect, mock, beforeEach, afterEach, spyOn } from "bun:test";
 
 // Must mock module before importing to avoid initialization issues
 mock.module("../../utils/thread-metadata-store", () => ({
@@ -37,6 +37,8 @@ import {
 import * as threadMetadataStore from "../../utils/thread-metadata-store";
 import * as sandbox from "../../sandbox";
 import { logger } from "../../utils/logger";
+import { emitTodoEvent } from "../deepagents";
+import { streamRegistry } from "../../stream";
 
 describe("initDeepAgentsAtStartup", () => {
   beforeEach(() => {
@@ -81,5 +83,62 @@ describe("deepagents cleanup", () => {
     // Wait for the cleanup function to complete.
     // If it throws or returns a rejected promise, the test will automatically fail.
     await cleanupDeepAgents();
+  });
+});
+
+describe("emitTodoEvent", () => {
+  let emitEventSpy: ReturnType<typeof spyOn>;
+
+  beforeEach(() => {
+    emitEventSpy = spyOn(streamRegistry, "emitEvent");
+  });
+
+  afterEach(() => {
+    emitEventSpy.mockRestore();
+  });
+
+  test("should map 'add' event properly", () => {
+    emitTodoEvent("thread-123", {
+      type: "add",
+      id: "todo-1",
+      subject: "Test subject",
+      status: "pending",
+    });
+
+    expect(emitEventSpy).toHaveBeenCalledTimes(1);
+    expect(emitEventSpy).toHaveBeenCalledWith("thread-123", {
+      type: "todo_added",
+      id: "todo-1",
+      subject: "Test subject",
+      status: "pending",
+    });
+  });
+
+  test("should map 'update' event properly", () => {
+    emitTodoEvent("thread-123", {
+      type: "update",
+      id: "todo-1",
+      status: "completed",
+    });
+
+    expect(emitEventSpy).toHaveBeenCalledTimes(1);
+    expect(emitEventSpy).toHaveBeenCalledWith("thread-123", {
+      type: "todo_updated",
+      id: "todo-1",
+      status: "completed",
+    });
+  });
+
+  test("should map 'complete' event properly", () => {
+    emitTodoEvent("thread-123", {
+      type: "complete",
+      id: "todo-1",
+    });
+
+    expect(emitEventSpy).toHaveBeenCalledTimes(1);
+    expect(emitEventSpy).toHaveBeenCalledWith("thread-123", {
+      type: "todo_completed",
+      id: "todo-1",
+    });
   });
 });
