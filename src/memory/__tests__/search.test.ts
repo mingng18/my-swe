@@ -38,7 +38,8 @@ class MockSupabaseClient implements SupabaseClient {
             .match(/type\.eq\.([^,)]+)/g)
             ?.map((t: string) => t.replace("type.eq.", ""));
           if (types) {
-            memories = memories.filter((m: any) => types.includes(m.type));
+            const typesSet = new Set(types);
+            memories = memories.filter((m: any) => typesSet.has(m.type));
           }
         }
 
@@ -64,7 +65,8 @@ class MockSupabaseClient implements SupabaseClient {
             .match(/type\.eq\.([^,)]+)/g)
             ?.map((t: string) => t.replace("type.eq.", ""));
           if (types) {
-            memories = memories.filter((m: any) => types.includes(m.type));
+            const typesSet = new Set(types);
+            memories = memories.filter((m: any) => typesSet.has(m.type));
           }
         }
 

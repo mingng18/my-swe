@@ -67,3 +67,7 @@ Bun Benchmark Results for 1M iterations:
 **Result:** Sped up fallback operations by >90x on mocked latency tests.
 
 
+
+## 2025-02-12 - Set Check vs Array Includes Optimization
+**Learning:** Found an O(n*m) complexity bottleneck in `src/memory/` where `Array.filter` looped `m` times and did an `Array.includes` checking `n` elements. Converting the allowed list array to a `Set` before the loop and switching to `.has()` reduced the filtering step to O(n + m), dropping filtering latency significantly for tests handling numerous queries.
+**Action:** Consistently search for nested iteration checks (especially `includes()`) and substitute with `Set` lookups inside filter, map, and reduce blocks where the array being checked is constant inside the outer loop.

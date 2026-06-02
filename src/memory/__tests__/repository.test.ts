@@ -40,9 +40,10 @@ class MockSupabaseClient implements SupabaseClient {
             .match(/type\.eq\.([^,)]+)/g)
             ?.map((t: string) => t.replace("type.eq.", ""));
           if (types) {
+            const typesSet = new Set(types);
             return new Response(
               JSON.stringify(
-                memories.filter((m: any) => types.includes(m.type)),
+                memories.filter((m: any) => typesSet.has(m.type)),
               ),
               {
                 status: 200,
