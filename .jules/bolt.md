@@ -67,3 +67,7 @@ Bun Benchmark Results for 1M iterations:
 **Result:** Sped up fallback operations by >90x on mocked latency tests.
 
 
+
+## 2024-06-01 - Optimize Telegram update type lookup
+**Learning:** Using `Object.keys().find()` on parsed JSON objects to extract a single key is inefficient because it allocates an intermediate array and iterates over it. For hot paths like webhook handlers, a simple `for...in` loop with an early `return` is significantly faster and allocates no extra memory.
+**Action:** When extracting a single unknown key from a parsed JSON payload, prefer `for...in` loops over `Object.keys()` to avoid unnecessary array allocations, especially in high-throughput endpoints.

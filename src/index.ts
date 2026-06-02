@@ -10,7 +10,7 @@ import {
 } from "./utils/config";
 import { runCodeagentTurn } from "./server";
 import { getEmailForIdentity } from "./utils/identity";
-import { isDuplicateMessage, formatTelegramMarkdownV2 } from "./utils/telegram";
+import { isDuplicateMessage, formatTelegramMarkdownV2, getUpdateType } from "./utils/telegram";
 
 // Memory system integration
 import { getMemoryDaemon } from "./memory/daemon";
@@ -147,7 +147,7 @@ async function startTelegramPolling() {
             {
               updateId: update.update_id,
               type:
-                Object.keys(update).find((k) => k !== "update_id") ?? "unknown",
+                getUpdateType(update),
             },
             "[codeagent][telegram] update received",
           );
