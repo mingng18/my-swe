@@ -13,6 +13,7 @@ import { LRUCache } from "lru-cache";
 
 import { handleGithubWebhook } from "./webhooks/github";
 import { handleTelegramWebhook } from "./webhooks/telegram";
+import { getTelegramUpdateType } from "./getTelegramUpdateType";
 import { verifyGithubSignature } from "./utils/github";
 
 const log = createLogger("webapp");
@@ -271,7 +272,7 @@ app.post("/webhook/telegram", async (c) => {
     log.info(
       {
         updateId: update.update_id,
-        type: Object.keys(update).find((k) => k !== "update_id") ?? "unknown",
+        type: getTelegramUpdateType(update),
       },
       "[webapp][telegram] update received",
     );
