@@ -67,3 +67,6 @@ Bun Benchmark Results for 1M iterations:
 **Result:** Sped up fallback operations by >90x on mocked latency tests.
 
 
+## 2025-06-15 - Zustand selector performance optimization
+**Learning:** In swe-ui Zustand stores, subscribing to large objects like `state.threads[threadId]` causes cascading re-render bottlenecks because LLM stream events frequently update the parent object reference.
+**Action:** Select targeted properties (e.g., `state.threads[threadId]?.todos`) instead of the entire parent object.

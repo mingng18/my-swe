@@ -15,9 +15,11 @@ interface TodoSidebarProps {
 }
 
 export function TodoSidebar({ threadId, className }: TodoSidebarProps) {
-  const thread = useThreadStore((state) => state.threads[threadId]);
+  // Optimization: Select only `todos` instead of the full `thread` object
+  // to avoid unnecessary re-renders when other thread properties update.
+  const todos = useThreadStore((state) => state.threads[threadId]?.todos);
 
-  if (!thread) {
+  if (!todos) {
     return (
       <Card className={cn("flex flex-col h-full", className)}>
         <div className="p-4 border-b">
@@ -38,8 +40,6 @@ export function TodoSidebar({ threadId, className }: TodoSidebarProps) {
     );
   }
 
-  const { todos } = thread;
-
   const getStatusIcon = (status: Todo["status"]) => {
     switch (status) {
       case "pending":
@@ -51,7 +51,9 @@ export function TodoSidebar({ threadId, className }: TodoSidebarProps) {
     }
   };
 
-  const getStatusBadgeVariant = (status: Todo["status"]): "default" | "secondary" | "outline" => {
+  const getStatusBadgeVariant = (
+    status: Todo["status"],
+  ): "default" | "secondary" | "outline" => {
     switch (status) {
       case "pending":
         return "secondary";
@@ -71,7 +73,8 @@ export function TodoSidebar({ threadId, className }: TodoSidebarProps) {
             Tasks
           </h2>
           <Badge variant="secondary" className="text-xs font-medium">
-            {todos.filter((t) => t.status === "completed").length} / {todos.length}
+            {todos.filter((t) => t.status === "completed").length} /{" "}
+            {todos.length}
           </Badge>
         </div>
         <p className="text-xs text-muted-foreground mt-2">
@@ -96,9 +99,12 @@ export function TodoSidebar({ threadId, className }: TodoSidebarProps) {
                 key={todo.id}
                 className={cn(
                   "group flex items-start gap-3 p-3 rounded-lg border transition-all hover:shadow-sm",
-                  todo.status === "in_progress" && "bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800",
-                  todo.status === "completed" && "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800 opacity-75",
-                  todo.status === "pending" && "bg-background hover:bg-muted/50",
+                  todo.status === "in_progress" &&
+                    "bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800",
+                  todo.status === "completed" &&
+                    "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800 opacity-75",
+                  todo.status === "pending" &&
+                    "bg-background hover:bg-muted/50",
                 )}
               >
                 <Checkbox
@@ -112,7 +118,8 @@ export function TodoSidebar({ threadId, className }: TodoSidebarProps) {
                     <p
                       className={cn(
                         "text-sm font-medium truncate",
-                        todo.status === "completed" && "line-through text-muted-foreground",
+                        todo.status === "completed" &&
+                          "line-through text-muted-foreground",
                       )}
                     >
                       {todo.subject}
