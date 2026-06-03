@@ -19,3 +19,6 @@
 ## 2024-04-23 - Add ARIA labels to icon-only clear/close buttons
 **Learning:** Icon-only buttons (like those using a simple X icon for closing tabs or clearing inputs) often lack descriptive text. Without an explicit `aria-label`, screen readers might read them simply as "button", leaving users without context about what the button does.
 **Action:** Always ensure that icon-only interactive elements, especially common ones like clear inputs or close modals/tabs, have descriptive `aria-label` attributes.
+## 2026-06-03 - Accessible Floating Action Buttons
+**Learning:** Floating action buttons (like scroll-to-bottom or contextual download actions) that use purely iconography are effectively invisible to screen readers without explicit ARIA labels, preventing visually impaired users from interacting with important page controls.
+**Action:** Always ensure that floating or dynamically rendered icon-only action buttons are decorated with a descriptive `aria-label` attribute (e.g., `aria-label="Scroll to bottom"`) so screen readers can properly convey their purpose.
