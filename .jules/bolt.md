@@ -67,3 +67,6 @@ Bun Benchmark Results for 1M iterations:
 **Result:** Sped up fallback operations by >90x on mocked latency tests.
 
 
+## 2025-05-23 - Optimize Zustand subscriptions in LLM stream components
+**Learning:** Subscribing to large objects (e.g., `state.threads[threadId]`) when only a subset of data is needed causes severe performance bottlenecks. LLM stream events frequently update the parent object reference, leading to cascading re-renders in components that don't need the stream data.
+**Action:** Select targeted properties (e.g., `state.threads[threadId]?.todos`) from the store to prevent unnecessary re-renders.
