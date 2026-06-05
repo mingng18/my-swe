@@ -23,3 +23,7 @@
 **Vulnerability:** Double-hashing of variable-length user input during GitHub webhook verification could leak timing information and the length mismatch check was non-standard.
 **Learning:** Using `crypto.timingSafeEqual` directly on Buffers after validating their lengths are identical is the standard, secure way to compare signatures without leaking timing info or throwing errors on mismatched lengths.
 **Prevention:** Always compare known-length hashes directly using Buffers and length checks, avoiding HMAC updates on untrusted user signatures.
+## 2024-06-05 - Fix XSS Vulnerability in SchemaDisplay
+**Vulnerability:** The SchemaDisplayPath component used `dangerouslySetInnerHTML` to render a formatted HTTP path or its `children`, opening up potential Cross-Site Scripting (XSS) risks.
+**Learning:** `dangerouslySetInnerHTML` should not be used merely to apply HTML formatting to parsed strings, especially if the string (or its children) could be attacker-controlled. React natively supports safe rendering of arrays of string and elements.
+**Prevention:** Instead of using string replacement to inject HTML tags and rendering with `dangerouslySetInnerHTML`, parse the string into parts and map over them to return React elements securely.
