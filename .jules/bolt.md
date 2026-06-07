@@ -67,3 +67,6 @@ Bun Benchmark Results for 1M iterations:
 **Result:** Sped up fallback operations by >90x on mocked latency tests.
 
 
+## 2024-06-05 - Avoid over-fetching Zustand state
+**Learning:** Subscribing to full state objects in Zustand (e.g., `state.threads[threadId]`) causes unnecessary re-renders when fast-changing nested properties (like `events` array during LLM streams) update.
+**Action:** Always select only the specific data needed by the component (e.g., `state.threads[threadId]?.todos`).
