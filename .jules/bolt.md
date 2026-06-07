@@ -67,3 +67,6 @@ Bun Benchmark Results for 1M iterations:
 **Result:** Sped up fallback operations by >90x on mocked latency tests.
 
 
+## 2024-05-18 - Optimize Telegram Update Type Resolution
+**Learning:** `Object.keys().find()` is significantly slower than manual `if ("prop" in obj)` checks because it enumerates all properties into a new array, loops over it to filter, and then finds the element, rather than a direct lookup.
+**Action:** Use fast direct property lookups (`"prop" in obj`) or `for..in` loops instead of creating arrays for simple object property checks in hot paths.
