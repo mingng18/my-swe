@@ -67,3 +67,6 @@ Bun Benchmark Results for 1M iterations:
 **Result:** Sped up fallback operations by >90x on mocked latency tests.
 
 
+## 2026-06-04 - Optimize Zustand Re-Renders
+**Learning:** Selecting a large, frequently-mutated object (e.g., `thread`) from a Zustand store using `useStore((state) => state.threads[threadId])` causes cascading re-renders in components when only a sub-property (e.g., `todos`) is needed, especially during rapid LLM stream events.
+**Action:** Always select only the necessary, granular properties (e.g., `state.threads[threadId]?.todos`) from Zustand stores to prevent unnecessary component re-renders.
