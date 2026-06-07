@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { ensureNoEmptyMsg, AgentState, BaseMessage, getEveryMessageSinceLastHuman } from "./ensure-no-empty-msg";
+import { ensureNoEmptyMsg, AgentState, BaseMessage, getEveryMessageSinceLastHuman, checkIfModelAlreadyCalledCommitAndOpenPr } from "./ensure-no-empty-msg";
 
 
 describe("getEveryMessageSinceLastHuman", () => {
@@ -42,6 +42,39 @@ describe("getEveryMessageSinceLastHuman", () => {
     expect(getEveryMessageSinceLastHuman(state)).toEqual([]);
   });
 });
+
+
+describe("checkIfModelAlreadyCalledCommitAndOpenPr", () => {
+  it("should return false for an empty array of messages", () => {
+    expect(checkIfModelAlreadyCalledCommitAndOpenPr([])).toBe(false);
+  });
+
+  it("should return false if no message is a tool call for commit_and_open_pr", () => {
+    const messages: BaseMessage[] = [
+      { type: "ai", content: "hello" },
+      { type: "tool", name: "some_other_tool", tool_calls: [] }
+    ];
+    expect(checkIfModelAlreadyCalledCommitAndOpenPr(messages)).toBe(false);
+  });
+
+  it("should return true if there is a tool message named commit_and_open_pr", () => {
+    const messages: BaseMessage[] = [
+      { type: "ai", content: "here is a PR" },
+      { type: "tool", name: "commit_and_open_pr", tool_calls: [] }
+    ];
+    expect(checkIfModelAlreadyCalledCommitAndOpenPr(messages)).toBe(true);
+  });
+
+  it("should return false if the message has the name but is not of type 'tool'", () => {
+    const messages: BaseMessage[] = [
+      { type: "ai", name: "commit_and_open_pr", content: "I am an AI acting weird" }
+    ];
+    expect(checkIfModelAlreadyCalledCommitAndOpenPr(messages)).toBe(false);
+  });
+});
+
+
+
 
 describe("ensureNoEmptyMsg", () => {
   it("should return null when there are no messages", () => {
