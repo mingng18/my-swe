@@ -93,6 +93,22 @@ describe("Skill Compaction Protection Middleware", () => {
       expect(isMessageProtected({ additional_kwargs: {} })).toBe(false);
       expect(isMessageProtected({ additional_kwargs: { _protected: false } })).toBe(false);
     });
+
+    it("should handle null or undefined gracefully", () => {
+      expect(isMessageProtected(null)).toBe(false);
+      expect(isMessageProtected(undefined)).toBe(false);
+    });
+
+    it("should handle primitive types gracefully", () => {
+      expect(isMessageProtected("some string")).toBe(false);
+      expect(isMessageProtected(123)).toBe(false);
+      expect(isMessageProtected(true)).toBe(false);
+    });
+
+    it("should return false if _protected is explicitly false in kwargs", () => {
+      expect(isMessageProtected({ kwargs: { _protected: false } })).toBe(false);
+      expect(isMessageProtected({ additional_kwargs: { _protected: false }, kwargs: { _protected: false } })).toBe(false);
+    });
   });
 
   describe("filterProtectedMessages", () => {
