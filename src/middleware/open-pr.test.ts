@@ -113,6 +113,86 @@ describe("openPrIfNeeded", () => {
 
     expect(result?.error).toContain("Octokit PR creation error!");
   });
+
+  it("continues with normal flow when findExistingPr throws an error during early check", async () => {
+    const githubModule = await import("../utils/github");
+
+    spyOn(githubModule, "getGithubTokenFromThread").mockResolvedValue(["fake-token"] as any);
+    spyOn(githubModule, "gitHasUncommittedChanges").mockResolvedValue(true);
+    spyOn(githubModule, "gitFetchOrigin").mockResolvedValue("fetched");
+    spyOn(githubModule, "gitHasUnpushedCommits").mockResolvedValue(true);
+    spyOn(githubModule, "gitCurrentBranch").mockResolvedValue("test-branch");
+    spyOn(githubModule, "gitCheckoutBranch").mockResolvedValue(true);
+    spyOn(githubModule, "gitConfigUser").mockResolvedValue(undefined as any);
+    spyOn(githubModule, "gitAddAll").mockResolvedValue("added");
+    spyOn(githubModule, "gitCommit").mockResolvedValue("committed" as any);
+    spyOn(githubModule, "gitPush").mockResolvedValue("pushed" as any);
+
+    spyOn(githubModule, "findExistingPr").mockImplementation(async () => {
+      throw new Error("GitHub API rate limit exceeded");
+    });
+
+    spyOn(githubModule, "createGithubPr").mockResolvedValue({ prUrl: "https://github.com/test/pull/42", prNumber: 42 } as any);
+
+    const { openPrIfNeeded } = await import("./open-pr");
+
+    const mockSandboxBackend = {
+      execute: mock().mockResolvedValue({ exitCode: 0, output: "" }),
+    } as any;
+
+    const mockState = {
+      messages: [
+        {
+          type: "tool",
+          name: "commit_and_open_pr",
+          content: JSON.stringify({
+            title: "Test PR",
+            body: "Test Body",
+            commit_message: "Test Commit",
+          }),
+        },
+      ],
+    } as any;
+
+    const mockConfig = {
+      configurable: {
+        thread_id: "test-thread",
+        repo: {
+          owner: "test-owner",
+          name: "test-repo",
+        },
+      },
+      metadata: {
+        branch_name: "test-branch",
+      },
+    } as any;
+
+    const result = await openPrIfNeeded(
+      mockState,
+      mockConfig,
+      mockSandboxBackend,
+      "test-repo",
+    );
+
+    // The function returns null when it successfully runs its full course without returning early
+    // and correctly catches errors when finding an existing PR.
+    expect(result).toBeNull();
+
+    expect(mockWarn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.any(Error),
+        repo: "test-owner/test-repo",
+        branch: "test-branch",
+      }),
+      "Early PR check failed, continuing with normal flow"
+    );
+
+    // Also verify that it actually continued and pushed code
+    expect(githubModule.gitPush).toHaveBeenCalled();
+  });
+
+
+
 });
 
 describe("withOpenPrAfterAgent", () => {
