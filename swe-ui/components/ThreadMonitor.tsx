@@ -69,8 +69,10 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
     connectionStateRef.current = connectionState;
   }, [connectionState]);
 
-  const handleStartAgent = async () => {
-    if (!userInput.trim()) return;
+  const handleStartAgent = async (overrideInput?: string | React.MouseEvent) => {
+    const inputToUse = typeof overrideInput === "string" ? overrideInput : userInput;
+    if (!inputToUse.trim()) return;
+
 
     setIsLoading(true);
     setError(null);
@@ -110,7 +112,7 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
       const response = await fetch(`${API_URL}/run`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input: userInput, threadId: clientThreadId }),
+        body: JSON.stringify({ input: inputToUse, threadId: clientThreadId }),
       });
 
       if (!response.ok) {
@@ -150,7 +152,7 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
     <div className={cn("flex flex-col h-screen bg-background", className)}>
       <ThreadHeader threadId={threadId} connectionState={connectionState} />
 
-      <ThreadTabs />
+      <ThreadTabs onNewRun={handleStartAgent} />
 
       {!threadId && (
         <ThreadInput

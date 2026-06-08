@@ -1,0 +1,15 @@
+feat: Implement modal for new agent run
+
+💡 **What:**
+- Added a `Dialog` modal to `ThreadTabs.tsx` to accept user input for starting a new agent run.
+- Passed down `handleStartAgent` from `ThreadMonitor.tsx` to `ThreadTabs.tsx` as the `onNewRun` prop.
+- Updated `handleStartAgent` to optionally take `overrideInput` if provided.
+
+🎯 **Why:**
+To address the missing functionality for the "New Run" button which previously only cleared the active thread state instead of opening an input modal to start a new agent run.
+
+✅ **Verification:**
+Run `bun test` to verify no regressions in overall code. Use the frontend by clicking the "New Run" button to open the modal and submit an input to start a new run directly.
+
+✨ **Result:**
+The `handleNewThread` action now correctly triggers a modal allowing users to enter a prompt and start an agent run instead of simply setting `activeThread` to `null`.
