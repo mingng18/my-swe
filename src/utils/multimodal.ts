@@ -147,9 +147,15 @@ export async function buildBlocksFromPayload(
       const chunkBlocks = await Promise.all(
         chunk.map((imageUrl) => fetchImageBlock(imageUrl)),
       );
-      // ⚡ Bolt: Replacing for...of loops that individually push elements with spread push
-      // yields measurable CPU performance gains due to internal V8 optimizations.
-      blocks.push(...(chunkBlocks.filter(Boolean) as ContentBlock[]));
+      // ⚡ Bolt: Using a standard for loop to individually push non-null blocks
+      // avoids the intermediate array creation from .filter() and the function
+      // call/allocation overhead of the spread operator, improving CPU performance and memory usage.
+      for (let j = 0; j < chunkBlocks.length; j++) {
+        const block = chunkBlocks[j];
+        if (block) {
+          blocks.push(block as ContentBlock);
+        }
+      }
     }
   }
 

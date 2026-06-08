@@ -70,3 +70,6 @@ Bun Benchmark Results for 1M iterations:
 ## 2024-06-05 - Avoid over-fetching Zustand state
 **Learning:** Subscribing to full state objects in Zustand (e.g., `state.threads[threadId]`) causes unnecessary re-renders when fast-changing nested properties (like `events` array during LLM streams) update.
 **Action:** Always select only the specific data needed by the component (e.g., `state.threads[threadId]?.todos`).
+## 2024-11-20 - Array spreading overhead
+**Learning:** Using spread operator to push elements into an array (`blocks.push(...arr)`) inside a loop incurs significant overhead in V8 due to intermediate iterator and memory allocation when `arr` scales or iterating repeatedly.
+**Action:** When pushing elements individually in high-performance or loop-heavy contexts, use a standard `for` loop with explicit assignments or `push` calls instead of spreading.
