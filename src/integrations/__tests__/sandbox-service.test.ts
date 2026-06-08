@@ -176,7 +176,7 @@ describe("SandboxService", () => {
     });
 
     it("attempts to install git via apt-get if missing", async () => {
-      mockBackend.execute.mockImplementation(async (cmd) => {
+      mockBackend.execute.mockImplementation(async (cmd: string) => {
          if (cmd.includes('command -v git')) return { exitCode: 1 };
          if (cmd.includes('apt-get')) return { exitCode: 0 };
          return { exitCode: 127 };
@@ -187,7 +187,7 @@ describe("SandboxService", () => {
     });
 
     it("attempts to install git via apk if apt-get fails", async () => {
-      mockBackend.execute.mockImplementation(async (cmd) => {
+      mockBackend.execute.mockImplementation(async (cmd: string) => {
          if (cmd.includes('command -v git')) return { exitCode: 1 };
          if (cmd.includes('apt-get')) return { exitCode: 127 };
          if (cmd.includes('apk')) return { exitCode: 0 };
@@ -207,7 +207,7 @@ describe("SandboxService", () => {
 
   describe("cloneRepo", () => {
     it("clones a repository using standard fallback if it doesn't exist", async () => {
-      mockBackend.execute.mockImplementation(async (cmd) => {
+      mockBackend.execute.mockImplementation(async (cmd: string) => {
          // ensureGitAvailable mock
          if (cmd.includes('command -v git')) return { exitCode: 0 };
 
@@ -224,13 +224,13 @@ describe("SandboxService", () => {
       expect(repoDir).toBe("/workspace/repo");
 
       // verify execution flow
-      const calls = mockBackend.execute.mock.calls.map(c => c[0]);
-      expect(calls.some(c => c.includes("git clone"))).toBe(true);
-      expect(calls.some(c => c.includes("git config user.name"))).toBe(true);
+      const calls = mockBackend.execute.mock.calls.map((c: any[]) => c[0]);
+      expect(calls.some((c: string) => c.includes("git clone"))).toBe(true);
+      expect(calls.some((c: string) => c.includes("git config user.name"))).toBe(true);
     });
 
     it("pulls repository using standard fallback if it already exists", async () => {
-      mockBackend.execute.mockImplementation(async (cmd) => {
+      mockBackend.execute.mockImplementation(async (cmd: string) => {
          if (cmd.includes('command -v git')) return { exitCode: 0 };
 
          // return "exists" for the test -d command
@@ -242,10 +242,10 @@ describe("SandboxService", () => {
       const repoDir = await service.cloneRepo("owner", "repo");
       expect(repoDir).toBe("/workspace/repo");
 
-      const calls = mockBackend.execute.mock.calls.map(c => c[0]);
-      expect(calls.some(c => c.includes("git fetch origin"))).toBe(true);
-      expect(calls.some(c => c.includes("git reset --hard origin/main"))).toBe(true);
-      expect(calls.some(c => c.includes("git clone"))).toBe(false);
+      const calls = mockBackend.execute.mock.calls.map((c: any[]) => c[0]);
+      expect(calls.some((c: string) => c.includes("git fetch origin"))).toBe(true);
+      expect(calls.some((c: string) => c.includes("git reset --hard origin/main"))).toBe(true);
+      expect(calls.some((c: string) => c.includes("git clone"))).toBe(false);
     });
 
     it("uses Daytona git toolbox to clone if provider is daytona", async () => {
@@ -274,8 +274,8 @@ describe("SandboxService", () => {
       expect(mockGit.clone).toHaveBeenCalled();
 
       // Since Daytona handles clone natively, execute shouldn't be called for `git clone`
-      const calls = daytonaBackend.execute.mock.calls.map(c => c[0]);
-      expect(calls.some(c => c.includes("git clone"))).toBe(false);
+      const calls = daytonaBackend.execute.mock.calls.map((c: any[]) => c[0]);
+      expect(calls.some((c: string) => c.includes("git clone"))).toBe(false);
     });
 
     it("uses Daytona git toolbox to pull if repo exists", async () => {
