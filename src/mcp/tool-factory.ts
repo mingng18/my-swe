@@ -21,6 +21,129 @@ const logger = createLogger("mcp-tool-factory");
 const MAX_DIRECT_RESULT_SIZE = 5000;
 
 /**
+ * Execute an MCP tool and handle the result or memory pointer creation.
+ * Extracted from createMcpTool to reduce complexity.
+ */
+async function executeMcpTool(
+  serverName: string,
+  name: string,
+  arguments_: any,
+  config?: any,
+): Promise<string> {
+  const threadId = config?.configurable?.thread_id;
+  const workspaceDir: string = config?.configurable?.repo?.workspaceDir ?? "";
+
+  if (!workspaceDir) {
+    return JSON.stringify({
+      error: "No workspace directory available. MCP requires a repo context.",
+    });
+  }
+
+  logger.debug(
+    {
+      thread: threadId,
+      workspace: workspaceDir,
+      server: serverName,
+      tool: name,
+    },
+    "[mcp-tool] Executing tool",
+  );
+
+  try {
+    const mcpManager = getMcpManager(workspaceDir);
+
+    // Ensure connections are established
+    await mcpManager.loadConfig();
+
+    const result = await mcpManager.executeTool(serverName, {
+      name,
+      arguments: arguments_,
+    });
+
+    if (!result.success) {
+      logger.warn(
+        {
+          thread: threadId,
+          server: serverName,
+          tool: name,
+          error: result.error,
+        },
+        "[mcp-tool] Tool execution failed",
+      );
+
+      return JSON.stringify({
+        error: result.error,
+        server: serverName,
+        tool: name,
+      });
+    }
+
+    // Process the result content
+    const content = result.content;
+    const contentStr = JSON.stringify(content);
+
+    // Check if result is large enough to store as memory pointer
+    if (contentStr.length > MAX_DIRECT_RESULT_SIZE && threadId) {
+      const pointer = await storeArtifactAsPointer(
+        threadId,
+        `mcp-tool-${serverName}-${name}`,
+        contentStr,
+        {
+          server: serverName,
+          tool: name,
+          arguments: arguments_,
+          resultSize: contentStr.length,
+        },
+      );
+
+      logger.info(
+        {
+          thread: threadId,
+          server: serverName,
+          tool: name,
+          resultSize: contentStr.length,
+          pointer,
+        },
+        "[mcp-tool] Tool result stored as pointer",
+      );
+
+      return pointer
+        ? `[Large result stored as memory pointer: ${pointer}]`
+        : contentStr;
+    }
+
+    logger.info(
+      {
+        thread: threadId,
+        server: serverName,
+        tool: name,
+        resultSize: contentStr.length,
+      },
+      "[mcp-tool] Tool executed successfully",
+    );
+
+    // Return the content directly
+    return typeof content === "string" ? content : contentStr;
+  } catch (err) {
+    logger.error(
+      {
+        thread: threadId,
+        server: serverName,
+        tool: name,
+        err,
+      },
+      "[mcp-tool] Tool execution error",
+    );
+
+    return JSON.stringify({
+      error: `Tool execution failed: ${err instanceof Error ? err.message : String(err)}`,
+      server: serverName,
+      tool: name,
+    });
+  }
+}
+
+/**
  * Create a LangChain tool from an MCP tool definition.
  *
  * This factory function creates a LangChain StructuredTool that wraps
@@ -39,121 +162,8 @@ export function createMcpTool(mcpTool: {
 
   // Create the tool
   return tool(
-    async (arguments_, config) => {
-      const threadId = config?.configurable?.thread_id;
-      const workspaceDir: string =
-        config?.configurable?.repo?.workspaceDir ?? "";
-
-      if (!workspaceDir) {
-        return JSON.stringify({
-          error:
-            "No workspace directory available. MCP requires a repo context.",
-        });
-      }
-
-      logger.debug(
-        {
-          thread: threadId,
-          workspace: workspaceDir,
-          server: serverName,
-          tool: name,
-        },
-        "[mcp-tool] Executing tool",
-      );
-
-      try {
-        const mcpManager = getMcpManager(workspaceDir);
-
-        // Ensure connections are established
-        await mcpManager.loadConfig();
-
-        const result = await mcpManager.executeTool(serverName, {
-          name,
-          arguments: arguments_,
-        });
-
-        if (!result.success) {
-          logger.warn(
-            {
-              thread: threadId,
-              server: serverName,
-              tool: name,
-              error: result.error,
-            },
-            "[mcp-tool] Tool execution failed",
-          );
-
-          return JSON.stringify({
-            error: result.error,
-            server: serverName,
-            tool: name,
-          });
-        }
-
-        // Process the result content
-        const content = result.content;
-        const contentStr = JSON.stringify(content);
-
-        // Check if result is large enough to store as memory pointer
-        if (contentStr.length > MAX_DIRECT_RESULT_SIZE && threadId) {
-          const pointer = await storeArtifactAsPointer(
-            threadId,
-            `mcp-tool-${serverName}-${name}`,
-            contentStr,
-            {
-              server: serverName,
-              tool: name,
-              arguments: arguments_,
-              resultSize: contentStr.length,
-            },
-          );
-
-          logger.info(
-            {
-              thread: threadId,
-              server: serverName,
-              tool: name,
-              resultSize: contentStr.length,
-              pointer,
-            },
-            "[mcp-tool] Tool result stored as pointer",
-          );
-
-          return pointer
-            ? `[Large result stored as memory pointer: ${pointer}]`
-            : contentStr;
-        }
-
-        logger.info(
-          {
-            thread: threadId,
-            server: serverName,
-            tool: name,
-            resultSize: contentStr.length,
-          },
-          "[mcp-tool] Tool executed successfully",
-        );
-
-        // Return the content directly
-        return typeof content === "string" ? content : contentStr;
-      } catch (err) {
-        logger.error(
-          {
-            thread: threadId,
-            server: serverName,
-            tool: name,
-            err,
-          },
-          "[mcp-tool] Tool execution error",
-        );
-
-        return JSON.stringify({
-          error: `Tool execution failed: ${err instanceof Error ? err.message : String(err)}`,
-          server: serverName,
-          tool: name,
-        });
-      }
-    },
+    (arguments_, config) =>
+      executeMcpTool(serverName, name, arguments_, config),
     {
       name: `mcp_${serverName}_${name}`,
       description:
