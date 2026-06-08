@@ -70,3 +70,7 @@ Bun Benchmark Results for 1M iterations:
 ## 2024-06-05 - Avoid over-fetching Zustand state
 **Learning:** Subscribing to full state objects in Zustand (e.g., `state.threads[threadId]`) causes unnecessary re-renders when fast-changing nested properties (like `events` array during LLM streams) update.
 **Action:** Always select only the specific data needed by the component (e.g., `state.threads[threadId]?.todos`).
+
+## 2024-05-18 - Optimized String Includes with Compiled RegExp
+**Learning:** In V8/JavaScript, using a compiled RegExp (`/pattern/.test(str)`) is significantly faster than using `.includes("pattern")` inside loops, especially for longer strings and when the search pattern is a constant literal. This avoids repeatedly invoking string scanning mechanisms for the same sequence.
+**Action:** Always prefer pre-compiling RegExps and using `.test()` over string `.includes()` for known, static patterns in high-frequency loops or middleware.

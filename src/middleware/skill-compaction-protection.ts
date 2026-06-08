@@ -21,6 +21,8 @@ const logger = createLogger("skill-compaction-protection");
  * that should remain available throughout the conversation, even when context
  * grows large and compaction is triggered.
  */
+const SKILL_CONTENT_REGEX = /<skill_content/;
+
 export function createSkillCompactionProtectionMiddleware() {
   return createMiddleware({
     name: "skillCompactionProtection",
@@ -43,12 +45,12 @@ export function createSkillCompactionProtectionMiddleware() {
             let hasSkillContent = false;
 
             if (typeof content === "string") {
-              hasSkillContent = content.includes("<skill_content");
+              hasSkillContent = SKILL_CONTENT_REGEX.test(content); // ⚡ Bolt: Using a compiled RegExp is faster than repeatedly searching large strings with .includes()
             } else if (Array.isArray(content)) {
               // Handle array content blocks
               for (const block of content) {
                 if (block.type === "text" && block.text) {
-                  if (block.text.includes("<skill_content")) {
+                  if (SKILL_CONTENT_REGEX.test(block.text)) {
                     hasSkillContent = true;
                     break;
                   }
