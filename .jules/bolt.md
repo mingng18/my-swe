@@ -70,3 +70,7 @@ Bun Benchmark Results for 1M iterations:
 ## 2024-06-05 - Avoid over-fetching Zustand state
 **Learning:** Subscribing to full state objects in Zustand (e.g., `state.threads[threadId]`) causes unnecessary re-renders when fast-changing nested properties (like `events` array during LLM streams) update.
 **Action:** Always select only the specific data needed by the component (e.g., `state.threads[threadId]?.todos`).
+
+## 2026-06-07 - Optimization of duplicate group merging
+**Learning:** Sequential processing of multiple duplicate groups during memory consolidation can lead to N+1 sequential I/O latency (each group merge performs updates and soft deletes sequentially).
+**Action:** Use `Promise.all` to process multiple disjoint groups concurrently to avoid sequential bottlenecking, taking care to wrap the iterations in a `try/catch` if replacing a sequential loop to preserve error accumulation logic exactly.
