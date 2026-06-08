@@ -568,11 +568,6 @@ function extractRepoFromInput(
   }
 }
 
-// Keep track of last specified repository per thread.
-// This solves the problem of "configurable" values being lost across turns
-// if the user doesn't re-type `--repo foo/bar`.
-
-
 
 async function acquireDaytonaSandboxForThreadRepo(args: {
   threadId: string;
