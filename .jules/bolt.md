@@ -70,3 +70,7 @@ Bun Benchmark Results for 1M iterations:
 ## 2024-06-05 - Avoid over-fetching Zustand state
 **Learning:** Subscribing to full state objects in Zustand (e.g., `state.threads[threadId]`) causes unnecessary re-renders when fast-changing nested properties (like `events` array during LLM streams) update.
 **Action:** Always select only the specific data needed by the component (e.g., `state.threads[threadId]?.todos`).
+
+## 2026-06-08 - Use Promise.all to parallelize Daytona sandbox prewarming
+**Learning:** Sequential await inside for-loops for independent asynchronous I/O tasks creates significant bottlenecks, whereas \`Promise.all\` allows tasks to be executed concurrently.
+**Action:** Always consider \`Promise.all\` or concurrent batching for independent loop operations (like sandbox creations or HTTP requests) to improve throughput.
