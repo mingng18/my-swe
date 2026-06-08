@@ -230,8 +230,8 @@ describe("createEnsureNoEmptyMsgMiddleware", () => {
     const mockResponse = { messages: [{ type: "ai", content: "hello" }] };
     const handler = async () => mockResponse;
 
-    const result = await middleware.wrapModelCall({}, handler as any);
-    expect(result).toBe(mockResponse);
+    const result = await middleware.wrapModelCall!({} as any, handler as any);
+    expect(result).toBe(mockResponse as any);
   });
 
   it("should pass through the response if it has tool calls", async () => {
@@ -239,8 +239,8 @@ describe("createEnsureNoEmptyMsgMiddleware", () => {
     const mockResponse = { messages: [{ type: "ai", content: "", tool_calls: [{ name: "tool", args: {}, id: "1" }] }] };
     const handler = async () => mockResponse;
 
-    const result = await middleware.wrapModelCall({}, handler as any);
-    expect(result).toBe(mockResponse);
+    const result = await middleware.wrapModelCall!({} as any, handler as any);
+    expect(result).toBe(mockResponse as any);
   });
 
   it("should return the response directly if there are no messages", async () => {
@@ -248,8 +248,8 @@ describe("createEnsureNoEmptyMsgMiddleware", () => {
     const mockResponse = { messages: [] };
     const handler = async () => mockResponse;
 
-    const result = await middleware.wrapModelCall({}, handler as any);
-    expect(result).toBe(mockResponse);
+    const result = await middleware.wrapModelCall!({} as any, handler as any);
+    expect(result).toBe(mockResponse as any);
   });
 
   it("should return the response directly if the response does not have a messages array but is empty", async () => {
@@ -257,8 +257,8 @@ describe("createEnsureNoEmptyMsgMiddleware", () => {
     const mockResponse = {}; // no messages, no content
     const handler = async () => mockResponse;
 
-    const result = await middleware.wrapModelCall({}, handler as any);
-    expect(result).toBe(mockResponse);
+    const result = await middleware.wrapModelCall!({} as any, handler as any);
+    expect(result).toBe(mockResponse as any);
   });
 
   it("should pass through and log a warning if the response has no content and no tool calls", async () => {
@@ -267,7 +267,7 @@ describe("createEnsureNoEmptyMsgMiddleware", () => {
     const handler = async () => mockResponse;
 
     // We expect it to just return the response
-    const result = await middleware.wrapModelCall({}, handler as any);
-    expect(result).toBe(mockResponse);
+    const result = await middleware.wrapModelCall!({} as any, handler as any);
+    expect(result).toBe(mockResponse as any);
   });
 });
