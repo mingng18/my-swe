@@ -1,4 +1,12 @@
-import { describe, test, expect, mock, beforeEach, afterEach, spyOn } from "bun:test";
+import {
+  describe,
+  test,
+  expect,
+  mock,
+  beforeEach,
+  afterEach,
+  spyOn,
+} from "bun:test";
 
 // Must mock module before importing to avoid initialization issues
 mock.module("../../utils/thread-metadata-store", () => ({
@@ -24,9 +32,27 @@ mock.module("@langchain/langgraph", () => ({}));
 mock.module("langchain", () => ({}));
 mock.module("zod", () => ({}));
 mock.module("octokit", () => ({}));
-mock.module("../../sandbox", () => ({}));
+mock.module("../../integrations/sandbox-service", () => ({
+  createSandboxServiceWithConfig: mock(async () => ({
+    cloneRepo: mock(async () => "/tmp/workspace"),
+    id: "mock-backend-id",
+  })),
+}));
 
+const mockInstallDependencies = mock(async () => {
+  throw new Error("Dependency installation failed");
+});
 
+mock.module("../../nodes/deterministic/DependencyInstallerNode", () => ({
+  installDependencies: mockInstallDependencies,
+}));
+
+mock.module("../../sandbox", () => ({
+  createSandboxServiceWithConfig: mock(async () => ({
+    cloneRepo: mock(async () => "/tmp/workspace"),
+    id: "mock-backend-id",
+  })),
+}));
 
 import {
   initDeepAgentsAtStartup,
@@ -73,7 +99,6 @@ describe("initDeepAgentsAtStartup", () => {
       1,
     );
   });
-
 });
 
 describe("deepagents cleanup", () => {
@@ -83,7 +108,6 @@ describe("deepagents cleanup", () => {
     await cleanupDeepAgents();
   });
 });
-
 
 describe("DeepAgentWrapper", () => {
   let wrapper: any;
@@ -107,9 +131,15 @@ describe("DeepAgentWrapper", () => {
     test("returns agent state and calls markAccessed if agent exists", async () => {
       const schedulerMod = await import("../../utils/thread-cleanup-scheduler");
       const mockMarkAccessed = mock(() => {});
-      const spy = spyOn(schedulerMod, "getThreadCleanupScheduler").mockImplementation(() => ({
-        markAccessed: mockMarkAccessed,
-      }) as any);
+      const spy = spyOn(
+        schedulerMod,
+        "getThreadCleanupScheduler",
+      ).mockImplementation(
+        () =>
+          ({
+            markAccessed: mockMarkAccessed,
+          }) as any,
+      );
 
       const mockAgentState = { some: "state" };
       const mockAgent = {
@@ -121,7 +151,9 @@ describe("DeepAgentWrapper", () => {
       const state = await wrapper.getState("thread-with-agent");
 
       expect(state).toEqual(mockAgentState);
-      expect(mockAgent.getState).toHaveBeenCalledWith({ configurable: { thread_id: "thread-with-agent" } });
+      expect(mockAgent.getState).toHaveBeenCalledWith({
+        configurable: { thread_id: "thread-with-agent" },
+      });
 
       expect(mockMarkAccessed).toHaveBeenCalledWith("thread-with-agent");
       spy.mockRestore();
@@ -136,7 +168,9 @@ describe("DeepAgentWrapper", () => {
 
       const res = await wrapper.run("hello", { threadId: "test-thread" });
 
-      expect(mockInvoke).toHaveBeenCalledWith("hello", { threadId: "test-thread" });
+      expect(mockInvoke).toHaveBeenCalledWith("hello", {
+        threadId: "test-thread",
+      });
       expect(res).toEqual({ reply: "success" });
     });
   });
@@ -154,10 +188,12 @@ describe("DeepAgentWrapper", () => {
       };
 
       // Mock prepareAgent since it's private and has complex sandbox/repo initialization
-      (wrapper as any).prepareAgent = mock(() => Promise.resolve({
-        agent: mockAgent,
-        configurable: { configurable: true }
-      }));
+      (wrapper as any).prepareAgent = mock(() =>
+        Promise.resolve({
+          agent: mockAgent,
+          configurable: { configurable: true },
+        }),
+      );
 
       const generator = wrapper.stream("hello", { threadId: "stream-thread" });
 
@@ -166,12 +202,53 @@ describe("DeepAgentWrapper", () => {
         chunks.push(chunk);
       }
 
-      expect((wrapper as any).prepareAgent).toHaveBeenCalledWith("hello", "stream-thread");
+      expect((wrapper as any).prepareAgent).toHaveBeenCalledWith(
+        "hello",
+        "stream-thread",
+      );
       expect(mockAgent.stream).toHaveBeenCalledWith(
         { messages: [{ role: "user", content: "hello" }] },
-        { configurable: { configurable: true } }
+        { configurable: { configurable: true } },
       );
       expect(chunks).toEqual(mockChunks);
     });
+  });
+});
+
+describe("resolveSandboxContext dependency installation errors", () => {
+  let resolveSandboxContext: any;
+  let depsMock: any;
+
+  beforeEach(async () => {
+    // Clear mocks before each test
+    mock.restore();
+    mockInstallDependencies.mockClear();
+
+    const deepagents = await import("../deepagents");
+    resolveSandboxContext = deepagents.__test_only_resolveSandboxContext;
+  });
+
+  test("should catch and log errors during dependency installation", async () => {
+    const warnSpy = spyOn(logger, "warn");
+    const infoSpy = spyOn(logger, "info");
+
+    const result = await resolveSandboxContext(
+      "thread-123",
+      { owner: "testOwner", name: "testRepo" },
+      { id: "profile1" } as any,
+    );
+
+    expect(mockInstallDependencies).toHaveBeenCalled();
+    expect(infoSpy).toHaveBeenCalledWith(
+      "[deepagents] Pre-installing dependencies for agent context...",
+    );
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error) }),
+      "[deepagents] Pre-install dependencies failed (non-fatal)",
+    );
+
+    expect(result.activeRepo).toBeDefined();
+    expect(result.backend).toBeDefined();
+    expect(result.workspaceDir).toBe("/tmp/workspace");
   });
 });
