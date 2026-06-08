@@ -14,6 +14,9 @@ function isMessageProtected(message: BaseMessage): boolean {
 
 const logger = createLogger("context-compactor");
 
+// ⚡ Bolt: Pre-compile regex for faster error pattern matching in tool results
+const ERROR_PATTERN = /error:|failed|exception|"error"/i;
+
 // Configuration from environment
 const CONTEXT_COMPACTION_THRESHOLD = Number.parseInt(
   process.env.CONTEXT_COMPACTION_THRESHOLD || "50000",
@@ -130,13 +133,8 @@ export function calculateImportance(
 
       if (typeof content === "string") {
         // Check for error patterns
-        const lowerContent = content.toLowerCase();
-        if (
-          lowerContent.includes("error:") ||
-          lowerContent.includes("failed") ||
-          lowerContent.includes("exception") ||
-          lowerContent.includes('"error"')
-        ) {
+        // ⚡ Bolt: Using regex test is significantly faster than multiple includes + toLowerCase
+        if (ERROR_PATTERN.test(content)) {
           isSuccessful = false;
         }
       } else if (Array.isArray(content)) {
@@ -150,12 +148,8 @@ export function calculateImportance(
           }
         }
 
-        const lowerContent = textContent.toLowerCase();
-        if (
-          lowerContent.includes("error:") ||
-          lowerContent.includes("failed") ||
-          lowerContent.includes("exception")
-        ) {
+        // ⚡ Bolt: Using regex test is significantly faster than multiple includes + toLowerCase
+        if (ERROR_PATTERN.test(textContent)) {
           isSuccessful = false;
         }
       }
