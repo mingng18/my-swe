@@ -70,3 +70,6 @@ Bun Benchmark Results for 1M iterations:
 ## 2024-06-05 - Avoid over-fetching Zustand state
 **Learning:** Subscribing to full state objects in Zustand (e.g., `state.threads[threadId]`) causes unnecessary re-renders when fast-changing nested properties (like `events` array during LLM streams) update.
 **Action:** Always select only the specific data needed by the component (e.g., `state.threads[threadId]?.todos`).
+## 2025-02-12 - Snapshot setup command concurrency
+**Learning:** Found sequential async execution bottlenecks in the snapshot-manager's setup commands loop where independent commands could run safely at the same time.
+**Action:** Always prefer `Promise.all` with async maps over `for...of` loops for concurrent execution when the operations don't strictly depend on each other, specifically when dealing with latency-heavy API calls like sandbox execution.

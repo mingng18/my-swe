@@ -16,7 +16,10 @@
 
 import { createLogger } from "../utils/logger";
 import { randomUUID } from "node:crypto";
-import { type SandboxService, createSandboxServiceWithConfig } from "../integrations/sandbox-service";
+import {
+  type SandboxService,
+  createSandboxServiceWithConfig,
+} from "../integrations/sandbox-service";
 import {
   type SnapshotMetadata,
   type SnapshotKey,
@@ -149,16 +152,19 @@ export class SnapshotManager {
         ...(setupCommands || []),
       ];
 
-      for (const cmd of allSetupCommands) {
-        try {
-          await sandbox.execute(`cd ${repoDir} && ${cmd}`);
-        } catch (error) {
-          logger.warn(
-            { error, cmd },
-            `[snapshot-manager] Setup command failed (non-fatal)`,
-          );
-        }
-      }
+      // ⚡ Bolt Performance Optimization: Execute independent setup commands concurrently to reduce snapshot creation latency.
+      await Promise.all(
+        allSetupCommands.map(async (cmd) => {
+          try {
+            await sandbox.execute(`cd ${repoDir} && ${cmd}`);
+          } catch (error) {
+            logger.warn(
+              { error, cmd },
+              `[snapshot-manager] Setup command failed (non-fatal)`,
+            );
+          }
+        }),
+      );
 
       // Run optional pre-build
       let preBuildSuccess = true;
@@ -267,24 +273,30 @@ export class SnapshotManager {
       // 2. Verify the restored sandbox is ready
 
       if (metadata.provider === "daytona") {
-        const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY || "" });
+        const daytona = new Daytona({
+          apiKey: process.env.DAYTONA_API_KEY || "",
+        });
         const manager = new DaytonaSnapshotManager(daytona);
 
-        const createResult = await manager.createSandboxFromSnapshot(metadata.snapshotId);
+        const createResult = await manager.createSandboxFromSnapshot(
+          metadata.snapshotId,
+        );
         if (createResult.success && createResult.sandboxId) {
           const sandbox = await createSandboxServiceWithConfig({
             provider: "daytona",
             daytona: {
-              sandboxId: createResult.sandboxId
-            }
+              sandboxId: createResult.sandboxId,
+            },
           });
           return {
             success: true,
             sandbox,
-            fromCache: true
+            fromCache: true,
           };
         }
-        throw new Error(`Failed to create Daytona sandbox from snapshot: ${createResult.error}`);
+        throw new Error(
+          `Failed to create Daytona sandbox from snapshot: ${createResult.error}`,
+        );
       }
 
       // TODO: Integrate with OpenSandbox snapshot/checkpoint API when available
@@ -460,7 +472,9 @@ export class SnapshotManager {
         if (daytonaClient && daytonaClient.snapshot) {
           const snapshotName = `snapshot-${info?.id || Date.now()}`;
 
-          logger.info(`[snapshot-manager] Creating Daytona snapshot: ${snapshotName}`);
+          logger.info(
+            `[snapshot-manager] Creating Daytona snapshot: ${snapshotName}`,
+          );
 
           const image = await this.getImageName(sandbox);
           const snapshot = await daytonaClient.snapshot.create({
@@ -475,14 +489,19 @@ export class SnapshotManager {
             provider,
             snapshotId: snapshot.id,
             snapshotName: snapshot.name,
-            info
+            info,
           };
         }
       } catch (err) {
-        logger.error({ error: err }, "[snapshot-manager] Failed to create Daytona snapshot");
+        logger.error(
+          { error: err },
+          "[snapshot-manager] Failed to create Daytona snapshot",
+        );
       }
     } else if (provider === "opensandbox") {
-      logger.debug("[snapshot-manager] OpenSandbox backend; returning info for snapshot");
+      logger.debug(
+        "[snapshot-manager] OpenSandbox backend; returning info for snapshot",
+      );
     }
 
     return {
