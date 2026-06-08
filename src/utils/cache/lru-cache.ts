@@ -33,7 +33,7 @@
  *
  * // Get statistics
  * const stats = cache.getStats();
- * console.log(`Hit ratio: ${(stats.hitRatio * 100).toFixed(1)}%`);
+ * logger.info(`Hit ratio: ${(stats.hitRatio * 100).toFixed(1)}%`);
  * ```
  */
 
@@ -236,7 +236,7 @@ export class GenericCache {
    * @example
    * ```ts
    * if (cache.has("user:123")) {
-   *   console.log("User data is cached");
+   *   logger.info("User data is cached");
    * }
    * ```
    */
@@ -316,7 +316,7 @@ export class GenericCache {
    * @example
    * ```ts
    * cache.clear();
-   * console.log("Cache is now empty");
+   * logger.info("Cache is now empty");
    * ```
    */
   clear(): void {
@@ -340,8 +340,8 @@ export class GenericCache {
    * @example
    * ```ts
    * const stats = cache.getStats();
-   * console.log(`Hit ratio: ${(stats.hitRatio * 100).toFixed(1)}%`);
-   * console.log(`Entries: ${stats.size} / ${stats.maxSize} bytes`);
+   * logger.info(`Hit ratio: ${(stats.hitRatio * 100).toFixed(1)}%`);
+   * logger.info(`Entries: ${stats.size} / ${stats.maxSize} bytes`);
    * ```
    */
   getStats(): CacheStats {
@@ -369,7 +369,7 @@ export class GenericCache {
    * // Every hour, log stats and reset counters
    * setInterval(() => {
    *   const stats = cache.getStats();
-   *   console.log(stats);
+   *   logger.info(stats);
    *   cache.resetStats();
    * }, 60 * 60 * 1000);
    * ```
