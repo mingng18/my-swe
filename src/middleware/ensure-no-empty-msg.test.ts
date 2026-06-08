@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { ensureNoEmptyMsg, AgentState, BaseMessage, getEveryMessageSinceLastHuman, checkIfModelAlreadyCalledCommitAndOpenPr } from "./ensure-no-empty-msg";
+import { ensureNoEmptyMsg, AgentState, BaseMessage, getEveryMessageSinceLastHuman, checkIfModelAlreadyCalledCommitAndOpenPr, withEnsureNoEmptyMsg, createEnsureNoEmptyMsgMiddleware } from "./ensure-no-empty-msg";
 
 
 describe("getEveryMessageSinceLastHuman", () => {
@@ -182,5 +182,92 @@ describe("ensureNoEmptyMsg", () => {
       };
       expect(ensureNoEmptyMsg(state)).toBeNull();
     });
+  });
+});
+
+describe("withEnsureNoEmptyMsg", () => {
+  it("should wrap a node function and return the result if no intervention is needed", async () => {
+    const mockNodeFn = async (state: AgentState) => ({
+      messages: [{ type: "ai", content: "hello", tool_calls: [{ name: "my_tool", args: {}, id: "1" }] } as BaseMessage]
+    });
+    const wrappedNode = withEnsureNoEmptyMsg(mockNodeFn);
+
+    const state: AgentState = {
+      messages: [
+        { type: "human", content: "do something" },
+        { type: "ai", content: "hello", tool_calls: [{ name: "my_tool", args: {}, id: "1" }] }
+      ]
+    };
+
+    const result = await wrappedNode(state);
+    expect(result.messages?.length).toBe(1);
+    expect(result.messages?.[0].content).toBe("hello");
+  });
+
+  it("should inject an intervention if ensureNoEmptyMsg returns one", async () => {
+    // The node function returns something that will cause ensureNoEmptyMsg to intervene
+    // Since ensureNoEmptyMsg reads from state.messages, let's set up the state appropriately
+    const state: AgentState = {
+      messages: [
+        { type: "human", content: "do something" },
+        { type: "ai", content: "", tool_calls: [] } // Causes case 1 intervention
+      ]
+    };
+    const mockNodeFn = async (s: AgentState) => ({});
+    const wrappedNode = withEnsureNoEmptyMsg(mockNodeFn);
+
+    const result = await wrappedNode(state);
+    expect(result.messages).not.toBeUndefined();
+    expect(result.messages?.length).toBe(2);
+    expect(result.messages?.[0].tool_calls?.[0].name).toBe("no_op");
+  });
+});
+
+
+describe("createEnsureNoEmptyMsgMiddleware", () => {
+  it("should pass through the response if it has content", async () => {
+    const middleware = createEnsureNoEmptyMsgMiddleware();
+    const mockResponse = { messages: [{ type: "ai", content: "hello" }] };
+    const handler = async () => mockResponse;
+
+    const result = await middleware.wrapModelCall({}, handler as any);
+    expect(result).toBe(mockResponse);
+  });
+
+  it("should pass through the response if it has tool calls", async () => {
+    const middleware = createEnsureNoEmptyMsgMiddleware();
+    const mockResponse = { messages: [{ type: "ai", content: "", tool_calls: [{ name: "tool", args: {}, id: "1" }] }] };
+    const handler = async () => mockResponse;
+
+    const result = await middleware.wrapModelCall({}, handler as any);
+    expect(result).toBe(mockResponse);
+  });
+
+  it("should return the response directly if there are no messages", async () => {
+    const middleware = createEnsureNoEmptyMsgMiddleware();
+    const mockResponse = { messages: [] };
+    const handler = async () => mockResponse;
+
+    const result = await middleware.wrapModelCall({}, handler as any);
+    expect(result).toBe(mockResponse);
+  });
+
+  it("should return the response directly if the response does not have a messages array but is empty", async () => {
+    const middleware = createEnsureNoEmptyMsgMiddleware();
+    const mockResponse = {}; // no messages, no content
+    const handler = async () => mockResponse;
+
+    const result = await middleware.wrapModelCall({}, handler as any);
+    expect(result).toBe(mockResponse);
+  });
+
+  it("should pass through and log a warning if the response has no content and no tool calls", async () => {
+    const middleware = createEnsureNoEmptyMsgMiddleware();
+    const mockResponse = { messages: [{ type: "ai", content: "", tool_calls: [] }] };
+    const handler = async () => mockResponse;
+
+    // We expect it to just return the response
+    const result = await middleware.wrapModelCall({}, handler as any);
+    expect(result).toBe(mockResponse);
   });
 });
