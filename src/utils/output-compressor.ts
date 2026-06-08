@@ -266,12 +266,23 @@ export function applyDeduplication(input: string): string {
 
   // Build deduplicated output
   const result: string[] = [];
-  const sorted = Array.from(counts.entries())
-    .filter(([_, count]) => count >= RTK_DEDUP_THRESHOLD)
-    .sort((a, b) => b[1] - a[1]);
+
+  // ⚡ Bolt: Separate unique and repeating lines in a single O(N) pass, avoiding O(N log N) sort of the entire map
+  const repeating: [string, number][] = [];
+  const unique: string[] = [];
+
+  for (const [line, count] of counts.entries()) {
+    if (count >= RTK_DEDUP_THRESHOLD) {
+      repeating.push([line, count]);
+    } else {
+      unique.push(line);
+    }
+  }
+
+  repeating.sort((a, b) => b[1] - a[1]);
 
   // Show repeated lines with counts
-  for (const [line, count] of sorted.slice(0, 20)) {
+  for (const [line, count] of repeating.slice(0, 20)) {
     if (count > RTK_DEDUP_THRESHOLD) {
       result.push(`[x${count}] ${line}`);
     } else {
@@ -280,13 +291,11 @@ export function applyDeduplication(input: string): string {
   }
 
   // Add lines that didn't repeat enough
-  for (const [line, count] of sorted) {
-    if (count < RTK_DEDUP_THRESHOLD) {
-      result.push(line);
-    }
+  for (const line of unique) {
+    result.push(line);
   }
 
-  return result.length > 0 ? result.join("\n") : input;
+  return repeating.length > 0 ? result.join("\n") : input;
 }
 
 /**
