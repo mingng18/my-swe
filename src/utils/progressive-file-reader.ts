@@ -45,6 +45,9 @@ export function extractSymbols(content: string, filePath: string): FileStructure
     return structure;
   }
 
+  // Set to keep track of existing symbol names in O(1) time
+  const symbolNames = new Set<string>();
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmed = line.trim();
@@ -81,6 +84,7 @@ export function extractSymbols(content: string, filePath: string): FileStructure
           line: lineNumber,
           exports: true,
         });
+        symbolNames.add(functionMatch[1]);
       } else if (classMatch) {
         structure.exports.push({ name: classMatch[1], line: lineNumber });
         structure.symbols.push({
@@ -89,6 +93,7 @@ export function extractSymbols(content: string, filePath: string): FileStructure
           line: lineNumber,
           exports: true,
         });
+        symbolNames.add(classMatch[1]);
       } else if (constMatch) {
         structure.exports.push({ name: constMatch[1], line: lineNumber });
         structure.symbols.push({
@@ -97,6 +102,7 @@ export function extractSymbols(content: string, filePath: string): FileStructure
           line: lineNumber,
           exports: true,
         });
+        symbolNames.add(constMatch[1]);
       } else if (namedMatch) {
         const names = namedMatch[1].split(",").map((s) => s.trim());
         for (const name of names) {
@@ -110,28 +116,30 @@ export function extractSymbols(content: string, filePath: string): FileStructure
       /^(?:export\s+)?(?:async\s+)?function\s+(\w+)/,
     );
     if (funcMatch) {
-      const existing = structure.symbols.find((s) => s.name === funcMatch[1]);
-      if (!existing) {
+      // Optimization: Use O(1) Set lookup instead of O(N) array find
+      if (!symbolNames.has(funcMatch[1])) {
         structure.symbols.push({
           name: funcMatch[1],
           type: "function",
           line: lineNumber,
           exports: trimmed.startsWith("export "),
         });
+        symbolNames.add(funcMatch[1]);
       }
     }
 
     // Extract class definitions (non-exported)
     const classMatch = trimmed.match(/^class\s+(\w+)/);
     if (classMatch) {
-      const existing = structure.symbols.find((s) => s.name === classMatch[1]);
-      if (!existing) {
+      // Optimization: Use O(1) Set lookup instead of O(N) array find
+      if (!symbolNames.has(classMatch[1])) {
         structure.symbols.push({
           name: classMatch[1],
           type: "class",
           line: lineNumber,
           exports: trimmed.startsWith("export "),
         });
+        symbolNames.add(classMatch[1]);
       }
     }
 
@@ -147,6 +155,7 @@ export function extractSymbols(content: string, filePath: string): FileStructure
           line: lineNumber,
           exports: true,
         });
+        symbolNames.add(interfaceMatch[1]);
       }
 
       if (typeMatch) {
@@ -156,6 +165,7 @@ export function extractSymbols(content: string, filePath: string): FileStructure
           line: lineNumber,
           exports: true,
         });
+        symbolNames.add(typeMatch[1]);
       }
     }
   }
