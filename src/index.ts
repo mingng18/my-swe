@@ -146,8 +146,14 @@ async function startTelegramPolling() {
           logger.info(
             {
               updateId: update.update_id,
-              type:
-                Object.keys(update).find((k) => k !== "update_id") ?? "unknown",
+              // Performance optimization: Using a for...in loop instead of Object.keys().find()
+              // avoids an intermediate array allocation and provides early return.
+              type: (() => {
+                for (const k in update) {
+                  if (k !== "update_id") return k;
+                }
+                return "unknown";
+              })(),
             },
             "[codeagent][telegram] update received",
           );

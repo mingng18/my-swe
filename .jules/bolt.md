@@ -70,3 +70,7 @@ Bun Benchmark Results for 1M iterations:
 ## 2024-06-05 - Avoid over-fetching Zustand state
 **Learning:** Subscribing to full state objects in Zustand (e.g., `state.threads[threadId]`) causes unnecessary re-renders when fast-changing nested properties (like `events` array during LLM streams) update.
 **Action:** Always select only the specific data needed by the component (e.g., `state.threads[threadId]?.todos`).
+
+## 2024-06-08 - Optimized Telegram update type lookup
+**Learning:** `Object.keys(obj).find()` creates an intermediate array and iterates through it, which is relatively slow. The prompt's automated suggestion to use a `Set` was even slower due to instantiation overhead. A direct `for...in` loop is the fastest way to extract a key from an object, providing early return without array allocation.
+**Action:** Always verify automated performance rationale with microbenchmarks. Use `for...in` loops with early returns instead of `Object.keys().find()` for simple property lookups where allocation overhead matters.
