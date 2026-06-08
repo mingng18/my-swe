@@ -205,9 +205,21 @@ async function main(): Promise<void> {
     ? Number(process.env.PREWARM_COUNT)
     : 0;
 
-  for (const repo of repos) {
-    await prewarmRepo(repo, config, defaultProfile, defaultCount);
-  }
+  // ⚡ Bolt: Performance optimization
+  // Prewarm multiple repositories concurrently using Promise.all
+  // instead of sequentially waiting for each to finish initializing
+  await Promise.all(
+    repos.map(async (repo) => {
+      try {
+        await prewarmRepo(repo, config, defaultProfile, defaultCount);
+      } catch (err) {
+        logger.error(
+          { error: err, repo: `${repo.owner}/${repo.name}` },
+          "[prewarm] Failed to prewarm repo",
+        );
+      }
+    })
+  );
 
   logger.info("[prewarm] Done");
 }
