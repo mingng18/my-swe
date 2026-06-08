@@ -74,6 +74,18 @@ export const PREAPPROVED_DOMAIN_PATTERNS = [
   "*.readthedocs.io", // Python documentation
 ] as const;
 
+// PERFORMANCE OPTIMIZATION: Precompile exact domains for O(1) lookup
+const exactPreapprovedDomains = new Set<string>(PREAPPROVED_DOMAINS);
+
+// PERFORMANCE OPTIMIZATION: Precompile regexes for wildcard patterns to replace O(N) string processing
+const compiledPatterns = PREAPPROVED_DOMAIN_PATTERNS.map((pattern) => {
+  if (!pattern.includes("*")) {
+    return new RegExp(`^${pattern.replace(/\./g, "\\.")}$`, "i");
+  }
+  const regexPattern = pattern.replace(/\./g, "\\.").replace(/\*/g, "[^.]+");
+  return new RegExp(`^${regexPattern}$`, "i");
+});
+
 /**
  * Check if a hostname is in the preapproved list.
  * Supports both exact matches and subdomain matching.
@@ -81,51 +93,30 @@ export const PREAPPROVED_DOMAIN_PATTERNS = [
 export function isPreapprovedHost(hostname: string): boolean {
   const lowerHostname = hostname.toLowerCase();
 
-  // Exact match
-  if (PREAPPROVED_DOMAINS.some((domain) => lowerHostname === domain)) {
+  // PERFORMANCE OPTIMIZATION: Exact match (O(1)) instead of Array.some
+  if (exactPreapprovedDomains.has(lowerHostname)) {
     return true;
   }
 
-  // Subdomain match (e.g., "docs.github.com" matches "github.com")
-  if (
-    PREAPPROVED_DOMAINS.some(
-      (domain) =>
-        lowerHostname === domain || lowerHostname.endsWith(`.${domain}`)
-    )
-  ) {
-    return true;
+  // PERFORMANCE OPTIMIZATION: Subdomain match check valid suffixes sequentially
+  // rather than iterating the entire array
+  let dotIndex = lowerHostname.indexOf(".");
+  while (dotIndex !== -1) {
+    const suffix = lowerHostname.slice(dotIndex + 1);
+    if (exactPreapprovedDomains.has(suffix)) {
+      return true;
+    }
+    dotIndex = lowerHostname.indexOf(".", dotIndex + 1);
   }
 
-  // Pattern match (wildcard subdomains)
-  for (const pattern of PREAPPROVED_DOMAIN_PATTERNS) {
-    if (matchesDomainPattern(lowerHostname, pattern)) {
+  // Pattern match (wildcard subdomains using precompiled Regexes)
+  for (const regex of compiledPatterns) {
+    if (regex.test(lowerHostname)) {
       return true;
     }
   }
 
   return false;
-}
-
-/**
- * Check if a hostname matches a domain pattern.
- * Patterns use "*" as a wildcard for subdomains only.
- */
-function matchesDomainPattern(hostname: string, pattern: string): boolean {
-  if (!pattern.includes("*")) {
-    return hostname === pattern;
-  }
-
-  // Extract the base domain (everything after the first *)
-  const wildcardIndex = pattern.indexOf("*");
-  const baseDomain = pattern.slice(wildcardIndex + 1);
-
-  // Check if hostname ends with the base domain
-  // and has at least one subdomain before it
-  return (
-    hostname.endsWith(baseDomain) &&
-    hostname.length > baseDomain.length &&
-    hostname[hostname.length - baseDomain.length - 1] === "."
-  );
 }
 
 /**
@@ -147,7 +138,10 @@ export function isPreapprovedUrl(url: string): boolean {
 const runtimePreapprovedDomains = new Set<string>();
 
 export function addPreapprovedDomain(domain: string): void {
-  const normalized = domain.toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+  const normalized = domain
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/\/.*$/, "");
   runtimePreapprovedDomains.add(normalized);
   logger.info(`[preapproved-domains] Added domain: ${normalized}`);
 }
@@ -156,7 +150,10 @@ export function addPreapprovedDomain(domain: string): void {
  * Remove a domain from the runtime preapproved list.
  */
 export function removePreapprovedDomain(domain: string): void {
-  const normalized = domain.toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+  const normalized = domain
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/\/.*$/, "");
   runtimePreapprovedDomains.delete(normalized);
   logger.info(`[preapproved-domains] Removed domain: ${normalized}`);
 }
@@ -172,16 +169,19 @@ export function isPreapprovedHostWithRuntime(hostname: string): boolean {
     return true;
   }
 
-  // Check runtime additions
+  // PERFORMANCE OPTIMIZATION: Check runtime additions - Exact match
   if (runtimePreapprovedDomains.has(lowerHostname)) {
     return true;
   }
 
-  // Check runtime additions with subdomain matching
-  for (const domain of runtimePreapprovedDomains) {
-    if (lowerHostname === domain || lowerHostname.endsWith(`.${domain}`)) {
+  // PERFORMANCE OPTIMIZATION: Check runtime additions - Subdomain match
+  let dotIndex = lowerHostname.indexOf(".");
+  while (dotIndex !== -1) {
+    const suffix = lowerHostname.slice(dotIndex + 1);
+    if (runtimePreapprovedDomains.has(suffix)) {
       return true;
     }
+    dotIndex = lowerHostname.indexOf(".", dotIndex + 1);
   }
 
   return false;

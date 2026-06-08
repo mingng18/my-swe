@@ -70,3 +70,7 @@ Bun Benchmark Results for 1M iterations:
 ## 2024-06-05 - Avoid over-fetching Zustand state
 **Learning:** Subscribing to full state objects in Zustand (e.g., `state.threads[threadId]`) causes unnecessary re-renders when fast-changing nested properties (like `events` array during LLM streams) update.
 **Action:** Always select only the specific data needed by the component (e.g., `state.threads[threadId]?.todos`).
+## 2024-06-08 - O(1) Preapproved Domain Lookup
+**Learning:** For dynamic host matching checks involving both exact domains and subdomains (e.g., `*.github.com`), relying on `.some()` array iterations per-request creates $O(N)$ CPU bottlenecks. While regex compilation is relatively fast, doing it dynamically per-request is inefficient. For wildcard subdomains, the base string mapping (`a.github.io` incorrectly failing `.github.io` validation) must properly account for single-character domain slices and avoid negative index bugs by compiling to standard RegExp patterns (e.g. `^[^.]+\.github\.io$`).
+
+**Action:** When implementing permission check lists, compile exact strings into a `Set` for $O(1)$ lookups. To match subdomains against a strict parent domain, split or slice the incoming string iteratively (from `a.b.com` to `b.com` to `com`) and query the `Set`, scaling at $O(M)$ where M is the string's segment depth, sidestepping $O(N)$ array exhaustion. Pre-compile wildcard rules to `RegExp` objects outside of the loop lifecycle.
