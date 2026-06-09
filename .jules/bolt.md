@@ -70,3 +70,7 @@ Bun Benchmark Results for 1M iterations:
 ## 2024-06-05 - Avoid over-fetching Zustand state
 **Learning:** Subscribing to full state objects in Zustand (e.g., `state.threads[threadId]`) causes unnecessary re-renders when fast-changing nested properties (like `events` array during LLM streams) update.
 **Action:** Always select only the specific data needed by the component (e.g., `state.threads[threadId]?.todos`).
+
+## 2025-06-09 - Native Hashing in Bun
+**Learning:** When deploying on Bun or working with Bun environments, always prefer its native hashing function `Bun.hash(str)` over manual string iteration loops for computing hashes, as it avoids V8 JavaScript character manipulation overhead and performs significantly faster on large strings.
+**Action:** Use `Bun.hash(str).toString(36)` instead of custom manual hash loops whenever generating hash string keys in Bun environments.
