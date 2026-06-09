@@ -300,6 +300,8 @@ export const EnvironmentVariableCopyButton = ({
 
   return (
     <Button
+      aria-label={isCopied ? "Copied" : "Copy value"}
+      title={isCopied ? "Copied" : "Copy value"}
       className={cn("size-6 shrink-0", className)}
       onClick={copyToClipboard}
       size="icon"
