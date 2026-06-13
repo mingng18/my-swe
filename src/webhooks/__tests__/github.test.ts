@@ -64,6 +64,32 @@ describe("handleGithubWebhook", () => {
   });
 
   describe("push events", () => {
+    it("handles background processing errors gracefully in push event", async () => {
+      const { logger } = await import("../../utils/logger");
+      const errorSpy = spyOn(logger, 'error');
+
+      mockRunCodeagentTurn.mockImplementationOnce(async () => {
+        throw new Error("Mock runCodeagentTurn error for push");
+      });
+
+      handleGithubWebhook(
+        {
+          ref: "refs/heads/main",
+          repository: { full_name: "test/repo", default_branch: "main" },
+          commits: [{}],
+        },
+        "push",
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(mockRunCodeagentTurn).toHaveBeenCalled();
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ error: expect.any(Error) }),
+        "[github] Error running agent on push event"
+      );
+      errorSpy.mockRestore();
+    });
+
     it("handles push event to default branch", async () => {
       handleGithubWebhook(
         {
@@ -172,7 +198,7 @@ describe("handleGithubWebhook", () => {
       expect(mockRunCodeagentTurn).not.toHaveBeenCalled();
     });
 
-    it("handles background processing errors gracefully", async () => {
+    it("handles background processing errors gracefully when extracting PR context fails", async () => {
       mockGithubState.extractPrContextThrow = true;
 
       expect(() => {
@@ -188,6 +214,32 @@ describe("handleGithubWebhook", () => {
 
       await new Promise((resolve) => setTimeout(resolve, 50));
       expect(mockRunCodeagentTurn).not.toHaveBeenCalled();
+    });
+
+    it("handles background processing errors gracefully in PR agent turn", async () => {
+      const { logger } = await import("../../utils/logger");
+      const errorSpy = spyOn(logger, 'error');
+
+      mockRunCodeagentTurn.mockImplementationOnce(async () => {
+        throw new Error("Mock runCodeagentTurn error for PR");
+      });
+
+      handleGithubWebhook(
+        {
+          action: "opened",
+          pull_request: { number: 123 },
+          repository: { full_name: "test/repo" },
+        },
+        "pull_request",
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(mockRunCodeagentTurn).toHaveBeenCalled();
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ err: expect.any(Error) }),
+        "[github] Background PR processing failed"
+      );
+      errorSpy.mockRestore();
     });
   });
 
@@ -278,7 +330,7 @@ describe("handleGithubWebhook", () => {
       // But will log a warning about missing token
     });
 
-    it("handles background processing errors gracefully", async () => {
+    it("handles background processing errors gracefully when posting comment fails", async () => {
       mockGithubState.postGithubCommentThrow = true;
 
       expect(() => {
@@ -302,6 +354,40 @@ describe("handleGithubWebhook", () => {
 
       await new Promise((resolve) => setTimeout(resolve, 50));
       expect(mockRunCodeagentTurn).toHaveBeenCalled();
+    });
+
+    it("handles background processing errors gracefully in issue agent turn", async () => {
+      const { logger } = await import("../../utils/logger");
+      const errorSpy = spyOn(logger, 'error');
+
+      mockRunCodeagentTurn.mockImplementationOnce(async () => {
+        throw new Error("Mock runCodeagentTurn error for issue");
+      });
+
+      handleGithubWebhook(
+        {
+          action: "opened",
+          issue: {
+            number: 42,
+            title: "Bug report",
+            body: "Something is broken @openswe",
+          },
+          repository: {
+            full_name: "test/repo",
+            name: "repo",
+            owner: { login: "test" },
+          },
+        },
+        "issues",
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(mockRunCodeagentTurn).toHaveBeenCalled();
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ err: expect.any(Error) }),
+        "[github] Error processing issue event"
+      );
+      errorSpy.mockRestore();
     });
   });
 });
