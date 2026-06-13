@@ -36,28 +36,32 @@ export const toolSearchTool = tool(
         .map((s) => s.trim())
         .filter(Boolean);
 
-      const found: string[] = [];
+      const found = new Set<string>();
       const missing: string[] = [];
 
+      // Create a map for O(1) lookups instead of O(N) array search inside the loop
+      const toolsLowerMap = new Map<string, StructuredTool>();
+      for (const tool of tools) {
+        toolsLowerMap.set(tool.name.toLowerCase(), tool);
+      }
+
       for (const toolName of requested) {
-        const tool = tools.find(
-          (t) => t.name.toLowerCase() === toolName.toLowerCase(),
-        );
+        const toolNameLower = toolName.toLowerCase();
+        const tool = toolsLowerMap.get(toolNameLower);
+
         if (tool) {
-          if (!found.includes(tool.name)) {
-            found.push(tool.name);
-          }
+          found.add(tool.name);
         } else {
           missing.push(toolName);
         }
       }
 
-      if (found.length === 0) {
+      if (found.size === 0) {
         return `No tools found matching: ${missing.join(", ")}`;
       }
 
       // Return detailed info for found tools
-      const results = found
+      const results = Array.from(found)
         .map((name) => {
           const t = tools.find((tool) => tool.name === name);
           if (!t) return "";
