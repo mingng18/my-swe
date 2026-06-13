@@ -253,17 +253,34 @@ class InMemoryToolInvocationTracker implements ToolInvocationTracker {
     const cutoff = now - INVOCATION_TTL_MS;
 
     for (const [threadId, invocations] of this.threadInvocations.entries()) {
-      const filtered = invocations.filter((inv) => inv.timestamp > cutoff);
+      // Bolt: Optimize O(N^2) filtering in loop by using binary search to find the cutoff point
+      // since invocations are strictly appended and thus chronologically ordered by timestamp.
+      let left = 0;
+      let right = invocations.length - 1;
+      let cutoffIndex = -1;
 
-      if (filtered.length < invocations.length) {
-        if (filtered.length === 0) {
-          this.threadInvocations.delete(threadId);
+      while (left <= right) {
+        const mid = (left + right) >> 1;
+        if (invocations[mid].timestamp > cutoff) {
+          cutoffIndex = mid;
+          right = mid - 1;
         } else {
-          this.threadInvocations.set(threadId, filtered);
+          left = mid + 1;
         }
+      }
 
+      if (cutoffIndex === -1) {
+        // No items are newer than cutoff, all are old
+        this.threadInvocations.delete(threadId);
         logger.debug(
-          { threadId, removed: invocations.length - filtered.length },
+          { threadId, removed: invocations.length },
+          "[tool-invocation-limits] Cleaned up old invocations",
+        );
+      } else if (cutoffIndex > 0) {
+        // Some items are old, slice from the cutoff point
+        this.threadInvocations.set(threadId, invocations.slice(cutoffIndex));
+        logger.debug(
+          { threadId, removed: cutoffIndex },
           "[tool-invocation-limits] Cleaned up old invocations",
         );
       }

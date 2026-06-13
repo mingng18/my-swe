@@ -70,3 +70,13 @@ Bun Benchmark Results for 1M iterations:
 ## 2024-06-05 - Avoid over-fetching Zustand state
 **Learning:** Subscribing to full state objects in Zustand (e.g., `state.threads[threadId]`) causes unnecessary re-renders when fast-changing nested properties (like `events` array during LLM streams) update.
 **Action:** Always select only the specific data needed by the component (e.g., `state.threads[threadId]?.todos`).
+
+## 2024-05-18 - Optimize array filtering in loop
+
+**Learning:** When dealing with strict chronological arrays in JavaScript where elements are always appended with increasingly newer timestamps (like tool invocation tracking), finding a cutoff point using `Array.prototype.filter()` is an inefficient O(N) operation per check. Since this check often happens in a loop over many keys (like threads), it scales linearly with the number of keys and the array lengths.
+**Action:** Replace `Array.prototype.filter()` with a binary search to find the cutoff index (O(log N)), followed by `Array.prototype.slice(cutoffIndex)` (O(N) slice, but skips the callback/evaluation overhead per element). This significantly reduces execution time (by orders of magnitude) and limits unnecessary array allocation inside high-frequency cleanup loops.
+
+## 2024-05-18 - Evaluate the real-world scale before optimizing
+
+**Learning:** An optimization that provides a 30x+ theoretical speedup (like binary search vs `Array.filter`) may be rejected if the actual array sizes are practically small, the execution path is infrequent (e.g., probabilistically executed), and the optimization adds significant lines of code or complexity without a measurable real-world system impact.
+**Action:** When identifying O(N^2) bottlenecks, consider the typical N in production. If N is very small and the function is rarely called, the added complexity of a more efficient algorithm (like binary search) may not be worth the maintenance cost compared to a built-in one-liner like `.filter()`. Always weigh theoretical speedup against code complexity and real-world execution frequency.
