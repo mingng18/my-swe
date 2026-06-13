@@ -1,5 +1,23 @@
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect, mock, beforeEach } from "bun:test";
 import { createMcpTool } from "../tool-factory.js";
+
+// Mutable state to allow dynamic mocking behavior across tests
+const mockState = {
+  throwError: false,
+  errorMessage: "Test Execution Error",
+};
+
+mock.module("../client.js", () => ({
+  getMcpManager: () => ({
+    loadConfig: async () => {},
+    executeTool: async () => {
+      if (mockState.throwError) {
+        throw new Error(mockState.errorMessage);
+      }
+      return { success: true, content: "Success Content" };
+    },
+  }),
+}));
 
 describe("createMcpTool - Schema Translation", () => {
   it("translates basic types correctly", () => {
@@ -16,10 +34,10 @@ describe("createMcpTool - Schema Translation", () => {
           bool: { type: "boolean" },
           arr: { type: "array", items: { type: "string" } },
           anyObj: { type: "object" },
-          nullVal: { type: "null" }
+          nullVal: { type: "null" },
         },
-        required: ["str"]
-      }
+        required: ["str"],
+      },
     });
 
     const schema = tool.schema as any;
@@ -32,7 +50,7 @@ describe("createMcpTool - Schema Translation", () => {
       bool: true,
       arr: ["a", "b"],
       anyObj: { key: "value" },
-      nullVal: null
+      nullVal: null,
     });
 
     expect(valid).toBeDefined();
@@ -49,7 +67,7 @@ describe("createMcpTool - Schema Translation", () => {
       serverName: "test-server",
       name: "test-tool",
       description: "A test tool for empty schemas",
-      inputSchema: undefined
+      inputSchema: undefined,
     });
 
     // Should parse empty object
@@ -68,13 +86,13 @@ describe("createMcpTool - Schema Translation", () => {
             type: "object",
             properties: {
               name: { type: "string" },
-              age: { type: "integer" }
+              age: { type: "integer" },
             },
-            required: ["name"]
-          }
+            required: ["name"],
+          },
         },
-        required: ["user"]
-      }
+        required: ["user"],
+      },
     });
 
     const schema = tool.schema as any;
@@ -93,13 +111,10 @@ describe("createMcpTool - Schema Translation", () => {
         type: "object",
         properties: {
           strOrNum: {
-            anyOf: [
-              { type: "string" },
-              { type: "number" }
-            ]
-          }
-        }
-      }
+            anyOf: [{ type: "string" }, { type: "number" }],
+          },
+        },
+      },
     });
 
     const schema = tool.schema as any;
@@ -110,5 +125,93 @@ describe("createMcpTool - Schema Translation", () => {
 
     // Invalid type
     expect(() => schema.parse({ strOrNum: true })).toThrow();
+  });
+});
+
+describe("createMcpTool - Execution Paths", () => {
+  beforeEach(() => {
+    mockState.throwError = false;
+    mockState.errorMessage = "Test Execution Error";
+  });
+
+  it("handles successful execution gracefully", async () => {
+    // Arrange: Use default mock behavior which succeeds
+    const tool = createMcpTool({
+      serverName: "test-server",
+      name: "success-tool",
+      description: "A tool that succeeds",
+    });
+
+    // Act
+    const result = await tool.invoke(
+      {
+        str: "hello",
+      },
+      {
+        configurable: {
+          thread_id: "test-thread",
+          repo: { workspaceDir: "/tmp/test" },
+        },
+      },
+    );
+
+    // Assert
+    expect(result).toBe("Success Content");
+  });
+
+  it("handles missing workspaceDir", async () => {
+    const tool = createMcpTool({
+      serverName: "test-server",
+      name: "success-tool",
+      description: "A tool that succeeds",
+    });
+
+    const result = await tool.invoke(
+      {
+        str: "hello",
+      },
+      {
+        configurable: {
+          thread_id: "test-thread",
+        },
+      },
+    );
+
+    expect(result).toContain("No workspace directory available");
+  });
+
+  it("handles thrown errors during execution gracefully", async () => {
+    // Arrange: Set the mock to throw an error
+    mockState.throwError = true;
+    mockState.errorMessage = "Intentional Error";
+
+    const tool = createMcpTool({
+      serverName: "test-server",
+      name: "error-tool",
+      description: "A tool that throws an error",
+    });
+
+    // Act: Invoke the tool
+    const result = await tool.invoke(
+      {
+        str: "hello",
+      },
+      {
+        configurable: {
+          thread_id: "test-thread",
+          repo: { workspaceDir: "/tmp/test" },
+        },
+      },
+    );
+
+    // Assert: The error is caught and returned as a stringified JSON
+    expect(typeof result).toBe("string");
+
+    const resultObj = JSON.parse(result as string);
+    expect(resultObj.error).toContain(
+      "Tool execution failed: Intentional Error",
+    );
+    expect(resultObj.server).toBe("test-server");
+    expect(resultObj.tool).toBe("error-tool");
   });
 });
