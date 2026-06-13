@@ -70,3 +70,7 @@ Bun Benchmark Results for 1M iterations:
 ## 2024-06-05 - Avoid over-fetching Zustand state
 **Learning:** Subscribing to full state objects in Zustand (e.g., `state.threads[threadId]`) causes unnecessary re-renders when fast-changing nested properties (like `events` array during LLM streams) update.
 **Action:** Always select only the specific data needed by the component (e.g., `state.threads[threadId]?.todos`).
+
+## 2026-06-07 - Avoid unbounded Promise.all with soft deletes
+**Learning:** Using an unbounded `Promise.all` for database writes/updates can overwhelm the database connections.
+**Action:** Always verify if a `Promise.all` optimization can be unbounded and avoid it if possible, favoring chunking or batch operations provided by the repository.
