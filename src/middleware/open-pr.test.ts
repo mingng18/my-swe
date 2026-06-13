@@ -154,3 +154,94 @@ describe("withOpenPrAfterAgent", () => {
     expect(mockInfo).toHaveBeenCalledWith("After-agent middleware started");
   });
 });
+
+describe("extractPrParamsFromMessages", () => {
+  it("returns null when messages array is empty", async () => {
+    const { extractPrParamsFromMessages } = await import("./open-pr");
+    expect(extractPrParamsFromMessages([] as any[])).toBeNull();
+  });
+
+  it("returns null when no commit_and_open_pr tool result is present", async () => {
+    const { extractPrParamsFromMessages } = await import("./open-pr");
+    expect(
+      extractPrParamsFromMessages([
+        { type: "human", content: "hello" },
+        { type: "tool", name: "other_tool", content: "{}" },
+      ] as any[]),
+    ).toBeNull();
+  });
+
+  it("extracts PR payload when content is a valid JSON string", async () => {
+    const { extractPrParamsFromMessages } = await import("./open-pr");
+    const payload = { title: "My PR", commit_message: "Fix bug" };
+    const result = extractPrParamsFromMessages([
+      {
+        type: "tool",
+        name: "commit_and_open_pr",
+        content: JSON.stringify(payload),
+      },
+    ] as any[]);
+    expect(result).toEqual(payload);
+  });
+
+  it("extracts PR payload when content is a JavaScript object", async () => {
+    const { extractPrParamsFromMessages } = await import("./open-pr");
+    const payload = { title: "My PR", body: "Description" };
+    const result = extractPrParamsFromMessages([
+      { type: "tool", name: "commit_and_open_pr", content: payload as any },
+    ] as any[]);
+    expect(result).toEqual(payload);
+  });
+
+  it("returns null if JSON parsing fails and no other valid message exists", async () => {
+    const { extractPrParamsFromMessages } = await import("./open-pr");
+    expect(
+      extractPrParamsFromMessages([
+        { type: "tool", name: "commit_and_open_pr", content: "invalid json {" },
+      ] as any[]),
+    ).toBeNull();
+  });
+
+  it("returns null if content is not a string or object", async () => {
+    const { extractPrParamsFromMessages } = await import("./open-pr");
+    expect(
+      extractPrParamsFromMessages([
+        { type: "tool", name: "commit_and_open_pr", content: 123 as any },
+      ] as any[]),
+    ).toBeNull();
+  });
+
+  it("finds the most recent tool result when multiple exist", async () => {
+    const { extractPrParamsFromMessages } = await import("./open-pr");
+    const payload1 = { title: "Old PR" };
+    const payload2 = { title: "New PR" };
+    const result = extractPrParamsFromMessages([
+      {
+        type: "tool",
+        name: "commit_and_open_pr",
+        content: JSON.stringify(payload1),
+      },
+      { type: "human", content: "retry" },
+      {
+        type: "tool",
+        name: "commit_and_open_pr",
+        content: JSON.stringify(payload2),
+      },
+    ] as any[]);
+    expect(result).toEqual(payload2);
+  });
+
+  it("ignores messages with matching name but wrong type", async () => {
+    const { extractPrParamsFromMessages } = await import("./open-pr");
+    const payload = { title: "Tool Call" };
+    expect(
+      extractPrParamsFromMessages([
+        {
+          type: "ai",
+          name: "commit_and_open_pr",
+          content: JSON.stringify(payload),
+        },
+      ] as any[]),
+    ).toBeNull();
+  });
+});
