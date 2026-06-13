@@ -70,3 +70,6 @@ Bun Benchmark Results for 1M iterations:
 ## 2024-06-05 - Avoid over-fetching Zustand state
 **Learning:** Subscribing to full state objects in Zustand (e.g., `state.threads[threadId]`) causes unnecessary re-renders when fast-changing nested properties (like `events` array during LLM streams) update.
 **Action:** Always select only the specific data needed by the component (e.g., `state.threads[threadId]?.todos`).
+## 2025-06-12 - Rejected Token Stats Aggregation Optimization
+**Learning:** Combining array iterations (like 3x `.reduce()` into a single `for` loop) is considered a low-value micro-optimization when the array being iterated over is a "tiny per-thread array". The overhead saved is negligible compared to the architectural reality of the data structure's size.
+**Action:** Do not propose loop-fusion or array-iteration micro-optimizations unless there is concrete evidence that the arrays involved are massively large and actually form a bottleneck.
