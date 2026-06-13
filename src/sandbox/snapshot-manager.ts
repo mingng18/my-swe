@@ -446,7 +446,6 @@ export class SnapshotManager {
 
   /**
    * Capture snapshot via provider API.
-   * TODO: Implement provider-specific snapshot APIs.
    */
   private async captureSnapshot(
     sandbox: SandboxService,
@@ -482,7 +481,18 @@ export class SnapshotManager {
         logger.error({ error: err }, "[snapshot-manager] Failed to create Daytona snapshot");
       }
     } else if (provider === "opensandbox") {
-      logger.debug("[snapshot-manager] OpenSandbox backend; returning info for snapshot");
+      try {
+        // For OpenSandbox, "pausing" acts as a form of state snapshot/preservation.
+        logger.info("[snapshot-manager] Pausing OpenSandbox to preserve state");
+        const pauseResult = await sandbox.pause();
+        if (!pauseResult) {
+          logger.warn("[snapshot-manager] Failed to pause OpenSandbox, snapshot may not be fully preserved");
+        } else {
+          logger.info("[snapshot-manager] Successfully paused OpenSandbox");
+        }
+      } catch (err) {
+        logger.error({ error: err }, "[snapshot-manager] Failed to pause OpenSandbox");
+      }
     }
 
     return {
