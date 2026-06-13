@@ -94,6 +94,48 @@ describe("parseCommandArgs", () => {
       args: ["x", "tsc", "--noEmit"],
     });
   });
+
+  it("should handle strange spacing and multiple spaces between args", () => {
+    expect(parseCommandArgs("  bun   test    src/file.ts  ")).toEqual({
+      command: process.execPath,
+      args: ["test", "src/file.ts"],
+    });
+  });
+
+  it("should handle whitespace-only strings", () => {
+    expect(parseCommandArgs("   \t\n  ")).toEqual({
+      command: "",
+      args: [],
+    });
+  });
+
+  it("should not rewrite paths for commands other than bun and bunx", () => {
+    expect(parseCommandArgs("npm run dev")).toEqual({
+      command: "npm",
+      args: ["run", "dev"],
+    });
+  });
+
+  it("should handle bun command with no arguments", () => {
+    expect(parseCommandArgs("bun")).toEqual({
+      command: process.execPath,
+      args: [],
+    });
+  });
+
+  it("should handle bunx command with no arguments", () => {
+    expect(parseCommandArgs("bunx")).toEqual({
+      command: process.execPath,
+      args: ["x"],
+    });
+  });
+
+  it("should handle mixed quotes handling", () => {
+    expect(parseCommandArgs('bun run "my script" \'with args\'')).toEqual({
+      command: process.execPath,
+      args: ["run", "my script", "with args"],
+    });
+  });
 });
 
 
