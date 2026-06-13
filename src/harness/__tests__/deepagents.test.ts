@@ -175,3 +175,53 @@ describe("DeepAgentWrapper", () => {
     });
   });
 });
+
+const mockInstallDependencies = mock(async () => {
+    throw new Error("Dependency installation failed");
+});
+
+mock.module("../../nodes/deterministic/DependencyInstallerNode", () => ({
+    installDependencies: mockInstallDependencies
+}));
+
+mock.module("../../integrations/sandbox-service", () => ({
+  createSandboxServiceWithConfig: mock(async () => ({
+    cloneRepo: mock(async () => "/tmp/workspace"),
+    id: "mock-backend-id"
+  }))
+}));
+
+describe("resolveSandboxContext dependency installation errors", () => {
+  let resolveSandboxContext: any;
+
+  beforeEach(async () => {
+    mock.restore();
+    mockInstallDependencies.mockClear();
+
+    const deepagents = await import("../deepagents");
+    resolveSandboxContext = deepagents.__test_only_resolveSandboxContext;
+  });
+
+  test("should catch and log errors during dependency installation", async () => {
+      const loggerMod = await import("../../utils/logger");
+      const warnSpy = spyOn(loggerMod.logger, "warn");
+      const infoSpy = spyOn(loggerMod.logger, "info");
+
+      const result = await resolveSandboxContext(
+          "thread-123",
+          { owner: "testOwner", name: "testRepo" },
+          { id: "profile1" } as any
+      );
+
+      expect(mockInstallDependencies).toHaveBeenCalled();
+      expect(infoSpy).toHaveBeenCalledWith("[deepagents] Pre-installing dependencies for agent context...");
+      expect(warnSpy).toHaveBeenCalledWith(
+          expect.objectContaining({ err: expect.any(Error) }),
+          "[deepagents] Pre-install dependencies failed (non-fatal)"
+      );
+
+      expect(result.activeRepo).toBeDefined();
+      expect(result.backend).toBeDefined();
+      expect(result.workspaceDir).toBe("/tmp/workspace");
+  });
+});

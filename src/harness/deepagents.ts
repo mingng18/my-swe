@@ -1532,3 +1532,5 @@ export function resetDeepAgentsStateForTesting(): void {
 export function getThreadRepoMapForTesting() {
   return threadRepoMap;
 }
+
+export const __test_only_resolveSandboxContext = resolveSandboxContext;
