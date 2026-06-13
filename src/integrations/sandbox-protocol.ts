@@ -21,6 +21,16 @@ export type FileData = {
   modified_at: string;
 };
 
+export const createFileData = (content: string[] = []): FileData => {
+  const now = new Date().toISOString();
+  return {
+    content,
+    created_at: now,
+    modified_at: now,
+  };
+};
+
+
 export type GrepMatch = {
   path: string;
   line: number;

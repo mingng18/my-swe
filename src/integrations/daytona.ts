@@ -12,6 +12,7 @@ import { createLogger } from "../utils/logger";
 import { randomUUID } from "node:crypto";
 import { Daytona } from "@daytonaio/sdk";
 import { BaseSandboxBackend } from "./base-sandbox";
+import { createFileData } from "./sandbox-protocol";
 import type {
   EditResult,
   ExecuteResponse,
@@ -348,18 +349,10 @@ export class DaytonaBackend extends BaseSandboxBackend {
       const content = buffer.toString("utf-8");
       const lines = content.split("\n");
 
-      return {
-        content: lines,
-        created_at: new Date().toISOString(),
-        modified_at: new Date().toISOString(),
-      };
+      return createFileData(lines);
     } catch (err) {
       logger.error({ error: err, filePath }, "[daytona] readRaw failed");
-      return {
-        content: [],
-        created_at: new Date().toISOString(),
-        modified_at: new Date().toISOString(),
-      };
+      return createFileData();
     }
   }
 
