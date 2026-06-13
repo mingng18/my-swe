@@ -70,11 +70,17 @@ function summarizeGroup(messages: BaseMessage[]): string {
       summary = content.slice(0, 100);
       if (content.length > 100) summary += "…";
     } else if (Array.isArray(content)) {
-      // Concatenate text parts
-      const textParts = content
-        .filter((p) => p.type === "text" && p.text)
-        .map((p) => p.text as string);
-      const joined = textParts.join(" ");
+      // ⚡ Bolt: Use a for-loop instead of filter/map/join to avoid multiple array
+      // allocations and allow short-circuiting once we have 100 characters.
+      let joined = "";
+      for (let i = 0; i < content.length; i++) {
+        const p = content[i];
+        if (p.type === "text" && p.text) {
+          if (joined.length > 0) joined += " ";
+          joined += p.text;
+          if (joined.length >= 100) break;
+        }
+      }
       summary = joined.slice(0, 100);
       if (joined.length > 100) summary += "…";
     }
