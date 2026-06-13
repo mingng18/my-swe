@@ -143,6 +143,7 @@ export const TerminalCopyButton = ({
   return (
     <Button
       aria-label={isCopied ? "Copied to clipboard" : "Copy terminal output"}
+      title={isCopied ? "Copied to clipboard" : "Copy terminal output"}
       className={cn(
         "size-7 shrink-0 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100",
         className,
@@ -173,6 +174,7 @@ export const TerminalClearButton = ({
   return (
     <Button
       aria-label="Clear terminal output"
+      title="Clear terminal output"
       className={cn(
         "size-7 shrink-0 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100",
         className,
