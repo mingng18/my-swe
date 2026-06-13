@@ -482,7 +482,18 @@ export class SnapshotManager {
         logger.error({ error: err }, "[snapshot-manager] Failed to create Daytona snapshot");
       }
     } else if (provider === "opensandbox") {
-      logger.debug("[snapshot-manager] OpenSandbox backend; returning info for snapshot");
+      logger.debug("[snapshot-manager] OpenSandbox backend; pausing sandbox to capture state");
+      if (sandbox.getProvider() === "opensandbox") {
+        try {
+          // Access backend correctly avoiding strict typing issues
+          const backend = sandbox.getBackend();
+          if (backend && typeof (backend as any).pause === "function") {
+            await (backend as any).pause();
+          }
+        } catch (err) {
+          logger.error({ error: err }, "[snapshot-manager] Failed to pause OpenSandbox");
+        }
+      }
     }
 
     return {
