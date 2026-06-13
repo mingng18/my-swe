@@ -70,3 +70,6 @@ Bun Benchmark Results for 1M iterations:
 ## 2024-06-05 - Avoid over-fetching Zustand state
 **Learning:** Subscribing to full state objects in Zustand (e.g., `state.threads[threadId]`) causes unnecessary re-renders when fast-changing nested properties (like `events` array during LLM streams) update.
 **Action:** Always select only the specific data needed by the component (e.g., `state.threads[threadId]?.todos`).
+## 2025-06-08 - Regex compilation for pattern matching in loops
+**Learning:** Using multiple sequential `.includes()` alongside string allocations via `.toLowerCase()` creates noticeable CPU overhead when iterating over array items or analyzing strings repeatedly in hot paths.
+**Action:** Use pre-compiled regex with `.test()` instead of chained `.includes()` for large-scale substring checking logic.
