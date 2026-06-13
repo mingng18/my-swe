@@ -8,7 +8,14 @@ const logger = createLogger("progressive-file-reader");
  */
 export interface SymbolInfo {
   name: string;
-  type: "function" | "class" | "interface" | "type" | "variable" | "constant" | "unknown";
+  type:
+    | "function"
+    | "class"
+    | "interface"
+    | "type"
+    | "variable"
+    | "constant"
+    | "unknown";
   line: number;
   endLine?: number;
   exports: boolean;
@@ -28,7 +35,10 @@ export interface FileStructure {
  * Extract symbols from TypeScript/JavaScript code using regex.
  * This is a simplified approach that works for most cases.
  */
-export function extractSymbols(content: string, filePath: string): FileStructure {
+export function extractSymbols(
+  content: string,
+  filePath: string,
+): FileStructure {
   const lines = content.split("\n");
   const structure: FileStructure = {
     path: filePath,
@@ -37,9 +47,13 @@ export function extractSymbols(content: string, filePath: string): FileStructure
     symbols: [],
   };
 
+  const symbolNames = new Set<string>();
+
   const isTypeScript = filePath.endsWith(".ts") || filePath.endsWith(".tsx");
   const isJavaScript =
-    filePath.endsWith(".js") || filePath.endsWith(".jsx") || filePath.endsWith(".mjs");
+    filePath.endsWith(".js") ||
+    filePath.endsWith(".jsx") ||
+    filePath.endsWith(".mjs");
 
   if (!isTypeScript && !isJavaScript) {
     return structure;
@@ -59,7 +73,10 @@ export function extractSymbols(content: string, filePath: string): FileStructure
       const from = importMatch[2];
       if (names) {
         // Handle named imports
-        const namedImports = names.replace(/[{}]/g, "").split(",").map((s) => s.trim());
+        const namedImports = names
+          .replace(/[{}]/g, "")
+          .split(",")
+          .map((s) => s.trim());
         for (const name of namedImports) {
           structure.imports.push({ name, from, line: lineNumber });
         }
@@ -68,7 +85,9 @@ export function extractSymbols(content: string, filePath: string): FileStructure
 
     // Extract exports
     if (trimmed.startsWith("export ")) {
-      const functionMatch = trimmed.match(/export\s+(?:async\s+)?function\s+(\w+)/);
+      const functionMatch = trimmed.match(
+        /export\s+(?:async\s+)?function\s+(\w+)/,
+      );
       const classMatch = trimmed.match(/export\s+class\s+(\w+)/);
       const constMatch = trimmed.match(/export\s+const\s+(\w+)/);
       const namedMatch = trimmed.match(/export\s*\{([^}]+)\}/);
@@ -81,6 +100,7 @@ export function extractSymbols(content: string, filePath: string): FileStructure
           line: lineNumber,
           exports: true,
         });
+        symbolNames.add(functionMatch[1]);
       } else if (classMatch) {
         structure.exports.push({ name: classMatch[1], line: lineNumber });
         structure.symbols.push({
@@ -89,6 +109,7 @@ export function extractSymbols(content: string, filePath: string): FileStructure
           line: lineNumber,
           exports: true,
         });
+        symbolNames.add(classMatch[1]);
       } else if (constMatch) {
         structure.exports.push({ name: constMatch[1], line: lineNumber });
         structure.symbols.push({
@@ -97,6 +118,7 @@ export function extractSymbols(content: string, filePath: string): FileStructure
           line: lineNumber,
           exports: true,
         });
+        symbolNames.add(constMatch[1]);
       } else if (namedMatch) {
         const names = namedMatch[1].split(",").map((s) => s.trim());
         for (const name of names) {
@@ -110,28 +132,28 @@ export function extractSymbols(content: string, filePath: string): FileStructure
       /^(?:export\s+)?(?:async\s+)?function\s+(\w+)/,
     );
     if (funcMatch) {
-      const existing = structure.symbols.find((s) => s.name === funcMatch[1]);
-      if (!existing) {
+      if (!symbolNames.has(funcMatch[1])) {
         structure.symbols.push({
           name: funcMatch[1],
           type: "function",
           line: lineNumber,
           exports: trimmed.startsWith("export "),
         });
+        symbolNames.add(funcMatch[1]);
       }
     }
 
     // Extract class definitions (non-exported)
     const classMatch = trimmed.match(/^class\s+(\w+)/);
     if (classMatch) {
-      const existing = structure.symbols.find((s) => s.name === classMatch[1]);
-      if (!existing) {
+      if (!symbolNames.has(classMatch[1])) {
         structure.symbols.push({
           name: classMatch[1],
           type: "class",
           line: lineNumber,
           exports: trimmed.startsWith("export "),
         });
+        symbolNames.add(classMatch[1]);
       }
     }
 
@@ -147,6 +169,7 @@ export function extractSymbols(content: string, filePath: string): FileStructure
           line: lineNumber,
           exports: true,
         });
+        symbolNames.add(interfaceMatch[1]);
       }
 
       if (typeMatch) {
@@ -156,6 +179,7 @@ export function extractSymbols(content: string, filePath: string): FileStructure
           line: lineNumber,
           exports: true,
         });
+        symbolNames.add(typeMatch[1]);
       }
     }
   }
@@ -226,7 +250,10 @@ export function findSymbolRange(
 /**
  * Get imports section of a file (first N lines).
  */
-export function getImportsSection(content: string, maxLines: number = 50): string {
+export function getImportsSection(
+  content: string,
+  maxLines: number = 50,
+): string {
   const lines = content.split("\n");
   const importLines: string[] = [];
 
@@ -254,7 +281,9 @@ export function getImportsSection(content: string, maxLines: number = 50): strin
 /**
  * Get exports from a file.
  */
-export function getExports(content: string): Array<{ name: string; line: number }> {
+export function getExports(
+  content: string,
+): Array<{ name: string; line: number }> {
   const lines = content.split("\n");
   const exports: Array<{ name: string; line: number }> = [];
 
