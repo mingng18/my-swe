@@ -16,8 +16,8 @@ import type {
   SandboxBackendPort,
   WriteResult,
 } from "./sandbox-protocol";
-import { OpenSandboxBackend } from "./opensandbox";
-import { DaytonaBackend } from "./daytona";
+import { OpenSandboxBackend, type OpenSandboxConfig } from "./opensandbox";
+import { DaytonaBackend, type DaytonaConfig } from "./daytona";
 
 const logger = createLogger("sandbox-service");
 
@@ -26,39 +26,9 @@ export type SandboxProvider = "opensandbox" | "daytona";
 export interface SandboxServiceConfig {
   provider: SandboxProvider;
   // OpenSandbox config
-  opensandbox?: {
-    domain?: string;
-    apiKey?: string;
-    image?: string;
-    timeoutSeconds?: number;
-    cpu?: string;
-    memory?: string;
-  };
+  opensandbox?: Partial<OpenSandboxConfig>;
   // Daytona config
-  daytona?: {
-    apiKey?: string;
-    apiUrl?: string;
-    target?: string;
-    sandboxId?: string;
-    image?: string;
-    cpu?: number;
-    memory?: number;
-    disk?: number;
-    autoStopInterval?: number;
-    autoArchiveInterval?: number;
-    autoDeleteInterval?: number;
-    ephemeral?: boolean;
-    labels?: Record<string, string>;
-    envVars?: Record<string, string>;
-    name?: string;
-    language?: "python" | "javascript" | "typescript";
-    networkBlockAll?: boolean;
-    networkAllowList?: string;
-    public?: boolean;
-    user?: string;
-    volumes?: Array<{ volumeId: string; mountPath: string; subpath?: string }>;
-    preserveOnCleanup?: boolean;
-  };
+  daytona?: Partial<DaytonaConfig>;
 }
 
 /**
@@ -127,14 +97,9 @@ export class SandboxService implements FilesystemPort, SandboxBackendPort {
     return new SandboxService(backend, config.provider);
   }
 
-  private static createOpenSandboxBackend(config?: {
-    domain?: string;
-    apiKey?: string;
-    image?: string;
-    timeoutSeconds?: number;
-    cpu?: string;
-    memory?: string;
-  }): OpenSandboxBackend {
+  private static createOpenSandboxBackend(
+    config?: Partial<OpenSandboxConfig>,
+  ): OpenSandboxBackend {
     const { OpenSandboxBackend: OpenSandbox } = require("./opensandbox");
 
     return new OpenSandbox({
@@ -149,30 +114,9 @@ export class SandboxService implements FilesystemPort, SandboxBackendPort {
     });
   }
 
-  private static createDaytonaBackend(config?: {
-    apiKey?: string;
-    apiUrl?: string;
-    target?: string;
-    sandboxId?: string;
-    image?: string;
-    cpu?: number;
-    memory?: number;
-    disk?: number;
-    autoStopInterval?: number;
-    autoArchiveInterval?: number;
-    autoDeleteInterval?: number;
-    ephemeral?: boolean;
-    labels?: Record<string, string>;
-    envVars?: Record<string, string>;
-    name?: string;
-    language?: "python" | "javascript" | "typescript";
-    networkBlockAll?: boolean;
-    networkAllowList?: string;
-    public?: boolean;
-    user?: string;
-    volumes?: Array<{ volumeId: string; mountPath: string; subpath?: string }>;
-    preserveOnCleanup?: boolean;
-  }): DaytonaBackend {
+  private static createDaytonaBackend(
+    config?: Partial<DaytonaConfig>,
+  ): DaytonaBackend {
     const { DaytonaBackend: Daytona } = require("./daytona");
 
     return new Daytona({
