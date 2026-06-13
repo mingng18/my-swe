@@ -1,4 +1,19 @@
-import { describe, expect, test, beforeEach, mock } from "bun:test";
+import { describe, expect, test, beforeEach, afterEach, mock, spyOn } from "bun:test";
+
+// We need to mock BEFORE importing the module to be tested
+const MockMemoryRepository = mock(() => ({}));
+const mockGenerateEmbedding = mock(() => [0.1, 0.2]);
+const MockEmbeddingService = Object.assign(
+  mock(() => ({ generateEmbedding: mockGenerateEmbedding })),
+  { cosineSimilarity: mock(() => 0.9) }
+);
+const mockSearch = mock(async () => []);
+const MockSearchService = mock(() => ({ search: mockSearch }));
+
+mock.module("../memory/repository", () => ({ MemoryRepository: MockMemoryRepository }));
+mock.module("../memory/embeddings", () => ({ EmbeddingService: MockEmbeddingService }));
+mock.module("../memory/search", () => ({ SearchService: MockSearchService }));
+
 import {
   BoundedRetryLoop,
   NodeType,
@@ -243,5 +258,75 @@ describe("createBoundedRetryLoop", () => {
     expect(loop).toBeInstanceOf(BoundedRetryLoop);
     // Access private property to verify the custom handler is set
     expect((loop as any).escalationHandler).toBe(customHandler);
+  });
+});
+
+describe("Memory Initialization", () => {
+  const originalEnv = process.env.ENABLE_MEMORY;
+
+  // Dynamic imports to avoid hoisting issues
+  let initializeMemoryServices: () => void;
+  let isMemoryEnabled: () => boolean;
+
+  beforeEach(async () => {
+    delete process.env.ENABLE_MEMORY;
+    MockMemoryRepository.mockClear();
+    MockEmbeddingService.mockClear();
+    MockSearchService.mockClear();
+
+    // We need to import dynamically so mocks apply
+    const mod = await import("./retry-loop");
+    initializeMemoryServices = mod.initializeMemoryServices;
+    isMemoryEnabled = mod.isMemoryEnabled;
+  });
+
+  afterEach(() => {
+    if (originalEnv !== undefined) {
+      process.env.ENABLE_MEMORY = originalEnv;
+    } else {
+      delete process.env.ENABLE_MEMORY;
+    }
+  });
+
+  test("does not initialize when ENABLE_MEMORY is false", () => {
+    process.env.ENABLE_MEMORY = "false";
+    initializeMemoryServices();
+
+    expect(MockMemoryRepository).not.toHaveBeenCalled();
+    expect(MockEmbeddingService).not.toHaveBeenCalled();
+    expect(MockSearchService).not.toHaveBeenCalled();
+    expect(isMemoryEnabled()).toBe(false);
+  });
+
+  test("initializes successfully when ENABLE_MEMORY is true", () => {
+    process.env.ENABLE_MEMORY = "true";
+    initializeMemoryServices();
+
+    expect(MockMemoryRepository).toHaveBeenCalledTimes(1);
+    expect(MockEmbeddingService).toHaveBeenCalledTimes(1);
+    expect(MockSearchService).toHaveBeenCalledTimes(1);
+
+    expect(isMemoryEnabled()).toBe(true);
+  });
+
+  test("does not throw when an error occurs during initialization", () => {
+    process.env.ENABLE_MEMORY = "true";
+
+    // Force an error in one of the constructors
+    MockSearchService.mockImplementationOnce(() => {
+      throw new Error("Simulated initialization error");
+    });
+
+    // Silence console.error for this test
+    const consoleSpy = mock(() => {});
+    const originalConsoleError = console.error;
+    console.error = consoleSpy;
+
+    try {
+      expect(() => initializeMemoryServices()).not.toThrow();
+      expect(consoleSpy).toHaveBeenCalled();
+    } finally {
+      console.error = originalConsoleError;
+    }
   });
 });
