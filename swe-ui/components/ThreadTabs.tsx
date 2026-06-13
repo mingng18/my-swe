@@ -48,7 +48,9 @@ export function ThreadTabs({ className }: ThreadTabsProps) {
   };
 
   const handleNewThread = () => {
-    setActiveThread(null);
+    console.log("Start new agent run");
+    // TODO: Open modal/input for new agent run
+    // This will be implemented in ThreadMonitor
   };
 
   if (threadEntries.length === 0) {
@@ -63,6 +65,7 @@ export function ThreadTabs({ className }: ThreadTabsProps) {
           size="sm"
           onClick={handleNewThread}
           className="h-7 gap-1.5 hover:bg-primary/10 hover:text-primary transition-colors"
+          aria-label="New Run"
         >
           <Plus className="h-4 w-4" />
           <span className="hidden sm:inline">New Run</span>
@@ -111,6 +114,7 @@ export function ThreadTabs({ className }: ThreadTabsProps) {
         size="sm"
         onClick={handleNewThread}
         className="h-7 gap-1.5 shrink-0 hover:bg-primary/10 hover:text-primary transition-colors"
+        aria-label="New Run"
       >
         <Plus className="h-4 w-4" />
         <span className="hidden sm:inline">New Run</span>
