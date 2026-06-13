@@ -48,16 +48,24 @@ export class ConsolidationService {
 
       // Find and merge duplicates
       const duplicateGroups = await this.findDuplicates(threadId);
-      for (const group of duplicateGroups) {
-        try {
-          const mergeResult = await this.mergeDuplicateGroup(group);
-          result.merged += mergeResult.merged;
-        } catch (error) {
-          const errorMsg =
-            error instanceof Error ? error.message : String(error);
-          result.errors.push(`Failed to merge duplicates: ${errorMsg}`);
-          logger.error({ error, threadId }, "Failed to merge duplicate group");
-        }
+
+      // ⚡ Bolt: Use Promise.all to merge duplicate groups concurrently in chunks to prevent unbounded DB connection exhaust
+      const CHUNK_SIZE = 5;
+      for (let i = 0; i < duplicateGroups.length; i += CHUNK_SIZE) {
+        const chunk = duplicateGroups.slice(i, i + CHUNK_SIZE);
+        await Promise.all(
+          chunk.map(async (group) => {
+            try {
+              const mergeResult = await this.mergeDuplicateGroup(group);
+              result.merged += mergeResult.merged;
+            } catch (error) {
+              const errorMsg =
+                error instanceof Error ? error.message : String(error);
+              result.errors.push(`Failed to merge duplicates: ${errorMsg}`);
+              logger.error({ error, threadId }, "Failed to merge duplicate group");
+            }
+          })
+        );
       }
 
       // Find and archive stale memories
