@@ -64,7 +64,8 @@ class MockSupabaseClient {
               })
               .filter(Boolean) as string[];
             if (allowedTypes.length > 0) {
-              memories = memories.filter((m) => allowedTypes.includes(m.type));
+              const allowedTypesSet = new Set(allowedTypes);
+              memories = memories.filter((m) => allowedTypesSet.has(m.type));
             }
           }
         }
