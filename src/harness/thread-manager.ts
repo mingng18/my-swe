@@ -28,6 +28,9 @@ export const THREAD_TTL_MS = Number.parseInt(process.env.THREAD_TTL_MS || "36000
 export class ThreadManager {
   public threadAgentMap: LRUCache<string, DeepAgent>;
   public threadSandboxMap: LRUCache<string, ThreadSandboxEntry>;
+  // Keep track of last specified repository per thread.
+  // This solves the problem of "configurable" values being lost across turns
+  // if the user doesn't re-type `--repo foo/bar`.
   public threadRepoMap: LRUCache<string, RepoContext>;
 
   constructor(ttlMs: number = THREAD_TTL_MS) {
