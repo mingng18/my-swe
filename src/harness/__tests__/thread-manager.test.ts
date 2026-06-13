@@ -1,5 +1,5 @@
 import { describe, it, expect, mock, beforeEach, spyOn, afterEach } from "bun:test";
-import { ThreadManager, THREAD_TTL_MS } from "../thread-manager";
+import { ThreadManager, THREAD_TTL_MS, threadManager as exportedThreadManager, threadRepoMap as exportedThreadRepoMap } from "../thread-manager";
 import * as daytonaPool from "../../integrations/daytona-pool";
 import * as sandboxState from "../../utils/sandboxState";
 import { toolInvocationTracker } from "../../middleware/tool-invocation-limits";
@@ -10,6 +10,15 @@ import type { SandboxProfile } from "../../integrations/daytona-pool";
 import type { RepoContext, ThreadSandboxEntry } from "../thread-manager";
 
 describe("ThreadManager", () => {
+  describe("Exports", () => {
+    it("should export a configured singleton threadManager", () => {
+      expect(exportedThreadManager).toBeInstanceOf(ThreadManager);
+    });
+
+    it("should export threadRepoMap pointing to threadManager's map", () => {
+      expect(exportedThreadRepoMap).toBe(exportedThreadManager.threadRepoMap);
+    });
+  });
   let threadManager: ThreadManager;
 
   beforeEach(() => {
@@ -148,6 +157,19 @@ describe("ThreadManager", () => {
       // Should still clean up the other states even if sandbox release fails
       expect(sandboxState.clearSandboxBackend).toHaveBeenCalledWith("thread-error");
       expect(toolInvocationTracker.clearThread).toHaveBeenCalledWith("thread-error");
+    });
+
+    it("should handle disposal failures gracefully during repo eviction", async () => {
+      const err = new Error("Repo removal failed");
+      const removePersistedThreadRepoSpy = spyOn(threadMetadataStore, "removePersistedThreadRepo").mockImplementation(() => Promise.reject(err));
+
+      threadManager.setRepo("thread-error-repo", {} as RepoContext);
+
+      // Force eviction by waiting and purging
+      await new Promise(resolve => setTimeout(resolve, 150));
+      threadManager.purgeStale();
+
+      expect(removePersistedThreadRepoSpy).toHaveBeenCalledWith("thread-error-repo");
     });
 
     it("should call disposal functions on repo eviction", async () => {
