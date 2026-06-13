@@ -429,5 +429,28 @@ describe("Global thread cleanup scheduler", () => {
       const scheduler = startThreadCleanupScheduler();
       expect(getThreadCleanupScheduler()).toBe(scheduler);
     });
+
+    it("should process expirations effectively with global scheduler", async () => {
+      const scheduler = startThreadCleanupScheduler({
+        intervalMs: 10,
+        ttlMs: 50,
+        enabled: true,
+      });
+
+      let cleaned = false;
+      scheduler.registerCleanupFn(async () => {
+        cleaned = true;
+        return 1;
+      });
+
+      scheduler.markAccessed("global-thread-test");
+
+      // Wait for TTL + interval
+      await new Promise((r) => setTimeout(r, 100));
+
+      expect(cleaned).toBe(true);
+      expect(scheduler.getMetadata().size).toBe(0);
+      expect(getThreadCleanupScheduler()?.getMetadata().size).toBe(0);
+    });
   });
 });
