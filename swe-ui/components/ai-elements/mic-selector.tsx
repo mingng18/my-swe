@@ -236,7 +236,7 @@ export const MicSelectorTrigger = ({
 
   return (
     <PopoverTrigger asChild>
-      <Button variant="outline" {...props} ref={ref}>
+      <Button aria-label="Select microphone" variant="outline" {...props} ref={ref}>
         {children}
         <ChevronsUpDownIcon
           className="shrink-0 text-muted-foreground"

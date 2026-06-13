@@ -88,10 +88,24 @@ describe("parseCommandArgs", () => {
     });
   });
 
+  it("should handle whitespace-only strings", () => {
+    expect(parseCommandArgs("   ")).toEqual({
+      command: "",
+      args: [],
+    });
+  });
+
   it("should parse a command with multiple arguments", () => {
     expect(parseCommandArgs("bunx tsc --noEmit")).toEqual({
       command: process.execPath,
       args: ["x", "tsc", "--noEmit"],
+    });
+  });
+
+  it("should parse non-bun commands without modifying them", () => {
+    expect(parseCommandArgs("npm run dev")).toEqual({
+      command: "npm",
+      args: ["run", "dev"],
     });
   });
 });

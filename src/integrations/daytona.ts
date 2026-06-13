@@ -12,6 +12,7 @@ import { createLogger } from "../utils/logger";
 import { randomUUID } from "node:crypto";
 import { Daytona } from "@daytonaio/sdk";
 import { BaseSandboxBackend } from "./base-sandbox";
+import { createFileData } from "./sandbox-protocol";
 import type {
   EditResult,
   ExecuteResponse,
@@ -348,18 +349,10 @@ export class DaytonaBackend extends BaseSandboxBackend {
       const content = buffer.toString("utf-8");
       const lines = content.split("\n");
 
-      return {
-        content: lines,
-        created_at: new Date().toISOString(),
-        modified_at: new Date().toISOString(),
-      };
+      return createFileData(lines);
     } catch (err) {
       logger.error({ error: err, filePath }, "[daytona] readRaw failed");
-      return {
-        content: [],
-        created_at: new Date().toISOString(),
-        modified_at: new Date().toISOString(),
-      };
+      return createFileData();
     }
   }
 
@@ -462,37 +455,30 @@ export class DaytonaBackend extends BaseSandboxBackend {
         | null;
     }> = [];
 
-    // ⚡ Bolt: Chunked parallel uploads to eliminate N+1 sequential bottlenecks.
-    // Processes 5 files concurrently. Reduces total upload time significantly
-    // (e.g. from O(N) network roundtrips to O(N/5)).
-    const CONCURRENCY_LIMIT = 5;
-    for (let i = 0; i < files.length; i += CONCURRENCY_LIMIT) {
-      const chunk = files.slice(i, i + CONCURRENCY_LIMIT);
-      const chunkResults = await Promise.all(
-        chunk.map(async ([path, data]) => {
-          try {
-            const buffer = Buffer.from(data);
-            await this.sandbox!.fs.uploadFile(buffer, path);
-            return { path, error: null };
-          } catch (err) {
-            const error:
-              | "file_not_found"
-              | "permission_denied"
-              | "is_directory"
-              | "invalid_path" =
-              err instanceof Error && err.message.includes("not found")
-                ? "file_not_found"
-                : err instanceof Error && err.message.includes("permission")
-                  ? "permission_denied"
-                  : "invalid_path";
-            return { path, error };
-          }
-        }),
-      );
-      results.push(...chunkResults);
-    }
-
-    return results;
+    // ⚡ Bolt: Fully parallel uploads to eliminate chunking bottlenecks.
+    // Processes all files concurrently using Promise.all. Reduces total upload time
+    // significantly (e.g. from O(N/5) network roundtrips to O(1) for small N).
+    return Promise.all(
+      files.map(async ([path, data]) => {
+        try {
+          const buffer = Buffer.from(data);
+          await this.sandbox!.fs.uploadFile(buffer, path);
+          return { path, error: null };
+        } catch (err) {
+          const error:
+            | "file_not_found"
+            | "permission_denied"
+            | "is_directory"
+            | "invalid_path" =
+            err instanceof Error && err.message.includes("not found")
+              ? "file_not_found"
+              : err instanceof Error && err.message.includes("permission")
+                ? "permission_denied"
+                : "invalid_path";
+          return { path, error };
+        }
+      })
+    );
   }
 
   /**

@@ -1,5 +1,10 @@
 import { createLogger } from "../utils/logger";
-import { threadManager, threadRepoMap, THREAD_TTL_MS, type RepoContext } from "./thread-manager";
+import {
+  threadManager,
+  threadRepoMap,
+  THREAD_TTL_MS,
+  type RepoContext,
+} from "./thread-manager";
 import { loadLlmConfig, loadModelConfig } from "../utils/config";
 import { createChatModel } from "../utils/model-factory";
 import { createDeepAgent, FilesystemBackend, type DeepAgent } from "deepagents";
@@ -66,6 +71,7 @@ import { builtInSubagents } from "../subagents/registry";
 import { loadRepoAgents, mergeSubagents } from "../subagents/agentsLoader";
 import { asyncSubagents } from "../subagents/async";
 import { type BaseMessage, type ToolCall } from "@langchain/core/messages";
+import { type BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { streamRegistry, type SSEEvent } from "../stream";
 
 const logger = createLogger("deepagents");
@@ -114,28 +120,36 @@ export function emitTodoEvent(
 }
 
 const useSandbox = process.env.USE_SANDBOX === "true";
-const AGENT_RECURSION_LIMIT = Number.parseInt(process.env.AGENT_RECURSION_LIMIT || "1000", 10);
+const AGENT_RECURSION_LIMIT = Number.parseInt(
+  process.env.AGENT_RECURSION_LIMIT || "1000",
+  10,
+);
 let hasLoadedPersistedRepos = false;
 
 // ============================================================================
 // Thread Cleanup Configuration
 // ============================================================================
 
-export async function cleanupThreadMaps(ttlMs: number = 3600000): Promise<number> {
-  const before = threadManager.threadAgentMap.size + threadManager.threadSandboxMap.size + threadManager.threadRepoMap.size;
+export async function cleanupThreadMaps(
+  ttlMs: number = 3600000,
+): Promise<number> {
+  const before =
+    threadManager.threadAgentMap.size +
+    threadManager.threadSandboxMap.size +
+    threadManager.threadRepoMap.size;
   threadManager.purgeStale();
-  const after = threadManager.threadAgentMap.size + threadManager.threadSandboxMap.size + threadManager.threadRepoMap.size;
+  const after =
+    threadManager.threadAgentMap.size +
+    threadManager.threadSandboxMap.size +
+    threadManager.threadRepoMap.size;
   return before - after;
 }
 
-async function createAgentInstance(args: {
-  workspaceRoot?: string;
-  backend?: SandboxService | FilesystemBackend;
-}): Promise<DeepAgent> {
-  const modelConfig = loadModelConfig();
-  const chatModel = await createChatModel(modelConfig);
-  const { fallback } = loadLlmConfig();
-
+async function buildMiddleware(
+  chatModel: BaseChatModel,
+  modelConfig: any,
+  fallback?: { openaiBaseUrl?: string; openaiApiKey?: string; model?: string },
+): Promise<any[]> {
   const middleware: any[] = [
     // Resilience: automatic retry on transient model errors
     modelRetryMiddleware({
@@ -175,7 +189,10 @@ async function createAgentInstance(args: {
                     );
                     if (Number.isNaN(parsed)) {
                       logger.warn(
-                        { envValue: process.env.COMPACTION_CASCADE_TRIGGER_FRACTION },
+                        {
+                          envValue:
+                            process.env.COMPACTION_CASCADE_TRIGGER_FRACTION,
+                        },
                         "[deepagents] Invalid COMPACTION_CASCADE_TRIGGER_FRACTION, using default 0.7",
                       );
                       return 0.7;
@@ -243,13 +260,17 @@ async function createAgentInstance(args: {
     }
   }
 
+  return middleware;
+}
+
+async function loadAgentTools(workspaceRoot?: string): Promise<any[]> {
   let tools = useSandbox ? sandboxAllTools : allTools;
 
   // Load MCP tools if enabled and workspace is available
-  if (process.env.MCP_ENABLED !== "false" && args.workspaceRoot) {
+  if (process.env.MCP_ENABLED !== "false" && workspaceRoot) {
     try {
       const { loadMcpTools } = await import("../mcp/tool-factory.js");
-      const mcpTools = await loadMcpTools(args.workspaceRoot);
+      const mcpTools = await loadMcpTools(workspaceRoot);
 
       if (mcpTools.length > 0) {
         tools = [...tools, ...mcpTools];
@@ -266,24 +287,10 @@ async function createAgentInstance(args: {
     }
   }
 
-  const config: any = {
-    model: chatModel,
-    systemPrompt: constructSystemPrompt(args.workspaceRoot || process.cwd()),
-    checkpointer: new MemorySaver(),
-    tools,
-    middleware,
-  };
+  return tools;
+}
 
-  // Add LangChain callback for automatic tracing
-  if (isLangfuseEnabled()) {
-    config.callbacks = [new LangfuseLangChain()];
-    logger.debug("[deepagents] Langfuse LangChain callback registered");
-  }
-
-  if (args.backend) {
-    config.backend = args.backend;
-  }
-
+async function configureSubagents(config: any): Promise<void> {
   // Add subagents if enabled
   if (process.env.SUBAGENTS_ENABLED !== "false") {
     // Load repo-specific agents
@@ -312,6 +319,38 @@ async function createAgentInstance(args: {
       "[deepagents] Async subagents enabled",
     );
   }
+}
+
+async function createAgentInstance(args: {
+  workspaceRoot?: string;
+  backend?: SandboxService | FilesystemBackend;
+}): Promise<DeepAgent> {
+  const modelConfig = loadModelConfig();
+  const chatModel = await createChatModel(modelConfig);
+  const { fallback } = loadLlmConfig();
+
+  const middleware = await buildMiddleware(chatModel, modelConfig, fallback);
+  const tools = await loadAgentTools(args.workspaceRoot);
+
+  const config: any = {
+    model: chatModel,
+    systemPrompt: constructSystemPrompt(args.workspaceRoot || process.cwd()),
+    checkpointer: new MemorySaver(),
+    tools,
+    middleware,
+  };
+
+  // Add LangChain callback for automatic tracing
+  if (isLangfuseEnabled()) {
+    config.callbacks = [new LangfuseLangChain()];
+    logger.debug("[deepagents] Langfuse LangChain callback registered");
+  }
+
+  if (args.backend) {
+    config.backend = args.backend;
+  }
+
+  await configureSubagents(config);
 
   const agent = createDeepAgent(config);
   return agent;
@@ -572,8 +611,6 @@ function extractRepoFromInput(
 // This solves the problem of "configurable" values being lost across turns
 // if the user doesn't re-type `--repo foo/bar`.
 
-
-
 async function acquireDaytonaSandboxForThreadRepo(args: {
   threadId: string;
   repoOwner: string;
@@ -684,12 +721,16 @@ async function resolveSandboxContext(
     );
   }
 
-  logger.info(`[deepagents] Repo acquire+clone took ${Date.now() - cloneStart}ms`);
+  logger.info(
+    `[deepagents] Repo acquire+clone took ${Date.now() - cloneStart}ms`,
+  );
 
   const activeRepo = { ...parsedRepo, workspaceDir, lastAccessed: Date.now() };
   threadManager.setRepo(threadId, activeRepo);
-  const { lastAccessed, ...repoForPersistence } = threadManager.getRepo(threadId) || { owner: parsedRepo.owner, name: parsedRepo.name, workspaceDir };
-  
+  const { lastAccessed, ...repoForPersistence } = threadManager.getRepo(
+    threadId,
+  ) || { owner: parsedRepo.owner, name: parsedRepo.name, workspaceDir };
+
   await persistThreadRepo(threadId, {
     ...repoForPersistence,
     sandbox: {
@@ -703,15 +744,20 @@ async function resolveSandboxContext(
     profile,
     repo: activeRepo,
   } as any);
-  
+
   setSandboxBackend(threadId, backend);
 
   // Pre-install dependencies for agent context
   try {
-    logger.info("[deepagents] Pre-installing dependencies for agent context...");
+    logger.info(
+      "[deepagents] Pre-installing dependencies for agent context...",
+    );
     await installDependencies(backend, workspaceDir);
   } catch (depErr) {
-    logger.warn({ err: depErr }, "[deepagents] Pre-install dependencies failed (non-fatal)");
+    logger.warn(
+      { err: depErr },
+      "[deepagents] Pre-install dependencies failed (non-fatal)",
+    );
   }
 
   return { activeRepo, backend, workspaceDir };
@@ -724,7 +770,7 @@ export class DeepAgentWrapper implements AgentHarness {
     if (!hasLoadedPersistedRepos) {
       const persisted = await loadPersistedThreadRepos();
       for (const [id, repo] of persisted.entries()) {
-        threadManager.setRepo( id,  repo);
+        threadManager.setRepo(id, repo);
       }
       hasLoadedPersistedRepos = true;
     }
@@ -732,18 +778,18 @@ export class DeepAgentWrapper implements AgentHarness {
     const parsedRepo = extractRepoFromInput(input);
     let activeRepo: RepoContext | undefined = threadManager.getRepo(threadId);
     if (activeRepo) {
-      
     }
     const profile = getSandboxProfileFromEnv();
 
     const sandboxEntry = threadManager.getSandbox(threadId);
     if (sandboxEntry) {
-      
     }
     const hasBackendForThread = Boolean(sandboxEntry?.backend);
 
     // Mark thread as accessed in cleanup scheduler
-    const scheduler = await import("../utils/thread-cleanup-scheduler").then(m => m.getThreadCleanupScheduler());
+    const scheduler = await import("../utils/thread-cleanup-scheduler").then(
+      (m) => m.getThreadCleanupScheduler(),
+    );
     if (scheduler) {
       scheduler.markAccessed(threadId);
     }
@@ -761,7 +807,6 @@ export class DeepAgentWrapper implements AgentHarness {
       // If we already held a sandbox for this thread, release it back to the pool.
       const prior = threadManager.getSandbox(threadId);
       if (prior) {
-        
         try {
           await releaseRepoSandbox({
             apiKey: process.env.DAYTONA_API_KEY || "",
@@ -795,7 +840,11 @@ export class DeepAgentWrapper implements AgentHarness {
       }
 
       if (useSandbox) {
-        const context = await resolveSandboxContext(threadId, parsedRepo, profile);
+        const context = await resolveSandboxContext(
+          threadId,
+          parsedRepo,
+          profile,
+        );
         activeRepo = context.activeRepo;
       } else {
         activeRepo = {
@@ -803,10 +852,14 @@ export class DeepAgentWrapper implements AgentHarness {
           workspaceDir: `/workspace/${parsedRepo.name}`,
           lastAccessed: Date.now(),
         };
-        threadManager.setRepo( threadId,  activeRepo);
+        threadManager.setRepo(threadId, activeRepo);
         const { lastAccessed, ...repoForPersistence } = threadManager.getRepo(
           threadId,
-        ) || { owner: parsedRepo.owner, name: parsedRepo.name, workspaceDir: activeRepo.workspaceDir };
+        ) || {
+          owner: parsedRepo.owner,
+          name: parsedRepo.name,
+          workspaceDir: activeRepo.workspaceDir,
+        };
         await persistThreadRepo(threadId, repoForPersistence);
       }
     }
@@ -850,7 +903,7 @@ export class DeepAgentWrapper implements AgentHarness {
         agent = await createAgentInstance({});
       }
 
-      threadManager.setAgent( threadId,  agent);
+      threadManager.setAgent(threadId, agent);
       logger.info({ threadId }, `[deepagents] Agent initialized for thread`);
     }
     return { agent, configurable, activeRepo };
@@ -873,11 +926,12 @@ export class DeepAgentWrapper implements AgentHarness {
       let { agent, configurable } = await this.prepareAgent(input, threadId);
       const activeRepo = threadManager.getRepo(threadId);
       if (activeRepo) {
-
       }
 
       // Mark thread as accessed in cleanup scheduler
-      const scheduler = await import("../utils/thread-cleanup-scheduler").then(m => m.getThreadCleanupScheduler());
+      const scheduler = await import("../utils/thread-cleanup-scheduler").then(
+        (m) => m.getThreadCleanupScheduler(),
+      );
       if (scheduler) {
         scheduler.markAccessed(threadId);
       }
@@ -955,11 +1009,13 @@ If you need to make additional changes, continue working and they'll be added to
       // This prevents the agent from being confused by leftover changes from previous runs
       const sandboxEntry = threadManager.getSandbox(threadId);
       if (sandboxEntry) {
-        
       }
 
       // Mark thread as accessed in cleanup scheduler
-      const invokeScheduler = await import("../utils/thread-cleanup-scheduler").then(m => m.getThreadCleanupScheduler());
+      const invokeScheduler =
+        await import("../utils/thread-cleanup-scheduler").then((m) =>
+          m.getThreadCleanupScheduler(),
+        );
       if (invokeScheduler) {
         invokeScheduler.markAccessed(threadId);
       }
@@ -1045,7 +1101,9 @@ If you need to make additional changes, continue working and they'll be added to
               transport: options?.transport || "api",
               blueprintId: blueprintSelection.blueprint.id,
               blueprintName: blueprintSelection.blueprint.name,
-              repo: activeRepo ? `${activeRepo.owner}/${activeRepo.name}` : undefined,
+              repo: activeRepo
+                ? `${activeRepo.owner}/${activeRepo.name}`
+                : undefined,
             },
           });
         }
@@ -1390,10 +1448,11 @@ If you need to make additional changes, continue working and they'll be added to
   async getState(threadId: string): Promise<any> {
     const agent = threadManager.getAgent(threadId);
     if (!agent) return null;
-    
 
     // Mark thread as accessed in cleanup scheduler
-    const scheduler = await import("../utils/thread-cleanup-scheduler").then(m => m.getThreadCleanupScheduler());
+    const scheduler = await import("../utils/thread-cleanup-scheduler").then(
+      (m) => m.getThreadCleanupScheduler(),
+    );
     if (scheduler) {
       scheduler.markAccessed(threadId);
     }
@@ -1417,7 +1476,7 @@ export async function initDeepAgentsAtStartup(): Promise<void> {
   if (!hasLoadedPersistedRepos) {
     const persisted = await loadPersistedThreadRepos();
     for (const [id, repo] of persisted.entries()) {
-      threadManager.setRepo( id,  repo);
+      threadManager.setRepo(id, repo);
     }
     hasLoadedPersistedRepos = true;
   }
@@ -1475,35 +1534,37 @@ export async function cleanupDeepAgents(): Promise<void> {
 
   // Release sandboxes back to the pool and dispose backends in parallel.
   await Promise.all(
-    Array.from(threadManager.threadSandboxMap.entries()).map(async ([threadId, entry]) => {
-      try {
-        await releaseRepoSandbox({
-          apiKey: process.env.DAYTONA_API_KEY || "",
-          apiUrl: process.env.DAYTONA_API_URL,
-          target: process.env.DAYTONA_TARGET,
-          sandboxId: entry.backend.id,
-          profile: entry.profile,
-          repoOwner: entry.repo.owner,
-          repoName: entry.repo.name,
-        });
-      } catch (err) {
-        logger.warn(
-          { error: err, threadId },
-          "[deepagents] Failed to release sandbox",
-        );
-      }
-      try {
-        await entry.backend.cleanup();
-      } catch (err) {
-        logger.warn(
-          { error: err, threadId },
-          "[deepagents] Failed to cleanup backend",
-        );
-      }
-      clearSandboxBackend(threadId);
-      // Clean up tool invocation tracking for this thread
-      toolInvocationTracker.clearThread(threadId);
-    }),
+    Array.from(threadManager.threadSandboxMap.entries()).map(
+      async ([threadId, entry]) => {
+        try {
+          await releaseRepoSandbox({
+            apiKey: process.env.DAYTONA_API_KEY || "",
+            apiUrl: process.env.DAYTONA_API_URL,
+            target: process.env.DAYTONA_TARGET,
+            sandboxId: entry.backend.id,
+            profile: entry.profile,
+            repoOwner: entry.repo.owner,
+            repoName: entry.repo.name,
+          });
+        } catch (err) {
+          logger.warn(
+            { error: err, threadId },
+            "[deepagents] Failed to release sandbox",
+          );
+        }
+        try {
+          await entry.backend.cleanup();
+        } catch (err) {
+          logger.warn(
+            { error: err, threadId },
+            "[deepagents] Failed to cleanup backend",
+          );
+        }
+        clearSandboxBackend(threadId);
+        // Clean up tool invocation tracking for this thread
+        toolInvocationTracker.clearThread(threadId);
+      },
+    ),
   );
   threadManager.threadSandboxMap.clear();
   threadManager.threadAgentMap.clear();

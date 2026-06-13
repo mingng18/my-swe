@@ -134,6 +134,7 @@ export type PlanTriggerProps = ComponentProps<typeof CollapsibleTrigger>;
 export const PlanTrigger = ({ className, ...props }: PlanTriggerProps) => (
   <CollapsibleTrigger asChild>
     <Button
+      aria-label="Toggle plan"
       className={cn("size-8", className)}
       data-slot="plan-trigger"
       size="icon"

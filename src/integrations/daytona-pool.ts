@@ -125,6 +125,24 @@ async function retryWithBackoff<T>(
   throw lastError;
 }
 
+
+/**
+ * Determine snapshot size based on requested resources
+ */
+function getDefaultSnapshotName(cpu?: number, memory?: number): string {
+  let snapshotName = "daytona-medium"; // Default
+  if (cpu && cpu >= 4) {
+    snapshotName = "daytona-large";
+  } else if (
+    cpu &&
+    cpu <= 1 &&
+    (!memory || memory <= 2)
+  ) {
+    snapshotName = "daytona-small";
+  }
+  return snapshotName;
+}
+
 function buildLabels(args: {
   profile: SandboxProfile;
   repo: string;
@@ -339,16 +357,7 @@ export async function acquireRepoSandbox(
       // These have Node.js, Python, git, TypeScript, and language servers pre-installed
 
       // Determine snapshot size based on requested resources
-      let snapshotName = "daytona-medium"; // Default
-      if (params.cpu && params.cpu >= 4) {
-        snapshotName = "daytona-large";
-      } else if (
-        params.cpu &&
-        params.cpu <= 1 &&
-        (!params.memory || params.memory <= 2)
-      ) {
-        snapshotName = "daytona-small";
-      }
+      const snapshotName = getDefaultSnapshotName(params.cpu, params.memory);
 
       // If custom image is explicitly provided, use it (overrides snapshot)
       const useCustomImage = params.image !== undefined;
@@ -439,16 +448,7 @@ export async function createRepoSandbox(
 
   try {
     // Use Daytona's default snapshots (same logic as acquireRepoSandbox)
-    let snapshotName = "daytona-medium";
-    if (params.cpu && params.cpu >= 4) {
-      snapshotName = "daytona-large";
-    } else if (
-      params.cpu &&
-      params.cpu <= 1 &&
-      (!params.memory || params.memory <= 2)
-    ) {
-      snapshotName = "daytona-small";
-    }
+    const snapshotName = getDefaultSnapshotName(params.cpu, params.memory);
 
     const useCustomImage = params.image !== undefined;
 
