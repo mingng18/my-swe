@@ -39,12 +39,28 @@ export const toolSearchTool = tool(
       const found: string[] = [];
       const missing: string[] = [];
 
+      // Pre-compute maps for O(1) lookups
+      const toolsByLowerName = new Map<string, StructuredTool>();
+      const toolsByExactName = new Map<string, StructuredTool>();
+
+      for (const tool of tools) {
+        // Only keep the first tool with a given lowercase name to mimic original find() behavior
+        const lowerName = tool.name.toLowerCase();
+        if (!toolsByLowerName.has(lowerName)) {
+          toolsByLowerName.set(lowerName, tool);
+        }
+        if (!toolsByExactName.has(tool.name)) {
+          toolsByExactName.set(tool.name, tool);
+        }
+      }
+
+      const foundSet = new Set<string>();
+
       for (const toolName of requested) {
-        const tool = tools.find(
-          (t) => t.name.toLowerCase() === toolName.toLowerCase(),
-        );
+        const tool = toolsByLowerName.get(toolName.toLowerCase());
         if (tool) {
-          if (!found.includes(tool.name)) {
+          if (!foundSet.has(tool.name)) {
+            foundSet.add(tool.name);
             found.push(tool.name);
           }
         } else {
@@ -59,7 +75,7 @@ export const toolSearchTool = tool(
       // Return detailed info for found tools
       const results = found
         .map((name) => {
-          const t = tools.find((tool) => tool.name === name);
+          const t = toolsByExactName.get(name);
           if (!t) return "";
           return formatToolInfo(t);
         })
