@@ -70,3 +70,9 @@ Bun Benchmark Results for 1M iterations:
 ## 2024-06-05 - Avoid over-fetching Zustand state
 **Learning:** Subscribing to full state objects in Zustand (e.g., `state.threads[threadId]`) causes unnecessary re-renders when fast-changing nested properties (like `events` array during LLM streams) update.
 **Action:** Always select only the specific data needed by the component (e.g., `state.threads[threadId]?.todos`).
+## 2025-02-14 - Optimize repetitive error string matching
+**Learning:** Repeated calls to `toLowerCase()` inside tight loops or retry mechanisms create unnecessary string allocations which slow down execution significantly compared to a compiled case-insensitive regex.
+**Action:** Use a compiled `RegExp` with the `i` flag for string content checks when matching multiple possible error string segments.
+## 2025-02-14 - Regex Optimization Rejected
+**Learning:** Micro-optimizations like replacing `String.includes()` with a `RegExp` might be rejected as low-value because the compiled regex still incurs allocation overhead per call, making the theoretical benefit negligible in practical contexts.
+**Action:** Prioritize optimizations with clearer algorithmic or architectural impact, and avoid micro-optimizations that don't demonstrate substantial real-world gains.

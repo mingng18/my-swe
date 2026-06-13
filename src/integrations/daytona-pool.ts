@@ -34,7 +34,6 @@ export function getSandboxProfileFromEnv(): SandboxProfile {
   return normalizeProfile(process.env.SANDBOX_PROFILE);
 }
 
-
 export type PoolStatus = "idle" | "busy";
 
 export const BULLHORSE_LABELS = {
@@ -104,10 +103,9 @@ async function retryWithBackoff<T>(
       lastError = error;
       const isError = error instanceof Error;
       const errorMsg = isError ? error.message : String(error);
-      const isConflict =
-        errorMsg.includes("409") ||
-        errorMsg.toLowerCase().includes("conflict") ||
-        errorMsg.toLowerCase().includes("state change in progress");
+      // ⚡ Bolt: Compiled regex avoids string allocations and is faster than String.includes() + toLowerCase()
+      const CONFLICT_ERROR_REGEX = /409|conflict|state change in progress/i;
+      const isConflict = CONFLICT_ERROR_REGEX.test(errorMsg);
 
       if (!isConflict || attempt === maxRetries) {
         throw error;
