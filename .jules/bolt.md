@@ -70,3 +70,6 @@ Bun Benchmark Results for 1M iterations:
 ## 2024-06-05 - Avoid over-fetching Zustand state
 **Learning:** Subscribing to full state objects in Zustand (e.g., `state.threads[threadId]`) causes unnecessary re-renders when fast-changing nested properties (like `events` array during LLM streams) update.
 **Action:** Always select only the specific data needed by the component (e.g., `state.threads[threadId]?.todos`).
+## 2023-11-09 - O(1) symbol lookup optimization in progressive-file-reader
+**Learning:** Using `Array.prototype.find()` inside a loop over parsed source code files creates an O(N^2) complexity bottleneck. This drastically slows down performance when parsing generated files or files with huge numbers of functions/classes.
+**Action:** Always prefer O(1) lookups using a `Set` or `Map` when repeatedly checking for existing items in a growing list during iterative parsing or extraction loops.
