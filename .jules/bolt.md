@@ -70,3 +70,6 @@ Bun Benchmark Results for 1M iterations:
 ## 2024-06-05 - Avoid over-fetching Zustand state
 **Learning:** Subscribing to full state objects in Zustand (e.g., `state.threads[threadId]`) causes unnecessary re-renders when fast-changing nested properties (like `events` array during LLM streams) update.
 **Action:** Always select only the specific data needed by the component (e.g., `state.threads[threadId]?.todos`).
+## 2026-06-08 - Concurrent prewarming
+**Learning:** Sequential `for` loops making independent asynchronous calls form a significant bottleneck. Converting them to map over `Promise.all` can massively accelerate execution, allowing parallel network requests. Wait to wrap the inner async function in a try-catch to prevent a single failure from causing early rejection of `Promise.all`.
+**Action:** In loops performing network operations (e.g., initialization, API requests), always use `Promise.all` to batch and parallelize tasks wherever order does not strictly matter.
