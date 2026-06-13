@@ -70,3 +70,6 @@ Bun Benchmark Results for 1M iterations:
 ## 2024-06-05 - Avoid over-fetching Zustand state
 **Learning:** Subscribing to full state objects in Zustand (e.g., `state.threads[threadId]`) causes unnecessary re-renders when fast-changing nested properties (like `events` array during LLM streams) update.
 **Action:** Always select only the specific data needed by the component (e.g., `state.threads[threadId]?.todos`).
+## 2025-02-12 - Sequential vs Concurrent setup commands
+**Learning:** Setup commands must be executed sequentially because parallelizing package manager setup commands (like `pip install --upgrade pip` and `pip install pytest`) causes them to race shared state and global package-manager caches, corrupting the sandbox.
+**Action:** Never parallelize or execute sandbox setup commands concurrently if they potentially mutate shared global states. Always use `for...of` sequential loops to enforce correct dependency execution order.
