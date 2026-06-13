@@ -68,6 +68,21 @@ describe("ProgressiveContextEdit", () => {
   });
 
   describe("createProgressiveContextEdit", () => {
+
+    it("should use default triggerTokens (50000) when no arguments provided", () => {
+      const edit = createProgressiveContextEdit();
+      expect(edit.trigger).toBeDefined();
+      expect(edit.trigger.tokens).toBe(50000);
+      expect(typeof edit.apply).toBe("function");
+    });
+
+    it("should use default triggerTokens (50000) when empty object provided", () => {
+      const edit = createProgressiveContextEdit({});
+      expect(edit.trigger).toBeDefined();
+      expect(edit.trigger.tokens).toBe(50000);
+      expect(typeof edit.apply).toBe("function");
+    });
+
     it("should return object with expected trigger and apply structure", () => {
       const edit = createProgressiveContextEdit({ triggerTokens: 15, targetTokens: 10 });
       expect(edit.trigger).toBeDefined();

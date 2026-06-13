@@ -1,5 +1,6 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
+import { shellEscapeSingleQuotes } from "../utils/shell"; // 🛡️ Sentinel: Security Enhancement - Reusing secure shell escaping function
 import {
   createGithubPr,
   gitAddAll,
@@ -102,9 +103,6 @@ async function runPreCommitReview(
   return { shouldBlock: criticalFound, issues: allIssues, summary };
 }
 
-function shellEscapeSingleQuotes(input: string): string {
-  return `'${input.replace(/'/g, `'"'"'`)}'`;
-}
 
 /**
 Commit all current changes and open a GitHub Pull Request.

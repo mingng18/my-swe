@@ -16,6 +16,7 @@ import {
   SandboxException,
 } from "@alibaba-group/opensandbox";
 import { BaseSandboxBackend } from "./base-sandbox";
+import { createFileData } from "./sandbox-protocol";
 import type {
   EditResult,
   ExecuteResponse,
@@ -227,18 +228,10 @@ export class OpenSandboxBackend extends BaseSandboxBackend {
       const content = await this.sandbox!.files.readFile(filePath);
       const lines = content.split("\n");
 
-      return {
-        content: lines,
-        created_at: new Date().toISOString(),
-        modified_at: new Date().toISOString(),
-      };
+      return createFileData(lines);
     } catch (err) {
       logger.error({ error: err, filePath }, "[opensandbox] readRaw failed");
-      return {
-        content: [],
-        created_at: new Date().toISOString(),
-        modified_at: new Date().toISOString(),
-      };
+      return createFileData();
     }
   }
 

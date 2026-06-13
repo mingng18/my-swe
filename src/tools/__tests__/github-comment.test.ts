@@ -128,4 +128,15 @@ describe("githubCommentTool", () => {
     expect(result.success).toBe(false);
     expect(result.error).toBe("API rate limit exceeded");
   });
+
+  it("should return fallback error if API call throws an error without a message", async () => {
+    process.env.GITHUB_TOKEN = "env_token";
+    mockPostGithubComment.mockRejectedValue("Just a string error");
+
+    const resultJson = await githubCommentTool.invoke(validArgs, validConfig as any);
+    const result = JSON.parse(resultJson as string);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("Failed to post comment.");
+  });
 });

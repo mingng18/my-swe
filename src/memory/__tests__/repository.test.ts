@@ -35,21 +35,27 @@ class MockSupabaseClient implements SupabaseClient {
 
         // Check for type filter
         const orParam = params.get("or");
-        if (orParam) {
-          const types = orParam
+        const typeParam = params.get("type");
+
+        let typesToFilter;
+        if (typeParam && typeParam.startsWith("in.(")) {
+          typesToFilter = typeParam.slice(4, -1).split(",");
+        } else if (orParam) {
+          typesToFilter = orParam
             .match(/type\.eq\.([^,)]+)/g)
             ?.map((t: string) => t.replace("type.eq.", ""));
-          if (types) {
-            return new Response(
-              JSON.stringify(
-                memories.filter((m: any) => types.includes(m.type)),
-              ),
-              {
-                status: 200,
-                headers: { "content-type": "application/json" },
-              },
-            );
-          }
+        }
+
+        if (typesToFilter && typesToFilter.length > 0) {
+          return new Response(
+            JSON.stringify(
+              memories.filter((m: any) => typesToFilter.includes(m.type)),
+            ),
+            {
+              status: 200,
+              headers: { "content-type": "application/json" },
+            },
+          );
         }
 
         return new Response(JSON.stringify(memories), {
@@ -70,19 +76,25 @@ class MockSupabaseClient implements SupabaseClient {
 
         // Check for type filter
         const orParam = params.get("or");
-        if (orParam) {
-          const types = orParam
+        const typeParam = params.get("type");
+
+        let typesToFilter;
+        if (typeParam && typeParam.startsWith("in.(")) {
+          typesToFilter = typeParam.slice(4, -1).split(",");
+        } else if (orParam) {
+          typesToFilter = orParam
             .match(/type\.eq\.([^,)]+)/g)
             ?.map((t: string) => t.replace("type.eq.", ""));
-          if (types) {
-            const filtered = memories.filter((m: any) =>
-              types.includes(m.type),
-            );
-            return new Response(JSON.stringify(filtered), {
-              status: 200,
-              headers: { "content-type": "application/json" },
-            });
-          }
+        }
+
+        if (typesToFilter && typesToFilter.length > 0) {
+          const filtered = memories.filter((m: any) =>
+            typesToFilter.includes(m.type),
+          );
+          return new Response(JSON.stringify(filtered), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
         }
 
         return new Response(JSON.stringify(memories), {

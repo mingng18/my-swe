@@ -67,3 +67,13 @@ Bun Benchmark Results for 1M iterations:
 **Result:** Sped up fallback operations by >90x on mocked latency tests.
 
 
+## 2024-06-05 - Avoid over-fetching Zustand state
+**Learning:** Subscribing to full state objects in Zustand (e.g., `state.threads[threadId]`) causes unnecessary re-renders when fast-changing nested properties (like `events` array during LLM streams) update.
+**Action:** Always select only the specific data needed by the component (e.g., `state.threads[threadId]?.todos`).
+
+## 2026-05-23 - Optimize string hashing in prompt manager
+**Learning:** Found an inefficient string hashing function (`simpleHash`) in `src/utils/prompt-manager.ts` using character iteration (`str.charCodeAt`) to compute hash integers. Since Bun has a built-in highly optimized native hashing function `Bun.hash`, iterating characters manually via V8 Javascript incurs massive overhead on large strings like `agentsMd`.
+**Action:** Always prefer native string hashing `Bun.hash(str)` over manual character manipulation loops when deploying on Bun, as it runs roughly ~20x faster on large strings.
+## 2024-06-02 - Optimize PostgREST URL filter for memory types
+**Learning:** When making targeted optimizations, ensure to rebase off the latest `main` branch to avoid introducing un-related refactors and massive diff noise that overlaps with other developers work.
+**Action:** Always fetch and pull the target branch before performing file modifications, or explicitly limit the git additions to the specific files being modified, ensuring any test updates or mock adjustments don't accidentally carry forward dirty repository state.

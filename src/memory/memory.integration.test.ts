@@ -52,8 +52,16 @@ class MockSupabaseClient {
         );
 
         // Handle PostgREST type filter: or=(type.eq.user,type.eq.project,...)
+        // OR type=in.(val1,val2)
         const orParam = urlObj.searchParams.get("or");
-        if (orParam) {
+        const typeParam = urlObj.searchParams.get("type");
+
+        if (typeParam && typeParam.startsWith("in.(")) {
+          const allowedTypes = typeParam.slice(4, -1).split(",");
+          if (allowedTypes.length > 0) {
+            memories = memories.filter((m) => allowedTypes.includes(m.type));
+          }
+        } else if (orParam) {
           const match = orParam.match(/^\((.+)\)$/);
           if (match) {
             const allowedTypes = match[1]

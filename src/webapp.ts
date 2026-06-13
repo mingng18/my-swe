@@ -26,8 +26,14 @@ const rateLimitCache = new LRUCache<string, number>({
 // Configurable rate limits from environment
 const rateLimitRun = Number.parseInt(process.env.RATE_LIMIT_RUN || "20", 10);
 const rateLimitChat = Number.parseInt(process.env.RATE_LIMIT_CHAT || "20", 10);
-const rateLimitWebhook = Number.parseInt(process.env.RATE_LIMIT_WEBHOOK || "60", 10);
-const rateLimitHealth = Number.parseInt(process.env.RATE_LIMIT_HEALTH || "120", 10);
+const rateLimitWebhook = Number.parseInt(
+  process.env.RATE_LIMIT_WEBHOOK || "60",
+  10,
+);
+const rateLimitHealth = Number.parseInt(
+  process.env.RATE_LIMIT_HEALTH || "120",
+  10,
+);
 
 const rateLimiter = (limitPerMinute: number) => async (c: any, next: any) => {
   const ip =
@@ -39,12 +45,18 @@ const rateLimiter = (limitPerMinute: number) => async (c: any, next: any) => {
 
   // Set rate limit headers on every response
   c.header("X-RateLimit-Limit", String(limitPerMinute));
-  c.header("X-RateLimit-Remaining", String(Math.max(0, limitPerMinute - count - 1)));
+  c.header(
+    "X-RateLimit-Remaining",
+    String(Math.max(0, limitPerMinute - count - 1)),
+  );
 
   if (count >= limitPerMinute) {
     const retryAfter = 60;
     c.header("Retry-After", String(retryAfter));
-    log.warn({ ip, path, limit: limitPerMinute }, "[webapp] Rate limit exceeded");
+    log.warn(
+      { ip, path, limit: limitPerMinute },
+      "[webapp] Rate limit exceeded",
+    );
     return c.json({ error: "Too Many Requests", retry_after: retryAfter }, 429);
   }
 
@@ -83,16 +95,15 @@ app.use(
   cors({
     origin: (origin) => {
       const allowedOrigin = process.env.CORS_ALLOWED_ORIGIN;
-      if (process.env.NODE_ENV === "production") {
-        return allowedOrigin && origin === allowedOrigin ? origin : "";
-      }
       if (
-        !origin ||
+        process.env.NODE_ENV !== "production" &&
+        origin &&
         /^http:\/\/(localhost|127\.0\.0\.1):(3000|3001)$/.test(origin)
       ) {
         return origin;
       }
-      return allowedOrigin && origin === allowedOrigin ? origin : "";
+      if (!origin || !allowedOrigin) return "";
+      return origin === allowedOrigin ? origin : "";
     },
     allowMethods: ["POST", "GET", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization", "X-User-Id"],
@@ -116,7 +127,7 @@ app.use(async (c, next) => {
     const authHeader = c.req.header("Authorization");
     const token = authHeader
       ? authHeader.replace(/^Bearer\s+/i, "")
-      : c.req.query("token") ?? "";
+      : (c.req.query("token") ?? "");
 
     const expectedHash = createHash("sha256").update(secret).digest();
     const providedHash = createHash("sha256").update(token).digest();
