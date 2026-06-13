@@ -15,7 +15,8 @@ interface TodoSidebarProps {
 }
 
 export function TodoSidebar({ threadId, className }: TodoSidebarProps) {
-  // OPTIMIZATION: Select only 'todos' to prevent re-renders when other thread properties (like 'events' array) update rapidly during LLM streams
+  // ⚡ Bolt Optimization: Only subscribe to the `todos` array instead of the full thread object.
+  // This prevents the Sidebar from re-rendering on every LLM stream event (which updates the parent thread reference).
   const todos = useThreadStore((state) => state.threads[threadId]?.todos);
 
   if (!todos) {
