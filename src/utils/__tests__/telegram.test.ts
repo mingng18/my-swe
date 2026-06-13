@@ -1,5 +1,5 @@
 import { describe, expect, test, mock, afterEach } from "bun:test";
-import { sendChatAction, TelegramChatAction } from "../telegram";
+import { sendChatAction, TelegramChatAction, getUpdateType } from "../telegram";
 
 describe("sendChatAction", () => {
   const originalFetch = globalThis.fetch;
@@ -184,5 +184,14 @@ describe("sendChatAction", () => {
     expect(callArgs[0]).toBe(
       `https://api.telegram.org/bot${mockBotToken}/sendChatAction`,
     );
+  });
+});
+
+describe("getUpdateType", () => {
+  test("extracts type correctly", () => {
+    expect(getUpdateType({ update_id: 1, message: {} })).toBe("message");
+    expect(getUpdateType({ update_id: 1, inline_query: {} })).toBe("inline_query");
+    expect(getUpdateType({ update_id: 1, my_chat_member: {} })).toBe("my_chat_member");
+    expect(getUpdateType({ update_id: 1 })).toBe("unknown");
   });
 });

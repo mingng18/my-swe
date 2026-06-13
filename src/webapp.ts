@@ -1,3 +1,4 @@
+import { getUpdateType } from "./utils/telegram";
 import { createHash, timingSafeEqual } from "crypto";
 import { createLogger } from "./utils/logger";
 import { Hono } from "hono";
@@ -271,7 +272,7 @@ app.post("/webhook/telegram", async (c) => {
     log.info(
       {
         updateId: update.update_id,
-        type: Object.keys(update).find((k) => k !== "update_id") ?? "unknown",
+        type: getUpdateType(update),
       },
       "[webapp][telegram] update received",
     );

@@ -225,3 +225,16 @@ export function formatTelegramMarkdownV2(text: string): string {
 
   return result;
 }
+
+/**
+ * Efficiently extracts the update type from a Telegram update object
+ * Avoids creating intermediate arrays like Object.keys() does
+ */
+export function getUpdateType(update: any): string {
+  for (const key in update) {
+    if (key !== "update_id") {
+      return key;
+    }
+  }
+  return "unknown";
+}

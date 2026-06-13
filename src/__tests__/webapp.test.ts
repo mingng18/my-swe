@@ -1,3 +1,4 @@
+import { getUpdateType } from "../utils/telegram";
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
 
 const originalFetch = globalThis.fetch;
@@ -60,6 +61,12 @@ mock.module("../utils/identity", () => ({
 mock.module("../utils/telegram", () => ({
   isDuplicateMessage: () => false,
   sendChatAction: async () => {},
+  getUpdateType: (update: any) => {
+    for (const key in update) {
+      if (key !== "update_id") return key;
+    }
+    return "unknown";
+  }
 }));
 
 // Important: Import app AFTER setting up the mocks
