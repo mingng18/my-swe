@@ -50,6 +50,34 @@ description: "This is a test: with colons"
       });
     });
 
+    it("should handle YAML parsing failure that cannot be fixed by throwing", () => {
+      // Invalid YAML that will fail both standard parse and fixed parse
+      const yaml = ": invalid : yaml :";
+      expect(() => parseYamlFrontmatter(yaml)).toThrow();
+    });
+
+    it("should handle YAML with null return", () => {
+      // The yaml package can return null for certain parses. E.g., when the document is empty or comment-only.
+      // But we already handle empty yaml. Let's provide a test just in case.
+      const yaml = "# just a comment";
+      const result = parseYamlFrontmatter(yaml);
+      expect(result).toEqual({});
+    });
+
+    it("should hit line 22 branch when regex doesnt match", () => {
+      // Create a scenario where fixCommonYamlIssues is called and match is false
+      // This will hit the `return line;` fallback at line 22
+      const yaml = ": invalid : yaml :\nno_match_line\n";
+      expect(() => parseYamlFrontmatter(yaml)).toThrow();
+    });
+
+    it("should hit line 19 branch when regex matches but starts with quote", () => {
+      // Create a scenario where fixCommonYamlIssues is called and match is true
+      // but match[2].startsWith('"') is true, bypassing the stringification
+      const yaml = ": invalid : yaml :\nkey: \"value:with:colon\"\n";
+      expect(() => parseYamlFrontmatter(yaml)).toThrow();
+    });
+
     it("should handle empty YAML", () => {
       const yaml = "";
       const result = parseYamlFrontmatter(yaml);
