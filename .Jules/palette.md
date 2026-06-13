@@ -19,3 +19,6 @@
 ## 2024-04-23 - Add ARIA labels to icon-only clear/close buttons
 **Learning:** Icon-only buttons (like those using a simple X icon for closing tabs or clearing inputs) often lack descriptive text. Without an explicit `aria-label`, screen readers might read them simply as "button", leaving users without context about what the button does.
 **Action:** Always ensure that icon-only interactive elements, especially common ones like clear inputs or close modals/tabs, have descriptive `aria-label` attributes.
+## 2024-05-18 - Making Empty State Suggestions Interactive
+**Learning:** Empty states containing "suggestions" are often visually structured with generic divs instead of interactive `<button>` tags, excluding keyboard users entirely.
+**Action:** Always map interactive empty-state suggestions to semantic `<button>` tags with `focus-visible` outlines. When a click action executes, ensure it can be triggered by keyboard and programmatically focuses the relevant input.

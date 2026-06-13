@@ -136,6 +136,14 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
     }
   };
 
+  const handleSuggestionClick = (text: string) => {
+    setUserInput(text);
+    // Use a small timeout to ensure state update completes before focusing
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 0);
+  };
+
   const handleRetry = () => {
     if (threadId) {
       setError(null);
@@ -196,7 +204,7 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
           </div>
         </div>
       ) : (
-        <ThreadEmptyState />
+        <ThreadEmptyState onSuggestionClick={handleSuggestionClick} />
       )}
     </div>
   );
