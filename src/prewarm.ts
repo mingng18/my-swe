@@ -55,7 +55,6 @@ function parseReposJson(): PrewarmRepoSpec[] {
   ];
 }
 
-
 async function createAdditionalSandbox(
   owner: string,
   name: string,
@@ -174,9 +173,12 @@ async function prewarmRepo(
     "[prewarm] Creating additional sandboxes",
   );
 
+  // ⚡ Bolt: Execute independent prewarm creations concurrently using Promise.all
+  const promises = [];
   for (let i = 0; i < delta; i++) {
-    await createAdditionalSandbox(owner, name, profile, i, config);
+    promises.push(createAdditionalSandbox(owner, name, profile, i, config));
   }
+  await Promise.all(promises);
 }
 
 async function main(): Promise<void> {
