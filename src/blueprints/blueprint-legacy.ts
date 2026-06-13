@@ -125,6 +125,7 @@ export class BlueprintRegistry {
   private blueprints: Blueprint[];
   private optimizedBlueprints: OptimizedBlueprint[];
   private cachedDefaultBlueprint: Blueprint | undefined;
+  private optimizedCache = new Map<Blueprint, OptimizedBlueprint>();
 
   constructor() {
     this.blueprints = [];
@@ -147,11 +148,18 @@ export class BlueprintRegistry {
     }
 
     // Rebuild optimized representations to keep them sorted
-    this.optimizedBlueprints = this.blueprints.map((b) => ({
-      blueprint: b,
-      lowerKeywords: b.triggerKeywords ? b.triggerKeywords.map(k => k.toLowerCase()) : [],
-      regex: b.triggerKeywords && b.triggerKeywords.length > 0 ? new RegExp(`(${b.triggerKeywords.join('|')})`, 'i') : null
-    }));
+    this.optimizedBlueprints = this.blueprints.map((b) => {
+      let cached = this.optimizedCache.get(b);
+      if (!cached) {
+        cached = {
+          blueprint: b,
+          lowerKeywords: b.triggerKeywords ? b.triggerKeywords.map(k => k.toLowerCase()) : [],
+          regex: b.triggerKeywords && b.triggerKeywords.length > 0 ? new RegExp(`(${b.triggerKeywords.join('|')})`, 'i') : null
+        };
+        this.optimizedCache.set(b, cached);
+      }
+      return cached;
+    });
   }
 
   /**
