@@ -1,19 +1,19 @@
 /**
- * User-facing Telegram command dispatcher (#498 family).
+ * User-facing command dispatcher + extensible registry (#498 family).
  *
- * Bullhorse's Telegram path (src/index.ts) previously forwarded every message
- * straight to the coding agent. This module intercepts a small set of slash
- * commands (/usage, /export, /help) and answers them directly — without
- * consuming an agent turn — so users get instant, visible controls.
+ * Bullhorse's Telegram path (src/index.ts) forwards every message to the
+ * coding agent. This module intercepts a set of slash commands and answers
+ * them directly — without consuming an agent turn.
  *
- * Unknown commands and ordinary messages are NOT intercepted (returned as
- * { handled: false }) so they flow through to the agent unchanged.
- *
- * The harness-integrated commands (/plan, /act, /model, …) and the full
- * slash-commands framework build on this dispatcher.
+ * Commands are registered in a `registry`, so new commands (built-in or
+ * user-defined) are added via `registerCommand(...)` rather than a hardcoded
+ * switch. Unknown slash commands and ordinary messages are NOT intercepted
+ * ({ handled: false }) so they flow through to the agent unchanged.
  */
 import { getThreadMetrics } from "./telemetry";
 import { getAgentHarness } from "../harness";
+import { threadManager } from "../harness/thread-manager";
+import { getMode, setMode, getModelOverride, setModelOverride } from "./session-store";
 
 export interface CommandResult {
   /** true when the message was a known command and was answered here. */
@@ -22,11 +22,37 @@ export interface CommandResult {
   reply?: string;
 }
 
-/** Commands this dispatcher owns. Anything else passes through to the agent. */
-const KNOWN_COMMANDS = new Set(["/usage", "/export", "/help"]);
+/** A command handler receives the raw args (after the command) and the threadId. */
+export type CommandHandler = (
+  args: string,
+  threadId: string,
+) => Promise<string> | string;
 
-/** Max chars we push into a single Telegram reply. */
+interface CommandDef {
+  description: string;
+  handler: CommandHandler;
+}
+
+const registry = new Map<string, CommandDef>();
+
 const TELEGRAM_REPLY_CAP = 4000;
+
+/** Register (or replace) a slash command. The command must include the leading "/". */
+export function registerCommand(
+  cmd: string,
+  description: string,
+  handler: CommandHandler,
+): void {
+  registry.set(cmd, { description, handler });
+}
+
+/** All registered commands, for /help and discovery. */
+export function listCommands(): { cmd: string; description: string }[] {
+  return [...registry.entries()].map(([cmd, def]) => ({
+    cmd,
+    description: def.description,
+  }));
+}
 
 /** Parse a leading slash command, stripping an optional @botname suffix. */
 export function tokenize(text: string): { cmd: string; args: string } | null {
@@ -42,7 +68,7 @@ export function tokenize(text: string): { cmd: string; args: string } | null {
 /** True iff `text` is one of the commands this dispatcher will answer. */
 export function isCommand(text: string): boolean {
   const t = tokenize(text);
-  return t !== null && KNOWN_COMMANDS.has(t.cmd);
+  return t !== null && registry.has(t.cmd);
 }
 
 /**
@@ -54,35 +80,28 @@ export async function handleCommand(
   threadId: string,
 ): Promise<CommandResult> {
   const t = tokenize(text);
-  if (!t || !KNOWN_COMMANDS.has(t.cmd)) return { handled: false };
-
+  if (!t || !registry.has(t.cmd)) return { handled: false };
   try {
-    switch (t.cmd) {
-      case "/help":
-        return { handled: true, reply: helpText() };
-      case "/usage":
-        return { handled: true, reply: usageText(threadId) };
-      case "/export":
-        return { handled: true, reply: await exportText(threadId) };
-      default:
-        return { handled: false };
-    }
+    const def = registry.get(t.cmd)!;
+    const reply = await def.handler(t.args, threadId);
+    return { handled: true, reply };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return { handled: true, reply: `Command failed: ${msg}` };
   }
 }
 
+// ---------------------------------------------------------------------------
+// Built-in commands
+// ---------------------------------------------------------------------------
+
 function helpText(): string {
-  return [
-    "*Bullhorse commands*",
-    "",
-    "/usage — token + cost usage for this thread",
-    "/export — export this thread's conversation",
-    "/help — show this help",
-    "",
-    "Anything else is sent to the coding agent.",
-  ].join("\n");
+  const lines = ["*Bullhorse commands*", ""];
+  for (const { cmd, description } of listCommands()) {
+    lines.push(`${cmd} — ${description}`);
+  }
+  lines.push("", "Anything else is sent to the coding agent.");
+  return lines.join("\n");
 }
 
 function usageText(threadId: string): string {
@@ -118,7 +137,6 @@ async function exportText(threadId: string): Promise<string> {
   if (!messages.length) {
     return `No conversation found for thread \`${threadId}\`.`;
   }
-
   const lines = [
     `*Export for thread* \`${threadId}\` (${messages.length} messages)`,
     "",
@@ -134,3 +152,39 @@ async function exportText(threadId: string): Promise<string> {
     ? out.slice(0, TELEGRAM_REPLY_CAP) + "\n…(truncated)"
     : out;
 }
+
+function planHandler(args: string, threadId: string): string {
+  setMode(threadId, "plan");
+  return "Plan mode *ON* for this thread. I'll read the code and propose a plan without making changes. Send the task; run /act when you're ready to apply.";
+}
+
+function actHandler(args: string, threadId: string): string {
+  setMode(threadId, "act");
+  return "Act mode *ON* — I'll make changes as usual.";
+}
+
+function modelHandler(args: string, threadId: string): string {
+  const model = args.trim();
+  if (!model) {
+    const current = getModelOverride(threadId);
+    return current
+      ? `Current model for this thread: \`${current}\`. Usage: /model <name> (or /model default to clear).`
+      : "No per-thread model override — using the global MODEL. Usage: /model <name>.";
+  }
+  if (model === "default" || model === "reset") {
+    setModelOverride(threadId, undefined);
+    threadManager.clearAgent(threadId); // rebuild on next turn with the global MODEL
+    return "Per-thread model override cleared — using the global MODEL.";
+  }
+  setModelOverride(threadId, model);
+  threadManager.clearAgent(threadId); // rebuild on next turn with the new model
+  return `Model for this thread set to \`${model}\`. It applies on the next turn.`;
+}
+
+// Register built-ins (module-load). Order matters only for /help display.
+registerCommand("/help", "show this help", () => helpText());
+registerCommand("/usage", "token + cost usage for this thread", (_a, tid) => usageText(tid));
+registerCommand("/export", "export this thread's conversation", (_a, tid) => exportText(tid));
+registerCommand("/plan", "plan mode: propose a plan, no edits", planHandler);
+registerCommand("/act", "act mode: make changes (default)", actHandler);
+registerCommand("/model", "set the model for this thread (/model <name>)", modelHandler);

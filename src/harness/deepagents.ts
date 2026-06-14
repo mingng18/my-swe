@@ -6,6 +6,7 @@ import {
   type RepoContext,
 } from "./thread-manager";
 import { loadLlmConfig, loadModelConfig } from "../utils/config";
+import { getMode, getModelOverride } from "../utils/session-store";
 import { createChatModel } from "../utils/model-factory";
 import { createDeepAgent, FilesystemBackend, type DeepAgent } from "deepagents";
 import {
@@ -331,11 +332,20 @@ async function configureSubagents(config: any): Promise<void> {
   }
 }
 
+// Shared in-memory checkpointer so that rebuilding a thread's agent (e.g. when
+// /model changes the model) preserves that thread's conversation history. State
+// is isolated by thread_id, so sharing one saver across threads/agents is safe.
+const sharedCheckpointer = new MemorySaver();
+
 async function createAgentInstance(args: {
   workspaceRoot?: string;
   backend?: SandboxService | FilesystemBackend;
+  threadId?: string;
 }): Promise<DeepAgent> {
-  const modelConfig = loadModelConfig();
+  const baseConfig = loadModelConfig();
+  // Per-thread model override (/model). No override = today's single MODEL.
+  const override = args.threadId ? getModelOverride(args.threadId) : undefined;
+  const modelConfig = override ? { ...baseConfig, model: override } : baseConfig;
   const chatModel = await createChatModel(modelConfig);
   const { fallback } = loadLlmConfig();
 
@@ -345,7 +355,7 @@ async function createAgentInstance(args: {
   const config: any = {
     model: chatModel,
     systemPrompt: constructSystemPrompt(args.workspaceRoot || process.cwd()),
-    checkpointer: new MemorySaver(),
+    checkpointer: sharedCheckpointer,
     tools,
     middleware,
   };
@@ -907,6 +917,7 @@ export class DeepAgentWrapper implements AgentHarness {
         agent = await createAgentInstance({
           workspaceRoot: activeRepo?.workspaceDir,
           backend,
+          threadId,
         });
       } else if (activeRepo?.workspaceDir) {
         agent = await createAgentInstance({
@@ -915,9 +926,10 @@ export class DeepAgentWrapper implements AgentHarness {
             rootDir: activeRepo.workspaceDir,
             virtualMode: false,
           }),
+          threadId,
         });
       } else {
-        agent = await createAgentInstance({});
+        agent = await createAgentInstance({ threadId });
       }
 
       threadManager.setAgent(threadId, agent);
@@ -1138,6 +1150,15 @@ If you need to make additional changes, continue working and they'll be added to
           model,
           timestamp: Date.now(),
         });
+
+        // Plan/Act mode (#498): in "plan" mode, instruct the agent to reason
+        // and propose a plan WITHOUT editing (read-only). Only this turn's user
+        // message is wrapped — conversation history is preserved.
+        if (getMode(threadId) === "plan") {
+          modifiedInput =
+            "You are in PLAN MODE. Do NOT edit files, run shell/write commands, or make any changes. Read the relevant code, reason about the task, and reply with a concise, actionable PLAN (numbered steps, files to touch, risks/open questions). Stop before implementing. The user will run /act to apply changes.\n\n" +
+            modifiedInput;
+        }
 
         result = traceTerminal
           ? await runDeepAgentWithStreamTrace(
