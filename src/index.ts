@@ -67,6 +67,74 @@ const telegramQueue = new TelegramMessageQueue<PollingMessage>(async (threadId, 
   logger.info("[codeagent][telegram] reply sent");
 });
 
+/**
+ * Send a command-reply to Telegram, mirroring the agent-reply path.
+ *
+ * - When `parseMode === "MarkdownV2"` the reply is run through
+ *   `formatTelegramMarkdownV2` so untrusted/command-generated special chars
+ *   (`(`, `)`, `.`, `-`, etc.) are escaped. This prevents Telegram HTTP 400
+ *   (which would silently drop the reply) and, for `/export`, stops untrusted
+ *   conversation content from rendering as Markdown/hidden links.
+ * - The fetch is wrapped in try/catch with a logger.error so a 400/network
+ *   failure is never a silent no-op. On failure it retries once as plain text
+ *   (parse_mode unset) so the user still gets *something*.
+ *
+ * Exported for unit testing the MarkdownV2 routing + fallback.
+ */
+export async function sendCommandReply(
+  chatId: number,
+  reply: string,
+  telegramBotToken: string,
+  parseMode: string,
+): Promise<void> {
+  // Mirror the agent-reply path: escape for MarkdownV2 before sending.
+  const formattedReply = parseMode === "MarkdownV2"
+    ? formatTelegramMarkdownV2(reply)
+    : reply;
+
+  const url = `https://api.telegram.org/bot${telegramBotToken}/sendMessage`;
+  const post = (body: Record<string, unknown>) =>
+    fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+  try {
+    const res = await post({
+      chat_id: chatId,
+      text: formattedReply,
+      parse_mode: parseMode,
+    });
+    // Telegram returns 400 on a malformed MarkdownV2 payload even on a 2xx-less
+    // transport: treat non-ok as a failure worth retrying/falling back.
+    if (!res.ok) {
+      throw new Error(`Telegram sendMessage HTTP ${res.status}`);
+    }
+  } catch (err) {
+    logger.error(
+      { err, chatId },
+      "[codeagent][telegram] command reply failed — retrying as plain text",
+    );
+    // Fallback: retry once with no parse_mode so the user still gets the text.
+    try {
+      const fallback = await post({ chat_id: chatId, text: reply });
+      if (!fallback.ok) {
+        logger.error(
+          { status: fallback.status, chatId },
+          "[codeagent][telegram] command reply plain-text fallback also failed",
+        );
+      }
+    } catch (err2) {
+      // Network down — nothing more we can do; do not throw across the dispatch.
+      logger.error(
+        { err: err2, chatId },
+        "[codeagent][telegram] command reply plain-text fallback threw",
+      );
+    }
+  }
+}
+
 async function handleTelegramMessage(msg: any, telegramBotToken: string, parseMode: string) {
   if (!("text" in msg) || !msg.text) {
     return;
@@ -104,15 +172,7 @@ async function handleTelegramMessage(msg: any, telegramBotToken: string, parseMo
   // them directly — without consuming an agent turn or touching the queue.
   const command = await handleCommand(msg.text, threadId);
   if (command.handled && command.reply !== undefined) {
-    await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: msg.chat.id,
-        text: command.reply,
-        parse_mode: parseMode,
-      }),
-    });
+    await sendCommandReply(msg.chat.id, command.reply, telegramBotToken, parseMode);
     return;
   }
 

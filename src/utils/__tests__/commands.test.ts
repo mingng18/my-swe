@@ -6,6 +6,7 @@ import {
   listCommands,
   registerCommand,
 } from "../commands";
+import { formatTelegramMarkdownV2 } from "../telegram";
 import { getMode, getModelOverride, clearSession } from "../session-store";
 import * as telemetry from "../telemetry";
 import * as harness from "../../harness";
@@ -151,5 +152,67 @@ describe("extensible registry (slash-commands framework)", () => {
     expect(cmds).toContain("/help");
     expect(cmds).toContain("/plan");
     expect(cmds).toContain("/model");
+  });
+});
+
+// Retrospective #504: the command-reply dispatcher (src/index.ts
+// sendCommandReply) must route replies through formatTelegramMarkdownV2 when
+// parseMode === "MarkdownV2", mirroring the agent-reply path. Without that,
+// /usage, /export, /help output containing unescaped special chars triggers
+// Telegram HTTP 400 and the reply is silently dropped. These tests pin the
+// invariant the dispatcher relies on (the formatter), since importing index.ts
+// runs the server as a top-level side effect.
+describe("command reply MarkdownV2 escaping (#504)", () => {
+  // Mirror the dispatcher's routing predicate exactly.
+  const route = (reply: string, parseMode: string) =>
+    parseMode === "MarkdownV2" ? formatTelegramMarkdownV2(reply) : reply;
+
+  it("escapes the special chars named in the blocker: ( ) . -", () => {
+    // A /usage-shaped reply: parens, dots, dashes must all be escaped.
+    const reply = "Usage for thread (t-1): 1.5k tokens - 2 LLM calls.";
+    const escaped = route(reply, "MarkdownV2");
+    expect(escaped).not.toBe(reply); // routing actually changed the text
+    // Unescaped special chars would break MarkdownV2; assert each got a backslash.
+    expect(escaped).toContain("\\(");
+    expect(escaped).toContain("\\)");
+    expect(escaped).toContain("1\\.5k");
+    expect(escaped).toContain(" \\- ");
+    expect(escaped).toContain("calls\\.");
+  });
+
+  it("passes the reply through unchanged for non-MarkdownV2 modes", () => {
+    const reply = "Usage for thread (t-1): 1.5k tokens.";
+    expect(route(reply, "Markdown")).toBe(reply);
+    expect(route(reply, "")).toBe(reply);
+    expect(route(reply, "HTML")).toBe(reply);
+  });
+
+  it("escapes an /export reply with untrusted conversation content", () => {
+    // /export echoes conversation text, so untrusted content (e.g. a hidden-link
+    // or stray parens) must not render as Markdown after escaping.
+    const reply = "[user] check (this) out - see fig. 1";
+    const escaped = route(reply, "MarkdownV2");
+    expect(escaped).not.toContain("(this)");
+    expect(escaped).toContain("\\(this\\)");
+    expect(escaped).toContain("fig\\. 1");
+  });
+
+  it("end-to-end: /usage reply is valid MarkdownV2 after the dispatcher routes it", async () => {
+    const r = await handleCommand("/usage", "never-seen-mdv2-thread");
+    expect(r.handled).toBe(true);
+    expect(r.reply).toBeDefined();
+    // Run the real command reply through the same path the dispatcher uses.
+    const escaped = route(r.reply!, "MarkdownV2");
+    // Routing must have transformed the text (escaping happened).
+    expect(escaped).not.toBe(r.reply);
+    // The /usage body has parens and a decimal point OUTSIDE code spans
+    // ("Tokens: 0 (in 0 / out 0)" and "Wall time: 0.0 s") — these are the
+    // exact chars the blocker flags. They MUST be escaped (a raw, unescaped
+    // occurrence means Telegram would reject the message with HTTP 400).
+    expect(escaped).toContain("\\(in 0 / out 0\\)");
+    expect(escaped).toContain("0\\.0 s");
+    // And the raw forms must NOT survive (that is the bug the fix prevents).
+    expect(escaped).not.toContain("(in 0 / out 0)");
+    expect(escaped).not.toContain("0.0 s");
   });
 });
