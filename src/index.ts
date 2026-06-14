@@ -11,6 +11,7 @@ import {
 import { runCodeagentTurn } from "./server";
 import { getEmailForIdentity } from "./utils/identity";
 import { isDuplicateMessage, formatTelegramMarkdownV2 } from "./utils/telegram";
+import { handleCommand } from "./utils/commands";
 
 // Memory system integration
 import { getMemoryDaemon } from "./memory/daemon";
@@ -98,6 +99,22 @@ async function handleTelegramMessage(msg: any, telegramBotToken: string, parseMo
 
   // Generate threadId from chat ID for per-chat conversation history
   const threadId = generateThreadId(msg.chat.id);
+
+  // Intercept user-facing slash commands (/usage, /export, /help) and answer
+  // them directly — without consuming an agent turn or touching the queue.
+  const command = await handleCommand(msg.text, threadId);
+  if (command.handled && command.reply !== undefined) {
+    await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: msg.chat.id,
+        text: command.reply,
+        parse_mode: parseMode,
+      }),
+    });
+    return;
+  }
 
   // Check if thread is active, queue if busy
   if (telegramQueue.isThreadActive(threadId)) {
