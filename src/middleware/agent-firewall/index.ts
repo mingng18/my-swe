@@ -20,6 +20,7 @@
  */
 
 import { ToolMessage } from "@langchain/core/messages";
+import { Command, END } from "@langchain/langgraph";
 import { createMiddleware } from "langchain";
 import { createLogger } from "../../utils/logger";
 import { loadFirewallConfig } from "./config";
@@ -67,6 +68,34 @@ function blockedToolMessage(
 }
 
 /**
+ * Build a Command that ends the agent turn, used when the hard kill-switch
+ * trips. Returning a `Command({ goto: END })` from `wrapToolCall` satisfies
+ * the langchain `ToolMessage | Command` contract (see
+ * `langchain/dist/agents/middleware/types.d.ts:110`) instead of throwing across
+ * the async boundary, which the driver does not document as supported.
+ *
+ * The tool message in the `update` carries the breach reason so the agent (or
+ * operator inspecting the trace) sees why the turn was terminated.
+ */
+function killSwitchCommand(
+  toolCallId: string,
+  toolName: string,
+  reason: string,
+): Command {
+  const message = new ToolMessage({
+    tool_call_id: toolCallId,
+    content:
+      `[agent-firewall] TURN ABORTED: kill-switch tripped on tool ` +
+      `\`${toolName}\`. ${reason}\n\nThe per-thread call budget was ` +
+      `exceeded; the turn has been terminated by the firewall.`,
+    name: toolName,
+  });
+  // `goto: END` terminates the agent loop. The messages update ensures the
+  // breach reason is visible in the conversation history.
+  return new Command({ goto: END, update: { messages: [message] } });
+}
+
+/**
  * Create the DeepAgents-compatible firewall middleware.
  */
 export function createAgentFirewallMiddleware() {
@@ -88,8 +117,11 @@ export function createAgentFirewallMiddleware() {
       const toolCallId: string = toolCall?.id ?? "";
       const threadId = resolveThreadId(request?.runtime ?? request?.state ?? {});
 
-      // Hard kill-switch: abort the turn on budget breach. The typed error
-      // propagates up to the agent driver, which surfaces it as a turn failure.
+      // Hard kill-switch: abort the turn on budget breach. `enforceBudget`
+      // raises a typed FirewallViolationError (useful for non-middleware
+      // callers); at this integration boundary we convert it into a
+      // contract-compliant `Command({ goto: END })` return so the turn ends
+      // cleanly without throwing across the async boundary.
       try {
         enforceBudget(threadId, config);
       } catch (err) {
@@ -97,6 +129,11 @@ export function createAgentFirewallMiddleware() {
           logger.error(
             { threadId, toolName, reason: err.reason },
             "[agent-firewall] Kill-switch tripped — aborting turn",
+          );
+          return killSwitchCommand(
+            toolCallId,
+            toolName,
+            err.message,
           );
         }
         throw err;
@@ -128,11 +165,13 @@ export {
   clearThreadCallCount,
   enforceBudget,
   getThreadCallCount,
+  getThreadCallCountSize,
   hostGlobToRegExp,
   incrementThreadCallCount,
   inspectToolCall,
   isCommandTool,
   isNetworkTool,
+  pruneStaleThreadCallCounts,
   resetThreadCallCounts,
 } from "./engine";
 export { FirewallViolationError } from "./types";

