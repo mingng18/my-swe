@@ -325,3 +325,22 @@ describe("/plan and /act recreate the agent (#505 retro)", () => {
     threadManager.clearAgent(tid);
   });
 });
+
+describe("/export reply is plain text (#509)", () => {
+  it("flags the /export reply plainText so the transport sends no parse_mode", async () => {
+    const spy = spyOn(harness, "getAgentHarness").mockResolvedValue({
+      getState: async () => ({ values: { messages: [{ role: "user", content: "hi" }] } }),
+      run: async () => ({ reply: "" }),
+      invoke: async () => ({ reply: "" }),
+      stream: async function* () {},
+    } as any);
+    try {
+      const r = await handleCommand("/export", "t-plain-509");
+      expect(r.handled).toBe(true);
+      expect(r.plainText).toBe(true);
+      expect(r.reply).toContain("Export for thread");
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});

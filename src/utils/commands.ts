@@ -20,13 +20,20 @@ export interface CommandResult {
   handled: boolean;
   /** the reply text when handled. */
   reply?: string;
+  /** when true, the reply must be sent as plain text (no parse_mode) — e.g. /export
+   * echoes untrusted conversation content that must not render as Markdown. (#509) */
+  plainText?: boolean;
 }
+
+/** A handler may return a plain reply string, or an object carrying reply options
+ * (e.g. plainText) for content that must not be Markdown-formatted. */
+export type CommandHandlerResult = string | { text: string; plainText?: boolean };
 
 /** A command handler receives the raw args (after the command) and the threadId. */
 export type CommandHandler = (
   args: string,
   threadId: string,
-) => Promise<string> | string;
+) => Promise<CommandHandlerResult> | CommandHandlerResult;
 
 interface CommandDef {
   description: string;
@@ -83,8 +90,11 @@ export async function handleCommand(
   if (!t || !registry.has(t.cmd)) return { handled: false };
   try {
     const def = registry.get(t.cmd)!;
-    const reply = await def.handler(t.args, threadId);
-    return { handled: true, reply };
+    const result = await def.handler(t.args, threadId);
+    if (typeof result === "string") {
+      return { handled: true, reply: result };
+    }
+    return { handled: true, reply: result.text, plainText: result.plainText };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return { handled: true, reply: `Command failed: ${msg}` };
@@ -127,7 +137,10 @@ function usageText(threadId: string): string {
   return lines.join("\n");
 }
 
-async function exportText(threadId: string): Promise<string> {
+// /export echoes conversation content (user messages + tool outputs), which is
+// partially-untrusted — so it's returned with plainText:true so the transport
+// sends it with NO parse_mode, preventing any Markdown/hidden-link rendering. (#509)
+async function exportText(threadId: string): Promise<CommandHandlerResult> {
   const harness = await getAgentHarness();
   const state = (await harness.getState(threadId)) as {
     values?: { messages?: any[] };
@@ -135,10 +148,10 @@ async function exportText(threadId: string): Promise<string> {
   };
   const messages = state?.values?.messages ?? state?.messages ?? [];
   if (!messages.length) {
-    return `No conversation found for thread \`${threadId}\`.`;
+    return { text: `No conversation found for thread ${threadId}.`, plainText: true };
   }
   const lines = [
-    `*Export for thread* \`${threadId}\` (${messages.length} messages)`,
+    `Export for thread ${threadId} (${messages.length} messages)`,
     "",
   ];
   for (const msg of messages) {
@@ -148,9 +161,10 @@ async function exportText(threadId: string): Promise<string> {
     lines.push(`[${role}] ${body}`);
   }
   const out = lines.join("\n");
-  return out.length > TELEGRAM_REPLY_CAP
+  const text = out.length > TELEGRAM_REPLY_CAP
     ? out.slice(0, TELEGRAM_REPLY_CAP) + "\n…(truncated)"
     : out;
+  return { text, plainText: true };
 }
 
 function planHandler(args: string, threadId: string): string {

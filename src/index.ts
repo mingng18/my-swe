@@ -86,9 +86,12 @@ export async function sendCommandReply(
   reply: string,
   telegramBotToken: string,
   parseMode: string,
+  plainText?: boolean,
 ): Promise<void> {
-  // Mirror the agent-reply path: escape for MarkdownV2 before sending.
-  const formattedReply = parseMode === "MarkdownV2"
+  // Plain-text replies (e.g. /export echoes untrusted content) must not be
+  // Markdown-formatted — send with no parse_mode so nothing can render. (#509)
+  const effectiveMode = plainText ? "" : parseMode;
+  const formattedReply = effectiveMode === "MarkdownV2"
     ? formatTelegramMarkdownV2(reply)
     : reply;
 
@@ -101,11 +104,9 @@ export async function sendCommandReply(
     });
 
   try {
-    const res = await post({
-      chat_id: chatId,
-      text: formattedReply,
-      parse_mode: parseMode,
-    });
+    const body: Record<string, unknown> = { chat_id: chatId, text: formattedReply };
+    if (effectiveMode) body.parse_mode = effectiveMode;
+    const res = await post(body);
     // Telegram returns 400 on a malformed MarkdownV2 payload even on a 2xx-less
     // transport: treat non-ok as a failure worth retrying/falling back.
     if (!res.ok) {
@@ -172,7 +173,7 @@ async function handleTelegramMessage(msg: any, telegramBotToken: string, parseMo
   // them directly — without consuming an agent turn or touching the queue.
   const command = await handleCommand(msg.text, threadId);
   if (command.handled && command.reply !== undefined) {
-    await sendCommandReply(msg.chat.id, command.reply, telegramBotToken, parseMode);
+    await sendCommandReply(msg.chat.id, command.reply, telegramBotToken, parseMode, command.plainText);
     return;
   }
 
