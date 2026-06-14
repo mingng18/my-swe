@@ -85,6 +85,11 @@ export class ThreadManager {
   setAgent(threadId: string, agent: DeepAgent): void {
     this.threadAgentMap.set(threadId, agent);
   }
+
+  /** Drop the cached agent for a thread so the next turn rebuilds it (e.g. /model). */
+  clearAgent(threadId: string): void {
+    this.threadAgentMap.delete(threadId);
+  }
   
   getSandbox(threadId: string): ThreadSandboxEntry | undefined {
     return this.threadSandboxMap.get(threadId);
