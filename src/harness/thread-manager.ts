@@ -1,4 +1,5 @@
 import { LRUCache } from "lru-cache";
+import { MemorySaver } from "@langchain/langgraph";
 import type { DeepAgent } from "deepagents";
 import type { SandboxService } from "../integrations/sandbox-service";
 import type { SandboxProfile } from "../integrations/daytona-pool";
@@ -29,6 +30,20 @@ export class ThreadManager {
   public threadAgentMap: LRUCache<string, DeepAgent>;
   public threadSandboxMap: LRUCache<string, ThreadSandboxEntry>;
   public threadRepoMap: LRUCache<string, RepoContext>;
+  /**
+   * Per-thread conversation-history checkpointers.
+   *
+   * Bounded replacement for the old process-global `sharedCheckpointer`: each
+   * thread gets its own `MemorySaver` so a long-lived server no longer keeps
+   * every thread's full message history forever. State is already isolated by
+   * `thread_id`, but a single global saver never evicted — this map is capped
+   * and TTL-evicted in lockstep with the agent map.
+   *
+   * `clearAgent` (e.g. /model rebuild) deliberately does NOT drop a thread's
+   * checkpointer, so conversation history survives agent recreation. The
+   * TTL/disposal path (`purgeStale` / `clearAll`) drops both.
+   */
+  public threadCheckpointerMap: LRUCache<string, MemorySaver>;
 
   constructor(ttlMs: number = THREAD_TTL_MS) {
     this.threadAgentMap = new LRUCache<string, DeepAgent>({
@@ -37,6 +52,17 @@ export class ThreadManager {
       dispose: (agent, threadId) => {
         logger.debug({ threadId }, "[thread-manager] Disposing agent entry");
       }
+    });
+
+    this.threadCheckpointerMap = new LRUCache<string, MemorySaver>({
+      max: 100,
+      ttl: ttlMs,
+      dispose: (_saver, threadId) => {
+        logger.debug(
+          { threadId },
+          "[thread-manager] Disposing per-thread checkpointer",
+        );
+      },
     });
 
     this.threadSandboxMap = new LRUCache<string, ThreadSandboxEntry>({
@@ -81,14 +107,29 @@ export class ThreadManager {
   getAgent(threadId: string): DeepAgent | undefined {
     return this.threadAgentMap.get(threadId);
   }
-  
+
   setAgent(threadId: string, agent: DeepAgent): void {
     this.threadAgentMap.set(threadId, agent);
+  }
+
+  /**
+   * Get (create-on-demand) the per-thread conversation-history checkpointer.
+   * State stays isolated by thread_id and is bounded by `threadCheckpointerMap`.
+   */
+  getCheckpointer(threadId: string): MemorySaver {
+    let saver = this.threadCheckpointerMap.get(threadId);
+    if (!saver) {
+      saver = new MemorySaver();
+      this.threadCheckpointerMap.set(threadId, saver);
+    }
+    return saver;
   }
 
   /** Drop the cached agent for a thread so the next turn rebuilds it (e.g. /model). */
   clearAgent(threadId: string): void {
     this.threadAgentMap.delete(threadId);
+    // Intentionally does NOT drop the per-thread checkpointer: agent
+    // recreation (model swap, mode change) must preserve conversation history.
   }
   
   getSandbox(threadId: string): ThreadSandboxEntry | undefined {
@@ -111,6 +152,7 @@ export class ThreadManager {
     this.threadAgentMap.clear();
     this.threadSandboxMap.clear();
     this.threadRepoMap.clear();
+    this.threadCheckpointerMap.clear();
   }
 
   // Force TTL check
@@ -118,6 +160,7 @@ export class ThreadManager {
     this.threadAgentMap.purgeStale();
     this.threadSandboxMap.purgeStale();
     this.threadRepoMap.purgeStale();
+    this.threadCheckpointerMap.purgeStale();
   }
 }
 

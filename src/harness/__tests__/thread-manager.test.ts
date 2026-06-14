@@ -184,4 +184,47 @@ describe("ThreadManager", () => {
       expect(removePersistedThreadRepoSpy).toHaveBeenCalledWith("thread-1");
     });
   });
+
+  describe("Per-thread checkpointer (#505 retro: bounded + history-preserving)", () => {
+    it("getCheckpointer is create-on-demand and stable per thread", () => {
+      const cp1 = threadManager.getCheckpointer("thread-cp");
+      const cp2 = threadManager.getCheckpointer("thread-cp");
+      expect(cp1).toBe(cp2); // same instance across calls
+    });
+
+    it("different threads get different checkpointers (state isolated by thread_id)", () => {
+      const cpA = threadManager.getCheckpointer("thread-A");
+      const cpB = threadManager.getCheckpointer("thread-B");
+      expect(cpA).not.toBe(cpB);
+    });
+
+    it("clearAgent (e.g. /model rebuild) KEEPS the checkpointer so history survives", () => {
+      const cp = threadManager.getCheckpointer("thread-model");
+      threadManager.setAgent("thread-model", {} as DeepAgent);
+
+      threadManager.clearAgent("thread-model");
+
+      // Agent is gone — next turn rebuilds it. But the checkpointer MUST stay
+      // so the rebuilt agent reuses the same conversation history.
+      expect(threadManager.getAgent("thread-model")).toBeUndefined();
+      expect(threadManager.getCheckpointer("thread-model")).toBe(cp);
+    });
+
+    it("purgeStale drops the checkpointer on TTL eviction (bounded)", async () => {
+      const threadManager2 = new ThreadManager(100); // 100ms TTL
+      const cp = threadManager2.getCheckpointer("thread-evict");
+
+      await new Promise(resolve => setTimeout(resolve, 150));
+      threadManager2.purgeStale();
+
+      // Evicted -> a new getCheckpointer call returns a fresh instance.
+      expect(threadManager2.getCheckpointer("thread-evict")).not.toBe(cp);
+    });
+
+    it("clearAll drops all checkpointers", () => {
+      const cp = threadManager.getCheckpointer("thread-clearall");
+      threadManager.clearAll();
+      expect(threadManager.getCheckpointer("thread-clearall")).not.toBe(cp);
+    });
+  });
 });
