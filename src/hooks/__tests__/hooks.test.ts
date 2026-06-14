@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect, beforeEach, afterEach, mock, spyOn } from "bun:test";
 import {
   validateHooksConfig,
   loadHooksConfig,
@@ -6,8 +6,11 @@ import {
 import { HooksRegistry, isHookVeto, type McpToolCaller } from "../registry";
 import {
   HooksDispatcher,
+  getHooksDispatcher,
   resetHooksDispatcher,
   createHooksMiddleware,
+  createMcpToolCaller,
+  setActiveHooksWorkspace,
 } from "../dispatcher";
 import type { HooksConfig } from "../types";
 
@@ -671,5 +674,212 @@ describe("HooksDispatcher SessionStart eviction", () => {
       expect(removed).toBe(1);
       expect(d.evictExpiredSessions(Date.now(), 24 * 60 * 60 * 1000)).toBe(0);
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Production wiring: getHooksDispatcher() must use a REAL McpToolCaller
+// ---------------------------------------------------------------------------
+
+describe("production mcp_tool wiring", () => {
+  const origEnv = { ...process.env };
+  beforeEach(() => {
+    delete process.env.HOOKS_CONFIG;
+    delete process.env.HOOKS_CONFIG_FILE;
+    resetHooksDispatcher();
+  });
+  afterEach(() => {
+    process.env = { ...origEnv };
+    setActiveHooksWorkspace(undefined);
+    resetHooksDispatcher();
+  });
+
+  it("getHooksDispatcher() wires a real McpToolCaller (not the unset sentinel)", async () => {
+    // The production dispatcher's caller should invoke the MCP manager, not
+    // throw the unsetMcpCaller sentinel error. We stub the dynamic import of
+    // the MCP client and assert the caller actually calls executeTool.
+    const capturedCalls: Array<{
+      workspace: string;
+      server: string;
+      tool: string;
+      args: any;
+    }> = [];
+    const stubManager = {
+      loadConfig: mock(() => Promise.resolve()),
+      executeTool: mock((server: string, options: any) => {
+        capturedCalls.push({
+          workspace: (stubManager as any).__workspace,
+          server,
+          tool: options.name,
+          args: options.arguments,
+        });
+        return Promise.resolve({
+          success: true,
+          content: { ok: true, server, tool: options.name },
+        });
+      }),
+    };
+    // Intercept the dynamic import("../mcp/client") the real caller performs.
+    const origImport = (globalThis as any).__dynamicImportHook;
+    (globalThis as any).__dynamicImportHook = undefined;
+
+    // Bun supports import.meta mocking via module.mock.module. Use spyOn on
+    // the real client module's getMcpManager to return our stub.
+    const clientMod = await import("../../mcp/client");
+    const getMcpManagerSpy = spyOn(clientMod, "getMcpManager").mockImplementation(
+      (workspaceRoot: string) => {
+        (stubManager as any).__workspace = workspaceRoot;
+        return stubManager as any;
+      },
+    );
+
+    try {
+      // Enable hooks with an mcp_tool handler via HOOKS_CONFIG.
+      process.env.HOOKS_CONFIG = JSON.stringify({
+        enabled: true,
+        handlers: [
+          {
+            name: "mcp-pre",
+            events: ["PreToolUse"],
+            handler: {
+              type: "mcp_tool",
+              server: "audit-svc",
+              tool: "check",
+              args: { mode: "strict" },
+            },
+          },
+        ],
+      });
+
+      // The workspace is resolved from the middleware-set active context.
+      setActiveHooksWorkspace("/tmp/repo-xyz");
+
+      const dispatcher = getHooksDispatcher();
+      const mw = createHooksMiddleware(dispatcher);
+
+      let handlerRan = false;
+      const handler = () => {
+        handlerRan = true;
+        return Promise.resolve({ content: "tool-result" });
+      };
+      const request = {
+        tool: { name: "grep" },
+        toolCall: { id: "tc1", name: "grep", args: { q: "x" } },
+        runtime: {
+          configurable: {
+            thread_id: "t-prod",
+            repo: { workspaceDir: "/tmp/repo-xyz" },
+          },
+        },
+      };
+
+      await (mw as any).wrapToolCall(request, handler);
+
+      // The handler ran (no veto) AND the MCP manager was invoked through the
+      // real caller — proving the production wiring executes mcp_tool handlers.
+      expect(handlerRan).toBe(true);
+      expect(getMcpManagerSpy).toHaveBeenCalledTimes(1);
+      expect(getMcpManagerSpy.mock.calls[0][0]).toBe("/tmp/repo-xyz");
+      expect(capturedCalls).toHaveLength(1);
+      expect(capturedCalls[0].server).toBe("audit-svc");
+      expect(capturedCalls[0].tool).toBe("check");
+      // Payload merged: handler.args.mode + payload.tool
+      expect(capturedCalls[0].args.mode).toBe("strict");
+      expect(capturedCalls[0].args.tool).toBe("grep");
+    } finally {
+      getMcpManagerSpy.mockRestore();
+      (globalThis as any).__dynamicImportHook = origImport;
+    }
+  });
+
+  it("createMcpToolCaller resolves workspace from the active context slot", async () => {
+    // The caller's lazy workspace resolution: no explicit dir, but the
+    // middleware-set active slot provides it.
+    const clientMod = await import("../../mcp/client");
+    const stubManager = {
+      loadConfig: mock(() => Promise.resolve()),
+      executeTool: mock(() =>
+        Promise.resolve({ success: true, content: "ok" }),
+      ),
+    };
+    let seenWorkspace: string | undefined;
+    const spy = spyOn(clientMod, "getMcpManager").mockImplementation((w: string) => {
+      seenWorkspace = w;
+      return stubManager as any;
+    });
+
+    try {
+      const caller = createMcpToolCaller(); // no explicit dir
+      setActiveHooksWorkspace("/tmp/from-context");
+      await caller("svc", "tool", { a: 1 });
+      expect(seenWorkspace).toBe("/tmp/from-context");
+    } finally {
+      spy.mockRestore();
+      setActiveHooksWorkspace(undefined);
+    }
+  });
+
+  it("createMcpToolCaller throws (handled by runHandler) when no workspace resolvable", async () => {
+    // No explicit dir, no active context, no WORKSPACE_ROOT — but process.cwd()
+    // is a fallback, so to force the throw we clear cwd by stubbing it.
+    const origCwd = process.cwd;
+    const origWorkspaceRoot = process.env.WORKSPACE_ROOT;
+    delete process.env.WORKSPACE_ROOT;
+    setActiveHooksWorkspace(undefined);
+    (process as any).cwd = () => {
+      throw new Error("cwd unavailable");
+    };
+    try {
+      const caller = createMcpToolCaller();
+      await expect(caller("svc", "tool", {})).rejects.toThrow(
+        /no workspace directory available/,
+      );
+    } finally {
+      (process as any).cwd = origCwd;
+      if (origWorkspaceRoot !== undefined) process.env.WORKSPACE_ROOT = origWorkspaceRoot;
+    }
+  });
+
+  it("mcp_tool handler swallows missing-server errors (does not throw across the boundary)", async () => {
+    // When the MCP manager reports a missing server, runHandler must convert it
+    // to a swallowed error (returns undefined), NOT propagate the throw.
+    const clientMod = await import("../../mcp/client");
+    const stubManager = {
+      loadConfig: mock(() => Promise.resolve()),
+      executeTool: mock(() =>
+        Promise.resolve({
+          success: false,
+          content: null,
+          error: 'Server "nope" not found',
+        }),
+      ),
+    };
+    const spy = spyOn(clientMod, "getMcpManager").mockImplementation(() => stubManager as any);
+    try {
+      const reg = new HooksRegistry(
+        {
+          enabled: true,
+          handlers: [
+            {
+              name: "m",
+              events: ["PreToolUse"],
+              handler: { type: "mcp_tool", server: "nope", tool: "x" },
+            },
+          ],
+        },
+        createMcpToolCaller("/tmp/ws"),
+      );
+      const out = await reg.runHandler(reg.selectHandlers("PreToolUse", "t")[0], {
+        agent_id: "a",
+        agent_type: "b",
+        tool: "t",
+        args: {},
+      });
+      // Missing server -> executeTool returns success:false -> caller throws ->
+      // runHandler swallows -> returns undefined. NOT a propagated throw.
+      expect(out).toBeUndefined();
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

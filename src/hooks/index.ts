@@ -40,5 +40,6 @@ export {
   fireSessionStart,
   registerHooksThreadCleanup,
   createMcpToolCaller,
+  setActiveHooksWorkspace,
   sanitizeVetoReason,
 } from "./dispatcher";
