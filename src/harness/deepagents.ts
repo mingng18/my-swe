@@ -6,7 +6,7 @@ import {
   type RepoContext,
 } from "./thread-manager";
 import { loadLlmConfig, loadModelConfig } from "../utils/config";
-import { getMode, getModelOverride } from "../utils/session-store";
+import { getMode, getModelOverride, purgeStaleSessions } from "../utils/session-store";
 import { createChatModel } from "../utils/model-factory";
 import { createDeepAgent, FilesystemBackend, type DeepAgent } from "deepagents";
 import {
@@ -301,6 +301,60 @@ async function loadAgentTools(workspaceRoot?: string): Promise<any[]> {
   return tools;
 }
 
+/**
+ * Tool names that mutate state, run shell, or otherwise make changes. Plan mode
+ * (#498) filters these out so "no edits" is enforced at the tool layer rather
+ * than relying solely on a natural-language prefix.
+ *
+ * Kept as a module export so tests can assert the denylist without re-importing.
+ */
+export const PLAN_MODE_BLOCKED_TOOLS = new Set<string>([
+  // PR / GitHub mutations
+  "commit_and_open_pr",
+  "merge_pr",
+  "create_github_issue",
+  "comment_github_issue",
+  "close_github_issue",
+  "reopen_github_issue",
+  "github_comment",
+  // Shell + sandbox mutations
+  "sandbox_shell",
+  "sandbox_network",
+  "sandbox_delete",
+  "sandbox_mkdir",
+  "sandbox_move",
+  "sandbox_copy",
+  "write_sandbox_file",
+  // Memory / artifact mutations
+  "artifact_delete",
+  "artifact_update",
+  "memory_forget",
+  "rewind_checkpoint",
+  // MCP wildcard — can invoke any MCP tool, including mutating ones
+  "call_mcp_tool",
+]);
+
+function isReadOnlyTool(tool: any): boolean {
+  const name: string | undefined = tool?.name;
+  if (!name) return false;
+  return !PLAN_MODE_BLOCKED_TOOLS.has(name);
+}
+
+/**
+ * Plan-mode toolset: same load path as `loadAgentTools`, but write/shell/mutation
+ * tools are filtered out so the agent physically cannot edit while planning.
+ */
+async function loadReadOnlyTools(workspaceRoot?: string): Promise<any[]> {
+  const all = await loadAgentTools(workspaceRoot);
+  const filtered = all.filter(isReadOnlyTool);
+  const dropped = all.length - filtered.length;
+  logger.info(
+    { total: all.length, kept: filtered.length, dropped },
+    "[deepagents] Plan mode: filtered write/shell/mutation tools",
+  );
+  return filtered;
+}
+
 async function configureSubagents(config: any): Promise<void> {
   // Add subagents if enabled
   if (process.env.SUBAGENTS_ENABLED !== "false") {
@@ -332,10 +386,12 @@ async function configureSubagents(config: any): Promise<void> {
   }
 }
 
-// Shared in-memory checkpointer so that rebuilding a thread's agent (e.g. when
-// /model changes the model) preserves that thread's conversation history. State
-// is isolated by thread_id, so sharing one saver across threads/agents is safe.
-const sharedCheckpointer = new MemorySaver();
+// Per-thread in-memory checkpointer so that rebuilding a thread's agent (e.g.
+// when /model changes the model, or /plan<->/act toggles mode) preserves that
+// thread's conversation history. The map lives on `threadManager` and is
+// bounded (LRU cap + TTL), so a long-lived server can't grow it without limit.
+// `threadManager.clearAgent()` deliberately keeps the checkpointer; the TTL
+// disposal path (`purgeStale`/`clearAll`) drops both agent and checkpointer.
 
 async function createAgentInstance(args: {
   workspaceRoot?: string;
@@ -350,12 +406,22 @@ async function createAgentInstance(args: {
   const { fallback } = loadLlmConfig();
 
   const middleware = await buildMiddleware(chatModel, modelConfig, fallback);
-  const tools = await loadAgentTools(args.workspaceRoot);
+  // Plan mode (#498): enforce "no edits" at the tool layer by loading only
+  // read-only tools. Mode changes (/plan, /act) recreate the agent via
+  // clearAgent(); the per-thread checkpointer preserves history across it.
+  const planMode = args.threadId
+    ? getMode(args.threadId) === "plan"
+    : false;
+  const tools = planMode
+    ? await loadReadOnlyTools(args.workspaceRoot)
+    : await loadAgentTools(args.workspaceRoot);
 
   const config: any = {
     model: chatModel,
     systemPrompt: constructSystemPrompt(args.workspaceRoot || process.cwd()),
-    checkpointer: sharedCheckpointer,
+    checkpointer: args.threadId
+      ? threadManager.getCheckpointer(args.threadId)
+      : new MemorySaver(),
     tools,
     middleware,
   };
@@ -1556,6 +1622,26 @@ export async function initDeepAgentsAtStartup(): Promise<void> {
   };
 
   scheduler.registerCleanupFn(cleanupFn);
+
+  // Wire the per-thread session store's TTL purge into the same tick so the
+  // session store (mode/model overrides) is actually TTL-bounded as documented,
+  // not just hard-cap bounded. Aligns the purge TTL with the scheduler's TTL.
+  const sessionStoreCleanupFn: ThreadMapCleanupFn = async (
+    _metadata: Map<string, { threadId: string; lastAccessed: Date }>,
+    ttlMs: number,
+  ): Promise<number> => {
+    try {
+      return purgeStaleSessions(Date.now(), ttlMs);
+    } catch (err) {
+      logger.warn(
+        { err },
+        "[deepagents] session-store purge failed (non-fatal)",
+      );
+      return 0;
+    }
+  };
+
+  scheduler.registerCleanupFn(sessionStoreCleanupFn);
 
   // Register hooks SessionStart-map eviction with the same scheduler so the
   // idempotency map does not grow unbounded across the process lifetime.

@@ -155,12 +155,35 @@ async function exportText(threadId: string): Promise<string> {
 
 function planHandler(args: string, threadId: string): string {
   setMode(threadId, "plan");
-  return "Plan mode *ON* for this thread. I'll read the code and propose a plan without making changes. Send the task; run /act when you're ready to apply.";
+  // Recreate the agent on the next turn so write/shell/mutation tools are
+  // filtered out at the tool layer (not just instructed away). The per-thread
+  // checkpointer preserves conversation history across the recreation.
+  threadManager.clearAgent(threadId);
+  return "Plan mode *ON* for this thread. I'll read the code and propose a plan without making changes. Write/shell/mutation tools are disabled in this mode, so no edits can happen. Send the task; run /act when you're ready to apply.";
 }
 
 function actHandler(args: string, threadId: string): string {
   setMode(threadId, "act");
+  // Recreate the agent on the next turn so the full toolset is restored.
+  threadManager.clearAgent(threadId);
   return "Act mode *ON* — I'll make changes as usual.";
+}
+
+/**
+ * Heuristic: does `model` look like it belongs to a different provider family
+ * than the configured `MODEL`? Used only for an advisory warning — never blocks.
+ */
+function looksCrossProvider(model: string, globalModel: string): boolean {
+  const m = model.toLowerCase();
+  const g = globalModel.toLowerCase();
+  // OpenAI family markers vs a Google/Gemini global, and vice-versa.
+  const isOpenAI = /\b(gpt|o1|o3|o4|chatgpt)\b/.test(m);
+  const isGemini = /\b(gemini)\b/.test(m);
+  const globalIsOpenAI = /\b(gpt|o1|o3|o4|chatgpt)\b/.test(g);
+  const globalIsGemini = /\b(gemini)\b/.test(g);
+  if (isOpenAI && globalIsGemini) return true;
+  if (isGemini && globalIsOpenAI) return true;
+  return false;
 }
 
 function modelHandler(args: string, threadId: string): string {
@@ -178,7 +201,20 @@ function modelHandler(args: string, threadId: string): string {
   }
   setModelOverride(threadId, model);
   threadManager.clearAgent(threadId); // rebuild on next turn with the new model
-  return `Model for this thread set to \`${model}\`. It applies on the next turn.`;
+
+  // The override swaps the model id only — NOT the provider. So '/model gpt-4o'
+  // on a Gemini global config would still call Gemini for a model it doesn't
+  // serve. Warn (advisory, never blocks) when the name looks cross-provider.
+  const globalModel = process.env.MODEL || "";
+  let warning = "";
+  if (globalModel && looksCrossProvider(model, globalModel)) {
+    warning =
+      `\n\n*Heads up:* \`${model}\` looks like a different provider family than your global MODEL (\`${globalModel}\`). The /model override only swaps the model id, NOT the provider — so this would still call your configured provider for a model it may not serve. Pick a model id within your configured provider's family.`;
+  } else {
+    warning =
+      `\n\n*Note:* the override only swaps the model id, NOT the provider. Use a model id within your configured provider's family (e.g. /model gpt-4o-mini when on OpenAI, /model gemini-2.5-flash when on Google).`;
+  }
+  return `Model for this thread set to \`${model}\`. It applies on the next turn.${warning}`;
 }
 
 // Register built-ins (module-load). Order matters only for /help display.

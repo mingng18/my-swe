@@ -10,6 +10,7 @@ import { formatTelegramMarkdownV2 } from "../telegram";
 import { getMode, getModelOverride, clearSession } from "../session-store";
 import * as telemetry from "../telemetry";
 import * as harness from "../../harness";
+import { threadManager } from "../../harness/thread-manager";
 
 describe("tokenize", () => {
   it("parses a bare command", () => {
@@ -214,5 +215,113 @@ describe("command reply MarkdownV2 escaping (#504)", () => {
     // And the raw forms must NOT survive (that is the bug the fix prevents).
     expect(escaped).not.toContain("(in 0 / out 0)");
     expect(escaped).not.toContain("0.0 s");
+  });
+});
+
+describe("/model rebuild preserves history via per-thread checkpointer (#505 retro)", () => {
+  it("setting /model rebuilds the agent but KEEPS the thread's checkpointer", async () => {
+    const tid = "t-model-history";
+    clearSession(tid);
+    // Simulate prior conversation history: agent + checkpointer exist.
+    threadManager.setAgent(tid, { id: "old-agent" } as any);
+    const cp = threadManager.getCheckpointer(tid);
+
+    // /model <name> must rebuild (drop agent) but NOT drop the checkpointer,
+    // so the rebuilt agent reuses the same conversation history.
+    const r = await handleCommand("/model gpt-4o-mini", tid);
+    expect(r.handled).toBe(true);
+    expect(threadManager.getAgent(tid)).toBeUndefined();
+    expect(threadManager.getCheckpointer(tid)).toBe(cp);
+
+    clearSession(tid);
+    threadManager.clearAgent(tid);
+  });
+
+  it("clearing /model rebuilds the agent but KEEPS the checkpointer", async () => {
+    const tid = "t-model-clear-history";
+    clearSession(tid);
+    threadManager.setAgent(tid, { id: "old-agent" } as any);
+    const cp = threadManager.getCheckpointer(tid);
+
+    const r = await handleCommand("/model default", tid);
+    expect(r.handled).toBe(true);
+    expect(getModelOverride(tid)).toBeUndefined();
+    expect(threadManager.getAgent(tid)).toBeUndefined();
+    expect(threadManager.getCheckpointer(tid)).toBe(cp);
+
+    clearSession(tid);
+    threadManager.clearAgent(tid);
+  });
+});
+
+describe("/model provider-family advisory (#505 retro)", () => {
+  it("warns when the override looks cross-provider vs the global MODEL", async () => {
+    const tid = "t-model-xprovider";
+    clearSession(tid);
+    const prev = process.env.MODEL;
+    process.env.MODEL = "gemini-2.5-flash";
+    try {
+      const r = await handleCommand("/model gpt-4o", tid);
+      expect(r.handled).toBe(true);
+      expect(r.reply).toContain("different provider family");
+    } finally {
+      if (prev === undefined) delete process.env.MODEL;
+      else process.env.MODEL = prev;
+      clearSession(tid);
+      threadManager.clearAgent(tid);
+    }
+  });
+
+  it("does not warn for a within-family override", async () => {
+    const tid = "t-model-withinfamily";
+    clearSession(tid);
+    const prev = process.env.MODEL;
+    process.env.MODEL = "gpt-4o";
+    try {
+      const r = await handleCommand("/model gpt-4o-mini", tid);
+      expect(r.handled).toBe(true);
+      expect(r.reply).not.toContain("different provider family");
+      // Still carries the general advisory note about provider family.
+      expect(r.reply).toContain("NOT the provider");
+    } finally {
+      if (prev === undefined) delete process.env.MODEL;
+      else process.env.MODEL = prev;
+      clearSession(tid);
+      threadManager.clearAgent(tid);
+    }
+  });
+});
+
+describe("/plan and /act recreate the agent (#505 retro)", () => {
+  it("/plan drops the cached agent so the read-only toolset is loaded next turn", async () => {
+    const tid = "t-plan-recreate";
+    clearSession(tid);
+    threadManager.setAgent(tid, { id: "act-agent" } as any);
+    // Keep checkpointer to assert mode change preserves history.
+    const cp = threadManager.getCheckpointer(tid);
+
+    const r = await handleCommand("/plan", tid);
+    expect(r.handled).toBe(true);
+    expect(getMode(tid)).toBe("plan");
+    expect(threadManager.getAgent(tid)).toBeUndefined();
+    // Checkpointer survives the mode-change recreation.
+    expect(threadManager.getCheckpointer(tid)).toBe(cp);
+
+    clearSession(tid);
+    threadManager.clearAgent(tid);
+  });
+
+  it("/act restores the full toolset by dropping the cached agent", async () => {
+    const tid = "t-act-recreate";
+    clearSession(tid);
+    threadManager.setAgent(tid, { id: "plan-agent" } as any);
+
+    const r = await handleCommand("/act", tid);
+    expect(r.handled).toBe(true);
+    expect(getMode(tid)).toBe("act");
+    expect(threadManager.getAgent(tid)).toBeUndefined();
+
+    clearSession(tid);
+    threadManager.clearAgent(tid);
   });
 });
