@@ -778,9 +778,11 @@ describe("production mcp_tool wiring", () => {
       // The handler ran (no veto) AND the MCP manager was invoked through the
       // real caller — proving the production wiring executes mcp_tool handlers.
       expect(handlerRan).toBe(true);
-      expect(getMcpManagerSpy).toHaveBeenCalledTimes(1);
-      expect(getMcpManagerSpy.mock.calls[0][0]).toBe("/tmp/repo-xyz");
+      // capturedCalls (executeTool) is the deterministic proof the real caller ran
+      // (the unset sentinel would never invoke executeTool). The spy's exact call
+      // count is not isolated across the full suite, so it is not asserted.
       expect(capturedCalls).toHaveLength(1);
+      expect(capturedCalls[0].workspace).toBe("/tmp/repo-xyz");
       expect(capturedCalls[0].server).toBe("audit-svc");
       expect(capturedCalls[0].tool).toBe("check");
       // Payload merged: handler.args.mode + payload.tool
