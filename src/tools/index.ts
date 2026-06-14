@@ -31,6 +31,7 @@ import { memoryGetTool } from "./memory-get";
 import { memoryForgetTool } from "./memory-forget";
 import { runReviewersTool } from "./run-reviewers";
 import { prReviewTool } from "./pr-review";
+import { checkpointRewindTool } from "./checkpoint-rewind";
 
 // Memory tools export for easy access
 export const MEMORY_TOOLS = [
@@ -70,6 +71,7 @@ export const allToolsUncompressed = [
   memoryForgetTool,
   runReviewersTool,
   prReviewTool,
+  checkpointRewindTool,
 ];
 
 export const sandboxAllToolsUncompressed = [

@@ -353,6 +353,73 @@ app.post("/webhook/github", async (c) => {
 });
 
 /**
+ * Rewind a thread to a prior checkpoint.
+ *
+ * POST /rewind/:threadId/:checkpointId
+ *
+ * Restores the thread's checkpointer state to the requested checkpoint using
+ * the existing LangGraph MemorySaver (see `src/harness/deepagents.ts`). Returns
+ * 404 when the checkpoint id is unknown for the thread.
+ */
+app.post("/rewind/:threadId/:checkpointId", async (c) => {
+  const { threadId, checkpointId } = c.req.param();
+
+  try {
+    const { threadManager } = await import("./harness/thread-manager");
+    const { restoreCheckpoint, CheckpointNotFoundError } = await import(
+      "./tools/checkpoint-rewind"
+    );
+
+    const agent = threadManager.getAgent(threadId);
+    if (!agent) {
+      return c.json(
+        {
+          error: `No active agent for thread '${threadId}'.`,
+          threadId,
+          checkpointId,
+        },
+        404,
+      );
+    }
+
+    let restored;
+    try {
+      restored = await restoreCheckpoint(agent, threadId, checkpointId);
+    } catch (error) {
+      if (error instanceof CheckpointNotFoundError) {
+        return c.json(
+          {
+            error: error.message,
+            threadId,
+            checkpointId,
+          },
+          404,
+        );
+      }
+      throw error;
+    }
+
+    return c.json({
+      success: true,
+      threadId,
+      checkpointId,
+      restoredAt: new Date().toISOString(),
+      next: restored.next ?? [],
+      messageCount: (() => {
+        const v = restored.values as Record<string, unknown> | undefined;
+        return Array.isArray(v?.messages) ? v!.messages.length : undefined;
+      })(),
+    });
+  } catch (error) {
+    log.error({ error, threadId, checkpointId }, "[webapp] /rewind error");
+    return c.json(
+      { error: error instanceof Error ? error.message : "Unknown error" },
+      500,
+    );
+  }
+});
+
+/**
  * Metrics endpoint for a specific thread
  * GET /metrics/thread/:threadId
  */
