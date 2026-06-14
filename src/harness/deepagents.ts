@@ -36,6 +36,11 @@ import { toolInvocationTracker } from "../middleware/tool-invocation-limits";
 import { createSkillCompactionProtectionMiddleware } from "../middleware/skill-compaction-protection";
 import { createCompactionMiddleware } from "../middleware/compact-middleware";
 import { createAgentFirewallMiddleware } from "../middleware/agent-firewall";
+import {
+  createHooksMiddleware,
+  fireSessionStart,
+  registerHooksThreadCleanup,
+} from "../hooks";
 import type {
   AgentHarness,
   AgentInvokeOptions,
@@ -247,6 +252,8 @@ async function buildMiddleware(
     createEnsureNoEmptyMsgMiddleware(),
     // Custom: command/network allowlist + cost kill-switch (permissive when unconfigured)
     createAgentFirewallMiddleware(),
+    // Custom: event-driven hooks (SessionStart / PreToolUse / PostToolUse); no-op when unconfigured
+    createHooksMiddleware(),
   ];
 
   // Add model fallback if configured
@@ -925,6 +932,8 @@ export class DeepAgentWrapper implements AgentHarness {
         threadId,
         timestamp: Date.now(),
       });
+      // Fire event-driven hooks SessionStart (idempotent per thread_id; no-op when unconfigured)
+      fireSessionStart(threadId);
 
       let { agent, configurable } = await this.prepareAgent(input, threadId);
       const activeRepo = threadManager.getRepo(threadId);
