@@ -155,3 +155,90 @@ export interface McpToolResult {
   /** Whether result is truncated */
   isTruncated?: boolean;
 }
+
+// ---------------------------------------------------------------------------
+// Elicitation support (#496)
+//
+// When an MCP server needs to ask the user a clarifying question mid
+// tool-flow, it sends an `elicitation/create` request. The client surfaces the
+// question to the active transport and returns the user's answer to the server.
+// ---------------------------------------------------------------------------
+
+/** Elicitation modes (form-based or URL-based). */
+export type ElicitationMode = "form" | "url";
+
+/** A single property of the requested form schema. */
+export interface ElicitationSchemaProperty {
+  type?: string;
+  title?: string;
+  description?: string;
+  default?: unknown;
+  [key: string]: unknown;
+}
+
+/** The form schema an elicitation request asks the client to render. */
+export interface ElicitationRequestedSchema {
+  type: "object";
+  properties: Record<string, ElicitationSchemaProperty>;
+  required?: string[];
+}
+
+/**
+ * The params of an `elicitation/create` request. Only form-mode is surfaced to
+ * transports in this implementation; URL mode is recorded for completeness.
+ */
+export interface ElicitRequestParams {
+  /** A human-readable message / clarifying question to present to the user. */
+  message: string;
+  /** Requested form schema (form mode) — absent for URL mode. */
+  requestedSchema?: ElicitationRequestedSchema;
+  /** Elicitation mode. Defaults to "form" per the MCP spec. */
+  mode?: ElicitationMode;
+  /** URL to navigate to (URL mode only). */
+  url?: string;
+  /** Elicitation id (URL mode only). */
+  elicitationId?: string;
+}
+
+/** A normalized elicitation request surfaced to transports. */
+export interface ElicitRequest {
+  /** Server name that issued the elicitation. */
+  serverName: string;
+  /** Form / clarifying params. */
+  params: ElicitRequestParams;
+}
+
+/** Actions the user (or client) can take on an elicitation. */
+export type ElicitAction = "accept" | "decline" | "cancel";
+
+/**
+ * The answer returned to the MCP server. This matches the MCP
+ * `ElicitResultSchema` shape ({action, content?}).
+ */
+export interface ElicitResult {
+  action: ElicitAction;
+  /** User-supplied form values (only meaningful for action === "accept"). */
+  content?: Record<string, string | number | boolean | string[]>;
+}
+
+/**
+ * Transport-supplied handler that surfaces an elicitation to the user and
+ * resolves with their answer. Implementations may reject/throw to signal an
+ * internal failure — the caller treats that as a decline, never propagating
+ * the error across the async boundary.
+ *
+ * Returning `undefined` is treated as "decline".
+ */
+export type ElicitationHandler = (
+  request: ElicitRequest,
+) => Promise<ElicitResult | undefined | void>;
+
+/**
+ * Options for installing an elicitation handler on an MCP client.
+ */
+export interface McpElicitationOptions {
+  /** Handler that surfaces the question to the transport. */
+  handler: ElicitationHandler;
+  /** Per-elicitation timeout in ms. Default 30000. */
+  timeoutMs?: number;
+}
