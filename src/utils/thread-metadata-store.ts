@@ -61,7 +61,10 @@ export async function loadPersistedThreadRepos(): Promise<
   >();
   let changed = false;
 
-  for (const [threadId, value] of Object.entries(store.repos)) {
+  // ⚡ Bolt: Replace Object.entries with for...in to avoid intermediate array allocations
+  for (const threadId in store.repos) {
+    if (!Object.prototype.hasOwnProperty.call(store.repos, threadId)) continue;
+    const value = store.repos[threadId];
     const updatedAt = Date.parse(value.updatedAt);
     if (!Number.isFinite(updatedAt) || now - updatedAt > MAX_AGE_MS) {
       delete store.repos[threadId];
