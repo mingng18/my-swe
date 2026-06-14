@@ -35,6 +35,7 @@ import { createEnsureNoEmptyMsgMiddleware } from "../middleware/ensure-no-empty-
 import { toolInvocationTracker } from "../middleware/tool-invocation-limits";
 import { createSkillCompactionProtectionMiddleware } from "../middleware/skill-compaction-protection";
 import { createCompactionMiddleware } from "../middleware/compact-middleware";
+import { createAgentFirewallMiddleware } from "../middleware/agent-firewall";
 import type {
   AgentHarness,
   AgentInvokeOptions,
@@ -244,6 +245,8 @@ async function buildMiddleware(
     createLoopDetectionMiddleware(),
     // Custom: ensure model always produces meaningful output
     createEnsureNoEmptyMsgMiddleware(),
+    // Custom: command/network allowlist + cost kill-switch (permissive when unconfigured)
+    createAgentFirewallMiddleware(),
   ];
 
   // Add model fallback if configured
