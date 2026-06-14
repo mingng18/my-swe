@@ -2,6 +2,7 @@ import {
   detectProvider,
   type LlmProvider,
   type ModelConfig,
+  type ModelRole,
 } from "./model-factory";
 
 /** Load env for the Telegram bot. Extend as other subsystems are added. */
@@ -161,6 +162,75 @@ export function loadModelConfig(override?: {
     openaiBaseUrl: override?.openaiBaseUrl || llm.openaiBaseUrl,
     googleApiKey: llm.googleApiKey,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Architect/Editor model routing (#497)
+// ---------------------------------------------------------------------------
+//
+// Route planning / blueprint-selection reasoning to a strong model
+// (ARCHITECT_MODEL) and file edits / tool-calls to a cheaper/faster model
+// (EDITOR_MODEL). The split is opt-in via BOTH env vars being set; when either
+// is unset, behavior is identical to the single-MODEL path. The provider, key,
+// and base URL are reused from the primary LLM config so only the model id
+// differs per role.
+
+/**
+ * Architect/Editor routing is enabled only when BOTH ARCHITECT_MODEL and
+ * EDITOR_MODEL are set. Any other combination falls back to single-MODEL.
+ */
+export function isArchitectEditorRoutingEnabled(): boolean {
+  const architect = process.env.ARCHITECT_MODEL?.trim();
+  const editor = process.env.EDITOR_MODEL?.trim();
+  return Boolean(architect && editor);
+}
+
+export interface ArchitectEditorConfig {
+  /** True only when both ARCHITECT_MODEL and EDITOR_MODEL are set. */
+  enabled: boolean;
+  /** ModelConfig tagged with role "architect" (strong model). */
+  architect: ModelConfig;
+  /** ModelConfig tagged with role "editor" (cheaper/faster model). */
+  editor: ModelConfig;
+}
+
+/**
+ * Load Architect/Editor model configs.
+ *
+ * When disabled (either env unset), both `architect` and `editor` fall back to
+ * the single MODEL config (no role tag) so callers behave exactly as today.
+ * When enabled, each role gets its own model id but shares the provider, key,
+ * and base URL of the primary LLM config.
+ */
+export function loadArchitectEditorConfig(): ArchitectEditorConfig {
+  const enabled = isArchitectEditorRoutingEnabled();
+  const base = loadModelConfig();
+  const architectModel = process.env.ARCHITECT_MODEL?.trim();
+  const editorModel = process.env.EDITOR_MODEL?.trim();
+
+  return {
+    enabled,
+    architect: enabled
+      ? { ...base, model: architectModel!, role: "architect" }
+      : base,
+    editor: enabled
+      ? { ...base, model: editorModel!, role: "editor" }
+      : base,
+  };
+}
+
+/**
+ * Resolve the ModelConfig for a given agent role.
+ *
+ * When Architect/Editor routing is enabled, returns the role-specific config
+ * (tagged with `role` for usage/cost attribution). When disabled, returns the
+ * single MODEL config exactly as `loadModelConfig()` would — i.e. today's
+ * behavior is unchanged.
+ */
+export function getRoleModelConfig(role: ModelRole): ModelConfig {
+  const ae = loadArchitectEditorConfig();
+  if (!ae.enabled) return ae.architect; // single MODEL, no role tag
+  return role === "architect" ? ae.architect : ae.editor;
 }
 
 /**

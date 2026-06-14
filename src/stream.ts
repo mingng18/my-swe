@@ -16,6 +16,13 @@ export interface LLMStartEvent {
   type: "llm_start";
   model: string;
   timestamp: number;
+  /**
+   * Agent role attribution (Architect/Editor routing, #497). Omitted when
+   * single-model routing is in effect, leaving the default event shape
+   * unchanged. Present (e.g. "architect" / "editor") so telemetry/pricing can
+   * attribute usage to the role that actually produced it.
+   */
+  role?: string;
 }
 
 export interface LLMChunkEvent {
@@ -28,6 +35,12 @@ export interface LLMEndEvent {
   type: "llm_end";
   totalTokens: number;
   timestamp: number;
+  /**
+   * Agent role attribution (Architect/Editor routing, #497). Omitted when
+   * single-model routing is in effect; present otherwise so a paired
+   * llm_end can be attributed to the same role as its llm_start.
+   */
+  role?: string;
 }
 
 export interface ToolCallEvent {
