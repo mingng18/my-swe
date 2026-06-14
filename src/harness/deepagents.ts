@@ -882,6 +882,13 @@ export class DeepAgentWrapper implements AgentHarness {
         workspaceDir: activeRepo.workspaceDir,
       };
     }
+    // Stamp the top-level agent identity into the runtime configurable so the
+    // hooks middleware (issue #490 acceptance criterion #3) can distinguish
+    // top-level vs subagent events. Subagents spawned via the `task` tool
+    // inherit this config but are tagged separately by the middleware.
+    configurable.agent_id = "bullhorse";
+    configurable.agent_type = "deepagents";
+    configurable.agent_scope = "top";
 
     // Pass tools to configurable so tool_search can access them
     const currentTools = useSandbox ? sandboxAllTools : allTools;
@@ -932,8 +939,11 @@ export class DeepAgentWrapper implements AgentHarness {
         threadId,
         timestamp: Date.now(),
       });
-      // Fire event-driven hooks SessionStart (idempotent per thread_id; no-op when unconfigured)
-      fireSessionStart(threadId);
+      // Fire event-driven hooks SessionStart (idempotent per thread_id; no-op
+      // when unconfigured). Awaited so SessionStart ordering is guaranteed and
+      // a failing handler cannot race the agent turn or surface as an
+      // unhandled rejection. fireSessionStart swallows/logs handler errors.
+      await fireSessionStart(threadId);
 
       let { agent, configurable } = await this.prepareAgent(input, threadId);
       const activeRepo = threadManager.getRepo(threadId);
@@ -1525,6 +1535,13 @@ export async function initDeepAgentsAtStartup(): Promise<void> {
   };
 
   scheduler.registerCleanupFn(cleanupFn);
+
+  // Register hooks SessionStart-map eviction with the same scheduler so the
+  // idempotency map does not grow unbounded across the process lifetime.
+  registerHooksThreadCleanup().catch((err) =>
+    logger.warn({ err }, "[deepagents] hooks cleanup registration failed"),
+  );
+
   logger.info(
     {
       intervalMs: cleanupIntervalMs,

@@ -28,7 +28,8 @@ const logger = createLogger("hooks-registry");
 
 /**
  * Function used to invoke an MCP tool. Injected so tests can stub it without a
- * live MCP server. The real implementation is wired in `dispatcher.ts`.
+ * live MCP server. The real implementation is `createMcpToolCaller` in
+ * `dispatcher.ts` (backed by `src/mcp/client.ts`).
  */
 export type McpToolCaller = (
   server: string,
@@ -36,8 +37,19 @@ export type McpToolCaller = (
   args: Record<string, unknown>,
 ) => Promise<unknown>;
 
-/** A no-op MCP caller used when none is configured. */
-const noopMcpCaller: McpToolCaller = async () => undefined;
+/**
+ * Sentinel caller used when no real McpToolCaller is wired. It throws so that a
+ * configured mcp_tool handler fails LOUDLY (via runHandler's error-logging
+ * path) instead of silently no-op'ing — a silent no-op would let a user think
+ * their hook ran when it did not. The harness should wire a real caller via
+ * `createMcpToolCaller(workspaceDir)` from `dispatcher.ts`.
+ */
+const unsetMcpCaller: McpToolCaller = async (server, tool) => {
+  throw new Error(
+    `hooks mcp_tool handler '${server}/${tool}' cannot execute: no McpToolCaller is wired. ` +
+      "Pass createMcpToolCaller(workspaceDir) to the HooksDispatcher, or remove the mcp_tool handler.",
+  );
+};
 
 /**
  * The hooks registry. Holds the validated config and dispatches events to the
@@ -47,7 +59,7 @@ export class HooksRegistry {
   private readonly handlers: HookEntry[];
   private readonly mcpCaller: McpToolCaller;
 
-  constructor(config: HooksConfig, mcpCaller: McpToolCaller = noopMcpCaller) {
+  constructor(config: HooksConfig, mcpCaller: McpToolCaller = unsetMcpCaller) {
     // Only keep enabled handlers up front.
     this.handlers = config.handlers.filter((h) => h.enabled !== false);
     this.mcpCaller = mcpCaller;
@@ -75,14 +87,20 @@ export class HooksRegistry {
   /**
    * Execute a single handler for a payload. Returns the handler's outcome
    * (possibly a veto). Never throws — failures are logged and swallowed.
+   *
+   * @param event Optional explicit event discriminator. When provided, only
+   *   PreToolUse can produce a veto from a non-zero shell exit (PostToolUse
+   *   outcomes are always discarded). When omitted, a veto is only possible for
+   *   tool-bearing payloads (back-compat with direct callers).
    */
   async runHandler(
     entry: HookEntry,
     payload: HookEventPayload,
+    event?: HookEvent,
   ): Promise<HookHandlerOutcome> {
     try {
       if (entry.handler.type === "shell") {
-        return await this.runShell(entry.handler, payload);
+        return await this.runShell(entry.handler, payload, event);
       }
       return await this.runMcpTool(entry.handler, payload);
     } catch (err) {
@@ -102,6 +120,7 @@ export class HooksRegistry {
   private async runShell(
     handler: ShellHandlerConfig,
     payload: HookEventPayload,
+    event?: HookEvent,
   ): Promise<HookHandlerOutcome> {
     const stdin = JSON.stringify(payload);
     const env: NodeJS.ProcessEnv = {
@@ -139,8 +158,11 @@ export class HooksRegistry {
       const reason =
         result.stderr.trim() ||
         `shell handler '${handler.command}' exited ${result.code}`;
-      // A non-zero exit is only a veto for PreToolUse events.
-      if (payload.tool !== undefined) {
+      // A non-zero exit is only a veto for PreToolUse events. Prefer the
+      // explicit event discriminator when provided; fall back to the tool
+      // presence heuristic for back-compat with direct callers.
+      const canVeto = event !== undefined ? event === "PreToolUse" : payload.tool !== undefined;
+      if (canVeto) {
         return { veto: true, reason };
       }
       logger.warn(

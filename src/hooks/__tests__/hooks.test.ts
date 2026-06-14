@@ -332,6 +332,31 @@ describe("HooksRegistry", () => {
     });
     expect(out).toBeUndefined();
   });
+
+  it("fails LOUDLY (not silent) when no McpToolCaller is wired", async () => {
+    // No caller passed -> default sentinel throws -> runHandler logs + returns
+    // undefined. This is the loud-failure contract replacing the old silent
+    // no-op, so a misconfigured mcp_tool handler is visible, not invisible.
+    const reg = new HooksRegistry({
+      enabled: true,
+      handlers: [
+        {
+          name: "mcp",
+          events: ["PreToolUse"],
+          handler: { type: "mcp_tool", server: "svc", tool: "check" },
+        },
+      ],
+    });
+    const out = await reg.runHandler(reg.selectHandlers("PreToolUse", "t")[0], {
+      agent_id: "a",
+      agent_type: "b",
+      tool: "t",
+      args: {},
+    });
+    // runHandler swallows the throw and returns undefined (observer semantics),
+    // but the failure is logged at WARN — not silently dropped.
+    expect(out).toBeUndefined();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -446,7 +471,7 @@ describe("createHooksMiddleware", () => {
     const request = {
       tool: { name: "grep" },
       toolCall: { id: "tc1", name: "grep", args: { q: "x" } },
-      state: { thread_id: "t1" },
+      runtime: { configurable: { thread_id: "t1" } },
     };
     const result = await (mw as any).wrapToolCall(request, handler);
     expect(result.content).toBe("ran");
@@ -473,7 +498,7 @@ describe("createHooksMiddleware", () => {
     const request = {
       tool: { name: "grep" },
       toolCall: { id: "tc1", name: "grep", args: { q: "x" } },
-      state: { thread_id: "t1" },
+      runtime: { configurable: { thread_id: "t1" } },
     };
     const result = await (mw as any).wrapToolCall(request, handler);
     expect(handlerCalled).toBe(false);
@@ -508,10 +533,143 @@ describe("createHooksMiddleware", () => {
     const request = {
       tool: { name: "read_file" },
       toolCall: { id: "tc1", name: "read_file", args: { path: "/a" } },
-      state: { thread_id: "t1" },
+      runtime: { configurable: { thread_id: "t1" } },
     };
     const result = await (mw as any).wrapToolCall(request, handler);
     expect(result.content[0].text).toBe("file contents");
     expect(postSeen).toBe("read_file");
+  });
+
+  it("sources thread_id from runtime.configurable (not request.state)", async () => {
+    let seenThreadId: unknown = "untouched";
+    const dispatcher = new HooksDispatcher({
+      enabled: true,
+      handlers: [
+        {
+          name: "obs",
+          events: ["PreToolUse"],
+          handler: { type: "shell", command: "true" },
+        },
+      ],
+    });
+    const origPre = dispatcher.dispatchPreToolUse.bind(dispatcher);
+    dispatcher.dispatchPreToolUse = async (payload: any) => {
+      seenThreadId = payload.thread_id;
+      return origPre(payload);
+    };
+    const mw = createHooksMiddleware(dispatcher);
+    const handler = () => Promise.resolve({ content: "ok" });
+    // production-shape request: runtime.configurable.thread_id is set,
+    // request.state.thread_id is NOT a real field and must be ignored.
+    const request = {
+      tool: { name: "grep" },
+      toolCall: { id: "tc1", name: "grep", args: {} },
+      runtime: { configurable: { thread_id: "real-thread" } },
+      state: { messages: [] },
+    };
+    await (mw as any).wrapToolCall(request, handler);
+    expect(seenThreadId).toBe("real-thread");
+  });
+
+  it("tags subagent-spawn (task tool) events with a distinct agent_type", async () => {
+    let seenType: string | undefined;
+    const dispatcher = new HooksDispatcher({
+      enabled: true,
+      handlers: [
+        {
+          name: "obs",
+          events: ["PreToolUse"],
+          handler: { type: "shell", command: "true" },
+        },
+      ],
+    });
+    const origPre = dispatcher.dispatchPreToolUse.bind(dispatcher);
+    dispatcher.dispatchPreToolUse = async (payload: any) => {
+      seenType = payload.agent_type;
+      return origPre(payload);
+    };
+    const mw = createHooksMiddleware(dispatcher);
+    const handler = () => Promise.resolve({ content: "ok" });
+    // The `task` tool is the SDK's subagent launcher.
+    const request = {
+      tool: { name: "task" },
+      toolCall: { id: "tc1", name: "task", args: { subagent_type: "explore-agent" } },
+      runtime: { configurable: { thread_id: "t1", agent_id: "bullhorse", agent_type: "deepagents", agent_scope: "top" } },
+    };
+    await (mw as any).wrapToolCall(request, handler);
+    // acceptance criterion #3: top-level vs subagent must be distinguishable.
+    expect(seenType).toBe("deepagents:subagent");
+  });
+
+  it("honours the top-level agent_scope override for ordinary tools", async () => {
+    let seenType: string | undefined;
+    const dispatcher = new HooksDispatcher({
+      enabled: true,
+      handlers: [
+        {
+          name: "obs",
+          events: ["PreToolUse"],
+          handler: { type: "shell", command: "true" },
+        },
+      ],
+    });
+    const origPre = dispatcher.dispatchPreToolUse.bind(dispatcher);
+    dispatcher.dispatchPreToolUse = async (payload: any) => {
+      seenType = payload.agent_type;
+      return origPre(payload);
+    };
+    const mw = createHooksMiddleware(dispatcher);
+    const handler = () => Promise.resolve({ content: "ok" });
+    const request = {
+      tool: { name: "grep" },
+      toolCall: { id: "tc1", name: "grep", args: {} },
+      runtime: { configurable: { thread_id: "t1", agent_scope: "top" } },
+    };
+    await (mw as any).wrapToolCall(request, handler);
+    expect(seenType).toBe("deepagents"); // not suffixed
+  });
+});
+
+// ---------------------------------------------------------------------------
+// veto reason sanitization (prompt-injection hardening)
+// ---------------------------------------------------------------------------
+
+describe("sanitizeVetoReason", () => {
+  it("strips ANSI escapes and control characters", () => {
+    const { sanitizeVetoReason } = require("../dispatcher");
+    const dirty = "\x1b[31mRED\x1b[0m\x00noise\x07";
+    expect(sanitizeVetoReason(dirty)).toBe("REDnoise");
+  });
+  it("collapses whitespace and truncates", () => {
+    const { sanitizeVetoReason } = require("../dispatcher");
+    const long = "a".repeat(2000) + "   trailing";
+    const out = sanitizeVetoReason(long);
+    expect(out.length).toBeLessThanOrEqual(500);
+  });
+  it("returns a safe default for empty/non-string input", () => {
+    const { sanitizeVetoReason } = require("../dispatcher");
+    expect(sanitizeVetoReason("")).toBe("handler vetoed the tool call");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SessionStart bounded map eviction
+// ---------------------------------------------------------------------------
+
+describe("HooksDispatcher SessionStart eviction", () => {
+  it("evicts expired sessions past the TTL", () => {
+    const d = new HooksDispatcher({
+      enabled: true,
+      handlers: [
+        { name: "s", events: ["SessionStart"], handler: { type: "shell", command: "true" } },
+      ],
+    });
+    return d.dispatchSessionStart("old").then(() => {
+      // Backdate the entry.
+      (d as any).sessionStarted.set("old", Date.now() - 48 * 60 * 60 * 1000);
+      const removed = d.evictExpiredSessions(Date.now(), 24 * 60 * 60 * 1000);
+      expect(removed).toBe(1);
+      expect(d.evictExpiredSessions(Date.now(), 24 * 60 * 60 * 1000)).toBe(0);
+    });
   });
 });

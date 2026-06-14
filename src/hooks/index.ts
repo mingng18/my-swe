@@ -38,4 +38,7 @@ export {
   resetHooksDispatcher,
   createHooksMiddleware,
   fireSessionStart,
+  registerHooksThreadCleanup,
+  createMcpToolCaller,
+  sanitizeVetoReason,
 } from "./dispatcher";
