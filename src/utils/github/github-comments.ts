@@ -9,6 +9,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { Octokit } from "octokit";
 
 import { IDENTITY_MAP } from "../identity";
+import { defang } from "../../security/defang";
 
 const logger = console;
 
@@ -155,7 +156,14 @@ export function sanitizeGithubCommentBody(body: string): string {
 
 /**
  * Format a GitHub comment body for prompt inclusion.
- * Wraps untrusted user comments in special tags.
+ *
+ * Comments from authors in the {@link IDENTITY_MAP} (trusted operators) are
+ * passed through after only the legacy tag-scrub. Comments from any other
+ * author are attacker-controlled GitHub content and are routed through
+ * {@link defang} so they reach the model inside the untrusted-data envelope
+ * with the anti-spoofing preamble — the primary Miasma vector per issue #489
+ * is PR/review comment text fed directly to the model.
+ *
  * @param author - GitHub username of the comment author
  * @param body - The comment body
  * @returns Formatted comment body
@@ -170,7 +178,9 @@ export function formatGithubCommentBodyForPrompt(
     return sanitizedBody;
   }
 
-  return `${UNTRUSTED_GITHUB_COMMENT_OPEN_TAG}\n${sanitizedBody}\n${UNTRUSTED_GITHUB_COMMENT_CLOSE_TAG}`;
+  // Strong trust boundary: envelope-wrap the untrusted comment body so it is
+  // labeled as DATA and any forged envelope tags inside are neutralized.
+  return defang("github-comment", sanitizedBody);
 }
 
 /**

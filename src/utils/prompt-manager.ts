@@ -1,4 +1,5 @@
 import { createLogger } from "./logger";
+import { defang } from "../security/defang";
 import {
   TASK_OVERVIEW_SECTION,
   FILE_MANAGEMENT_SECTION,
@@ -94,9 +95,13 @@ export async function buildPromptForTier(
   workingDir: string,
   agentsMd: string = "",
 ): Promise<string> {
+  // A foreign repo's AGENTS.md is an untrusted trust boundary (the Miasma
+  // vector). Defang it once here so every tier renders it as labeled data.
+  const safeAgentsMd = defang("foreign-agents-md", agentsMd);
+
   // For FULL tier, use the standard prompt
   if (tier === PromptTier.FULL) {
-    return await constructSystemPrompt(workingDir, "", "", agentsMd);
+    return await constructSystemPrompt(workingDir, "", "", safeAgentsMd);
   }
 
   // For STANDARD tier, remove verbose sections
@@ -112,9 +117,9 @@ export async function buildPromptForTier(
       COMMIT_PR_SECTION,
     ];
 
-    if (agentsMd) {
+    if (safeAgentsMd) {
       sections.push(
-        `\nThe following text is pulled from the repository's AGENTS.md file:\n<agents_md>\n${agentsMd}\n</agents_md>`,
+        `\nThe following text is pulled from the repository's AGENTS.md file:\n<agents_md>\n${safeAgentsMd}\n</agents_md>`,
       );
     }
 
@@ -134,7 +139,7 @@ export async function buildPromptForTier(
   }
 
   // Fallback
-  return await constructSystemPrompt(workingDir, "", "", agentsMd);
+  return await constructSystemPrompt(workingDir, "", "", safeAgentsMd);
 }
 
 /**
