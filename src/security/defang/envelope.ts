@@ -63,10 +63,16 @@ export const UNTRUSTED_DATA_PREAMBLE =
  * @returns The text with envelope tags replaced by inert placeholders.
  */
 export function sanitizeEnvelopeTags(text: string): string {
-  // Match the opening tag loosely: `<untrusted_data ...>` (allow attributes).
-  // The closing tag is matched exactly.
+  // Match the opening tag loosely: `<untrusted_data ...>` (allow attributes,
+  // trailing whitespace, and a self-closing slash).
   const openRegex = /<untrusted_data[^>]*>/gi;
-  const closeRegex = /<\/untrusted_data>/gi;
+  // Match the closing tag as loosely as the opening tag so a forged early
+  // close cannot terminate the envelope. LLM tokenizers treat any of
+  // `</untrusted_data>`, `</untrusted_data >`, `</untrusted_data\t>`,
+  // `</untrusted_data\n>`, and `</untrusted_data/>` as equivalent to the real
+  // close tag, so all of them must be neutralized. The `[\/>]?` permits an
+  // optional self-closing slash; the surrounding `\s*` permits whitespace.
+  const closeRegex = /<\/untrusted_data\s*[\/>]?\s*>/gi;
 
   const sanitized = text
     .replace(openRegex, NEUTRALIZED_OPEN_TAG)
