@@ -5,7 +5,12 @@ import {
   THREAD_TTL_MS,
   type RepoContext,
 } from "./thread-manager";
-import { loadLlmConfig, loadModelConfig } from "../utils/config";
+import {
+  loadLlmConfig,
+  loadModelConfig,
+  getRoleModelConfig,
+  isArchitectEditorRoutingEnabled,
+} from "../utils/config";
 import { getMode, getModelOverride, purgeStaleSessions } from "../utils/session-store";
 import { createChatModel } from "../utils/model-factory";
 import { createDeepAgent, FilesystemBackend, type DeepAgent } from "deepagents";
@@ -22,6 +27,7 @@ import {
   type ThreadMapCleanupFn,
 } from "../utils/thread-cleanup-scheduler";
 import { CallbackHandler as LangfuseLangChain } from "langfuse-langchain";
+import type { BaseCallbackHandler } from "@langchain/core/callbacks/base";
 import { MemorySaver } from "@langchain/langgraph";
 import {
   modelRetryMiddleware,
@@ -79,7 +85,11 @@ import { loadRepoAgents, mergeSubagents } from "../subagents/agentsLoader";
 import { asyncSubagents } from "../subagents/async";
 import { type BaseMessage, type ToolCall } from "@langchain/core/messages";
 import { type BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { streamRegistry, type SSEEvent } from "../stream";
+import {
+  streamRegistry,
+  type SSEEvent,
+  type LLMStartEvent,
+} from "../stream";
 
 const logger = createLogger("deepagents");
 
@@ -398,10 +408,27 @@ async function createAgentInstance(args: {
   backend?: SandboxService | FilesystemBackend;
   threadId?: string;
 }): Promise<DeepAgent> {
-  const baseConfig = loadModelConfig();
-  // Per-thread model override (/model). No override = today's single MODEL.
+  // Model selection (#497 Architect/Editor routing):
+  // The primary agent's dominant workload is file edits and tool-calls, so it
+  // runs on the EDITOR model (cheaper/faster) when the split is enabled. When
+  // either ARCHITECT_MODEL or EDITOR_MODEL is unset, getRoleModelConfig returns
+  // the single MODEL config exactly as today (no role tag), so default behavior
+  // is unchanged. The role tag flows into telemetry/pricing via loadModelConfig.
+  let modelConfig = getRoleModelConfig("editor");
+  // Per-thread model override (/model). No override = today's single MODEL / EDITOR.
   const override = args.threadId ? getModelOverride(args.threadId) : undefined;
-  const modelConfig = override ? { ...baseConfig, model: override } : baseConfig;
+  if (override) {
+    modelConfig = { ...modelConfig, model: override };
+  }
+  if (isArchitectEditorRoutingEnabled()) {
+    logger.info(
+      {
+        editorModel: modelConfig.model,
+        architectModel: process.env.ARCHITECT_MODEL,
+      },
+      "[deepagents] Architect/Editor routing enabled; agent running on EDITOR model",
+    );
+  }
   const chatModel = await createChatModel(modelConfig);
   const { fallback } = loadLlmConfig();
 
@@ -440,6 +467,169 @@ async function createAgentInstance(args: {
 
   const agent = createDeepAgent(config);
   return agent;
+}
+
+// ---------------------------------------------------------------------------
+// Architect planning step (#497)
+// ---------------------------------------------------------------------------
+//
+// When Architect/Editor routing is enabled (BOTH ARCHITECT_MODEL and EDITOR_MODEL
+// set), the editor agent's user message is preceded by a concise plan produced
+// by the ARCHITECT model. The architect reasons over the task + repo context and
+// emits a short, actionable plan; the editor (the agent itself) then implements
+// it. When routing is disabled, this is a no-op and the editor runs exactly as
+// today — no extra LLM call, byte-for-byte default behavior.
+//
+// The call is best-effort: any failure (network, parse, etc.) is swallowed so
+// the editor turn still proceeds on the original user message. This avoids
+// introducing a new throw across the async invoke path.
+
+const ARCHITECT_PLAN_SYSTEM_PROMPT = `You are the Architect. Produce a concise, actionable implementation plan for the task below. Focus on:
+- The specific files/functions to add or change (paths when known).
+- The key steps in dependency order (numbered).
+- Risks, edge cases, or open questions worth flagging.
+
+Do NOT implement anything. Keep the plan under ~250 words. The editor agent will receive your plan plus the original task and execute it.`;
+
+/**
+ * Hard cap on the architect plan length (#497). The prompt asks for ~250 words,
+ * but the model can ramble; an unbounded plan bloats the editor's context. We
+ * truncate to a generous bound that still leaves room for the original task.
+ */
+const ARCHITECT_PLAN_MAX_CHARS = 2000;
+
+/**
+ * Generate a concise architect plan for a task.
+ *
+ * Returns the plan text (to be prepended to the editor's user message), or the
+ * empty string when routing is disabled or planning fails. Exported for tests.
+ *
+ * Cost/usage attribution (#497): when `threadId` is supplied, the architect call
+ * is wrapped in `llm_start`/`llm_end` stream events tagged with
+ * `role: "architect"`, and the LangChain Langfuse callback (when Langfuse is
+ * enabled) is attached to the invoke so the architect's tokens are traced —
+ * mirroring how the editor turn is instrumented. Without this the architect
+ * usage was invisible.
+ *
+ * Plan size (#497): the plan is truncated to {@link ARCHITECT_PLAN_MAX_CHARS}
+ * before being returned, so an over-long plan can't unboundedly inflate the
+ * editor's context.
+ *
+ * Best-effort: any failure (network, parse, etc.) is swallowed so the editor
+ * turn still proceeds on the original user message — no new throw crosses the
+ * async invoke path.
+ *
+ * @param options.threadId when provided, stream events are emitted for this
+ *   thread and Langfuse tracing is attached. Omit to skip attribution (used by
+ *   tests that only assert on the model config).
+ */
+export async function generateArchitectPlan(
+  task: string,
+  repoContext?: { owner?: string; name?: string; workspaceDir?: string },
+  options?: { threadId?: string },
+): Promise<string> {
+  if (!isArchitectEditorRoutingEnabled()) return "";
+
+  const threadId = options?.threadId;
+  try {
+    const modelConfig = getRoleModelConfig("architect");
+    const model = await createChatModel(modelConfig);
+
+    const repoLine = repoContext?.owner && repoContext?.name
+      ? `\n\nRepo: ${repoContext.owner}/${repoContext.name}`
+      : "";
+    const userContent = `Task:\n${task}${repoLine}`;
+
+    // Cost/usage attribution (#497): emit llm_start (role='architect') and
+    // attach the Langfuse callback when enabled, so the architect's tokens are
+    // visible in both the SSE stream and Langfuse — same shape as the editor
+    // turn below. Best-effort: the events themselves must never throw.
+    const invokeOptions: { callbacks?: BaseCallbackHandler[] } = {};
+    if (isLangfuseEnabled()) {
+      invokeOptions.callbacks = [new LangfuseLangChain()];
+    }
+    if (threadId) {
+      emitStreamEvent(threadId, {
+        type: "llm_start",
+        model: modelConfig.model,
+        role: "architect",
+        timestamp: Date.now(),
+      });
+    }
+
+    const response = await model.invoke(
+      [
+        { role: "system", content: ARCHITECT_PLAN_SYSTEM_PROMPT },
+        { role: "user", content: userContent },
+      ],
+      invokeOptions,
+    );
+
+    const plan =
+      typeof response.content === "string"
+        ? response.content.trim()
+        : "";
+
+    // Unbounded plan size (#497): cap before returning so the editor's context
+    // can't be inflated by a rambling architect. Truncate at a sentence/line
+    // boundary when possible for readability.
+    const cappedPlan = capArchitectPlan(plan, ARCHITECT_PLAN_MAX_CHARS);
+
+    if (threadId) {
+      emitStreamEvent(threadId, {
+        type: "llm_end",
+        totalTokens: Math.round(cappedPlan.length / 4),
+        role: "architect",
+        timestamp: Date.now(),
+      });
+    }
+
+    if (!cappedPlan) return "";
+
+    logger.info(
+      {
+        architectModel: modelConfig.model,
+        planLength: cappedPlan.length,
+        truncated: plan.length > ARCHITECT_PLAN_MAX_CHARS,
+      },
+      "[deepagents] Architect plan generated for editor turn",
+    );
+
+    return cappedPlan;
+  } catch (err) {
+    // Best-effort: a planning failure must NOT break the editor turn. Emit a
+    // matching llm_end so a streamed llm_start never dangles without a pair.
+    if (threadId) {
+      try {
+        emitStreamEvent(threadId, {
+          type: "llm_end",
+          totalTokens: 0,
+          role: "architect",
+          timestamp: Date.now(),
+        });
+      } catch {
+        // Streaming must never break the editor turn.
+      }
+    }
+    logger.warn(
+      { err },
+      "[deepagents] Architect planning failed; editor will run without a plan",
+    );
+    return "";
+  }
+}
+
+/**
+ * Truncate an architect plan to `maxChars`, preferring a clean break at the last
+ * newline within the bound so the truncated plan reads as a complete thought.
+ * Returns the empty string unchanged.
+ */
+function capArchitectPlan(plan: string, maxChars: number): string {
+  if (plan.length <= maxChars) return plan;
+  const slice = plan.slice(0, maxChars);
+  const lastNewline = slice.lastIndexOf("\n");
+  const body = lastNewline > maxChars * 0.5 ? slice.slice(0, lastNewline) : slice;
+  return `${body}\n[plan truncated to stay within ${maxChars} chars]`;
 }
 
 // Retry/fallback logic is now handled by prebuilt middleware
@@ -1208,14 +1398,31 @@ If you need to make additional changes, continue working and they'll be added to
           });
         }
 
-        // Emit LLM start
-        const modelConfig = loadModelConfig();
-        const model = modelConfig.model || "unknown";
-        emitStreamEvent(threadId, {
+        // Emit LLM start.
+        // The agent runs on the EDITOR model (#497); when routing is disabled
+        // getRoleModelConfig returns the single MODEL config, so `model` matches
+        // today's behavior. `role` is only included for attribution when routing
+        // is enabled, leaving the default event shape unchanged.
+        //
+        // Telemetry model accuracy (#497): when a per-thread /model override is
+        // active it is applied to the agent's chat model at setupAgent time, so
+        // the resolved model id is the override (or the editor/base model). Emit
+        // the ACTUALLY-USED model id here, not a stale config value — otherwise
+        // a /model override combined with routing would misattribute usage to
+        // the wrong model.
+        const editorModelConfig = getRoleModelConfig("editor");
+        const modelOverride = getModelOverride(threadId);
+        const resolvedEditorModel =
+          (modelOverride?.trim() || undefined) ?? editorModelConfig.model;
+        const llmStartEvent: LLMStartEvent = {
           type: "llm_start",
-          model,
+          model: resolvedEditorModel || "unknown",
           timestamp: Date.now(),
-        });
+        };
+        if (editorModelConfig.role) {
+          llmStartEvent.role = editorModelConfig.role;
+        }
+        emitStreamEvent(threadId, llmStartEvent);
 
         // Plan/Act mode (#498): in "plan" mode, instruct the agent to reason
         // and propose a plan WITHOUT editing (read-only). Only this turn's user
@@ -1224,6 +1431,31 @@ If you need to make additional changes, continue working and they'll be added to
           modifiedInput =
             "You are in PLAN MODE. Do NOT edit files, run shell/write commands, or make any changes. Read the relevant code, reason about the task, and reply with a concise, actionable PLAN (numbered steps, files to touch, risks/open questions). Stop before implementing. The user will run /act to apply changes.\n\n" +
             modifiedInput;
+        }
+
+        // Architect planning step (#497): when Architect/Editor routing is
+        // enabled, the ARCHITECT model produces a concise plan from the task +
+        // repo context and we prepend it to the editor's user message. When
+        // routing is disabled, generateArchitectPlan is a no-op (returns "")
+        // and modifiedInput is untouched — byte-for-byte today's behavior.
+        //
+        // Plan mode vs architect (#497): when the user has already engaged PLAN
+        // mode (their manual planning request), the agent itself proposes a
+        // plan, so the architect's automatic plan would double-plan. Skip the
+        // architect step in plan mode. Plan mode = the user's planning;
+        // architect = the model's auto-planning; never both.
+        if (
+          isArchitectEditorRoutingEnabled() && getMode(threadId) !== "plan"
+        ) {
+          const plan = await generateArchitectPlan(
+            modifiedInput,
+            activeRepo,
+            { threadId },
+          );
+          if (plan) {
+            modifiedInput =
+              `[ARCHITECT PLAN]\n${plan}\n[/ARCHITECT PLAN]\n\n` + modifiedInput;
+          }
         }
 
         result = traceTerminal
@@ -1244,11 +1476,15 @@ If you need to make additional changes, continue working and they'll be added to
         const messagesAfter = result.messages || [];
         const totalTokens = JSON.stringify(messagesAfter).length / 4; // Rough estimate
 
-        // Emit LLM end
+        // Emit LLM end. Tag with the editor role when routing is enabled so the
+        // paired llm_end can be attributed to the same role as its llm_start.
         emitStreamEvent(threadId, {
           type: "llm_end",
           totalTokens: Math.round(totalTokens),
           timestamp: Date.now(),
+          ...(editorModelConfig.role
+            ? { role: editorModelConfig.role }
+            : {}),
         });
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);

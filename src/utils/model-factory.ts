@@ -12,6 +12,20 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 
 export type LlmProvider = "openai" | "google";
 
+/**
+ * Agent role for Architect/Editor model routing (#497).
+ *
+ * - "architect" — planning / blueprint-selection reasoning; routed to a strong
+ *   model via ARCHITECT_MODEL.
+ * - "editor" — file edits / tool-calls; routed to a cheaper/faster model via
+ *   EDITOR_MODEL.
+ *
+ * Optional on ModelConfig so telemetry/pricing can attribute usage to a role.
+ * When Architect/Editor routing is disabled, the field is left undefined and
+ * the single MODEL behavior is unchanged.
+ */
+export type ModelRole = "architect" | "editor";
+
 export interface ModelConfig {
   provider: LlmProvider;
 
@@ -26,6 +40,12 @@ export interface ModelConfig {
 
   // --- Common optional fields ---
   temperature?: number;
+
+  /**
+   * Agent role for usage/cost attribution (Architect/Editor routing).
+   * Undefined when single-model routing is in effect.
+   */
+  role?: ModelRole;
 }
 
 /**
