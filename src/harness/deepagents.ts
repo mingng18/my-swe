@@ -284,11 +284,17 @@ async function buildMiddleware(
   return middleware;
 }
 
-async function loadAgentTools(workspaceRoot?: string): Promise<any[]> {
+export async function loadAgentTools(
+  workspaceRoot?: string,
+  opts?: { includeMcp?: boolean },
+): Promise<any[]> {
   let tools = useSandbox ? sandboxAllTools : allTools;
 
-  // Load MCP tools if enabled and workspace is available
-  if (process.env.MCP_ENABLED !== "false" && workspaceRoot) {
+  // Load MCP tools if enabled and workspace is available. Plan mode opts out
+  // (includeMcp === false) so dynamically-registered MCP server tools — which
+  // evade the static PLAN_MODE_BLOCKED_TOOLS denylist — can never write while
+  // the agent is planning. (#510)
+  if (opts?.includeMcp !== false && process.env.MCP_ENABLED !== "false" && workspaceRoot) {
     try {
       const { loadMcpTools } = await import("../mcp/tool-factory.js");
       const mcpTools = await loadMcpTools(workspaceRoot);
@@ -354,13 +360,15 @@ function isReadOnlyTool(tool: any): boolean {
  * Plan-mode toolset: same load path as `loadAgentTools`, but write/shell/mutation
  * tools are filtered out so the agent physically cannot edit while planning.
  */
-async function loadReadOnlyTools(workspaceRoot?: string): Promise<any[]> {
-  const all = await loadAgentTools(workspaceRoot);
+export async function loadReadOnlyTools(workspaceRoot?: string): Promise<any[]> {
+  // Exclude MCP tools entirely in plan mode (#510): they're loaded as top-level
+  // tools and a mutating MCP server tool would evade the static denylist.
+  const all = await loadAgentTools(workspaceRoot, { includeMcp: false });
   const filtered = all.filter(isReadOnlyTool);
   const dropped = all.length - filtered.length;
   logger.info(
     { total: all.length, kept: filtered.length, dropped },
-    "[deepagents] Plan mode: filtered write/shell/mutation tools",
+    "[deepagents] Plan mode: filtered write/shell/mutation tools (MCP excluded)",
   );
   return filtered;
 }

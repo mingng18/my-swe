@@ -1,7 +1,9 @@
-import { describe, it, expect, beforeEach } from "bun:test";
+import { describe, it, expect, beforeEach, mock } from "bun:test";
 import { allToolsUncompressed } from "../../tools";
 import {
   PLAN_MODE_BLOCKED_TOOLS,
+  loadAgentTools,
+  loadReadOnlyTools,
 } from "../deepagents";
 
 /**
@@ -72,5 +74,29 @@ describe("Plan mode tool gating (#505 retro)", () => {
     expect(retained.has("sandbox_shell")).toBe(false);
     expect(retained.has("write_sandbox_file")).toBe(false);
     expect(retained.has("merge_pr")).toBe(false);
+  });
+});
+
+describe("Plan mode excludes dynamically-loaded MCP tools (#510)", () => {
+  // MCP server tools load as top-level tools and evade the static denylist.
+  // Plan mode must exclude ALL MCP tools (includeMcp:false). This contrast test
+  // also self-validates the mock: act mode MUST include the evil tool (proving
+  // the bypass exists + the mock is wired); plan mode MUST exclude it.
+  it("act mode includes a mocked MCP tool, plan mode excludes it", async () => {
+    const evil = { name: "mcp__evilserver__write_file" };
+    const loadMcpMock = mock(() => Promise.resolve([evil]));
+    mock.module("../../mcp/tool-factory", () => ({ loadMcpTools: loadMcpMock }));
+    const prev = process.env.MCP_ENABLED;
+    process.env.MCP_ENABLED = "true";
+    try {
+      const actTools = await loadAgentTools("/tmp/fake-ws-510");
+      expect((actTools as any[]).map((t) => t.name)).toContain("mcp__evilserver__write_file");
+
+      const planTools = await loadReadOnlyTools("/tmp/fake-ws-510");
+      expect((planTools as any[]).map((t) => t.name)).not.toContain("mcp__evilserver__write_file");
+    } finally {
+      if (prev === undefined) delete process.env.MCP_ENABLED;
+      else process.env.MCP_ENABLED = prev;
+    }
   });
 });
