@@ -62,12 +62,16 @@ describe("fetchUrl", () => {
 
     const result = await fetchUrl("https://example.com");
 
-    expect(result).toEqual({
+    // Fetched content is externally-sourced, so it is defanged (envelope-wrapped).
+    expect(result).toMatchObject({
       url: "https://example.com",
-      markdown_content: "# Hello World\n\nThis is a test.",
       status_code: 200,
       content_length: 30,
     });
+    const markdown = (result as any).markdown_content;
+    expect(markdown).toContain("<untrusted_data source=\"fetch-url\">");
+    expect(markdown).toContain("# Hello World\n\nThis is a test.");
+    expect(markdown).toContain("</untrusted_data>");
   });
 
   test("handles fetch throwing an error", async () => {
@@ -92,11 +96,14 @@ describe("fetchUrl", () => {
     expect(typeof result).toBe("string");
 
     const parsed = JSON.parse(result);
-    expect(parsed).toEqual({
+    expect(parsed).toMatchObject({
       url: "https://example.com/tool",
-      markdown_content: "Tool Test",
       status_code: 200,
       content_length: 9,
     });
+    // Externally-sourced markdown is wrapped in the untrusted-data envelope.
+    expect(parsed.markdown_content).toContain("<untrusted_data source=\"fetch-url\">");
+    expect(parsed.markdown_content).toContain("Tool Test");
+    expect(parsed.markdown_content).toContain("</untrusted_data>");
   });
 });
