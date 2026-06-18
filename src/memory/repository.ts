@@ -50,9 +50,17 @@ export class MemoryRepository {
   private supabaseUrl: string;
   private client: SupabaseClient;
   private tableName = "memories";
-  private threadCache = new LRUCache<string, Memory[]>({ max: 500, ttl: 1000 * 60 * 5 });
+  private threadCache = new LRUCache<string, Memory[]>({
+    max: 500,
+    ttl: 1000 * 60 * 5,
+  });
   private pendingThreadRequests = new Map<string, Promise<Memory[]>>();
-  private dataloaderQueue: { threadId: string, types?: MemoryType[], resolve: (val: Memory[]) => void, reject: (err: any) => void }[] = [];
+  private dataloaderQueue: {
+    threadId: string;
+    types?: MemoryType[];
+    resolve: (val: Memory[]) => void;
+    reject: (err: any) => void;
+  }[] = [];
   private dataloaderTimeout: any = null;
 
   constructor(client?: SupabaseClient) {
@@ -151,7 +159,10 @@ export class MemoryRepository {
           this.dataloaderTimeout = null;
 
           try {
-            const byTypes = new Map<string, { threadIds: string[], tasks: any[] }>();
+            const byTypes = new Map<
+              string,
+              { threadIds: string[]; tasks: any[] }
+            >();
 
             for (const item of queue) {
               const typeKey = item.types?.join(",") || "";
@@ -169,21 +180,37 @@ export class MemoryRepository {
               let allMemories: Memory[] = [];
               if (uniqueThreadIds.length === 1) {
                 // If only one thread, just use the single fetch to avoid 'in' filter overhead
-                const rows = await this.supabaseSelectByThread(uniqueThreadIds[0], types);
+                const rows = await this.supabaseSelectByThread(
+                  uniqueThreadIds[0],
+                  types,
+                );
                 allMemories = rows.map((row: any) => this.fromRow(row));
               } else {
                 allMemories = await this.getByThreads(uniqueThreadIds, types);
               }
 
+              // ⚡ Bolt: Group memories by threadId in a single pass to avoid O(N*M) filtering overhead
+              const memoriesByThread = new Map<string, Memory[]>();
+              for (let i = 0; i < allMemories.length; i++) {
+                const m = allMemories[i] as any;
+                const threadArr = memoriesByThread.get(m.threadId);
+                if (!threadArr) {
+                  memoriesByThread.set(m.threadId, [m]);
+                } else {
+                  threadArr.push(m);
+                }
+              }
+
               for (const threadId of uniqueThreadIds) {
-                const threadMemories = allMemories.filter((m: any) => m.threadId === threadId);
+                const threadMemories = memoriesByThread.get(threadId) || [];
                 const ck = `${threadId}:${typeKey}`;
                 this.threadCache.set(ck, threadMemories);
                 this.pendingThreadRequests.delete(ck);
               }
 
               for (const item of group.tasks) {
-                const threadMemories = allMemories.filter((m: any) => m.threadId === item.threadId);
+                const threadMemories =
+                  memoriesByThread.get(item.threadId) || [];
                 item.resolve(threadMemories);
               }
             }
