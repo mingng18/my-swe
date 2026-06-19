@@ -168,9 +168,11 @@ export class McpClientManager {
 
     const connectionPromises: Promise<void>[] = [];
 
-    for (const [name, serverConfig] of Object.entries(
-      this.config?.servers || {},
-    )) {
+    // ⚡ Bolt: Replace Object.entries with for...in to avoid intermediate array allocations
+    const servers = this.config?.servers || {};
+    for (const name in servers) {
+      if (!Object.prototype.hasOwnProperty.call(servers, name)) continue;
+      const serverConfig = servers[name];
       if (serverConfig.disabled) {
         logger.debug(
           { server: name },
@@ -264,7 +266,10 @@ export class McpClientManager {
         };
 
         // Add process.env values that are defined strings
-        for (const [key, value] of Object.entries(process.env)) {
+        // ⚡ Bolt: Replace Object.entries with for...in to avoid intermediate array allocations
+        for (const key in process.env) {
+          if (!Object.prototype.hasOwnProperty.call(process.env, key)) continue;
+          const value = process.env[key];
           if (typeof value === "string") {
             env[key] = value;
           }

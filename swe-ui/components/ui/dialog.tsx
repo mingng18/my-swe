@@ -74,6 +74,7 @@ function DialogContent({
               className="absolute top-2 right-2"
               size="icon-sm"
               aria-label="Close dialog"
+              title="Close dialog"
             >
               <XIcon
               />

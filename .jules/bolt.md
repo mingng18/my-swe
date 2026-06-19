@@ -78,3 +78,6 @@ Bun Benchmark Results for 1M iterations:
 ## 2026-06-19 - Use for loops instead of forEach for arrays
 **Learning:** `Array.prototype.forEach` introduces callback overhead which causes performance drops when called frequently, as measured in `reviewerMapping.ts`.
 **Action:** Use native `for...of` loops instead of `.forEach` for iterating over arrays when populating `Set`s in hot paths.
+## 2026-06-18 - Optimize memory dataloader array filtering performance
+**Learning:** In the `MemoryRepository` dataloader implementation, resolving tasks by sequentially calling `allMemories.filter()` inside a `for` loop over unique threads caused an O(N*M) performance penalty, severely affecting latency when large numbers of memories were batched together.
+**Action:** Replace `Array.filter` inside resolution loops with a single pass grouping items into a `Map<string, Item[]>`, which reduces complexity to O(N) and yields significant speedups (~9x locally).

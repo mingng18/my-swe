@@ -154,6 +154,7 @@ export const ConversationDownload = ({
   return (
     <Button
       aria-label="Download conversation"
+      title="Download conversation"
       className={cn(
         "absolute top-4 right-4 rounded-full dark:bg-background dark:hover:bg-muted",
         className
