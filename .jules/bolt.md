@@ -74,3 +74,7 @@ Bun Benchmark Results for 1M iterations:
 ## 2026-05-23 - Optimize string hashing in prompt manager
 **Learning:** Found an inefficient string hashing function (`simpleHash`) in `src/utils/prompt-manager.ts` using character iteration (`str.charCodeAt`) to compute hash integers. Since Bun has a built-in highly optimized native hashing function `Bun.hash`, iterating characters manually via V8 Javascript incurs massive overhead on large strings like `agentsMd`.
 **Action:** Always prefer native string hashing `Bun.hash(str)` over manual character manipulation loops when deploying on Bun, as it runs roughly ~20x faster on large strings.
+
+## 2026-06-19 - Use for loops instead of forEach for arrays
+**Learning:** `Array.prototype.forEach` introduces callback overhead which causes performance drops when called frequently, as measured in `reviewerMapping.ts`.
+**Action:** Use native `for...of` loops instead of `.forEach` for iterating over arrays when populating `Set`s in hot paths.
