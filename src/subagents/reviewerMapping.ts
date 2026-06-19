@@ -62,7 +62,9 @@ export function getReviewersForFile(filePath: string): string[] {
       mapping.strings.some((str) => filePath.includes(str)) ||
       mapping.regexes.some((regex) => regex.test(filePath))
     ) {
-      mapping.reviewers.forEach((reviewer) => allReviewers.add(reviewer));
+      for (const reviewer of mapping.reviewers) {
+        allReviewers.add(reviewer);
+      }
     }
   }
 
@@ -75,10 +77,12 @@ export function getReviewersForFile(filePath: string): string[] {
 export function getReviewersForFiles(filePaths: string[]): string[] {
   const allReviewers = new Set<string>();
 
-  filePaths.forEach((filePath) => {
+  for (const filePath of filePaths) {
     const reviewers = getReviewersForFile(filePath);
-    reviewers.forEach((reviewer) => allReviewers.add(reviewer));
-  });
+    for (const reviewer of reviewers) {
+      allReviewers.add(reviewer);
+    }
+  }
 
   return Array.from(allReviewers);
 }
