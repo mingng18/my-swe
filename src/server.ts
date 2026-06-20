@@ -1,6 +1,8 @@
 import { createLogger } from "./utils/logger";
 import { getAgentHarness } from "./harness";
 import { createLoopRunner } from "./loop/runner";
+import { registerScheduledPatterns } from "./loop/scheduling";
+import type { LoopScheduler } from "./loop/scheduler";
 
 const logger = createLogger("server");
 
@@ -10,6 +12,24 @@ let loopRunnerSingleton: ReturnType<typeof createLoopRunner> | undefined;
 export function getLoopRunner() {
   if (!loopRunnerSingleton) loopRunnerSingleton = createLoopRunner();
   return loopRunnerSingleton;
+}
+
+let schedulerSingleton: ReturnType<typeof registerScheduledPatterns> | undefined;
+let schedulerStarted = false;
+
+/** Lazy scheduler singleton. Started once at startup when LOOP_SCHEDULING_ENABLED. */
+export function getLoopScheduler() {
+  if (!schedulerSingleton) schedulerSingleton = registerScheduledPatterns();
+  return schedulerSingleton;
+}
+
+/** Call once at process startup to (optionally) start scheduled loops. */
+export function startScheduledLoops() {
+  const s = getLoopScheduler();
+  if (schedulerStarted || s.list().length === 0) return s;
+  s.start();
+  schedulerStarted = true;
+  return s;
 }
 
 /**
@@ -75,4 +95,11 @@ export async function runCodeagentTurn(
     );
     return `Error: ${errorMsg}`;
   }
+}
+
+// Optionally start scheduled loops at module load. Guarded by
+// LOOP_SCHEDULING_ENABLED and only acts when patterns are registered, so this
+// is a no-op in tests and when scheduling is disabled.
+if (process.env.LOOP_SCHEDULING_ENABLED === "true") {
+  startScheduledLoops();
 }
