@@ -1,14 +1,17 @@
-import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect, mock, beforeEach, afterEach, spyOn } from "bun:test";
+
+// Capture the REAL telegram module exports BEFORE we mock it below. The mock
+// only needs to override isDuplicateMessage + sendChatAction for webapp, but
+// Bun's mock.module replaces the module process-wide, so we spread the real
+// exports to keep every named export (e.g. _clearDuplicateCache,
+// formatCodeBlock, buildHitlKeyboard) available for any other test file
+// (tests/utils/telegram.test.ts) loaded in the same process.
+import * as realTelegram from "../utils/telegram";
 
 const originalFetch = globalThis.fetch;
 
 
 
-import { spyOn } from "bun:test";
-import * as configUtils from "../utils/config";
-import * as githubUtils from "../utils/github/index";
-import * as identityUtils from "../utils/identity";
-import * as telegramUtils from "../utils/telegram";
 
 let mockLoadTelegramConfig: any;
 let mockVerifyGithubSignature: any;
@@ -57,45 +60,66 @@ mock.module("../utils/identity", () => ({
   getEmailForIdentity: () => "test@example.com",
 }));
 
+// Spread the real telegram module so the mock is a superset of its exports.
+// Other test files loaded in the same Bun process (tests/utils/telegram.test.ts)
+// import the same absolute module path; without the spread, mock.module would
+// strip their named exports (_clearDuplicateCache, buildHitlKeyboard, ...) and
+// raise "Export named '...' not found". We keep sendChatAction as a noop to
+// avoid live Telegram API calls, and let the real isDuplicateMessage run so we
+// don't poison its module-level dedup Map for sibling test files.
 mock.module("../utils/telegram", () => ({
-  isDuplicateMessage: () => false,
+  ...realTelegram,
   sendChatAction: async () => {},
 }));
 
-// Important: Import app AFTER setting up the mocks
+// Mock at the harness level (same as server.test.ts) to avoid poisoning
+// the ../server module cache for other test files
+const mockHarnessRun = mock(async (input: string) => ({
+  reply: `Mocked reply for: ${input}`,
+}));
+
+mock.module("../harness", () => ({
+  getAgentHarness: () => Promise.resolve({ run: mockHarnessRun }),
+}));
+
+mock.module("../utils/logger", () => ({
+  createLogger: () => ({
+    info: mock(), error: mock(), warn: mock(), debug: mock(),
+  }),
+}));
+
+// Import AFTER mocks are set up
 const { default: app } = await import("../webapp");
-import * as server from "../server";
+const server = await import("../server");
+
+// Spy on the real runCodeagentTurn so we can assert call counts/args.
+// Since harness is mocked, the real function just calls through to mockHarnessRun.
+let runCodeagentTurnSpy: ReturnType<typeof spyOn>;
 
 beforeEach(() => {
-  // Reset mocks if needed, but they are already set up at top level
+  mockHarnessRun.mockClear();
+  runCodeagentTurnSpy = spyOn(server, "runCodeagentTurn");
 });
 
 afterEach(() => {
-  // Mocks are handled by mock.module
+  runCodeagentTurnSpy.mockRestore();
 });
 
 
 describe("webapp", () => {
   let mockFetch: ReturnType<typeof mock>;
 
-  let mockRunCodeagentTurn: any;
   beforeEach(() => {
     mockFetch = mock(() =>
       Promise.resolve(new Response(JSON.stringify({ ok: true }))),
     );
     globalThis.fetch = mockFetch as unknown as typeof fetch;
-    // mock.restore(); // REMOVED: this would kill our mock.module mocks
-    // Reset our specific mocks
-    mockRunCodeagentTurn = spyOn(server, "runCodeagentTurn").mockImplementation(async (input: string) => `Mocked reply for: ${input}`);
     if (mockVerifyGithubSignature) mockVerifyGithubSignature.mockClear();
     mockVerifyGithubSignatureMutable.returnValue = true;
   });
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
-    if (mockRunCodeagentTurn) {
-      mockRunCodeagentTurn.mockRestore();
-    }
   });
 
   describe("GET /health", () => {
@@ -149,7 +173,7 @@ describe("webapp", () => {
       expect(data.result).toBe("Mocked reply for: hello world");
       expect(data.input).toBe("hello world");
       expect(data.state.replyLength).toBeGreaterThan(0);
-      expect(server.runCodeagentTurn).toHaveBeenCalledWith("hello world", expect.any(String), undefined, "http");
+      expect(runCodeagentTurnSpy).toHaveBeenCalledWith("hello world", expect.any(String), undefined, "http");
     });
   });
 
@@ -207,7 +231,7 @@ describe("webapp", () => {
       });
       // runCodeagentTurn is called async in queue, wait a tick
       await new Promise((resolve) => setTimeout(resolve, 10));
-      expect(server.runCodeagentTurn).toHaveBeenCalled();
+      expect(runCodeagentTurnSpy).toHaveBeenCalled();
       expect(mockFetch).toHaveBeenCalled();
     });
 
@@ -226,7 +250,7 @@ describe("webapp", () => {
         ok: true,
         message: "Update received",
       });
-      expect(server.runCodeagentTurn).not.toHaveBeenCalled();
+      expect(runCodeagentTurnSpy).not.toHaveBeenCalled();
     });
   });
 
@@ -296,7 +320,7 @@ describe("webapp", () => {
 
       // runCodeagentTurn is called async, wait a tick
       await new Promise((resolve) => setTimeout(resolve, 0));
-      expect(server.runCodeagentTurn).toHaveBeenCalled();
+      expect(runCodeagentTurnSpy).toHaveBeenCalled();
     });
   });
 });
