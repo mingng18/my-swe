@@ -6,6 +6,7 @@ import { logger as httpLogger } from "hono/logger";
 
 import { runCodeagentTurn, getLoopRunner } from "./server";
 import { runSelfImprovementCycle } from "./loop/self-improve/orchestrator";
+import { createEvalRunner, loadEvalCasesFromEnv } from "./loop/self-improve/eval-runner";
 import { streamRegistry } from "./stream";
 import { LRUCache } from "lru-cache";
 
@@ -241,21 +242,33 @@ app.post("/loop/:threadId/resume", async (c) => {
 // Off by default; requires LOOP_SELF_IMPROVE_ENABLED=true. Proposes eval-gated
 // config deltas, records decisions, and HITL-requests accepted deltas. v1 does
 // NOT auto-mutate harness config — applying is HITL-gated and deferred.
+//
+// Eval runner is opt-in: with no LOOP_SELF_IMPROVE_EVAL_CASES configured the
+// cycle uses a conservative default that returns the current pass-rate (never
+// improves => always rejects), so the endpoint is safe by default. Set
+// LOOP_SELF_IMPROVE_EVAL_CASES to inline JSON or a path to a JSON file of
+// EvalCase[] to swap in a real runner backed by EvalHarness.
 app.post("/loop/self-improve", async (c) => {
   if (process.env.LOOP_SELF_IMPROVE_ENABLED !== "true") {
     return c.json({ error: "self-improvement is disabled (set LOOP_SELF_IMPROVE_ENABLED=true)" }, 403);
   }
   const runner = getLoopRunner();
-  // Default eval runner: a real EvalHarness run is heavy; for v1 we expose the cycle
-  // with a placeholder eval runner that returns the current pass-rate (no change => reject),
-  // so the endpoint is safe by default. Operators inject a real evalRunner via code.
+  // Eval runner: a real EvalHarness run is heavy; by default we expose the cycle
+  // with a conservative eval runner that returns the current pass-rate (no change
+  // => reject), so the endpoint is safe by default. When an operator configures a
+  // fixed set of eval cases via LOOP_SELF_IMPROVE_EVAL_CASES (inline JSON or a path
+  // to a JSON file), we swap in a real runner backed by EvalHarness instead.
+  const evalCases = loadEvalCasesFromEnv(process.env.LOOP_SELF_IMPROVE_EVAL_CASES);
+  const evalRunner = evalCases
+    ? createEvalRunner({ cases: evalCases })
+    : async () => {
+        const traces = runner.traceStore.queryAll();
+        const passed = traces.filter((t) => t.outcome === "passed").length;
+        return traces.length ? passed / traces.length : 0;
+      };
   const res = await runSelfImprovementCycle({
     traceStore: runner.traceStore,
-    evalRunner: async () => {
-      const traces = runner.traceStore.queryAll();
-      const passed = traces.filter((t) => t.outcome === "passed").length;
-      return traces.length ? passed / traces.length : 0;
-    },
+    evalRunner,
     hitlStore: runner.hitlStore,
     enabled: true,
   });

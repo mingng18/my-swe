@@ -30,6 +30,13 @@ export interface LoopRunInput {
   transport?: "telegram" | "http" | "github";
   goal?: Partial<GoalSpec>;
   getSandbox?: SandboxAccessor;
+  /**
+   * Whether the eval gate has passed for this thread/goal. When the goal's
+   * autonomyLevel is "unattended", the loop may only proceed unattended if this
+   * is true (or getEvalGate resolves true); otherwise it is downgraded to
+   * "assisted" so the existing HITL-on-escalate path still guards it.
+   */
+  evalGatePassed?: boolean;
 }
 
 export interface LoopRunResult {
@@ -49,6 +56,19 @@ export interface LoopRunnerDeps {
   /** Override the verify registry (tests). Default: buildVerifyRegistry. */
   buildRegistry?: (profile: VerifyProfile) => ActionRegistry;
   hitlEnabled?: boolean;
+  /**
+   * Static eval-gate result for the autonomy ladder. When the goal's
+   * autonomyLevel is "unattended", the loop may only proceed unattended if
+   * this is true (or getEvalGate resolves true); otherwise it is downgraded
+   * to "assisted".
+   */
+  evalGatePassed?: boolean;
+  /**
+   * Async eval-gate check for the autonomy ladder. If the goal's
+   * autonomyLevel is "unattended" and evalGatePassed is unset, this is
+   * consulted to decide whether unattended autonomy is honored.
+   */
+  getEvalGate?: () => Promise<boolean>;
 }
 
 export function createLoopRunner(deps: LoopRunnerDeps = {}) {
@@ -67,6 +87,30 @@ export function createLoopRunner(deps: LoopRunnerDeps = {}) {
 
     const trace = traceStore.open(threadId, goal);
     const prior = stateStore.load(threadId);
+
+    // Autonomy maturity ladder: "unattended" must earn its autonomy via the
+    // eval gate. If the gate has not passed for this thread/goal, downgrade
+    // the effective autonomyLevel to "assisted" so the existing HITL-on-
+    // escalate path still guards it.
+    if (goal.autonomyLevel === "unattended") {
+      const gatePassed =
+        input.evalGatePassed ??
+        deps.evalGatePassed ??
+        (deps.getEvalGate ? await deps.getEvalGate() : false);
+      if (!gatePassed) {
+        (goal as GoalSpec).autonomyLevel = "assisted";
+        traceStore.appendNote(trace.traceId, {
+          at: new Date().toISOString(),
+          level: "warn",
+          message: "unattended downgraded to assisted (eval gate not passed)",
+        });
+      }
+    }
+    // Whether HITL applies for this run: explicit assisted/report autonomy
+    // (including the downgrade above) honors hitlEnabled; honored "unattended"
+    // autonomy runs without HITL gating.
+    const effectiveHitlEnabled =
+      hitlEnabled && goal.autonomyLevel !== "unattended";
 
     const executor = createHarnessAgentExecutor(getHarness, {
       threadId,
@@ -103,7 +147,7 @@ export function createLoopRunner(deps: LoopRunnerDeps = {}) {
         : "passed";
 
       let hitl: HITLRequest | undefined;
-      if (outcome === "escalated" && hitlEnabled) {
+      if (outcome === "escalated" && effectiveHitlEnabled) {
         outcome = "hitl_paused";
         hitl = hitlStore.create({
           threadId,

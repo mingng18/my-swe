@@ -180,6 +180,55 @@ await graph.invoke({ input: task, currentState: selection.blueprint.initialState
 - `chore` - Maintenance tasks
 - `default` - Fallback for general tasks
 
+## Loop Engineering System
+
+`runCodeagentTurn` can optionally run inside a bounded **verify → fix → escalate** loop instead of its default one-shot agent call. When `LOOP_ENABLED=true` the turn delegates to a `LoopRunner` (`src/loop/runner.ts`) that compiles the feedback-loop graph, runs it up to a `maxIterations` ceiling, injects prior failures back into each retry, and either closes the work (pass → `create_pr`) or escalates. When `LOOP_ENABLED` is unset (the default), the turn runs the legacy one-shot path unchanged — **all loop behavior is off by default with zero change unless a flag is set**.
+
+The loop follows the four-rung loopcraft ladder, all living under `src/loop/`:
+
+| Rung | Name | Responsibility | Key modules |
+|------|------|----------------|-------------|
+| **L1** | Agent loop | The inner perceive-reason-act loop (the harness) with an explicit termination contract and structured step traces | `src/loop/goal.ts`, `src/harness/agent-factory.ts` |
+| **L2** | Verify / feedback loop | Maker-checker gate + feedback→re-prompt + bounded escalation; closes the core gap | `src/loop/runner.ts`, `harness-executor.ts`, `verify-registry.ts`, `state-store.ts`, `trace-store.ts`, `hitl.ts` |
+| **L3** | Scheduled / event loops | Loops that fire on cron/webhook without a human prompt | `src/loop/scheduler.ts`, `scheduling.ts`, `src/loop/patterns/{pr-babysitter,ci-sweeper,daily-triage}.ts` |
+| **L4** | Self-improvement | An analysis agent proposes eval-gated, human-approved harness-config edits from accumulated traces | `src/loop/self-improve/{analyzer,config-rewriter,apply,orchestrator,eval-runner}.ts` |
+
+### Environment Flags
+
+All flags are opt-in and **off by default**:
+
+```bash
+LOOP_ENABLED=true              # gate the loop path; unset = legacy one-shot
+LOOP_MAX_ITERATIONS=3          # default retry ceiling (overridable per goal/blueprint)
+LOOP_AUTONOMY_LEVEL=assisted   # report | assisted | unattended (unattended must earn it via the eval gate)
+LOOP_HITL_ENABLED=true         # pause for human approval at escalate / before risky actions
+
+# L3 scheduling
+LOOP_SCHEDULING_ENABLED=true   # enable the in-process scheduler
+LOOP_SCHEDULE_PR_BABYSITTER_MS=...   # per-pattern intervals (milliseconds)
+LOOP_SCHEDULE_CI_SWEEPER_MS=...
+LOOP_SCHEDULE_DAILY_TRIAGE_MS=...
+
+# L4 self-improvement (off by default; enable explicitly)
+LOOP_SELF_IMPROVE_ENABLED=true
+```
+
+### HTTP Endpoints
+
+- `POST /loop/:threadId/resume` — resolve a pending HITL request (approve / reject / modify)
+- `GET /loop/:threadId/status` — pending HITL request (if any) + last loop state
+- `POST /loop/self-improve` — env-gated L4 self-improvement cycle (requires `LOOP_SELF_IMPROVE_ENABLED=true`; proposes eval-gated, HITL-approved harness-config deltas, never a blind overwrite)
+
+### Autonomy Ladder
+
+Every `LoopRunner.run` declares an `autonomyLevel`:
+
+- **report** — verify-only, makes no changes; safe default for new loop types
+- **assisted** — attempts fixes and opens a PR, but escalates to HITL before merge/risky actions (default for `runCodeagentTurn`)
+- **unattended** — may merge/auto-apply, **only** if the eval gate passes and `LOOP_AUTONOMY_LEVEL=unattended`; never the default
+
+**Spec:** [docs/superpowers/specs/2026-06-20-loop-engineering-design.md](docs/superpowers/specs/2026-06-20-loop-engineering-design.md)
+
 ## Environment Setup
 
 Copy `.env.example` to `.env` and configure:
