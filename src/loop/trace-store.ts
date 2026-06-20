@@ -22,12 +22,21 @@ export interface TraceRecord {
   startedAt: string;
   endedAt?: string;
   iterations: IterationRecord[];
+  notes: TraceNote[];
   outcome: TraceOutcome;
+}
+
+export interface TraceNote {
+  at: string;
+  level: "info" | "warn";
+  message: string;
 }
 
 export interface TraceStore {
   open(threadId: string, goal: GoalSpec): TraceRecord;
   appendIteration(traceId: string, iter: IterationRecord): void;
+  /** Append a free-form trace/feedback note (e.g. autonomy downgrades). */
+  appendNote(traceId: string, note: TraceNote): void;
   finalize(traceId: string, outcome: TraceOutcome): void;
   get(traceId: string): TraceRecord | undefined;
   queryByThread(threadId: string): TraceRecord[];
@@ -71,6 +80,7 @@ export function createTraceStore(dir: string = defaultDir()): TraceStore {
         goal,
         startedAt: new Date().toISOString(),
         iterations: [],
+        notes: [],
         outcome: "running",
       };
       live.set(rec.traceId, rec);
@@ -87,6 +97,15 @@ export function createTraceStore(dir: string = defaultDir()): TraceStore {
       appendFileSync(
         traceFile(dir, traceId),
         JSON.stringify({ event: "iteration", ...iter }) + "\n",
+      );
+    },
+    appendNote(traceId, note) {
+      const rec = live.get(traceId);
+      if (!rec) return;
+      rec.notes.push(note);
+      appendFileSync(
+        traceFile(dir, traceId),
+        JSON.stringify({ event: "note", ...note }) + "\n",
       );
     },
     finalize(traceId, outcome) {

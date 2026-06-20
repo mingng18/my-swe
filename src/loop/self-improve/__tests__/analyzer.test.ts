@@ -8,6 +8,7 @@ function trace(outcome: TraceRecord["outcome"], fails: { step: string; output: s
   return {
     traceId, threadId: "t", goal: deriveGoal("x"), startedAt: "now",
     iterations: [{ index: 0, agentOutput: "", verification: fails.map((f) => ({ step: f.step, passed: false, output: f.output })), decision: outcome === "passed" ? "pass" : "escalate" }],
+    notes: [],
     outcome,
   };
 }

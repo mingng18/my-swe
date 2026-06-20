@@ -91,3 +91,71 @@ test("with HITL enabled, escalation pauses and returns a HITL request", async ()
   expect(res.hitl?.requestId).toBeTruthy();
   expect(res.hitl?.options).toContain("approve");
 });
+
+test("unattended autonomy is downgraded to assisted when eval gate not passed (HITL path)", async () => {
+  const traceStore = createTraceStore(traceDir);
+  const runner = createLoopRunner({
+    getHarness: fakeHarness,
+    buildRegistry: () => flakyRegistry(99, true), // never passes → escalation
+    hitlEnabled: true,
+    stateStore: createStateStore(stateDir),
+    traceStore,
+    evalGatePassed: false,
+  });
+  const res = await runner.run({
+    input: "fix",
+    threadId: "unattended-no-gate",
+    goal: { maxIterations: 1, autonomyLevel: "unattended" },
+  });
+  // Downgraded to assisted → escalation routes through HITL instead of running unattended.
+  expect(res.outcome).toBe("hitl_paused");
+  expect(res.hitl?.requestId).toBeTruthy();
+  // Trace records the downgrade feedback note.
+  const traces = traceStore.queryByThread("unattended-no-gate");
+  const serialized = JSON.stringify(traces);
+  expect(serialized).toContain("unattended downgraded to assisted");
+});
+
+test("unattended autonomy is NOT downgraded when eval gate has passed", async () => {
+  const traceStore = createTraceStore(traceDir);
+  const runner = createLoopRunner({
+    getHarness: fakeHarness,
+    buildRegistry: () => flakyRegistry(99, true), // never passes → escalation
+    hitlEnabled: false, // unattended runs without HITL gating
+    stateStore: createStateStore(stateDir),
+    traceStore,
+    evalGatePassed: true,
+  });
+  const res = await runner.run({
+    input: "fix",
+    threadId: "unattended-gate-passed",
+    goal: { maxIterations: 1, autonomyLevel: "unattended" },
+  });
+  // Gate passed → unattended honored → no HITL pause (HITL disabled), escalates directly.
+  expect(res.outcome).toBe("escalated");
+  // No downgrade note recorded.
+  const traces = traceStore.queryByThread("unattended-gate-passed");
+  expect(JSON.stringify(traces)).not.toContain("unattended downgraded to assisted");
+});
+
+test("unattended autonomy is honored via getEvalGate() returning true", async () => {
+  const traceStore = createTraceStore(traceDir);
+  const runner = createLoopRunner({
+    getHarness: fakeHarness,
+    buildRegistry: () => flakyRegistry(99, true),
+    hitlEnabled: true,
+    stateStore: createStateStore(stateDir),
+    traceStore,
+    getEvalGate: async () => true,
+  });
+  const res = await runner.run({
+    input: "fix",
+    threadId: "unattended-getgate",
+    goal: { maxIterations: 1, autonomyLevel: "unattended" },
+  });
+  // Gate passed via async getter → unattended honored even with HITL enabled → escalates directly.
+  expect(res.outcome).toBe("escalated");
+  expect(JSON.stringify(traceStore.queryByThread("unattended-getgate"))).not.toContain(
+    "unattended downgraded to assisted",
+  );
+});
