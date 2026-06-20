@@ -1,7 +1,16 @@
 import { createLogger } from "./utils/logger";
 import { getAgentHarness } from "./harness";
+import { createLoopRunner } from "./loop/runner";
 
 const logger = createLogger("server");
+
+let loopRunnerSingleton: ReturnType<typeof createLoopRunner> | undefined;
+
+/** Lazily create (or return) the shared loop runner used by transports. */
+export function getLoopRunner() {
+  if (!loopRunnerSingleton) loopRunnerSingleton = createLoopRunner();
+  return loopRunnerSingleton;
+}
 
 /**
  * Run a single agent turn.
@@ -24,6 +33,19 @@ export async function runCodeagentTurn(
   const startedAt = Date.now();
 
   try {
+    if (process.env.LOOP_ENABLED === "true") {
+      const runner = getLoopRunner();
+      const res = await runner.run({
+        input: userText,
+        threadId: threadId ?? "default-session",
+        userId,
+        transport,
+      });
+      const max = 8190;
+      const reply = res.reply;
+      return reply.length > max ? `${reply.slice(0, max)}…` : reply;
+    }
+
     const harness = await getAgentHarness();
     const result = await harness.run(userText, {
       threadId: threadId ?? "default-session",
