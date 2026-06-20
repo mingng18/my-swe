@@ -1,3 +1,4 @@
+import { InlineKeyboard } from "grammy";
 import { createLogger } from "./logger";
 
 const logger = createLogger("telegram-utils");
@@ -34,6 +35,11 @@ export function isDuplicateMessage(chatId: number, messageId: number): boolean {
 
   recentlyProcessedMessages.set(key, now);
   return false;
+}
+
+/** Clear the duplicate-message cache (intended for testing only). */
+export function _clearDuplicateCache(): void {
+  recentlyProcessedMessages.clear();
 }
 
 /**
@@ -224,4 +230,34 @@ export function formatTelegramMarkdownV2(text: string): string {
   }
 
   return result;
+}
+
+/**
+ * Build a Telegram inline keyboard for a HITL (human-in-the-loop) request.
+ *
+ * Each button's `callback_data` encodes `loop:hitl:<requestId>:<decision>`,
+ * which the Telegram callback handler in `src/index.ts` recognizes and
+ * resolves via the LoopRunner's HITL store.
+ *
+ * @param requestId - The HITL request identifier to resolve.
+ * @returns A grammy `InlineKeyboard` instance with Approve/Reject/Modify buttons.
+ */
+export function buildHitlKeyboard(requestId: string) {
+  return new InlineKeyboard()
+    .text("✅ Approve", `loop:hitl:${requestId}:approve`)
+    .text("❌ Reject", `loop:hitl:${requestId}:reject`)
+    .row()
+    .text("✏️ Modify", `loop:hitl:${requestId}:modify`);
+}
+
+/** Resolve a HITL callback_data string. Returns null if not a HITL callback. */
+export function parseHitlCallback(
+  data: string,
+): { requestId: string; decision: "approve" | "reject" | "modify" } | null {
+  const m = data.match(/^loop:hitl:(.+):(approve|reject|modify)$/);
+  if (!m) return null;
+  return {
+    requestId: m[1],
+    decision: m[2] as "approve" | "reject" | "modify",
+  };
 }

@@ -1,7 +1,36 @@
 import { createLogger } from "./utils/logger";
 import { getAgentHarness } from "./harness";
+import { createLoopRunner } from "./loop/runner";
+import { registerScheduledPatterns } from "./loop/scheduling";
+import type { LoopScheduler } from "./loop/scheduler";
 
 const logger = createLogger("server");
+
+let loopRunnerSingleton: ReturnType<typeof createLoopRunner> | undefined;
+
+/** Lazily create (or return) the shared loop runner used by transports. */
+export function getLoopRunner() {
+  if (!loopRunnerSingleton) loopRunnerSingleton = createLoopRunner();
+  return loopRunnerSingleton;
+}
+
+let schedulerSingleton: ReturnType<typeof registerScheduledPatterns> | undefined;
+let schedulerStarted = false;
+
+/** Lazy scheduler singleton. Started once at startup when LOOP_SCHEDULING_ENABLED. */
+export function getLoopScheduler() {
+  if (!schedulerSingleton) schedulerSingleton = registerScheduledPatterns();
+  return schedulerSingleton;
+}
+
+/** Call once at process startup to (optionally) start scheduled loops. */
+export function startScheduledLoops() {
+  const s = getLoopScheduler();
+  if (schedulerStarted || s.list().length === 0) return s;
+  s.start();
+  schedulerStarted = true;
+  return s;
+}
 
 /**
  * Run a single agent turn.
@@ -24,6 +53,19 @@ export async function runCodeagentTurn(
   const startedAt = Date.now();
 
   try {
+    if (process.env.LOOP_ENABLED === "true") {
+      const runner = getLoopRunner();
+      const res = await runner.run({
+        input: userText,
+        threadId: threadId ?? "default-session",
+        userId,
+        transport,
+      });
+      const max = 8190;
+      const reply = res.reply;
+      return reply.length > max ? `${reply.slice(0, max)}…` : reply;
+    }
+
     const harness = await getAgentHarness();
     const result = await harness.run(userText, {
       threadId: threadId ?? "default-session",
@@ -53,4 +95,11 @@ export async function runCodeagentTurn(
     );
     return `Error: ${errorMsg}`;
   }
+}
+
+// Optionally start scheduled loops at module load. Guarded by
+// LOOP_SCHEDULING_ENABLED and only acts when patterns are registered, so this
+// is a no-op in tests and when scheduling is disabled.
+if (process.env.LOOP_SCHEDULING_ENABLED === "true") {
+  startScheduledLoops();
 }

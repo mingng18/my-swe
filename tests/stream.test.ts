@@ -17,7 +17,10 @@ describe("SSE Endpoint", () => {
   });
 
   afterAll(() => {
-    server?.stop();
+    // Force-close: some SSE tests open streaming connections without an
+    // AbortController, so a plain stop() would wait for them forever and hang
+    // the whole test process at exit.
+    server?.stop(true);
   });
 
   it("should accept SSE connections", async () => {

@@ -4,7 +4,8 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger as httpLogger } from "hono/logger";
 
-import { runCodeagentTurn } from "./server";
+import { runCodeagentTurn, getLoopRunner } from "./server";
+import { runSelfImprovementCycle } from "./loop/self-improve/orchestrator";
 import { streamRegistry } from "./stream";
 import { LRUCache } from "lru-cache";
 
@@ -208,6 +209,57 @@ app.post("/run", async (c) => {
       500,
     );
   }
+});
+
+// GET /loop/:threadId/status — pending HITL request (if any) + last loop state
+app.get("/loop/:threadId/status", (c) => {
+  const threadId = c.req.param("threadId");
+  const runner = getLoopRunner();
+  const hitl = runner.hitlStore.getByThread(threadId);
+  return c.json({ threadId, pendingHITL: hitl ?? null });
+});
+
+// POST /loop/:threadId/resume — resolve a pending HITL request
+app.post("/loop/:threadId/resume", async (c) => {
+  const threadId = c.req.param("threadId");
+  const body = (await c.req.json().catch(() => ({}))) as {
+    requestId?: string;
+    decision?: "approve" | "reject" | "modify";
+    note?: string;
+  };
+  const runner = getLoopRunner();
+  const req = body.requestId
+    ? runner.hitlStore.get(body.requestId)
+    : runner.hitlStore.getByThread(threadId);
+  if (!req) return c.json({ error: "no pending HITL request" }, 404);
+  if (!body.decision) return c.json({ error: "decision required" }, 400);
+  const resolved = runner.hitlStore.resolve(req.requestId, body.decision, body.note);
+  return c.json({ threadId, resolved });
+});
+
+// POST /loop/self-improve — env-gated self-improvement cycle (L4).
+// Off by default; requires LOOP_SELF_IMPROVE_ENABLED=true. Proposes eval-gated
+// config deltas, records decisions, and HITL-requests accepted deltas. v1 does
+// NOT auto-mutate harness config — applying is HITL-gated and deferred.
+app.post("/loop/self-improve", async (c) => {
+  if (process.env.LOOP_SELF_IMPROVE_ENABLED !== "true") {
+    return c.json({ error: "self-improvement is disabled (set LOOP_SELF_IMPROVE_ENABLED=true)" }, 403);
+  }
+  const runner = getLoopRunner();
+  // Default eval runner: a real EvalHarness run is heavy; for v1 we expose the cycle
+  // with a placeholder eval runner that returns the current pass-rate (no change => reject),
+  // so the endpoint is safe by default. Operators inject a real evalRunner via code.
+  const res = await runSelfImprovementCycle({
+    traceStore: runner.traceStore,
+    evalRunner: async () => {
+      const traces = runner.traceStore.queryAll();
+      const passed = traces.filter((t) => t.outcome === "passed").length;
+      return traces.length ? passed / traces.length : 0;
+    },
+    hitlStore: runner.hitlStore,
+    enabled: true,
+  });
+  return c.json(res);
 });
 
 /**

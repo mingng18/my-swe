@@ -1,14 +1,28 @@
-import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect, mock, beforeEach, afterEach, afterAll, spyOn } from "bun:test";
+
+// Capture the REAL telegram module exports BEFORE we mock it below. The mock
+// only needs to override isDuplicateMessage + sendChatAction for webapp, but
+// Bun's mock.module replaces the module process-wide, so we spread the real
+// exports to keep every named export (e.g. _clearDuplicateCache,
+// formatCodeBlock, buildHitlKeyboard) available for any other test file
+// (tests/utils/telegram.test.ts) loaded in the same process.
+import * as realTelegram from "../utils/telegram";
+// Same capture-real-before-mock pattern as telegram: spread the real identity
+// module in its mock below so sibling test files that import IDENTITY_MAP
+// (e.g. src/loop/__tests__/server-wiring.test.ts via ../../server) don't break.
+import * as realIdentity from "../utils/identity";
+import * as realGithub from "../utils/github";
+import * as realConfig from "../utils/config";
+import * as realLogger from "../utils/logger";
 
 const originalFetch = globalThis.fetch;
+// Save env vars we mutate below so we can restore them and avoid leaking
+// TELEGRAM_BOT_TOKEN / TELEGRAM_PARSE_MODE into sibling test files.
+const originalTelegramToken = process.env.TELEGRAM_BOT_TOKEN;
+const originalTelegramParseMode = process.env.TELEGRAM_PARSE_MODE;
 
 
 
-import { spyOn } from "bun:test";
-import * as configUtils from "../utils/config";
-import * as githubUtils from "../utils/github/index";
-import * as identityUtils from "../utils/identity";
-import * as telegramUtils from "../utils/telegram";
 
 let mockLoadTelegramConfig: any;
 let mockVerifyGithubSignature: any;
@@ -30,15 +44,21 @@ export const mockVerifyGithubSignatureMutable = {
   returnValue: true
 };
 
-// Mock dependencies using mock.module BEFORE importing app
+// Mock dependencies using mock.module BEFORE importing app.
+// For ../utils/config we spread the real module and do NOT override
+// loadTelegramConfig: overriding it process-wide (even via spread) replaces
+// the live binding and breaks src/utils/__tests__/config.test.ts, which
+// asserts the REAL loadTelegramConfig reads process.env. Instead we set the
+// env vars the real loadTelegramConfig reads, so webapp's endpoints get a
+// valid telegram config while sibling config tests keep the real function.
+process.env.TELEGRAM_BOT_TOKEN = "mock-bot-token";
+process.env.TELEGRAM_PARSE_MODE = "HTML";
 mock.module("../utils/config", () => ({
-  loadTelegramConfig: () => ({ 
-    telegramBotToken: "mock-bot-token",
-    telegramParseMode: "HTML"
-  })
+  ...realConfig,
 }));
 
 mock.module("../utils/github", () => ({
+  ...realGithub,
   verifyGithubSignature: () => mockVerifyGithubSignatureMutable.returnValue,
   extractPrContext: async () => [
     {} as any, 123, "main", "testuser", "https://github.com/pr", 1, "node-1"
@@ -54,48 +74,90 @@ mock.module("../utils/github", () => ({
 }));
 
 mock.module("../utils/identity", () => ({
+  ...realIdentity,
   getEmailForIdentity: () => "test@example.com",
 }));
 
+// Spread the real telegram module so the mock is a superset of its exports.
+// Other test files loaded in the same Bun process (tests/utils/telegram.test.ts
+// AND src/utils/__tests__/telegram.test.ts) import the same absolute module
+// path; without the spread, mock.module would strip their named exports
+// (_clearDuplicateCache, buildHitlKeyboard, ...) and raise "Export named '...'
+// not found". We do NOT override sendChatAction here: a noop override would
+// replace the real implementation process-wide and break
+// src/utils/__tests__/telegram.test.ts (which asserts sendChatAction calls
+// fetch). Live Telegram API calls are already prevented because webapp's
+// describe-block mocks globalThis.fetch, and sendChatAction uses the global
+// fetch. isDuplicateMessage is also left as the real implementation so its
+// module-level dedup Map is not poisoned for sibling test files.
 mock.module("../utils/telegram", () => ({
-  isDuplicateMessage: () => false,
-  sendChatAction: async () => {},
+  ...realTelegram,
 }));
 
-// Important: Import app AFTER setting up the mocks
+// Mock at the harness level (same as server.test.ts) to avoid poisoning
+// the ../server module cache for other test files
+const mockHarnessRun = mock(async (input: string) => ({
+  reply: `Mocked reply for: ${input}`,
+}));
+
+mock.module("../harness", () => ({
+  getAgentHarness: () => Promise.resolve({ run: mockHarnessRun }),
+}));
+
+mock.module("../utils/logger", () => ({
+  ...realLogger,
+  createLogger: () => ({
+    info: mock(), error: mock(), warn: mock(), debug: mock(),
+  }),
+}));
+
+// Import AFTER mocks are set up
 const { default: app } = await import("../webapp");
-import * as server from "../server";
+const server = await import("../server");
+
+// Restore env vars mutated above so they don't leak into sibling test files
+// (config.test.ts asserts loadTelegramConfig reads a clean process.env).
+afterAll(() => {
+  if (originalTelegramToken === undefined) {
+    delete process.env.TELEGRAM_BOT_TOKEN;
+  } else {
+    process.env.TELEGRAM_BOT_TOKEN = originalTelegramToken;
+  }
+  if (originalTelegramParseMode === undefined) {
+    delete process.env.TELEGRAM_PARSE_MODE;
+  } else {
+    process.env.TELEGRAM_PARSE_MODE = originalTelegramParseMode;
+  }
+});
+
+// Spy on the real runCodeagentTurn so we can assert call counts/args.
+// Since harness is mocked, the real function just calls through to mockHarnessRun.
+let runCodeagentTurnSpy: ReturnType<typeof spyOn>;
 
 beforeEach(() => {
-  // Reset mocks if needed, but they are already set up at top level
+  mockHarnessRun.mockClear();
+  runCodeagentTurnSpy = spyOn(server, "runCodeagentTurn");
 });
 
 afterEach(() => {
-  // Mocks are handled by mock.module
+  runCodeagentTurnSpy.mockRestore();
 });
 
 
 describe("webapp", () => {
   let mockFetch: ReturnType<typeof mock>;
 
-  let mockRunCodeagentTurn: any;
   beforeEach(() => {
     mockFetch = mock(() =>
       Promise.resolve(new Response(JSON.stringify({ ok: true }))),
     );
     globalThis.fetch = mockFetch as unknown as typeof fetch;
-    // mock.restore(); // REMOVED: this would kill our mock.module mocks
-    // Reset our specific mocks
-    mockRunCodeagentTurn = spyOn(server, "runCodeagentTurn").mockImplementation(async (input: string) => `Mocked reply for: ${input}`);
     if (mockVerifyGithubSignature) mockVerifyGithubSignature.mockClear();
     mockVerifyGithubSignatureMutable.returnValue = true;
   });
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
-    if (mockRunCodeagentTurn) {
-      mockRunCodeagentTurn.mockRestore();
-    }
   });
 
   describe("GET /health", () => {
@@ -149,7 +211,7 @@ describe("webapp", () => {
       expect(data.result).toBe("Mocked reply for: hello world");
       expect(data.input).toBe("hello world");
       expect(data.state.replyLength).toBeGreaterThan(0);
-      expect(server.runCodeagentTurn).toHaveBeenCalledWith("hello world", expect.any(String), undefined, "http");
+      expect(runCodeagentTurnSpy).toHaveBeenCalledWith("hello world", expect.any(String), undefined, "http");
     });
   });
 
@@ -207,7 +269,7 @@ describe("webapp", () => {
       });
       // runCodeagentTurn is called async in queue, wait a tick
       await new Promise((resolve) => setTimeout(resolve, 10));
-      expect(server.runCodeagentTurn).toHaveBeenCalled();
+      expect(runCodeagentTurnSpy).toHaveBeenCalled();
       expect(mockFetch).toHaveBeenCalled();
     });
 
@@ -226,7 +288,7 @@ describe("webapp", () => {
         ok: true,
         message: "Update received",
       });
-      expect(server.runCodeagentTurn).not.toHaveBeenCalled();
+      expect(runCodeagentTurnSpy).not.toHaveBeenCalled();
     });
   });
 
@@ -296,7 +358,7 @@ describe("webapp", () => {
 
       // runCodeagentTurn is called async, wait a tick
       await new Promise((resolve) => setTimeout(resolve, 0));
-      expect(server.runCodeagentTurn).toHaveBeenCalled();
+      expect(runCodeagentTurnSpy).toHaveBeenCalled();
     });
   });
 });

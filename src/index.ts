@@ -8,9 +8,13 @@ import {
   loadTelegramConfig,
   validateStartupConfig,
 } from "./utils/config";
-import { runCodeagentTurn } from "./server";
+import { runCodeagentTurn, getLoopRunner } from "./server";
 import { getEmailForIdentity } from "./utils/identity";
-import { isDuplicateMessage, formatTelegramMarkdownV2 } from "./utils/telegram";
+import {
+  isDuplicateMessage,
+  formatTelegramMarkdownV2,
+  parseHitlCallback,
+} from "./utils/telegram";
 import { handleCommand } from "./utils/commands";
 
 // Memory system integration
@@ -201,6 +205,42 @@ async function handleTelegramMessage(msg: any, telegramBotToken: string, parseMo
   telegramQueue.enqueue(threadId, { enrichedText, chatId: msg.chat.id, telegramBotToken, userId, parseMode });
 }
 
+async function handleTelegramCallbackQuery(update: any, telegramBotToken: string) {
+  const data = update.callback_query?.data ?? "";
+  const hitl = parseHitlCallback(data);
+
+  if (!hitl) {
+    // Not a HITL callback; acknowledge generically so the button stops spinning.
+    await answerCallbackQuery(telegramBotToken, update.callback_query.id, "");
+    return;
+  }
+
+  let resolved = false;
+  try {
+    resolved = !!getLoopRunner().hitlStore.resolve(hitl.requestId, hitl.decision);
+  } catch (err) {
+    logger.error({ err, requestId: hitl.requestId }, "[codeagent][telegram] HITL resolve failed");
+  }
+
+  await answerCallbackQuery(
+    telegramBotToken,
+    update.callback_query.id,
+    resolved ? `HITL ${hitl.decision} recorded` : "HITL request not found",
+  );
+}
+
+async function answerCallbackQuery(botToken: string, callbackQueryId: string, text: string) {
+  try {
+    await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ callback_query_id: callbackQueryId, text }),
+    });
+  } catch (err) {
+    logger.error({ err }, "[codeagent][telegram] answerCallbackQuery failed");
+  }
+}
+
 // Telegram polling for local development
 async function startTelegramPolling() {
   const { telegramBotToken, telegramParseMode } = loadTelegramConfig();
@@ -233,6 +273,11 @@ async function startTelegramPolling() {
           // Handle message updates
           if ("message" in update) {
             await handleTelegramMessage(update.message, telegramBotToken, telegramParseMode);
+          }
+
+          // Handle HITL callback queries (inline keyboard button presses)
+          if ("callback_query" in update) {
+            await handleTelegramCallbackQuery(update, telegramBotToken);
           }
         }
       }
