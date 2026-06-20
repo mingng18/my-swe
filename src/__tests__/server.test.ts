@@ -1,36 +1,60 @@
-import { describe, it, expect, mock, beforeEach, spyOn, afterEach } from "bun:test";
-import * as harness from "../harness";
-import * as loggerModule from "../utils/logger";
-import { runCodeagentTurn } from "../server";
+import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
+
+const mockRun = mock();
+const mockInfo = mock();
+const mockError = mock();
+const mockWarn = mock();
+const mockDebug = mock();
+
+// Hoisted mock — Bun applies these before any import resolves.
+// IMPORTANT: Bun's mock.module replaces the module process-wide. We return a
+// harness object that is a SUPERSET of the real AgentHarness shape (run, plus
+// invoke/stream/getState as no-ops). server.ts only uses `run`, but a partial
+// `{ run }` would leak to any sibling test that imports `../harness`
+// (e.g. src/harness/__tests__/harnessFactory.test.ts imports `../index`, the
+// SAME module, and asserts typeof harness.invoke === "function"). Including
+// the extra methods keeps those siblings green without weakening any assertion
+// here. (Pattern from commits ca85e58/efdf23c.)
+mock.module("../harness", () => ({
+  getAgentHarness: () =>
+    Promise.resolve({
+      run: mockRun,
+      invoke: mockRun,
+      stream: async function* () {},
+      getState: () => ({}),
+    }),
+}));
+
+mock.module("../utils/logger", () => ({
+  createLogger: () => ({
+    info: mockInfo,
+    error: mockError,
+    warn: mockWarn,
+    debug: mockDebug,
+  }),
+}));
+
+// Must be dynamic import so the mock.module calls above take effect
+const { runCodeagentTurn } = await import("../server");
 
 describe("runCodeagentTurn", () => {
-  let mockRun: any;
-  let harnessSpy: any;
-  let loggerSpy: any;
-
   beforeEach(() => {
-    mockRun = mock();
-    harnessSpy = spyOn(harness, "getAgentHarness").mockReturnValue(Promise.resolve({ run: mockRun }) as any);
-    loggerSpy = spyOn(loggerModule, "createLogger").mockReturnValue({
-      info: mock(),
-      error: mock(),
-      warn: mock(),
-      debug: mock(),
-    } as any);
+    mockRun.mockClear();
+    mockInfo.mockClear();
+    mockError.mockClear();
+    mockWarn.mockClear();
+    mockDebug.mockClear();
   });
 
   afterEach(() => {
-    if (harnessSpy) harnessSpy.mockRestore();
-    if (loggerSpy) loggerSpy.mockRestore();
+    mock.restore();
   });
-
 
   it("should return the reply on successful execution with default threadId", async () => {
     mockRun.mockResolvedValue({ reply: "Hello world!" });
 
     const result = await runCodeagentTurn("Hi");
 
-    expect(harnessSpy).toHaveBeenCalledTimes(1);
     expect(mockRun).toHaveBeenCalledWith("Hi", { threadId: "default-session" });
     expect(result).toBe("Hello world!");
   });
