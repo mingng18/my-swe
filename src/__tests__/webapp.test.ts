@@ -7,6 +7,13 @@ import { describe, it, expect, mock, beforeEach, afterEach, spyOn } from "bun:te
 // formatCodeBlock, buildHitlKeyboard) available for any other test file
 // (tests/utils/telegram.test.ts) loaded in the same process.
 import * as realTelegram from "../utils/telegram";
+// Same capture-real-before-mock pattern as telegram: spread the real identity
+// module in its mock below so sibling test files that import IDENTITY_MAP
+// (e.g. src/loop/__tests__/server-wiring.test.ts via ../../server) don't break.
+import * as realIdentity from "../utils/identity";
+import * as realGithub from "../utils/github";
+import * as realConfig from "../utils/config";
+import * as realLogger from "../utils/logger";
 
 const originalFetch = globalThis.fetch;
 
@@ -35,13 +42,15 @@ export const mockVerifyGithubSignatureMutable = {
 
 // Mock dependencies using mock.module BEFORE importing app
 mock.module("../utils/config", () => ({
-  loadTelegramConfig: () => ({ 
+  ...realConfig,
+  loadTelegramConfig: () => ({
     telegramBotToken: "mock-bot-token",
     telegramParseMode: "HTML"
   })
 }));
 
 mock.module("../utils/github", () => ({
+  ...realGithub,
   verifyGithubSignature: () => mockVerifyGithubSignatureMutable.returnValue,
   extractPrContext: async () => [
     {} as any, 123, "main", "testuser", "https://github.com/pr", 1, "node-1"
@@ -57,6 +66,7 @@ mock.module("../utils/github", () => ({
 }));
 
 mock.module("../utils/identity", () => ({
+  ...realIdentity,
   getEmailForIdentity: () => "test@example.com",
 }));
 
@@ -83,6 +93,7 @@ mock.module("../harness", () => ({
 }));
 
 mock.module("../utils/logger", () => ({
+  ...realLogger,
   createLogger: () => ({
     info: mock(), error: mock(), warn: mock(), debug: mock(),
   }),
