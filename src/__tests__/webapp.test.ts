@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach, afterEach, spyOn } from "bun:test";
+import { describe, it, expect, mock, beforeEach, afterEach, afterAll, spyOn } from "bun:test";
 
 // Capture the REAL telegram module exports BEFORE we mock it below. The mock
 // only needs to override isDuplicateMessage + sendChatAction for webapp, but
@@ -16,6 +16,10 @@ import * as realConfig from "../utils/config";
 import * as realLogger from "../utils/logger";
 
 const originalFetch = globalThis.fetch;
+// Save env vars we mutate below so we can restore them and avoid leaking
+// TELEGRAM_BOT_TOKEN / TELEGRAM_PARSE_MODE into sibling test files.
+const originalTelegramToken = process.env.TELEGRAM_BOT_TOKEN;
+const originalTelegramParseMode = process.env.TELEGRAM_PARSE_MODE;
 
 
 
@@ -40,13 +44,17 @@ export const mockVerifyGithubSignatureMutable = {
   returnValue: true
 };
 
-// Mock dependencies using mock.module BEFORE importing app
+// Mock dependencies using mock.module BEFORE importing app.
+// For ../utils/config we spread the real module and do NOT override
+// loadTelegramConfig: overriding it process-wide (even via spread) replaces
+// the live binding and breaks src/utils/__tests__/config.test.ts, which
+// asserts the REAL loadTelegramConfig reads process.env. Instead we set the
+// env vars the real loadTelegramConfig reads, so webapp's endpoints get a
+// valid telegram config while sibling config tests keep the real function.
+process.env.TELEGRAM_BOT_TOKEN = "mock-bot-token";
+process.env.TELEGRAM_PARSE_MODE = "HTML";
 mock.module("../utils/config", () => ({
   ...realConfig,
-  loadTelegramConfig: () => ({
-    telegramBotToken: "mock-bot-token",
-    telegramParseMode: "HTML"
-  })
 }));
 
 mock.module("../utils/github", () => ({
@@ -71,15 +79,19 @@ mock.module("../utils/identity", () => ({
 }));
 
 // Spread the real telegram module so the mock is a superset of its exports.
-// Other test files loaded in the same Bun process (tests/utils/telegram.test.ts)
-// import the same absolute module path; without the spread, mock.module would
-// strip their named exports (_clearDuplicateCache, buildHitlKeyboard, ...) and
-// raise "Export named '...' not found". We keep sendChatAction as a noop to
-// avoid live Telegram API calls, and let the real isDuplicateMessage run so we
-// don't poison its module-level dedup Map for sibling test files.
+// Other test files loaded in the same Bun process (tests/utils/telegram.test.ts
+// AND src/utils/__tests__/telegram.test.ts) import the same absolute module
+// path; without the spread, mock.module would strip their named exports
+// (_clearDuplicateCache, buildHitlKeyboard, ...) and raise "Export named '...'
+// not found". We do NOT override sendChatAction here: a noop override would
+// replace the real implementation process-wide and break
+// src/utils/__tests__/telegram.test.ts (which asserts sendChatAction calls
+// fetch). Live Telegram API calls are already prevented because webapp's
+// describe-block mocks globalThis.fetch, and sendChatAction uses the global
+// fetch. isDuplicateMessage is also left as the real implementation so its
+// module-level dedup Map is not poisoned for sibling test files.
 mock.module("../utils/telegram", () => ({
   ...realTelegram,
-  sendChatAction: async () => {},
 }));
 
 // Mock at the harness level (same as server.test.ts) to avoid poisoning
@@ -102,6 +114,21 @@ mock.module("../utils/logger", () => ({
 // Import AFTER mocks are set up
 const { default: app } = await import("../webapp");
 const server = await import("../server");
+
+// Restore env vars mutated above so they don't leak into sibling test files
+// (config.test.ts asserts loadTelegramConfig reads a clean process.env).
+afterAll(() => {
+  if (originalTelegramToken === undefined) {
+    delete process.env.TELEGRAM_BOT_TOKEN;
+  } else {
+    process.env.TELEGRAM_BOT_TOKEN = originalTelegramToken;
+  }
+  if (originalTelegramParseMode === undefined) {
+    delete process.env.TELEGRAM_PARSE_MODE;
+  } else {
+    process.env.TELEGRAM_PARSE_MODE = originalTelegramParseMode;
+  }
+});
 
 // Spy on the real runCodeagentTurn so we can assert call counts/args.
 // Since harness is mocked, the real function just calls through to mockHarnessRun.
