@@ -1,38 +1,66 @@
-import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect, mock, spyOn, beforeEach, afterEach } from "bun:test";
+
+// Capture the REAL shared modules BEFORE any mock.module call below. Bun's
+// mock.module replaces a module process-wide: a partial factory that only
+// exposes the handful of exports pr-review needs (postGithubComment,
+// cachedGithubApiCall) strips every OTHER named export for any sibling test
+// file loaded in the same process that imports the same absolute path
+// (github-cache reads the real cachedGithubApiCall). Spread the real module in
+// each factory so the mock is a superset and override only the specific export
+// pr-review needs.
+//
+// For reviewerMapping + registry we go further: pr-review needs to control
+// getReviewersForFiles' return value and (historically) builtInSubagents, but
+// those are LIVE BINDINGS consumed by sibling test files
+// (reviewerMapping.test.ts, registry.test.ts). Overriding them via mock.module
+// — even with a spread — replaces the binding process-wide and breaks those
+// siblings ("Received: 1" for builtInSubagents.length, empty REVIEWER_MAPPINGS
+// for getReviewersForFile). So we do NOT mock those modules at all: instead we
+// spyOn the real getReviewersForFiles (auto-restored per test, no process-wide
+// pollution) and rely on the REAL builtInSubagents (which already contains
+// code-reviewer/security-reviewer). sandboxState is also intentionally NOT
+// mocked (real getSandboxBackendSync("test-thread") already returns null).
+// (Pattern from commits ca85e58/efdf23c.)
+import * as realReviewerMapping from "../../subagents/reviewerMapping";
+import * as realGithubIndex from "../../utils/github/index";
+import * as realGithubCache from "../../utils/github/github-cache";
 
 describe("prReviewTool", () => {
   const originalEnv = process.env;
+  let reviewersSpy: ReturnType<typeof spyOn>;
+  let cacheSpy: ReturnType<typeof spyOn>;
 
   beforeEach(() => {
     process.env = { ...originalEnv };
 
-    // Mock getReviewersForFiles
-    mock.module("../../subagents/reviewerMapping", () => ({
-      getReviewersForFiles: mock(() => ["code-reviewer"]),
-      REVIEWER_MAPPINGS: [],
-    }));
+    // Control which reviewers pr-review selects WITHOUT mocking the module
+    // process-wide. spyOn replaces the live binding for the duration of each
+    // test and is auto-restored in afterEach, so sibling reviewerMapping tests
+    // always see the real getReviewersForFiles.
+    reviewersSpy = spyOn(realReviewerMapping, "getReviewersForFiles").mockReturnValue(
+      ["code-reviewer"] as any,
+    );
 
-    // Mock getSandboxBackendSync
-    mock.module("../../utils/sandboxState", () => ({
-      getSandboxBackendSync: mock(() => null),
-    }));
+    // NOTE: we intentionally do NOT mock ../../utils/sandboxState here.
+    // pr-review uses getSandboxBackendSync("test-thread"), and the REAL
+    // implementation already returns null for that thread (nothing sets a
+    // backend for it in these tests). Mocking sandboxState process-wide — even
+    // with a spread — would override getSandboxBackendSync for sibling files
+    // (code-search.test.ts) that rely on the real setSandboxBackend/
+    // getSandboxBackendSync pair, breaking them. Leaving the real module in
+    // place satisfies pr-review (null for "test-thread") without pollution.
 
-    // Mock postGithubComment
+    // Mock postGithubComment (spread real so sibling github tests keep exports)
     mock.module("../../utils/github/index", () => ({
+      ...realGithubIndex,
       postGithubComment: mock(async () => true),
     }));
 
-    // Mock builtInSubagents
-    mock.module("../../subagents/registry", () => ({
-      builtInSubagents: [
-        {
-          name: "code-reviewer",
-          systemPrompt: "You are a code reviewer",
-          tools: [],
-          model: "sonnet",
-        },
-      ],
-    }));
+    // NOTE: we intentionally do NOT mock ../../subagents/registry. pr-review
+    // needs the code-reviewer config, which already exists in the REAL
+    // builtInSubagents. Mocking registry process-wide — even with a spread —
+    // replaces builtInSubagents and breaks sibling registry.test.ts /
+    // subagents.integration.test.ts ("Received: 1" vs expected 11).
 
     // Mock createDeepAgent
     mock.module("deepagents", () => ({
@@ -51,24 +79,26 @@ Fix: Fix the issue`,
       })),
     }));
 
-    // Mock cachedGithubApiCall and fetchPrFiles
-    mock.module("../../utils/github/github-cache", () => ({
-      cachedGithubApiCall: mock(async (method, endpoint, params, callback) => {
-        // Return mock PR files
-        return {
-          data: [
-            {
-              filename: "src/test.ts",
-              status: "modified",
-              additions: 10,
-              deletions: 5,
-              changes: 15,
-              patch: "@@ -1,5 +1,10 @@\n+export function test() {\n+  return true;\n+}",
-            },
-          ],
-        };
-      }),
-    }));
+    // Control cachedGithubApiCall (used by fetchPrFiles) via spyOn on the real
+    // module (per-test, auto-restored). A mock.module override here would
+    // replace cachedGithubApiCall process-wide and break sibling
+    // github-cache.test.ts, which imports the real cachedGithubApiCall to test
+    // caching behavior. The spy returns mock PR files by default; individual
+    // tests override via cacheSpy.mockImplementation.
+    cacheSpy = spyOn(realGithubCache, "cachedGithubApiCall").mockImplementation(
+      async (_method: string, _endpoint: string, _params: any, _callback: any) => ({
+        data: [
+          {
+            filename: "src/test.ts",
+            status: "modified",
+            additions: 10,
+            deletions: 5,
+            changes: 15,
+            patch: "@@ -1,5 +1,10 @@\n+export function test() {\n+  return true;\n+}",
+          },
+        ],
+      }) as any,
+    );
 
     // Mock Octokit
     mock.module("octokit", () => ({
@@ -173,11 +203,9 @@ Fix: Fix the issue`,
   it("should return success message if no applicable reviewers found", async () => {
     process.env.GITHUB_TOKEN = "test-token";
 
-    // Override getReviewersForFiles to return empty array
-    mock.module("../../subagents/reviewerMapping", () => ({
-      getReviewersForFiles: mock(() => []),
-      REVIEWER_MAPPINGS: [],
-    }));
+    // Override getReviewersForFiles to return empty array via spyOn (per-test,
+    // auto-restored — no process-wide mock.module pollution)
+    reviewersSpy.mockReturnValue([] as any);
 
     const { prReviewTool } = await import("../pr-review");
 
@@ -193,23 +221,21 @@ Fix: Fix the issue`,
   it("should return success message if no file patches available", async () => {
     process.env.GITHUB_TOKEN = "test-token";
 
-    // Mock cachedGithubApiCall to return files without patches
-    mock.module("../../utils/github/github-cache", () => ({
-      cachedGithubApiCall: mock(async (method, endpoint, params, callback) => {
-        return {
-          data: [
-            {
-              filename: "src/test.ts",
-              status: "modified",
-              additions: 10,
-              deletions: 5,
-              changes: 15,
-              patch: null,
-            },
-          ],
-        };
-      }),
-    }));
+    // cachedGithubApiCall returns files without patches (spy, not mock.module)
+    cacheSpy.mockImplementation(
+      async (_method: string, _endpoint: string, _params: any, _callback: any) => ({
+        data: [
+          {
+            filename: "src/test.ts",
+            status: "modified",
+            additions: 10,
+            deletions: 5,
+            changes: 15,
+            patch: null,
+          },
+        ],
+      }) as any,
+    );
 
     const { prReviewTool } = await import("../pr-review");
 
@@ -266,8 +292,9 @@ Fix: Fix the issue`,
   it("should handle errors when posting comment", async () => {
     process.env.GITHUB_TOKEN = "test-token";
 
-    // Mock postGithubComment to return false
+    // Mock postGithubComment to return false (spread real)
     mock.module("../../utils/github/index", () => ({
+      ...realGithubIndex,
       postGithubComment: mock(async () => false),
     }));
 
@@ -284,8 +311,9 @@ Fix: Fix the issue`,
   it("should handle exceptions when posting comment", async () => {
     process.env.GITHUB_TOKEN = "test-token";
 
-    // Mock postGithubComment to throw error
+    // Mock postGithubComment to throw error (spread real)
     mock.module("../../utils/github/index", () => ({
+      ...realGithubIndex,
       postGithubComment: mock(async () => {
         throw new Error("Network error");
       }),
@@ -304,12 +332,12 @@ Fix: Fix the issue`,
   it("should handle API errors when fetching PR files", async () => {
     process.env.GITHUB_TOKEN = "test-token";
 
-    // Mock cachedGithubApiCall to throw error
-    mock.module("../../utils/github/github-cache", () => ({
-      cachedGithubApiCall: mock(async (method, endpoint, params, callback) => {
+    // cachedGithubApiCall throws (spy, not mock.module)
+    cacheSpy.mockImplementation(
+      async () => {
         throw new Error("API rate limit exceeded");
-      }),
-    }));
+      },
+    );
 
     const { prReviewTool } = await import("../pr-review");
 
@@ -323,29 +351,10 @@ Fix: Fix the issue`,
   it("should aggregate issues from multiple reviewers", async () => {
     process.env.GITHUB_TOKEN = "test-token";
 
-    // Override getReviewersForFiles to return multiple reviewers
-    mock.module("../../subagents/reviewerMapping", () => ({
-      getReviewersForFiles: mock(() => ["code-reviewer", "security-reviewer"]),
-      REVIEWER_MAPPINGS: [],
-    }));
-
-    // Mock builtInSubagents with multiple reviewers
-    mock.module("../../subagents/registry", () => ({
-      builtInSubagents: [
-        {
-          name: "code-reviewer",
-          systemPrompt: "You are a code reviewer",
-          tools: [],
-          model: "sonnet",
-        },
-        {
-          name: "security-reviewer",
-          systemPrompt: "You are a security reviewer",
-          tools: [],
-          model: "sonnet",
-        },
-      ],
-    }));
+    // Override getReviewersForFiles to return multiple reviewers via spyOn
+    // (per-test, auto-restored). The REAL builtInSubagents already contains
+    // both code-reviewer and security-reviewer configs, so no registry mock.
+    reviewersSpy.mockReturnValue(["code-reviewer", "security-reviewer"] as any);
 
     // Mock createDeepAgent to return different issues for each reviewer
     let callCount = 0;
@@ -428,6 +437,7 @@ Fix: Fix immediately`,
 
 describe("fetchPrFiles", () => {
   const originalEnv = process.env;
+  let fetchCacheSpy: ReturnType<typeof spyOn>;
 
   beforeEach(() => {
     process.env = { ...originalEnv };
@@ -454,12 +464,14 @@ describe("fetchPrFiles", () => {
       })),
     }));
 
-    // Mock cachedGithubApiCall
-    mock.module("../../utils/github/github-cache", () => ({
-      cachedGithubApiCall: mock(async (method, endpoint, params, callback) => {
-        return await callback();
-      }),
-    }));
+    // cachedGithubApiCall delegates to its callback (the real Octokit call,
+    // which is mocked above). Use spyOn (per-test, auto-restored) instead of
+    // mock.module so sibling github-cache.test.ts keeps the real
+    // cachedGithubApiCall / invalidateRepoCache / invalidatePrCache exports.
+    fetchCacheSpy = spyOn(realGithubCache, "cachedGithubApiCall").mockImplementation(
+      async (_method: string, _endpoint: string, _params: any, callback: any) =>
+        await callback(),
+    );
   });
 
   afterEach(() => {
