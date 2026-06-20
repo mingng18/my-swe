@@ -31,6 +31,7 @@ export interface TraceStore {
   finalize(traceId: string, outcome: TraceOutcome): void;
   get(traceId: string): TraceRecord | undefined;
   queryByThread(threadId: string): TraceRecord[];
+  queryAll(): TraceRecord[];
 }
 
 function defaultDir(): string {
@@ -117,6 +118,10 @@ export function createTraceStore(dir: string = defaultDir()): TraceStore {
       const rows = db
         .query(`SELECT record FROM traces WHERE threadId = ? ORDER BY startedAt ASC`)
         .all(threadId) as { record: string }[];
+      return rows.map((r) => JSON.parse(r.record) as TraceRecord);
+    },
+    queryAll() {
+      const rows = db.query(`SELECT record FROM traces ORDER BY startedAt ASC`).all() as { record: string }[];
       return rows.map((r) => JSON.parse(r.record) as TraceRecord);
     },
   };
