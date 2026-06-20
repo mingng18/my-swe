@@ -1,11 +1,17 @@
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import { describe, it, test, expect, beforeEach, afterEach } from "bun:test";
 import {
   isDuplicateMessage,
+  _clearDuplicateCache,
   formatCodeBlock,
   formatTelegramMarkdownV2,
+  buildHitlKeyboard,
+  parseHitlCallback,
 } from "../../src/utils/telegram";
 
 describe("isDuplicateMessage", () => {
+  beforeEach(() => {
+    _clearDuplicateCache();
+  });
   it("should return false for first occurrence of a message", () => {
     // Use unique chat/message IDs to avoid conflicts with other tests
     const result = isDuplicateMessage(100001, 1);
@@ -294,4 +300,28 @@ describe("parse_mode integration", () => {
   // Note: The conditional formatting logic (only format when parseMode === "MarkdownV2")
   // is tested in the integration layer (src/index.ts, src/webapp.ts). These unit tests
   // verify that the formatter itself works correctly when called.
+});
+
+describe("buildHitlKeyboard", () => {
+  test("buildHitlKeyboard emits approve/reject/modify with encoded callbacks", () => {
+    const kb = buildHitlKeyboard("req-123");
+    const buttons = kb.inline_keyboard.flat();
+    const datas = buttons.map((b: any) => b.callback_data);
+    expect(datas).toContain("loop:hitl:req-123:approve");
+    expect(datas).toContain("loop:hitl:req-123:reject");
+    expect(datas).toContain("loop:hitl:req-123:modify");
+  });
+});
+
+describe("parseHitlCallback", () => {
+  test("parses an approve callback", () => {
+    expect(parseHitlCallback("loop:hitl:req-123:approve")).toEqual({
+      requestId: "req-123",
+      decision: "approve",
+    });
+  });
+
+  test("returns null for non-HITL data", () => {
+    expect(parseHitlCallback("something:else")).toBeNull();
+  });
 });
