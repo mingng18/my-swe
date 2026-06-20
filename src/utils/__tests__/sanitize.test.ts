@@ -80,6 +80,22 @@ describe("sanitizeString", () => {
     expect(result.value).toBe("hello world");
     expect(result.wasSanitized).toBe(true);
   });
+
+  it("should return correct sanitizedLength and originalLength", () => {
+    const result = sanitizeString("  test  ");
+    expect(result.originalLength).toBe(8);
+    expect(result.sanitizedLength).toBe(4);
+    expect(result.wasSanitized).toBe(true);
+  });
+
+  it("should include context in error messages", () => {
+    expect(() => sanitizeString(123, { context: "testContext" })).toThrow(
+      /\[testContext\] Invalid input type/
+    );
+    expect(() => sanitizeString("a".repeat(15), { maxLength: 10, context: "custom" })).toThrow(
+      /\[custom\] Input too large/
+    );
+  });
 });
 
 describe("sanitizeUserPrompt", () => {

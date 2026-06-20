@@ -177,6 +177,7 @@ export const FileTreeFolder = ({
           >
             <CollapsibleTrigger asChild>
               <button
+                aria-label={isExpanded ? "Collapse directory" : "Expand directory"}
                 className="flex shrink-0 cursor-pointer items-center border-none bg-transparent p-0"
                 type="button"
               >

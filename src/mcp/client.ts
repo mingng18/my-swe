@@ -15,7 +15,12 @@ import {
   McpConnectionState,
   McpToolExecuteOptions,
   McpToolResult,
+  McpElicitationOptions,
 } from "./types.js";
+import {
+  installElicitationHandler,
+  DEFAULT_ELICITATION_TIMEOUT_MS,
+} from "./elicitation.js";
 import { createLogger } from "../utils/logger.js";
 
 const logger = createLogger("mcp-client");
@@ -64,6 +69,15 @@ export class McpClientManager {
   private clients: Map<string, McpClient> = new Map();
   private config: McpConfig | null = null;
   private workspaceRoot: string;
+  /**
+   * Optional elicitation handler. When set, connected clients advertise the
+   * elicitation capability and surface server-initiated questions to the
+   * transport. When unset (default), behavior is identical to today — servers
+   * that never elicit are completely unaffected.
+   */
+  private elicitationOptions: McpElicitationOptions | null = null;
+  /** Disposers for installed elicitation handlers, keyed by server name. */
+  private elicitationDisposers: Map<string, () => void> = new Map();
 
   constructor(workspaceRoot: string) {
     this.workspaceRoot = workspaceRoot;
@@ -105,6 +119,46 @@ export class McpClientManager {
   }
 
   /**
+   * Register an elicitation handler.
+   *
+   * When a handler is registered, all subsequently-connected clients will
+   * advertise the elicitation capability and surface server-initiated
+   * clarifying questions to the handler. The handler is also installed on any
+   * already-connected clients.
+   *
+   * Calling this with no handler previously set is what flips the client from
+   * the default (no-elicitation) behavior to elicitation-aware behavior.
+   *
+   * @param options Handler + optional per-elicitation timeout.
+   */
+  registerElicitationHandler(options: McpElicitationOptions): void {
+    if (!options || typeof options.handler !== "function") {
+      throw new TypeError("registerElicitationHandler requires options.handler");
+    }
+    const normalized: McpElicitationOptions = {
+      handler: options.handler,
+      timeoutMs: options.timeoutMs ?? DEFAULT_ELICITATION_TIMEOUT_MS,
+    };
+    this.elicitationOptions = normalized;
+
+    // Install on any clients that are already connected.
+    for (const client of this.clients.values()) {
+      if (client.state === "connected" && client.client) {
+        const dispose = installElicitationHandler(
+          client.client,
+          client.name,
+          normalized,
+        );
+        this.elicitationDisposers.set(client.name, dispose);
+      }
+    }
+
+    logger.info(
+      "[mcp-client] Elicitation handler registered",
+    );
+  }
+
+  /**
    * Connect to all configured MCP servers.
    */
   async connectAll(): Promise<void> {
@@ -114,9 +168,11 @@ export class McpClientManager {
 
     const connectionPromises: Promise<void>[] = [];
 
-    for (const [name, serverConfig] of Object.entries(
-      this.config?.servers || {},
-    )) {
+    // ⚡ Bolt: Replace Object.entries with for...in to avoid intermediate array allocations
+    const servers = this.config?.servers || {};
+    for (const name in servers) {
+      if (!Object.prototype.hasOwnProperty.call(servers, name)) continue;
+      const serverConfig = servers[name];
       if (serverConfig.disabled) {
         logger.debug(
           { server: name },
@@ -166,15 +222,34 @@ export class McpClientManager {
     });
 
     try {
+      // Advertise the elicitation capability only when a handler has been
+      // registered. When no handler is registered this stays `{}`, identical
+      // to today's behavior (servers that never elicit are unaffected).
+      const clientCapabilities: Record<string, any> = {};
+      if (this.elicitationOptions) {
+        clientCapabilities.elicitation = {};
+      }
+
       const client = new Client(
         {
           name: `bullhorse-${name}`,
           version: "1.0.0",
         },
         {
-          capabilities: {},
+          capabilities: clientCapabilities,
         },
       );
+
+      // If an elicitation handler is registered, install it now so the client
+      // can answer `elicitation/create` requests as soon as it connects.
+      if (this.elicitationOptions) {
+        const dispose = installElicitationHandler(
+          client,
+          name,
+          this.elicitationOptions,
+        );
+        this.elicitationDisposers.set(name, dispose);
+      }
 
       let transport: any;
 
@@ -191,7 +266,10 @@ export class McpClientManager {
         };
 
         // Add process.env values that are defined strings
-        for (const [key, value] of Object.entries(process.env)) {
+        // ⚡ Bolt: Replace Object.entries with for...in to avoid intermediate array allocations
+        for (const key in process.env) {
+          if (!Object.prototype.hasOwnProperty.call(process.env, key)) continue;
+          const value = process.env[key];
           if (typeof value === "string") {
             env[key] = value;
           }
@@ -451,6 +529,9 @@ export class McpClientManager {
 
     await Promise.all(disconnectPromises);
     this.clients.clear();
+
+    // Drop any installed elicitation handler disposers (clients are gone).
+    this.elicitationDisposers.clear();
 
     logger.info("[mcp-client] All clients disconnected");
   }

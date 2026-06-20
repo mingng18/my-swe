@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useThreadStore } from "@/store/thread-store";
 import { useBullhorseStream } from "@/hooks/useBullhorseStream";
 import { useKeyboardShortcut } from "@/hooks/useKeyboardShortcut";
@@ -24,13 +24,12 @@ const API_URL = process.env.NEXT_PUBLIC_BULLHORSE_API_URL || "http://localhost:3
 
 export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonitorProps) {
   const activeThreadId = useThreadStore((state) => state.activeThreadId);
-  const threads = useThreadStore((state) => state.threads);
+  const threadId = propThreadId || activeThreadId;
+  // OPTIMIZATION: Select only the active thread to prevent re-renders when other threads update, and memoize the expensive message derivation.
+  const thread = useThreadStore((state) => threadId ? state.threads[threadId] : null);
   const addThread = useThreadStore((state) => state.addThread);
   const updateThread = useThreadStore((state) => state.updateThread);
   const setActiveThread = useThreadStore((state) => state.setActiveThread);
-
-  const threadId = propThreadId || activeThreadId;
-  const thread = threadId ? threads[threadId] : null;
 
   const [userInput, setUserInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -144,7 +143,7 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
   };
 
   // Convert events to messages for display
-  const messages = thread ? groupLLMChunks(adaptEventsToMessages(thread.events)) : [];
+  const messages = useMemo(() => thread ? groupLLMChunks(adaptEventsToMessages(thread.events)) : [], [thread]);
 
   return (
     <div className={cn("flex flex-col h-screen bg-background", className)}>

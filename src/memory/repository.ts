@@ -1,3 +1,4 @@
+import { LRUCache } from "lru-cache";
 import { randomUUID } from "node:crypto";
 import { createLogger } from "../utils/logger";
 import type { Memory, MemoryType } from "./types";
@@ -49,6 +50,18 @@ export class MemoryRepository {
   private supabaseUrl: string;
   private client: SupabaseClient;
   private tableName = "memories";
+  private threadCache = new LRUCache<string, Memory[]>({
+    max: 500,
+    ttl: 1000 * 60 * 5,
+  });
+  private pendingThreadRequests = new Map<string, Promise<Memory[]>>();
+  private dataloaderQueue: {
+    threadId: string;
+    types?: MemoryType[];
+    resolve: (val: Memory[]) => void;
+    reject: (err: any) => void;
+  }[] = [];
+  private dataloaderTimeout: any = null;
 
   constructor(client?: SupabaseClient) {
     const url = process.env.SUPABASE_URL?.trim();
@@ -68,6 +81,7 @@ export class MemoryRepository {
    * Save a single memory
    */
   async save(memory: Memory): Promise<Memory> {
+    this.threadCache.clear();
     const row = this.toRow(memory);
     row.id = row.id || randomUUID();
     row.created_at = row.created_at || new Date().toISOString();
@@ -86,6 +100,7 @@ export class MemoryRepository {
    * Save multiple memories in batch
    */
   async saveBatch(memories: Memory[]): Promise<Memory[]> {
+    this.threadCache.clear();
     const rows = memories.map((memory) => {
       const row = this.toRow(memory);
       row.id = row.id || randomUUID();
@@ -123,8 +138,95 @@ export class MemoryRepository {
    * Get all memories for a thread, optionally filtered by type
    */
   async getByThread(threadId: string, types?: MemoryType[]): Promise<Memory[]> {
-    const rows = await this.supabaseSelectByThread(threadId, types);
-    return rows.map((row) => this.fromRow(row));
+    const cacheKey = `${threadId}:${types?.join(",") || ""}`;
+
+    const cached = this.threadCache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    if (this.pendingThreadRequests.has(cacheKey)) {
+      return this.pendingThreadRequests.get(cacheKey)!;
+    }
+
+    const promise = new Promise<Memory[]>((resolve, reject) => {
+      this.dataloaderQueue.push({ threadId, types, resolve, reject });
+
+      if (!this.dataloaderTimeout) {
+        this.dataloaderTimeout = setTimeout(async () => {
+          const queue = this.dataloaderQueue;
+          this.dataloaderQueue = [];
+          this.dataloaderTimeout = null;
+
+          try {
+            const byTypes = new Map<
+              string,
+              { threadIds: string[]; tasks: any[] }
+            >();
+
+            for (const item of queue) {
+              const typeKey = item.types?.join(",") || "";
+              if (!byTypes.has(typeKey)) {
+                byTypes.set(typeKey, { threadIds: [], tasks: [] });
+              }
+              byTypes.get(typeKey)!.threadIds.push(item.threadId);
+              byTypes.get(typeKey)!.tasks.push(item);
+            }
+
+            for (const [typeKey, group] of byTypes.entries()) {
+              const types = group.tasks[0].types;
+              const uniqueThreadIds = [...new Set(group.threadIds)];
+
+              let allMemories: Memory[] = [];
+              if (uniqueThreadIds.length === 1) {
+                // If only one thread, just use the single fetch to avoid 'in' filter overhead
+                const rows = await this.supabaseSelectByThread(
+                  uniqueThreadIds[0],
+                  types,
+                );
+                allMemories = rows.map((row: any) => this.fromRow(row));
+              } else {
+                allMemories = await this.getByThreads(uniqueThreadIds, types);
+              }
+
+              // ⚡ Bolt: Group memories by threadId in a single pass to avoid O(N*M) filtering overhead
+              const memoriesByThread = new Map<string, Memory[]>();
+              for (let i = 0; i < allMemories.length; i++) {
+                const m = allMemories[i] as any;
+                const threadArr = memoriesByThread.get(m.threadId);
+                if (!threadArr) {
+                  memoriesByThread.set(m.threadId, [m]);
+                } else {
+                  threadArr.push(m);
+                }
+              }
+
+              for (const threadId of uniqueThreadIds) {
+                const threadMemories = memoriesByThread.get(threadId) || [];
+                const ck = `${threadId}:${typeKey}`;
+                this.threadCache.set(ck, threadMemories);
+                this.pendingThreadRequests.delete(ck);
+              }
+
+              for (const item of group.tasks) {
+                const threadMemories =
+                  memoriesByThread.get(item.threadId) || [];
+                item.resolve(threadMemories);
+              }
+            }
+          } catch (err) {
+            for (const item of queue) {
+              const ck = `${item.threadId}:${item.types?.join(",") || ""}`;
+              this.pendingThreadRequests.delete(ck);
+              item.reject(err);
+            }
+          }
+        }, 5);
+      }
+    });
+
+    this.pendingThreadRequests.set(cacheKey, promise);
+    return promise;
   }
 
   /**
@@ -145,6 +247,7 @@ export class MemoryRepository {
    * Soft delete a memory (mark as inactive)
    */
   async softDelete(id: string): Promise<void> {
+    this.threadCache.clear();
     await this.supabaseUpdate(id, { is_active: false });
   }
 
@@ -152,6 +255,7 @@ export class MemoryRepository {
    * Soft delete multiple memories (mark as inactive)
    */
   async softDeleteMany(ids: string[]): Promise<void> {
+    this.threadCache.clear();
     if (ids.length === 0) return;
 
     // We can use the PostgREST in. filter to update multiple rows
@@ -179,6 +283,7 @@ export class MemoryRepository {
    * Permanently delete a memory
    */
   async delete(id: string): Promise<void> {
+    this.threadCache.clear();
     await this.supabaseDelete(id);
   }
 
@@ -189,6 +294,7 @@ export class MemoryRepository {
     id: string,
     updates: Partial<Omit<Memory, "id" | "threadId" | "createdAt">>,
   ): Promise<Memory | null> {
+    this.threadCache.clear();
     const updateData: Partial<SupabaseMemoryRow> = {};
 
     if (updates.type !== undefined) updateData.type = updates.type;

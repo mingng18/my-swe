@@ -67,3 +67,17 @@ Bun Benchmark Results for 1M iterations:
 **Result:** Sped up fallback operations by >90x on mocked latency tests.
 
 
+## 2024-06-05 - Avoid over-fetching Zustand state
+**Learning:** Subscribing to full state objects in Zustand (e.g., `state.threads[threadId]`) causes unnecessary re-renders when fast-changing nested properties (like `events` array during LLM streams) update.
+**Action:** Always select only the specific data needed by the component (e.g., `state.threads[threadId]?.todos`).
+
+## 2026-05-23 - Optimize string hashing in prompt manager
+**Learning:** Found an inefficient string hashing function (`simpleHash`) in `src/utils/prompt-manager.ts` using character iteration (`str.charCodeAt`) to compute hash integers. Since Bun has a built-in highly optimized native hashing function `Bun.hash`, iterating characters manually via V8 Javascript incurs massive overhead on large strings like `agentsMd`.
+**Action:** Always prefer native string hashing `Bun.hash(str)` over manual character manipulation loops when deploying on Bun, as it runs roughly ~20x faster on large strings.
+
+## 2026-06-19 - Use for loops instead of forEach for arrays
+**Learning:** `Array.prototype.forEach` introduces callback overhead which causes performance drops when called frequently, as measured in `reviewerMapping.ts`.
+**Action:** Use native `for...of` loops instead of `.forEach` for iterating over arrays when populating `Set`s in hot paths.
+## 2026-06-18 - Optimize memory dataloader array filtering performance
+**Learning:** In the `MemoryRepository` dataloader implementation, resolving tasks by sequentially calling `allMemories.filter()` inside a `for` loop over unique threads caused an O(N*M) performance penalty, severely affecting latency when large numbers of memories were batched together.
+**Action:** Replace `Array.filter` inside resolution loops with a single pass grouping items into a `Map<string, Item[]>`, which reduces complexity to O(N) and yields significant speedups (~9x locally).

@@ -41,6 +41,7 @@ export const ThreadInput = forwardRef<HTMLInputElement, ThreadInputProps>(
                     variant="ghost"
                     size="icon-xs"
                     aria-label="Clear input"
+                    title="Clear input"
                     onClick={() => setUserInput("")}
                     className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 opacity-50 hover:opacity-100 focus-visible:opacity-100 transition-opacity"
                   >
@@ -56,6 +57,8 @@ export const ThreadInput = forwardRef<HTMLInputElement, ThreadInputProps>(
             disabled={isLoading || !userInput.trim()}
             className="gap-2 shadow-md hover:shadow-lg transition-all disabled:opacity-50"
             size="default"
+            aria-label={isLoading ? "Starting..." : "Run"}
+            title={isLoading ? "Starting..." : "Run"}
           >
             {isLoading ? (
               <>

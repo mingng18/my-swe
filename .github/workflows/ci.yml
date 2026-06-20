@@ -5,6 +5,7 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
+  workflow_dispatch:
 
 env:
   NODE_VERSION: "22"
@@ -54,6 +55,9 @@ jobs:
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
+    permissions:
+      security-events: write  # required to upload SARIF to the GitHub Security tab
+      contents: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -67,7 +71,7 @@ jobs:
           output: 'trivy-results.sarif'
 
       - name: Upload Trivy results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'
@@ -206,9 +210,10 @@ jobs:
           # Example: heroku deploy --app bullhorse-staging
 
       - name: Smoke test staging deployment
+        continue-on-error: true  # placeholder deploy - no real staging target yet; do not fail CI
         run: |
           echo "Running smoke tests against staging..."
-          # Add smoke test commands here
+          # TODO: replace with a real staging health check once deployment is wired up
           curl -f https://staging.example.com/health || exit 1
 
   # Deploy to production (manual trigger only)
@@ -216,7 +221,7 @@ jobs:
     name: Deploy to Production
     runs-on: ubuntu-latest
     needs: [build, test-integration, security-scan]
-    if: github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch'
     environment:
       name: production
       url: https://production.example.com

@@ -27,8 +27,14 @@ const rateLimitCache = new LRUCache<string, number>({
 // Configurable rate limits from environment
 const rateLimitRun = Number.parseInt(process.env.RATE_LIMIT_RUN || "20", 10);
 const rateLimitChat = Number.parseInt(process.env.RATE_LIMIT_CHAT || "20", 10);
-const rateLimitWebhook = Number.parseInt(process.env.RATE_LIMIT_WEBHOOK || "60", 10);
-const rateLimitHealth = Number.parseInt(process.env.RATE_LIMIT_HEALTH || "120", 10);
+const rateLimitWebhook = Number.parseInt(
+  process.env.RATE_LIMIT_WEBHOOK || "60",
+  10,
+);
+const rateLimitHealth = Number.parseInt(
+  process.env.RATE_LIMIT_HEALTH || "120",
+  10,
+);
 
 const rateLimiter = (limitPerMinute: number) => async (c: any, next: any) => {
   const ip =
@@ -40,12 +46,18 @@ const rateLimiter = (limitPerMinute: number) => async (c: any, next: any) => {
 
   // Set rate limit headers on every response
   c.header("X-RateLimit-Limit", String(limitPerMinute));
-  c.header("X-RateLimit-Remaining", String(Math.max(0, limitPerMinute - count - 1)));
+  c.header(
+    "X-RateLimit-Remaining",
+    String(Math.max(0, limitPerMinute - count - 1)),
+  );
 
   if (count >= limitPerMinute) {
     const retryAfter = 60;
     c.header("Retry-After", String(retryAfter));
-    log.warn({ ip, path, limit: limitPerMinute }, "[webapp] Rate limit exceeded");
+    log.warn(
+      { ip, path, limit: limitPerMinute },
+      "[webapp] Rate limit exceeded",
+    );
     return c.json({ error: "Too Many Requests", retry_after: retryAfter }, 429);
   }
 
@@ -84,16 +96,15 @@ app.use(
   cors({
     origin: (origin) => {
       const allowedOrigin = process.env.CORS_ALLOWED_ORIGIN;
-      if (process.env.NODE_ENV === "production") {
-        return allowedOrigin && origin === allowedOrigin ? origin : "";
-      }
       if (
-        !origin ||
+        process.env.NODE_ENV !== "production" &&
+        origin &&
         /^http:\/\/(localhost|127\.0\.0\.1):(3000|3001)$/.test(origin)
       ) {
         return origin;
       }
-      return allowedOrigin && origin === allowedOrigin ? origin : "";
+      if (!origin || !allowedOrigin) return "";
+      return origin === allowedOrigin ? origin : "";
     },
     allowMethods: ["POST", "GET", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization", "X-User-Id"],
@@ -117,7 +128,7 @@ app.use(async (c, next) => {
     const authHeader = c.req.header("Authorization");
     const token = authHeader
       ? authHeader.replace(/^Bearer\s+/i, "")
-      : c.req.query("token") ?? "";
+      : (c.req.query("token") ?? "");
 
     const expectedHash = createHash("sha256").update(secret).digest();
     const providedHash = createHash("sha256").update(token).digest();
@@ -386,6 +397,73 @@ app.post("/webhook/github", async (c) => {
     return c.json({ ok: true, message: "Event received" });
   } catch (error) {
     log.error({ error }, "[webapp] /webhook/github error");
+    return c.json(
+      { error: error instanceof Error ? error.message : "Unknown error" },
+      500,
+    );
+  }
+});
+
+/**
+ * Rewind a thread to a prior checkpoint.
+ *
+ * POST /rewind/:threadId/:checkpointId
+ *
+ * Restores the thread's checkpointer state to the requested checkpoint using
+ * the existing LangGraph MemorySaver (see `src/harness/deepagents.ts`). Returns
+ * 404 when the checkpoint id is unknown for the thread.
+ */
+app.post("/rewind/:threadId/:checkpointId", async (c) => {
+  const { threadId, checkpointId } = c.req.param();
+
+  try {
+    const { threadManager } = await import("./harness/thread-manager");
+    const { restoreCheckpoint, CheckpointNotFoundError } = await import(
+      "./tools/checkpoint-rewind"
+    );
+
+    const agent = threadManager.getAgent(threadId);
+    if (!agent) {
+      return c.json(
+        {
+          error: `No active agent for thread '${threadId}'.`,
+          threadId,
+          checkpointId,
+        },
+        404,
+      );
+    }
+
+    let restored;
+    try {
+      restored = await restoreCheckpoint(agent, threadId, checkpointId);
+    } catch (error) {
+      if (error instanceof CheckpointNotFoundError) {
+        return c.json(
+          {
+            error: error.message,
+            threadId,
+            checkpointId,
+          },
+          404,
+        );
+      }
+      throw error;
+    }
+
+    return c.json({
+      success: true,
+      threadId,
+      checkpointId,
+      restoredAt: new Date().toISOString(),
+      next: restored.next ?? [],
+      messageCount: (() => {
+        const v = restored.values as Record<string, unknown> | undefined;
+        return Array.isArray(v?.messages) ? v!.messages.length : undefined;
+      })(),
+    });
+  } catch (error) {
+    log.error({ error, threadId, checkpointId }, "[webapp] /rewind error");
     return c.json(
       { error: error instanceof Error ? error.message : "Unknown error" },
       500,

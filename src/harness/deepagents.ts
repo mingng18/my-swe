@@ -1,6 +1,17 @@
 import { createLogger } from "../utils/logger";
-import { threadManager, threadRepoMap, THREAD_TTL_MS, type RepoContext } from "./thread-manager";
-import { loadLlmConfig, loadModelConfig } from "../utils/config";
+import {
+  threadManager,
+  threadRepoMap,
+  THREAD_TTL_MS,
+  type RepoContext,
+} from "./thread-manager";
+import {
+  loadLlmConfig,
+  loadModelConfig,
+  getRoleModelConfig,
+  isArchitectEditorRoutingEnabled,
+} from "../utils/config";
+import { getMode, getModelOverride, purgeStaleSessions } from "../utils/session-store";
 import { createChatModel } from "../utils/model-factory";
 import { createDeepAgent, FilesystemBackend, type DeepAgent } from "deepagents";
 import {
@@ -16,6 +27,7 @@ import {
   type ThreadMapCleanupFn,
 } from "../utils/thread-cleanup-scheduler";
 import { CallbackHandler as LangfuseLangChain } from "langfuse-langchain";
+import type { BaseCallbackHandler } from "@langchain/core/callbacks/base";
 import { MemorySaver } from "@langchain/langgraph";
 import {
   modelRetryMiddleware,
@@ -30,6 +42,12 @@ import { createEnsureNoEmptyMsgMiddleware } from "../middleware/ensure-no-empty-
 import { toolInvocationTracker } from "../middleware/tool-invocation-limits";
 import { createSkillCompactionProtectionMiddleware } from "../middleware/skill-compaction-protection";
 import { createCompactionMiddleware } from "../middleware/compact-middleware";
+import { createAgentFirewallMiddleware } from "../middleware/agent-firewall";
+import {
+  createHooksMiddleware,
+  fireSessionStart,
+  registerHooksThreadCleanup,
+} from "../hooks";
 import type {
   AgentHarness,
   AgentInvokeOptions,
@@ -66,7 +84,12 @@ import { builtInSubagents } from "../subagents/registry";
 import { loadRepoAgents, mergeSubagents } from "../subagents/agentsLoader";
 import { asyncSubagents } from "../subagents/async";
 import { type BaseMessage, type ToolCall } from "@langchain/core/messages";
-import { streamRegistry, type SSEEvent } from "../stream";
+import { type BaseChatModel } from "@langchain/core/language_models/chat_models";
+import {
+  streamRegistry,
+  type SSEEvent,
+  type LLMStartEvent,
+} from "../stream";
 
 const logger = createLogger("deepagents");
 
@@ -114,28 +137,36 @@ export function emitTodoEvent(
 }
 
 const useSandbox = process.env.USE_SANDBOX === "true";
-const AGENT_RECURSION_LIMIT = Number.parseInt(process.env.AGENT_RECURSION_LIMIT || "1000", 10);
+const AGENT_RECURSION_LIMIT = Number.parseInt(
+  process.env.AGENT_RECURSION_LIMIT || "1000",
+  10,
+);
 let hasLoadedPersistedRepos = false;
 
 // ============================================================================
 // Thread Cleanup Configuration
 // ============================================================================
 
-export async function cleanupThreadMaps(ttlMs: number = 3600000): Promise<number> {
-  const before = threadManager.threadAgentMap.size + threadManager.threadSandboxMap.size + threadManager.threadRepoMap.size;
+export async function cleanupThreadMaps(
+  ttlMs: number = 3600000,
+): Promise<number> {
+  const before =
+    threadManager.threadAgentMap.size +
+    threadManager.threadSandboxMap.size +
+    threadManager.threadRepoMap.size;
   threadManager.purgeStale();
-  const after = threadManager.threadAgentMap.size + threadManager.threadSandboxMap.size + threadManager.threadRepoMap.size;
+  const after =
+    threadManager.threadAgentMap.size +
+    threadManager.threadSandboxMap.size +
+    threadManager.threadRepoMap.size;
   return before - after;
 }
 
-async function createAgentInstance(args: {
-  workspaceRoot?: string;
-  backend?: SandboxService | FilesystemBackend;
-}): Promise<DeepAgent> {
-  const modelConfig = loadModelConfig();
-  const chatModel = await createChatModel(modelConfig);
-  const { fallback } = loadLlmConfig();
-
+async function buildMiddleware(
+  chatModel: BaseChatModel,
+  modelConfig: any,
+  fallback?: { openaiBaseUrl?: string; openaiApiKey?: string; model?: string },
+): Promise<any[]> {
   const middleware: any[] = [
     // Resilience: automatic retry on transient model errors
     modelRetryMiddleware({
@@ -175,7 +206,10 @@ async function createAgentInstance(args: {
                     );
                     if (Number.isNaN(parsed)) {
                       logger.warn(
-                        { envValue: process.env.COMPACTION_CASCADE_TRIGGER_FRACTION },
+                        {
+                          envValue:
+                            process.env.COMPACTION_CASCADE_TRIGGER_FRACTION,
+                        },
                         "[deepagents] Invalid COMPACTION_CASCADE_TRIGGER_FRACTION, using default 0.7",
                       );
                       return 0.7;
@@ -227,6 +261,10 @@ async function createAgentInstance(args: {
     createLoopDetectionMiddleware(),
     // Custom: ensure model always produces meaningful output
     createEnsureNoEmptyMsgMiddleware(),
+    // Custom: command/network allowlist + cost kill-switch (permissive when unconfigured)
+    createAgentFirewallMiddleware(),
+    // Custom: event-driven hooks (SessionStart / PreToolUse / PostToolUse); no-op when unconfigured
+    createHooksMiddleware(),
   ];
 
   // Add model fallback if configured
@@ -243,13 +281,23 @@ async function createAgentInstance(args: {
     }
   }
 
+  return middleware;
+}
+
+export async function loadAgentTools(
+  workspaceRoot?: string,
+  opts?: { includeMcp?: boolean },
+): Promise<any[]> {
   let tools = useSandbox ? sandboxAllTools : allTools;
 
-  // Load MCP tools if enabled and workspace is available
-  if (process.env.MCP_ENABLED !== "false" && args.workspaceRoot) {
+  // Load MCP tools if enabled and workspace is available. Plan mode opts out
+  // (includeMcp === false) so dynamically-registered MCP server tools — which
+  // evade the static PLAN_MODE_BLOCKED_TOOLS denylist — can never write while
+  // the agent is planning. (#510)
+  if (opts?.includeMcp !== false && process.env.MCP_ENABLED !== "false" && workspaceRoot) {
     try {
       const { loadMcpTools } = await import("../mcp/tool-factory.js");
-      const mcpTools = await loadMcpTools(args.workspaceRoot);
+      const mcpTools = await loadMcpTools(workspaceRoot);
 
       if (mcpTools.length > 0) {
         tools = [...tools, ...mcpTools];
@@ -266,24 +314,66 @@ async function createAgentInstance(args: {
     }
   }
 
-  const config: any = {
-    model: chatModel,
-    systemPrompt: constructSystemPrompt(args.workspaceRoot || process.cwd()),
-    checkpointer: new MemorySaver(),
-    tools,
-    middleware,
-  };
+  return tools;
+}
 
-  // Add LangChain callback for automatic tracing
-  if (isLangfuseEnabled()) {
-    config.callbacks = [new LangfuseLangChain()];
-    logger.debug("[deepagents] Langfuse LangChain callback registered");
-  }
+/**
+ * Tool names that mutate state, run shell, or otherwise make changes. Plan mode
+ * (#498) filters these out so "no edits" is enforced at the tool layer rather
+ * than relying solely on a natural-language prefix.
+ *
+ * Kept as a module export so tests can assert the denylist without re-importing.
+ */
+export const PLAN_MODE_BLOCKED_TOOLS = new Set<string>([
+  // PR / GitHub mutations
+  "commit_and_open_pr",
+  "merge_pr",
+  "create_github_issue",
+  "comment_github_issue",
+  "close_github_issue",
+  "reopen_github_issue",
+  "github_comment",
+  // Shell + sandbox mutations
+  "sandbox_shell",
+  "sandbox_network",
+  "sandbox_delete",
+  "sandbox_mkdir",
+  "sandbox_move",
+  "sandbox_copy",
+  "write_sandbox_file",
+  // Memory / artifact mutations
+  "artifact_delete",
+  "artifact_update",
+  "memory_forget",
+  "rewind_checkpoint",
+  // MCP wildcard — can invoke any MCP tool, including mutating ones
+  "call_mcp_tool",
+]);
 
-  if (args.backend) {
-    config.backend = args.backend;
-  }
+function isReadOnlyTool(tool: any): boolean {
+  const name: string | undefined = tool?.name;
+  if (!name) return false;
+  return !PLAN_MODE_BLOCKED_TOOLS.has(name);
+}
 
+/**
+ * Plan-mode toolset: same load path as `loadAgentTools`, but write/shell/mutation
+ * tools are filtered out so the agent physically cannot edit while planning.
+ */
+export async function loadReadOnlyTools(workspaceRoot?: string): Promise<any[]> {
+  // Exclude MCP tools entirely in plan mode (#510): they're loaded as top-level
+  // tools and a mutating MCP server tool would evade the static denylist.
+  const all = await loadAgentTools(workspaceRoot, { includeMcp: false });
+  const filtered = all.filter(isReadOnlyTool);
+  const dropped = all.length - filtered.length;
+  logger.info(
+    { total: all.length, kept: filtered.length, dropped },
+    "[deepagents] Plan mode: filtered write/shell/mutation tools (MCP excluded)",
+  );
+  return filtered;
+}
+
+async function configureSubagents(config: any): Promise<void> {
   // Add subagents if enabled
   if (process.env.SUBAGENTS_ENABLED !== "false") {
     // Load repo-specific agents
@@ -312,9 +402,242 @@ async function createAgentInstance(args: {
       "[deepagents] Async subagents enabled",
     );
   }
+}
+
+// Per-thread in-memory checkpointer so that rebuilding a thread's agent (e.g.
+// when /model changes the model, or /plan<->/act toggles mode) preserves that
+// thread's conversation history. The map lives on `threadManager` and is
+// bounded (LRU cap + TTL), so a long-lived server can't grow it without limit.
+// `threadManager.clearAgent()` deliberately keeps the checkpointer; the TTL
+// disposal path (`purgeStale`/`clearAll`) drops both agent and checkpointer.
+
+async function createAgentInstance(args: {
+  workspaceRoot?: string;
+  backend?: SandboxService | FilesystemBackend;
+  threadId?: string;
+}): Promise<DeepAgent> {
+  // Model selection (#497 Architect/Editor routing):
+  // The primary agent's dominant workload is file edits and tool-calls, so it
+  // runs on the EDITOR model (cheaper/faster) when the split is enabled. When
+  // either ARCHITECT_MODEL or EDITOR_MODEL is unset, getRoleModelConfig returns
+  // the single MODEL config exactly as today (no role tag), so default behavior
+  // is unchanged. The role tag flows into telemetry/pricing via loadModelConfig.
+  let modelConfig = getRoleModelConfig("editor");
+  // Per-thread model override (/model). No override = today's single MODEL / EDITOR.
+  const override = args.threadId ? getModelOverride(args.threadId) : undefined;
+  if (override) {
+    modelConfig = { ...modelConfig, model: override };
+  }
+  if (isArchitectEditorRoutingEnabled()) {
+    logger.info(
+      {
+        editorModel: modelConfig.model,
+        architectModel: process.env.ARCHITECT_MODEL,
+      },
+      "[deepagents] Architect/Editor routing enabled; agent running on EDITOR model",
+    );
+  }
+  const chatModel = await createChatModel(modelConfig);
+  const { fallback } = loadLlmConfig();
+
+  const middleware = await buildMiddleware(chatModel, modelConfig, fallback);
+  // Plan mode (#498): enforce "no edits" at the tool layer by loading only
+  // read-only tools. Mode changes (/plan, /act) recreate the agent via
+  // clearAgent(); the per-thread checkpointer preserves history across it.
+  const planMode = args.threadId
+    ? getMode(args.threadId) === "plan"
+    : false;
+  const tools = planMode
+    ? await loadReadOnlyTools(args.workspaceRoot)
+    : await loadAgentTools(args.workspaceRoot);
+
+  const config: any = {
+    model: chatModel,
+    systemPrompt: constructSystemPrompt(args.workspaceRoot || process.cwd()),
+    checkpointer: args.threadId
+      ? threadManager.getCheckpointer(args.threadId)
+      : new MemorySaver(),
+    tools,
+    middleware,
+  };
+
+  // Add LangChain callback for automatic tracing
+  if (isLangfuseEnabled()) {
+    config.callbacks = [new LangfuseLangChain()];
+    logger.debug("[deepagents] Langfuse LangChain callback registered");
+  }
+
+  if (args.backend) {
+    config.backend = args.backend;
+  }
+
+  await configureSubagents(config);
 
   const agent = createDeepAgent(config);
   return agent;
+}
+
+// ---------------------------------------------------------------------------
+// Architect planning step (#497)
+// ---------------------------------------------------------------------------
+//
+// When Architect/Editor routing is enabled (BOTH ARCHITECT_MODEL and EDITOR_MODEL
+// set), the editor agent's user message is preceded by a concise plan produced
+// by the ARCHITECT model. The architect reasons over the task + repo context and
+// emits a short, actionable plan; the editor (the agent itself) then implements
+// it. When routing is disabled, this is a no-op and the editor runs exactly as
+// today — no extra LLM call, byte-for-byte default behavior.
+//
+// The call is best-effort: any failure (network, parse, etc.) is swallowed so
+// the editor turn still proceeds on the original user message. This avoids
+// introducing a new throw across the async invoke path.
+
+const ARCHITECT_PLAN_SYSTEM_PROMPT = `You are the Architect. Produce a concise, actionable implementation plan for the task below. Focus on:
+- The specific files/functions to add or change (paths when known).
+- The key steps in dependency order (numbered).
+- Risks, edge cases, or open questions worth flagging.
+
+Do NOT implement anything. Keep the plan under ~250 words. The editor agent will receive your plan plus the original task and execute it.`;
+
+/**
+ * Hard cap on the architect plan length (#497). The prompt asks for ~250 words,
+ * but the model can ramble; an unbounded plan bloats the editor's context. We
+ * truncate to a generous bound that still leaves room for the original task.
+ */
+const ARCHITECT_PLAN_MAX_CHARS = 2000;
+
+/**
+ * Generate a concise architect plan for a task.
+ *
+ * Returns the plan text (to be prepended to the editor's user message), or the
+ * empty string when routing is disabled or planning fails. Exported for tests.
+ *
+ * Cost/usage attribution (#497): when `threadId` is supplied, the architect call
+ * is wrapped in `llm_start`/`llm_end` stream events tagged with
+ * `role: "architect"`, and the LangChain Langfuse callback (when Langfuse is
+ * enabled) is attached to the invoke so the architect's tokens are traced —
+ * mirroring how the editor turn is instrumented. Without this the architect
+ * usage was invisible.
+ *
+ * Plan size (#497): the plan is truncated to {@link ARCHITECT_PLAN_MAX_CHARS}
+ * before being returned, so an over-long plan can't unboundedly inflate the
+ * editor's context.
+ *
+ * Best-effort: any failure (network, parse, etc.) is swallowed so the editor
+ * turn still proceeds on the original user message — no new throw crosses the
+ * async invoke path.
+ *
+ * @param options.threadId when provided, stream events are emitted for this
+ *   thread and Langfuse tracing is attached. Omit to skip attribution (used by
+ *   tests that only assert on the model config).
+ */
+export async function generateArchitectPlan(
+  task: string,
+  repoContext?: { owner?: string; name?: string; workspaceDir?: string },
+  options?: { threadId?: string },
+): Promise<string> {
+  if (!isArchitectEditorRoutingEnabled()) return "";
+
+  const threadId = options?.threadId;
+  try {
+    const modelConfig = getRoleModelConfig("architect");
+    const model = await createChatModel(modelConfig);
+
+    const repoLine = repoContext?.owner && repoContext?.name
+      ? `\n\nRepo: ${repoContext.owner}/${repoContext.name}`
+      : "";
+    const userContent = `Task:\n${task}${repoLine}`;
+
+    // Cost/usage attribution (#497): emit llm_start (role='architect') and
+    // attach the Langfuse callback when enabled, so the architect's tokens are
+    // visible in both the SSE stream and Langfuse — same shape as the editor
+    // turn below. Best-effort: the events themselves must never throw.
+    const invokeOptions: { callbacks?: BaseCallbackHandler[] } = {};
+    if (isLangfuseEnabled()) {
+      invokeOptions.callbacks = [new LangfuseLangChain()];
+    }
+    if (threadId) {
+      emitStreamEvent(threadId, {
+        type: "llm_start",
+        model: modelConfig.model,
+        role: "architect",
+        timestamp: Date.now(),
+      });
+    }
+
+    const response = await model.invoke(
+      [
+        { role: "system", content: ARCHITECT_PLAN_SYSTEM_PROMPT },
+        { role: "user", content: userContent },
+      ],
+      invokeOptions,
+    );
+
+    const plan =
+      typeof response.content === "string"
+        ? response.content.trim()
+        : "";
+
+    // Unbounded plan size (#497): cap before returning so the editor's context
+    // can't be inflated by a rambling architect. Truncate at a sentence/line
+    // boundary when possible for readability.
+    const cappedPlan = capArchitectPlan(plan, ARCHITECT_PLAN_MAX_CHARS);
+
+    if (threadId) {
+      emitStreamEvent(threadId, {
+        type: "llm_end",
+        totalTokens: Math.round(cappedPlan.length / 4),
+        role: "architect",
+        timestamp: Date.now(),
+      });
+    }
+
+    if (!cappedPlan) return "";
+
+    logger.info(
+      {
+        architectModel: modelConfig.model,
+        planLength: cappedPlan.length,
+        truncated: plan.length > ARCHITECT_PLAN_MAX_CHARS,
+      },
+      "[deepagents] Architect plan generated for editor turn",
+    );
+
+    return cappedPlan;
+  } catch (err) {
+    // Best-effort: a planning failure must NOT break the editor turn. Emit a
+    // matching llm_end so a streamed llm_start never dangles without a pair.
+    if (threadId) {
+      try {
+        emitStreamEvent(threadId, {
+          type: "llm_end",
+          totalTokens: 0,
+          role: "architect",
+          timestamp: Date.now(),
+        });
+      } catch {
+        // Streaming must never break the editor turn.
+      }
+    }
+    logger.warn(
+      { err },
+      "[deepagents] Architect planning failed; editor will run without a plan",
+    );
+    return "";
+  }
+}
+
+/**
+ * Truncate an architect plan to `maxChars`, preferring a clean break at the last
+ * newline within the bound so the truncated plan reads as a complete thought.
+ * Returns the empty string unchanged.
+ */
+function capArchitectPlan(plan: string, maxChars: number): string {
+  if (plan.length <= maxChars) return plan;
+  const slice = plan.slice(0, maxChars);
+  const lastNewline = slice.lastIndexOf("\n");
+  const body = lastNewline > maxChars * 0.5 ? slice.slice(0, lastNewline) : slice;
+  return `${body}\n[plan truncated to stay within ${maxChars} chars]`;
 }
 
 // Retry/fallback logic is now handled by prebuilt middleware
@@ -572,8 +895,6 @@ function extractRepoFromInput(
 // This solves the problem of "configurable" values being lost across turns
 // if the user doesn't re-type `--repo foo/bar`.
 
-
-
 async function acquireDaytonaSandboxForThreadRepo(args: {
   threadId: string;
   repoOwner: string;
@@ -684,12 +1005,16 @@ async function resolveSandboxContext(
     );
   }
 
-  logger.info(`[deepagents] Repo acquire+clone took ${Date.now() - cloneStart}ms`);
+  logger.info(
+    `[deepagents] Repo acquire+clone took ${Date.now() - cloneStart}ms`,
+  );
 
   const activeRepo = { ...parsedRepo, workspaceDir, lastAccessed: Date.now() };
   threadManager.setRepo(threadId, activeRepo);
-  const { lastAccessed, ...repoForPersistence } = threadManager.getRepo(threadId) || { owner: parsedRepo.owner, name: parsedRepo.name, workspaceDir };
-  
+  const { lastAccessed, ...repoForPersistence } = threadManager.getRepo(
+    threadId,
+  ) || { owner: parsedRepo.owner, name: parsedRepo.name, workspaceDir };
+
   await persistThreadRepo(threadId, {
     ...repoForPersistence,
     sandbox: {
@@ -703,15 +1028,20 @@ async function resolveSandboxContext(
     profile,
     repo: activeRepo,
   } as any);
-  
+
   setSandboxBackend(threadId, backend);
 
   // Pre-install dependencies for agent context
   try {
-    logger.info("[deepagents] Pre-installing dependencies for agent context...");
+    logger.info(
+      "[deepagents] Pre-installing dependencies for agent context...",
+    );
     await installDependencies(backend, workspaceDir);
   } catch (depErr) {
-    logger.warn({ err: depErr }, "[deepagents] Pre-install dependencies failed (non-fatal)");
+    logger.warn(
+      { err: depErr },
+      "[deepagents] Pre-install dependencies failed (non-fatal)",
+    );
   }
 
   return { activeRepo, backend, workspaceDir };
@@ -724,7 +1054,7 @@ export class DeepAgentWrapper implements AgentHarness {
     if (!hasLoadedPersistedRepos) {
       const persisted = await loadPersistedThreadRepos();
       for (const [id, repo] of persisted.entries()) {
-        threadManager.setRepo( id,  repo);
+        threadManager.setRepo(id, repo);
       }
       hasLoadedPersistedRepos = true;
     }
@@ -732,18 +1062,18 @@ export class DeepAgentWrapper implements AgentHarness {
     const parsedRepo = extractRepoFromInput(input);
     let activeRepo: RepoContext | undefined = threadManager.getRepo(threadId);
     if (activeRepo) {
-      
     }
     const profile = getSandboxProfileFromEnv();
 
     const sandboxEntry = threadManager.getSandbox(threadId);
     if (sandboxEntry) {
-      
     }
     const hasBackendForThread = Boolean(sandboxEntry?.backend);
 
     // Mark thread as accessed in cleanup scheduler
-    const scheduler = await import("../utils/thread-cleanup-scheduler").then(m => m.getThreadCleanupScheduler());
+    const scheduler = await import("../utils/thread-cleanup-scheduler").then(
+      (m) => m.getThreadCleanupScheduler(),
+    );
     if (scheduler) {
       scheduler.markAccessed(threadId);
     }
@@ -761,7 +1091,6 @@ export class DeepAgentWrapper implements AgentHarness {
       // If we already held a sandbox for this thread, release it back to the pool.
       const prior = threadManager.getSandbox(threadId);
       if (prior) {
-        
         try {
           await releaseRepoSandbox({
             apiKey: process.env.DAYTONA_API_KEY || "",
@@ -795,7 +1124,11 @@ export class DeepAgentWrapper implements AgentHarness {
       }
 
       if (useSandbox) {
-        const context = await resolveSandboxContext(threadId, parsedRepo, profile);
+        const context = await resolveSandboxContext(
+          threadId,
+          parsedRepo,
+          profile,
+        );
         activeRepo = context.activeRepo;
       } else {
         activeRepo = {
@@ -803,10 +1136,14 @@ export class DeepAgentWrapper implements AgentHarness {
           workspaceDir: `/workspace/${parsedRepo.name}`,
           lastAccessed: Date.now(),
         };
-        threadManager.setRepo( threadId,  activeRepo);
+        threadManager.setRepo(threadId, activeRepo);
         const { lastAccessed, ...repoForPersistence } = threadManager.getRepo(
           threadId,
-        ) || { owner: parsedRepo.owner, name: parsedRepo.name, workspaceDir: activeRepo.workspaceDir };
+        ) || {
+          owner: parsedRepo.owner,
+          name: parsedRepo.name,
+          workspaceDir: activeRepo.workspaceDir,
+        };
         await persistThreadRepo(threadId, repoForPersistence);
       }
     }
@@ -819,6 +1156,13 @@ export class DeepAgentWrapper implements AgentHarness {
         workspaceDir: activeRepo.workspaceDir,
       };
     }
+    // Stamp the top-level agent identity into the runtime configurable so the
+    // hooks middleware (issue #490 acceptance criterion #3) can distinguish
+    // top-level vs subagent events. Subagents spawned via the `task` tool
+    // inherit this config but are tagged separately by the middleware.
+    configurable.agent_id = "bullhorse";
+    configurable.agent_type = "deepagents";
+    configurable.agent_scope = "top";
 
     // Pass tools to configurable so tool_search can access them
     const currentTools = useSandbox ? sandboxAllTools : allTools;
@@ -837,6 +1181,7 @@ export class DeepAgentWrapper implements AgentHarness {
         agent = await createAgentInstance({
           workspaceRoot: activeRepo?.workspaceDir,
           backend,
+          threadId,
         });
       } else if (activeRepo?.workspaceDir) {
         agent = await createAgentInstance({
@@ -845,12 +1190,13 @@ export class DeepAgentWrapper implements AgentHarness {
             rootDir: activeRepo.workspaceDir,
             virtualMode: false,
           }),
+          threadId,
         });
       } else {
-        agent = await createAgentInstance({});
+        agent = await createAgentInstance({ threadId });
       }
 
-      threadManager.setAgent( threadId,  agent);
+      threadManager.setAgent(threadId, agent);
       logger.info({ threadId }, `[deepagents] Agent initialized for thread`);
     }
     return { agent, configurable, activeRepo };
@@ -869,15 +1215,21 @@ export class DeepAgentWrapper implements AgentHarness {
         threadId,
         timestamp: Date.now(),
       });
+      // Fire event-driven hooks SessionStart (idempotent per thread_id; no-op
+      // when unconfigured). Awaited so SessionStart ordering is guaranteed and
+      // a failing handler cannot race the agent turn or surface as an
+      // unhandled rejection. fireSessionStart swallows/logs handler errors.
+      await fireSessionStart(threadId);
 
       let { agent, configurable } = await this.prepareAgent(input, threadId);
       const activeRepo = threadManager.getRepo(threadId);
       if (activeRepo) {
-
       }
 
       // Mark thread as accessed in cleanup scheduler
-      const scheduler = await import("../utils/thread-cleanup-scheduler").then(m => m.getThreadCleanupScheduler());
+      const scheduler = await import("../utils/thread-cleanup-scheduler").then(
+        (m) => m.getThreadCleanupScheduler(),
+      );
       if (scheduler) {
         scheduler.markAccessed(threadId);
       }
@@ -955,11 +1307,13 @@ If you need to make additional changes, continue working and they'll be added to
       // This prevents the agent from being confused by leftover changes from previous runs
       const sandboxEntry = threadManager.getSandbox(threadId);
       if (sandboxEntry) {
-        
       }
 
       // Mark thread as accessed in cleanup scheduler
-      const invokeScheduler = await import("../utils/thread-cleanup-scheduler").then(m => m.getThreadCleanupScheduler());
+      const invokeScheduler =
+        await import("../utils/thread-cleanup-scheduler").then((m) =>
+          m.getThreadCleanupScheduler(),
+        );
       if (invokeScheduler) {
         invokeScheduler.markAccessed(threadId);
       }
@@ -1045,19 +1399,72 @@ If you need to make additional changes, continue working and they'll be added to
               transport: options?.transport || "api",
               blueprintId: blueprintSelection.blueprint.id,
               blueprintName: blueprintSelection.blueprint.name,
-              repo: activeRepo ? `${activeRepo.owner}/${activeRepo.name}` : undefined,
+              repo: activeRepo
+                ? `${activeRepo.owner}/${activeRepo.name}`
+                : undefined,
             },
           });
         }
 
-        // Emit LLM start
-        const modelConfig = loadModelConfig();
-        const model = modelConfig.model || "unknown";
-        emitStreamEvent(threadId, {
+        // Emit LLM start.
+        // The agent runs on the EDITOR model (#497); when routing is disabled
+        // getRoleModelConfig returns the single MODEL config, so `model` matches
+        // today's behavior. `role` is only included for attribution when routing
+        // is enabled, leaving the default event shape unchanged.
+        //
+        // Telemetry model accuracy (#497): when a per-thread /model override is
+        // active it is applied to the agent's chat model at setupAgent time, so
+        // the resolved model id is the override (or the editor/base model). Emit
+        // the ACTUALLY-USED model id here, not a stale config value — otherwise
+        // a /model override combined with routing would misattribute usage to
+        // the wrong model.
+        const editorModelConfig = getRoleModelConfig("editor");
+        const modelOverride = getModelOverride(threadId);
+        const resolvedEditorModel =
+          (modelOverride?.trim() || undefined) ?? editorModelConfig.model;
+        const llmStartEvent: LLMStartEvent = {
           type: "llm_start",
-          model,
+          model: resolvedEditorModel || "unknown",
           timestamp: Date.now(),
-        });
+        };
+        if (editorModelConfig.role) {
+          llmStartEvent.role = editorModelConfig.role;
+        }
+        emitStreamEvent(threadId, llmStartEvent);
+
+        // Plan/Act mode (#498): in "plan" mode, instruct the agent to reason
+        // and propose a plan WITHOUT editing (read-only). Only this turn's user
+        // message is wrapped — conversation history is preserved.
+        if (getMode(threadId) === "plan") {
+          modifiedInput =
+            "You are in PLAN MODE. Do NOT edit files, run shell/write commands, or make any changes. Read the relevant code, reason about the task, and reply with a concise, actionable PLAN (numbered steps, files to touch, risks/open questions). Stop before implementing. The user will run /act to apply changes.\n\n" +
+            modifiedInput;
+        }
+
+        // Architect planning step (#497): when Architect/Editor routing is
+        // enabled, the ARCHITECT model produces a concise plan from the task +
+        // repo context and we prepend it to the editor's user message. When
+        // routing is disabled, generateArchitectPlan is a no-op (returns "")
+        // and modifiedInput is untouched — byte-for-byte today's behavior.
+        //
+        // Plan mode vs architect (#497): when the user has already engaged PLAN
+        // mode (their manual planning request), the agent itself proposes a
+        // plan, so the architect's automatic plan would double-plan. Skip the
+        // architect step in plan mode. Plan mode = the user's planning;
+        // architect = the model's auto-planning; never both.
+        if (
+          isArchitectEditorRoutingEnabled() && getMode(threadId) !== "plan"
+        ) {
+          const plan = await generateArchitectPlan(
+            modifiedInput,
+            activeRepo,
+            { threadId },
+          );
+          if (plan) {
+            modifiedInput =
+              `[ARCHITECT PLAN]\n${plan}\n[/ARCHITECT PLAN]\n\n` + modifiedInput;
+          }
+        }
 
         result = traceTerminal
           ? await runDeepAgentWithStreamTrace(
@@ -1077,11 +1484,15 @@ If you need to make additional changes, continue working and they'll be added to
         const messagesAfter = result.messages || [];
         const totalTokens = JSON.stringify(messagesAfter).length / 4; // Rough estimate
 
-        // Emit LLM end
+        // Emit LLM end. Tag with the editor role when routing is enabled so the
+        // paired llm_end can be attributed to the same role as its llm_start.
         emitStreamEvent(threadId, {
           type: "llm_end",
           totalTokens: Math.round(totalTokens),
           timestamp: Date.now(),
+          ...(editorModelConfig.role
+            ? { role: editorModelConfig.role }
+            : {}),
         });
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
@@ -1390,10 +1801,11 @@ If you need to make additional changes, continue working and they'll be added to
   async getState(threadId: string): Promise<any> {
     const agent = threadManager.getAgent(threadId);
     if (!agent) return null;
-    
 
     // Mark thread as accessed in cleanup scheduler
-    const scheduler = await import("../utils/thread-cleanup-scheduler").then(m => m.getThreadCleanupScheduler());
+    const scheduler = await import("../utils/thread-cleanup-scheduler").then(
+      (m) => m.getThreadCleanupScheduler(),
+    );
     if (scheduler) {
       scheduler.markAccessed(threadId);
     }
@@ -1417,7 +1829,7 @@ export async function initDeepAgentsAtStartup(): Promise<void> {
   if (!hasLoadedPersistedRepos) {
     const persisted = await loadPersistedThreadRepos();
     for (const [id, repo] of persisted.entries()) {
-      threadManager.setRepo( id,  repo);
+      threadManager.setRepo(id, repo);
     }
     hasLoadedPersistedRepos = true;
   }
@@ -1454,6 +1866,33 @@ export async function initDeepAgentsAtStartup(): Promise<void> {
   };
 
   scheduler.registerCleanupFn(cleanupFn);
+
+  // Wire the per-thread session store's TTL purge into the same tick so the
+  // session store (mode/model overrides) is actually TTL-bounded as documented,
+  // not just hard-cap bounded. Aligns the purge TTL with the scheduler's TTL.
+  const sessionStoreCleanupFn: ThreadMapCleanupFn = async (
+    _metadata: Map<string, { threadId: string; lastAccessed: Date }>,
+    ttlMs: number,
+  ): Promise<number> => {
+    try {
+      return purgeStaleSessions(Date.now(), ttlMs);
+    } catch (err) {
+      logger.warn(
+        { err },
+        "[deepagents] session-store purge failed (non-fatal)",
+      );
+      return 0;
+    }
+  };
+
+  scheduler.registerCleanupFn(sessionStoreCleanupFn);
+
+  // Register hooks SessionStart-map eviction with the same scheduler so the
+  // idempotency map does not grow unbounded across the process lifetime.
+  registerHooksThreadCleanup().catch((err) =>
+    logger.warn({ err }, "[deepagents] hooks cleanup registration failed"),
+  );
+
   logger.info(
     {
       intervalMs: cleanupIntervalMs,
@@ -1475,35 +1914,37 @@ export async function cleanupDeepAgents(): Promise<void> {
 
   // Release sandboxes back to the pool and dispose backends in parallel.
   await Promise.all(
-    Array.from(threadManager.threadSandboxMap.entries()).map(async ([threadId, entry]) => {
-      try {
-        await releaseRepoSandbox({
-          apiKey: process.env.DAYTONA_API_KEY || "",
-          apiUrl: process.env.DAYTONA_API_URL,
-          target: process.env.DAYTONA_TARGET,
-          sandboxId: entry.backend.id,
-          profile: entry.profile,
-          repoOwner: entry.repo.owner,
-          repoName: entry.repo.name,
-        });
-      } catch (err) {
-        logger.warn(
-          { error: err, threadId },
-          "[deepagents] Failed to release sandbox",
-        );
-      }
-      try {
-        await entry.backend.cleanup();
-      } catch (err) {
-        logger.warn(
-          { error: err, threadId },
-          "[deepagents] Failed to cleanup backend",
-        );
-      }
-      clearSandboxBackend(threadId);
-      // Clean up tool invocation tracking for this thread
-      toolInvocationTracker.clearThread(threadId);
-    }),
+    Array.from(threadManager.threadSandboxMap.entries()).map(
+      async ([threadId, entry]) => {
+        try {
+          await releaseRepoSandbox({
+            apiKey: process.env.DAYTONA_API_KEY || "",
+            apiUrl: process.env.DAYTONA_API_URL,
+            target: process.env.DAYTONA_TARGET,
+            sandboxId: entry.backend.id,
+            profile: entry.profile,
+            repoOwner: entry.repo.owner,
+            repoName: entry.repo.name,
+          });
+        } catch (err) {
+          logger.warn(
+            { error: err, threadId },
+            "[deepagents] Failed to release sandbox",
+          );
+        }
+        try {
+          await entry.backend.cleanup();
+        } catch (err) {
+          logger.warn(
+            { error: err, threadId },
+            "[deepagents] Failed to cleanup backend",
+          );
+        }
+        clearSandboxBackend(threadId);
+        // Clean up tool invocation tracking for this thread
+        toolInvocationTracker.clearThread(threadId);
+      },
+    ),
   );
   threadManager.threadSandboxMap.clear();
   threadManager.threadAgentMap.clear();

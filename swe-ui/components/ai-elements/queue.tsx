@@ -125,6 +125,7 @@ export const QueueItemAction = ({
   ...props
 }: QueueItemActionProps) => (
   <Button
+    aria-label="Action"
     className={cn(
       "size-auto rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-muted-foreground/10 hover:text-foreground group-hover:opacity-100",
       className

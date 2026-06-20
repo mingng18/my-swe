@@ -7,6 +7,7 @@ import { LRUCache } from "lru-cache";
 import { isPreapprovedHost } from "../utils/preapproved-domains";
 import { checkDomainBlocklist } from "../utils/domain-blocklist";
 import { Agent, fetch as undiciFetch } from "undici";
+import { defang } from "../security/defang";
 
 const lookupAsync = promisify(dns.lookup);
 
@@ -282,7 +283,7 @@ export async function fetchUrl(
   if (cachedEntry) {
     return {
       url,
-      markdown_content: cachedEntry.markdownContent,
+      markdown_content: defang("fetch-url", cachedEntry.markdownContent),
       status_code: cachedEntry.statusCode,
       content_length: cachedEntry.contentLength,
     };
@@ -418,7 +419,7 @@ export async function fetchUrl(
 
     return {
       url: finalUrl,
-      markdown_content: markdownContent,
+      markdown_content: defang("fetch-url", markdownContent),
       status_code: response.status,
       content_length: markdownContent.length,
     };

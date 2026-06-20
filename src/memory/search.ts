@@ -54,9 +54,7 @@ export class SearchService {
           return await this.repository.getByThread(threadId, options.types);
         }),
       );
-      for (const memories of results) {
-        allMemories.push(...memories);
-      }
+      allMemories = results.flat();
     }
 
     if (allMemories.length === 0) {

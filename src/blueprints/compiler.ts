@@ -65,7 +65,7 @@ export class BlueprintCompiler {
       if (!Object.prototype.hasOwnProperty.call(blueprint.states, stateId))
         continue;
       const state = blueprint.states[stateId as keyof typeof blueprint.states];
-      const ends = this.getNodeEnds(state);
+      const ends = this.getNodeEnds(state, blueprint);
       if (ends.length > 0) {
         graph.addNode(stateId, this.createNode(state, blueprint), { ends });
       } else {
@@ -286,13 +286,20 @@ export class BlueprintCompiler {
   // Internals
   // -----------------------------------------------------------------------
 
-  private getNodeEnds(state: State): string[] {
+  private getNodeEnds(state: State, blueprint: Blueprint): string[] {
+    let rawEnds: string[] = [];
     if (state.type === "agent") {
-      return state.next;
-    } else if (state.type === "deterministic" && state.on) {
-      return [...(state.on.pass || []), ...(state.on.fail || [])];
+      rawEnds = state.next;
+    } else if (state.type === "deterministic") {
+      if (state.on) {
+        rawEnds = [...(state.on.pass || []), ...(state.on.fail || [])];
+      } else if (state.next) {
+        rawEnds = state.next;
+      }
     }
-    return [];
+
+    // Filter out __end__ as it's a reserved system node that cannot be explicitly added as an end target in LangGraph
+    return rawEnds.filter(end => end !== "__end__" && end in blueprint.states);
   }
 
   private createNode(state: State, blueprint: Blueprint) {

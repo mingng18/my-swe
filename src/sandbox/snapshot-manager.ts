@@ -482,7 +482,18 @@ export class SnapshotManager {
         logger.error({ error: err }, "[snapshot-manager] Failed to create Daytona snapshot");
       }
     } else if (provider === "opensandbox") {
-      logger.debug("[snapshot-manager] OpenSandbox backend; returning info for snapshot");
+      logger.debug("[snapshot-manager] OpenSandbox backend; pausing sandbox to capture state");
+      if (sandbox.getProvider() === "opensandbox") {
+        try {
+          // Access backend correctly avoiding strict typing issues
+          const backend = sandbox.getBackend();
+          if (backend && typeof (backend as any).pause === "function") {
+            await (backend as any).pause();
+          }
+        } catch (err) {
+          logger.error({ error: err }, "[snapshot-manager] Failed to pause OpenSandbox");
+        }
+      }
     }
 
     return {
@@ -545,17 +556,54 @@ export class SnapshotManager {
 
   /**
    * Get image name from sandbox.
-   * TODO: Implement provider-specific image detection.
    */
   private async getImageName(sandbox: SandboxService): Promise<string> {
-    // For now, return provider-specific default images
-    // In the future, this will query the provider API for actual image info
     const provider = sandbox.getProvider();
+    const backend = sandbox.getBackend() as any;
+
     switch (provider) {
-      case "daytona":
+      case "daytona": {
+        if (typeof backend.getSandbox === "function") {
+          const s = backend.getSandbox();
+          if (s && "image" in s) {
+            return String(s.image);
+          }
+        }
+        if (
+          "config" in backend &&
+          typeof backend.config === "object" &&
+          backend.config !== null &&
+          "image" in backend.config
+        ) {
+          return String(
+            backend.config.image ||
+              process.env.DAYTONA_IMAGE ||
+              "debian:12.9",
+          );
+        }
         return process.env.DAYTONA_IMAGE || "debian:12.9";
-      case "opensandbox":
+      }
+      case "opensandbox": {
+        if (typeof backend.getSandbox === "function") {
+          const s = backend.getSandbox();
+          if (s && "image" in s) {
+            return String(s.image);
+          }
+        }
+        if (
+          "config" in backend &&
+          typeof backend.config === "object" &&
+          backend.config !== null &&
+          "image" in backend.config
+        ) {
+          return String(
+            backend.config.image ||
+              process.env.OPENSANDBOX_IMAGE ||
+              "debian:12",
+          );
+        }
         return process.env.OPENSANDBOX_IMAGE || "debian:12";
+      }
       default:
         return "unknown";
     }

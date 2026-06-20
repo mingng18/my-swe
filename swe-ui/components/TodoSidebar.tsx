@@ -15,9 +15,11 @@ interface TodoSidebarProps {
 }
 
 export function TodoSidebar({ threadId, className }: TodoSidebarProps) {
-  const thread = useThreadStore((state) => state.threads[threadId]);
+  // ⚡ Bolt Optimization: Only subscribe to the `todos` array instead of the full thread object.
+  // This prevents the Sidebar from re-rendering on every LLM stream event (which updates the parent thread reference).
+  const todos = useThreadStore((state) => state.threads[threadId]?.todos);
 
-  if (!thread) {
+  if (!todos) {
     return (
       <Card className={cn("flex flex-col h-full", className)}>
         <div className="p-4 border-b">
@@ -37,8 +39,6 @@ export function TodoSidebar({ threadId, className }: TodoSidebarProps) {
       </Card>
     );
   }
-
-  const { todos } = thread;
 
   const getStatusIcon = (status: Todo["status"]) => {
     switch (status) {

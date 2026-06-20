@@ -1,4 +1,5 @@
 import { createLogger } from "../utils/logger";
+import { defang } from "../security/defang";
 import {
   extractPrContext,
   fetchPrCommentsSinceLastTag,
@@ -166,7 +167,12 @@ function handleIssuesEvent(payload: any): void {
     if (repoOwner && repoName && issueNumber) {
       void (async () => {
         try {
-          const prompt = `New issue opened in ${repoOwner}/${repoName}#${issueNumber}:\nTitle: ${issueTitle}\n\n${issueBody}\n\nPlease analyze this issue and provide a helpful response.`;
+          // Both the title and body are attacker-controlled GitHub content and
+          // must reach the model as labeled DATA. An issue title can carry an
+          // injection payload just as easily as the body.
+          const safeTitle = defang("github-issue", issueTitle);
+          const safeBody = defang("github-issue", issueBody);
+          const prompt = `New issue opened in ${repoOwner}/${repoName}#${issueNumber}:\nTitle: ${safeTitle}\n\n${safeBody}\n\nPlease analyze this issue and provide a helpful response.`;
           const reply = await runCodeagentTurn(
             prompt,
             undefined,

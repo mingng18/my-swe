@@ -141,7 +141,11 @@ export class BoundedRetryLoop {
   ) {
     // Merge user configs with defaults
     this.configs = new Map();
-    for (const [type, defaultConfig] of Object.entries(DEFAULT_RETRY_CONFIGS)) {
+    // ⚡ Bolt: Replace Object.entries with for...in to avoid intermediate array allocations
+    for (const type in DEFAULT_RETRY_CONFIGS) {
+      if (!Object.prototype.hasOwnProperty.call(DEFAULT_RETRY_CONFIGS, type))
+        continue;
+      const defaultConfig = DEFAULT_RETRY_CONFIGS[type as NodeType];
       const userConfig = options.configs?.[type as NodeType];
       this.configs.set(type as NodeType, {
         ...defaultConfig,
@@ -425,7 +429,6 @@ export function initializeMemoryServices(): void {
       cosineSimilarity: (a: number[], b: number[]) =>
         EmbeddingService.cosineSimilarity(a, b),
     });
-
   } catch (error) {
     console.error("[Memory] Failed to initialize services:", error);
     // Don't throw - allow the server to start without memory

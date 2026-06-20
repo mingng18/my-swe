@@ -1,0 +1,240 @@
+/**
+ * User-facing command dispatcher + extensible registry (#498 family).
+ *
+ * Bullhorse's Telegram path (src/index.ts) forwards every message to the
+ * coding agent. This module intercepts a set of slash commands and answers
+ * them directly — without consuming an agent turn.
+ *
+ * Commands are registered in a `registry`, so new commands (built-in or
+ * user-defined) are added via `registerCommand(...)` rather than a hardcoded
+ * switch. Unknown slash commands and ordinary messages are NOT intercepted
+ * ({ handled: false }) so they flow through to the agent unchanged.
+ */
+import { getThreadMetrics } from "./telemetry";
+import { getAgentHarness } from "../harness";
+import { threadManager } from "../harness/thread-manager";
+import { getMode, setMode, getModelOverride, setModelOverride } from "./session-store";
+
+export interface CommandResult {
+  /** true when the message was a known command and was answered here. */
+  handled: boolean;
+  /** the reply text when handled. */
+  reply?: string;
+  /** when true, the reply must be sent as plain text (no parse_mode) — e.g. /export
+   * echoes untrusted conversation content that must not render as Markdown. (#509) */
+  plainText?: boolean;
+}
+
+/** A handler may return a plain reply string, or an object carrying reply options
+ * (e.g. plainText) for content that must not be Markdown-formatted. */
+export type CommandHandlerResult = string | { text: string; plainText?: boolean };
+
+/** A command handler receives the raw args (after the command) and the threadId. */
+export type CommandHandler = (
+  args: string,
+  threadId: string,
+) => Promise<CommandHandlerResult> | CommandHandlerResult;
+
+interface CommandDef {
+  description: string;
+  handler: CommandHandler;
+}
+
+const registry = new Map<string, CommandDef>();
+
+const TELEGRAM_REPLY_CAP = 4000;
+
+/** Register (or replace) a slash command. The command must include the leading "/". */
+export function registerCommand(
+  cmd: string,
+  description: string,
+  handler: CommandHandler,
+): void {
+  registry.set(cmd, { description, handler });
+}
+
+/** All registered commands, for /help and discovery. */
+export function listCommands(): { cmd: string; description: string }[] {
+  return [...registry.entries()].map(([cmd, def]) => ({
+    cmd,
+    description: def.description,
+  }));
+}
+
+/** Parse a leading slash command, stripping an optional @botname suffix. */
+export function tokenize(text: string): { cmd: string; args: string } | null {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("/")) return null;
+  const firstSpace = trimmed.search(/\s/);
+  const rawCmd = (firstSpace === -1 ? trimmed : trimmed.slice(0, firstSpace)).toLowerCase();
+  const cmd = rawCmd.replace(/@.+$/, "");
+  const args = firstSpace === -1 ? "" : trimmed.slice(firstSpace).trim();
+  return { cmd, args };
+}
+
+/** True iff `text` is one of the commands this dispatcher will answer. */
+export function isCommand(text: string): boolean {
+  const t = tokenize(text);
+  return t !== null && registry.has(t.cmd);
+}
+
+/**
+ * Handle a slash command if `text` is one we own. Never throws — command
+ * failures are returned as a friendly reply so the user is never left hanging.
+ */
+export async function handleCommand(
+  text: string,
+  threadId: string,
+): Promise<CommandResult> {
+  const t = tokenize(text);
+  if (!t || !registry.has(t.cmd)) return { handled: false };
+  try {
+    const def = registry.get(t.cmd)!;
+    const result = await def.handler(t.args, threadId);
+    if (typeof result === "string") {
+      return { handled: true, reply: result };
+    }
+    return { handled: true, reply: result.text, plainText: result.plainText };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { handled: true, reply: `Command failed: ${msg}` };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Built-in commands
+// ---------------------------------------------------------------------------
+
+function helpText(): string {
+  const lines = ["*Bullhorse commands*", ""];
+  for (const { cmd, description } of listCommands()) {
+    lines.push(`${cmd} — ${description}`);
+  }
+  lines.push("", "Anything else is sent to the coding agent.");
+  return lines.join("\n");
+}
+
+function usageText(threadId: string): string {
+  const m = getThreadMetrics(threadId);
+  const llm = m.llmCalls;
+  const lines = [
+    `*Usage for thread* \`${threadId}\``,
+    "",
+    `LLM calls: ${llm.count}`,
+    `Tokens: ${llm.totalTokens} (in ${llm.totalInputTokens} / out ${llm.totalOutputTokens})`,
+    `Model: ${llm.model || "n/a"}`,
+    `Avg latency: ${Math.round(llm.avgLatency)} ms`,
+    `Wall time: ${(m.totalDuration / 1000).toFixed(1)} s`,
+  ];
+  const toolNames = Object.keys(m.tools);
+  if (toolNames.length) {
+    lines.push("", "Tools:");
+    for (const name of toolNames) {
+      const tt = m.tools[name];
+      lines.push(`  ${name}: ${tt.count}× (${Math.round(tt.successRate * 100)}% ok)`);
+    }
+  }
+  return lines.join("\n");
+}
+
+// /export echoes conversation content (user messages + tool outputs), which is
+// partially-untrusted — so it's returned with plainText:true so the transport
+// sends it with NO parse_mode, preventing any Markdown/hidden-link rendering. (#509)
+async function exportText(threadId: string): Promise<CommandHandlerResult> {
+  const harness = await getAgentHarness();
+  const state = (await harness.getState(threadId)) as {
+    values?: { messages?: any[] };
+    messages?: any[];
+  };
+  const messages = state?.values?.messages ?? state?.messages ?? [];
+  if (!messages.length) {
+    return { text: `No conversation found for thread ${threadId}.`, plainText: true };
+  }
+  const lines = [
+    `Export for thread ${threadId} (${messages.length} messages)`,
+    "",
+  ];
+  for (const msg of messages) {
+    const role = typeof msg?.role === "string" ? msg.role : (msg?._getType?.() ?? "unknown");
+    const rawContent = typeof msg?.content === "string" ? msg.content : JSON.stringify(msg?.content ?? "");
+    const body = rawContent.length > 500 ? rawContent.slice(0, 500) + "…" : rawContent;
+    lines.push(`[${role}] ${body}`);
+  }
+  const out = lines.join("\n");
+  const text = out.length > TELEGRAM_REPLY_CAP
+    ? out.slice(0, TELEGRAM_REPLY_CAP) + "\n…(truncated)"
+    : out;
+  return { text, plainText: true };
+}
+
+function planHandler(args: string, threadId: string): string {
+  setMode(threadId, "plan");
+  // Recreate the agent on the next turn so write/shell/mutation tools are
+  // filtered out at the tool layer (not just instructed away). The per-thread
+  // checkpointer preserves conversation history across the recreation.
+  threadManager.clearAgent(threadId);
+  return "Plan mode *ON* for this thread. I'll read the code and propose a plan without making changes. Write/shell/mutation tools are disabled in this mode, so no edits can happen. Send the task; run /act when you're ready to apply.";
+}
+
+function actHandler(args: string, threadId: string): string {
+  setMode(threadId, "act");
+  // Recreate the agent on the next turn so the full toolset is restored.
+  threadManager.clearAgent(threadId);
+  return "Act mode *ON* — I'll make changes as usual.";
+}
+
+/**
+ * Heuristic: does `model` look like it belongs to a different provider family
+ * than the configured `MODEL`? Used only for an advisory warning — never blocks.
+ */
+function looksCrossProvider(model: string, globalModel: string): boolean {
+  const m = model.toLowerCase();
+  const g = globalModel.toLowerCase();
+  // OpenAI family markers vs a Google/Gemini global, and vice-versa.
+  const isOpenAI = /\b(gpt|o1|o3|o4|chatgpt)\b/.test(m);
+  const isGemini = /\b(gemini)\b/.test(m);
+  const globalIsOpenAI = /\b(gpt|o1|o3|o4|chatgpt)\b/.test(g);
+  const globalIsGemini = /\b(gemini)\b/.test(g);
+  if (isOpenAI && globalIsGemini) return true;
+  if (isGemini && globalIsOpenAI) return true;
+  return false;
+}
+
+function modelHandler(args: string, threadId: string): string {
+  const model = args.trim();
+  if (!model) {
+    const current = getModelOverride(threadId);
+    return current
+      ? `Current model for this thread: \`${current}\`. Usage: /model <name> (or /model default to clear).`
+      : "No per-thread model override — using the global MODEL. Usage: /model <name>.";
+  }
+  if (model === "default" || model === "reset") {
+    setModelOverride(threadId, undefined);
+    threadManager.clearAgent(threadId); // rebuild on next turn with the global MODEL
+    return "Per-thread model override cleared — using the global MODEL.";
+  }
+  setModelOverride(threadId, model);
+  threadManager.clearAgent(threadId); // rebuild on next turn with the new model
+
+  // The override swaps the model id only — NOT the provider. So '/model gpt-4o'
+  // on a Gemini global config would still call Gemini for a model it doesn't
+  // serve. Warn (advisory, never blocks) when the name looks cross-provider.
+  const globalModel = process.env.MODEL || "";
+  let warning = "";
+  if (globalModel && looksCrossProvider(model, globalModel)) {
+    warning =
+      `\n\n*Heads up:* \`${model}\` looks like a different provider family than your global MODEL (\`${globalModel}\`). The /model override only swaps the model id, NOT the provider — so this would still call your configured provider for a model it may not serve. Pick a model id within your configured provider's family.`;
+  } else {
+    warning =
+      `\n\n*Note:* the override only swaps the model id, NOT the provider. Use a model id within your configured provider's family (e.g. /model gpt-4o-mini when on OpenAI, /model gemini-2.5-flash when on Google).`;
+  }
+  return `Model for this thread set to \`${model}\`. It applies on the next turn.${warning}`;
+}
+
+// Register built-ins (module-load). Order matters only for /help display.
+registerCommand("/help", "show this help", () => helpText());
+registerCommand("/usage", "token + cost usage for this thread", (_a, tid) => usageText(tid));
+registerCommand("/export", "export this thread's conversation", (_a, tid) => exportText(tid));
+registerCommand("/plan", "plan mode: propose a plan, no edits", planHandler);
+registerCommand("/act", "act mode: make changes (default)", actHandler);
+registerCommand("/model", "set the model for this thread (/model <name>)", modelHandler);

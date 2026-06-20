@@ -174,9 +174,16 @@ async function prewarmRepo(
     "[prewarm] Creating additional sandboxes",
   );
 
+  // ⚡ Bolt: Optimize sandbox creation by running them concurrently
+  const promises = [];
   for (let i = 0; i < delta; i++) {
-    await createAdditionalSandbox(owner, name, profile, i, config);
+    promises.push(
+      createAdditionalSandbox(owner, name, profile, i, config).catch((err) => {
+        logger.error({ error: err, i }, "[prewarm] Error creating additional sandbox");
+      })
+    );
   }
+  await Promise.all(promises);
 }
 
 async function main(): Promise<void> {

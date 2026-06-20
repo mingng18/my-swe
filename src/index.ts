@@ -15,6 +15,7 @@ import {
   formatTelegramMarkdownV2,
   parseHitlCallback,
 } from "./utils/telegram";
+import { handleCommand } from "./utils/commands";
 
 // Memory system integration
 import { getMemoryDaemon } from "./memory/daemon";
@@ -70,6 +71,75 @@ const telegramQueue = new TelegramMessageQueue<PollingMessage>(async (threadId, 
   logger.info("[codeagent][telegram] reply sent");
 });
 
+/**
+ * Send a command-reply to Telegram, mirroring the agent-reply path.
+ *
+ * - When `parseMode === "MarkdownV2"` the reply is run through
+ *   `formatTelegramMarkdownV2` so untrusted/command-generated special chars
+ *   (`(`, `)`, `.`, `-`, etc.) are escaped. This prevents Telegram HTTP 400
+ *   (which would silently drop the reply) and, for `/export`, stops untrusted
+ *   conversation content from rendering as Markdown/hidden links.
+ * - The fetch is wrapped in try/catch with a logger.error so a 400/network
+ *   failure is never a silent no-op. On failure it retries once as plain text
+ *   (parse_mode unset) so the user still gets *something*.
+ *
+ * Exported for unit testing the MarkdownV2 routing + fallback.
+ */
+export async function sendCommandReply(
+  chatId: number,
+  reply: string,
+  telegramBotToken: string,
+  parseMode: string,
+  plainText?: boolean,
+): Promise<void> {
+  // Plain-text replies (e.g. /export echoes untrusted content) must not be
+  // Markdown-formatted — send with no parse_mode so nothing can render. (#509)
+  const effectiveMode = plainText ? "" : parseMode;
+  const formattedReply = effectiveMode === "MarkdownV2"
+    ? formatTelegramMarkdownV2(reply)
+    : reply;
+
+  const url = `https://api.telegram.org/bot${telegramBotToken}/sendMessage`;
+  const post = (body: Record<string, unknown>) =>
+    fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+  try {
+    const body: Record<string, unknown> = { chat_id: chatId, text: formattedReply };
+    if (effectiveMode) body.parse_mode = effectiveMode;
+    const res = await post(body);
+    // Telegram returns 400 on a malformed MarkdownV2 payload even on a 2xx-less
+    // transport: treat non-ok as a failure worth retrying/falling back.
+    if (!res.ok) {
+      throw new Error(`Telegram sendMessage HTTP ${res.status}`);
+    }
+  } catch (err) {
+    logger.error(
+      { err, chatId },
+      "[codeagent][telegram] command reply failed — retrying as plain text",
+    );
+    // Fallback: retry once with no parse_mode so the user still gets the text.
+    try {
+      const fallback = await post({ chat_id: chatId, text: reply });
+      if (!fallback.ok) {
+        logger.error(
+          { status: fallback.status, chatId },
+          "[codeagent][telegram] command reply plain-text fallback also failed",
+        );
+      }
+    } catch (err2) {
+      // Network down — nothing more we can do; do not throw across the dispatch.
+      logger.error(
+        { err: err2, chatId },
+        "[codeagent][telegram] command reply plain-text fallback threw",
+      );
+    }
+  }
+}
+
 async function handleTelegramMessage(msg: any, telegramBotToken: string, parseMode: string) {
   if (!("text" in msg) || !msg.text) {
     return;
@@ -102,6 +172,14 @@ async function handleTelegramMessage(msg: any, telegramBotToken: string, parseMo
 
   // Generate threadId from chat ID for per-chat conversation history
   const threadId = generateThreadId(msg.chat.id);
+
+  // Intercept user-facing slash commands (/usage, /export, /help) and answer
+  // them directly — without consuming an agent turn or touching the queue.
+  const command = await handleCommand(msg.text, threadId);
+  if (command.handled && command.reply !== undefined) {
+    await sendCommandReply(msg.chat.id, command.reply, telegramBotToken, parseMode, command.plainText);
+    return;
+  }
 
   // Check if thread is active, queue if busy
   if (telegramQueue.isThreadActive(threadId)) {

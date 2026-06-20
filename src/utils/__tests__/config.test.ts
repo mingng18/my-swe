@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { loadLlmConfig, loadTelegramConfig } from "../config";
+import {
+  loadLlmConfig,
+  loadTelegramConfig,
+  isArchitectEditorRoutingEnabled,
+  loadArchitectEditorConfig,
+  getRoleModelConfig,
+  loadModelConfig,
+} from "../config";
 
 describe("loadLlmConfig", () => {
   const originalEnv = process.env;
@@ -113,5 +120,114 @@ describe("loadTelegramConfig", () => {
     const config = loadTelegramConfig();
     expect(config.telegramBotToken).toBe("12345:abcdef");
     expect(config.telegramAdminChatId).toBe("987654321");
+  });
+});
+
+describe("Architect/Editor model routing (#497)", () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+    process.env.OPENAI_API_KEY = "sk-test";
+    process.env.MODEL = "gpt-4o";
+    delete process.env.OPENAI_BASE_URL;
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  describe("isArchitectEditorRoutingEnabled", () => {
+    it("is disabled when neither ARCHITECT_MODEL nor EDITOR_MODEL is set", () => {
+      delete process.env.ARCHITECT_MODEL;
+      delete process.env.EDITOR_MODEL;
+      expect(isArchitectEditorRoutingEnabled()).toBe(false);
+    });
+
+    it("is disabled when only ARCHITECT_MODEL is set", () => {
+      process.env.ARCHITECT_MODEL = "gpt-4o";
+      delete process.env.EDITOR_MODEL;
+      expect(isArchitectEditorRoutingEnabled()).toBe(false);
+    });
+
+    it("is disabled when only EDITOR_MODEL is set", () => {
+      delete process.env.ARCHITECT_MODEL;
+      process.env.EDITOR_MODEL = "gpt-4o-mini";
+      expect(isArchitectEditorRoutingEnabled()).toBe(false);
+    });
+
+    it("is enabled only when BOTH are set", () => {
+      process.env.ARCHITECT_MODEL = "gpt-4o";
+      process.env.EDITOR_MODEL = "gpt-4o-mini";
+      expect(isArchitectEditorRoutingEnabled()).toBe(true);
+    });
+
+    it("treats whitespace-only values as unset", () => {
+      process.env.ARCHITECT_MODEL = "   ";
+      process.env.EDITOR_MODEL = "gpt-4o-mini";
+      expect(isArchitectEditorRoutingEnabled()).toBe(false);
+    });
+  });
+
+  describe("loadArchitectEditorConfig", () => {
+    it("falls back to single MODEL config (no role) when disabled", () => {
+      delete process.env.ARCHITECT_MODEL;
+      delete process.env.EDITOR_MODEL;
+
+      const ae = loadArchitectEditorConfig();
+      expect(ae.enabled).toBe(false);
+      // Both roles collapse to the single MODEL config without a role tag.
+      expect(ae.architect.model).toBe("gpt-4o");
+      expect(ae.editor.model).toBe("gpt-4o");
+      expect(ae.architect.role).toBeUndefined();
+      expect(ae.editor.role).toBeUndefined();
+    });
+
+    it("returns role-tagged configs when enabled", () => {
+      process.env.ARCHITECT_MODEL = "claude-opus";
+      process.env.EDITOR_MODEL = "claude-haiku";
+
+      const ae = loadArchitectEditorConfig();
+      expect(ae.enabled).toBe(true);
+      expect(ae.architect.model).toBe("claude-opus");
+      expect(ae.architect.role).toBe("architect");
+      expect(ae.editor.model).toBe("claude-haiku");
+      expect(ae.editor.role).toBe("editor");
+    });
+
+    it("reuses provider/key/base URL from the primary LLM config", () => {
+      process.env.OPENAI_BASE_URL = "https://openrouter.ai/api/v1";
+      process.env.ARCHITECT_MODEL = "strong-model";
+      process.env.EDITOR_MODEL = "fast-model";
+
+      const ae = loadArchitectEditorConfig();
+      expect(ae.architect.openaiBaseUrl).toBe("https://openrouter.ai/api/v1");
+      expect(ae.editor.openaiBaseUrl).toBe("https://openrouter.ai/api/v1");
+      expect(ae.architect.openaiApiKey).toBe("sk-test");
+      expect(ae.editor.openaiApiKey).toBe("sk-test");
+    });
+  });
+
+  describe("getRoleModelConfig", () => {
+    it("returns single MODEL config (identical to loadModelConfig) when disabled", () => {
+      delete process.env.ARCHITECT_MODEL;
+      delete process.env.EDITOR_MODEL;
+
+      const byRole = getRoleModelConfig("editor");
+      const single = loadModelConfig();
+      // Default path must be byte-for-byte equivalent to today's behavior.
+      expect(byRole).toEqual(single);
+      expect(byRole.role).toBeUndefined();
+    });
+
+    it("returns the role-specific config when enabled", () => {
+      process.env.ARCHITECT_MODEL = "architect-strong";
+      process.env.EDITOR_MODEL = "editor-fast";
+
+      expect(getRoleModelConfig("architect").model).toBe("architect-strong");
+      expect(getRoleModelConfig("architect").role).toBe("architect");
+      expect(getRoleModelConfig("editor").model).toBe("editor-fast");
+      expect(getRoleModelConfig("editor").role).toBe("editor");
+    });
   });
 });

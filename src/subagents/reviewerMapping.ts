@@ -38,6 +38,18 @@ export const REVIEWER_MAPPINGS: ReviewerMapping[] = [
   },
 ];
 
+// Precompile regexes and separate string matches for performance optimization.
+// This prevents compiling RegExp objects on every file check in getReviewersForFile.
+const COMPILED_MAPPINGS = REVIEWER_MAPPINGS.map((mapping) => {
+  return {
+    regexes: mapping.patterns
+      .filter((p) => p.startsWith("\\."))
+      .map((p) => new RegExp(p)),
+    strings: mapping.patterns.filter((p) => !p.startsWith("\\.")),
+    reviewers: mapping.reviewers,
+  };
+});
+
 /**
  * Get reviewers for a single file based on its path
  */
@@ -45,15 +57,14 @@ export function getReviewersForFile(filePath: string): string[] {
   const defaultReviewers = ["code-reviewer"];
   const allReviewers = new Set<string>(defaultReviewers);
 
-  for (const mapping of REVIEWER_MAPPINGS) {
+  for (const mapping of COMPILED_MAPPINGS) {
     if (
-      mapping.patterns.some(
-        (pattern) =>
-          filePath.includes(pattern) ||
-          (pattern.startsWith("\\.") && new RegExp(pattern).test(filePath)),
-      )
+      mapping.strings.some((str) => filePath.includes(str)) ||
+      mapping.regexes.some((regex) => regex.test(filePath))
     ) {
-      mapping.reviewers.forEach((reviewer) => allReviewers.add(reviewer));
+      for (const reviewer of mapping.reviewers) {
+        allReviewers.add(reviewer);
+      }
     }
   }
 
@@ -66,10 +77,12 @@ export function getReviewersForFile(filePath: string): string[] {
 export function getReviewersForFiles(filePaths: string[]): string[] {
   const allReviewers = new Set<string>();
 
-  filePaths.forEach((filePath) => {
+  for (const filePath of filePaths) {
     const reviewers = getReviewersForFile(filePath);
-    reviewers.forEach((reviewer) => allReviewers.add(reviewer));
-  });
+    for (const reviewer of reviewers) {
+      allReviewers.add(reviewer);
+    }
+  }
 
   return Array.from(allReviewers);
 }
