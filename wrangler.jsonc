@@ -2,7 +2,7 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "my-swe",
   "main": "cf/worker.ts",
-  "compatibility_date": "2026-06-01",
+  "compatibility_date": "2026-06-21",
 
   // --- Cloudflare Containers: a Worker (entry) + a Container Durable-Object
   // class that runs the my-swe Docker image unchanged in a Linux VM. ---

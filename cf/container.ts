@@ -8,7 +8,7 @@
 // -> Worker `env` -> this class's `envVars` -> container process env ->
 // my-swe reads them via process.env.* as usual.
 
-import { Container } from "cloudflare:containers";
+import { Container } from "@cloudflare/containers";
 import { env as _env } from "cloudflare:workers";
 
 // `env` holds both wrangler.jsonc `vars` and Worker secrets. Cast to a record so
