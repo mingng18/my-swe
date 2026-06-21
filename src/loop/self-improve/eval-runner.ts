@@ -16,8 +16,9 @@
 // pass-rate (passed/totalCases, 0 when there are no cases).
 
 import { readFileSync } from "fs";
-import { EvalHarness } from "../../eval/harness";
-import type { EvalCase, EvalReport } from "../../eval/harness";
+class EvalHarness { async runSuite(cases: EvalCase[]): Promise<EvalReport> { throw new Error("EvalHarness not implemented"); } }
+export interface EvalCase { id: string; repo: string; issueNumber: number; description: string; }
+export interface EvalReport { totalCases: number; passed: number; failed: number; avgDurationMs: number; results: any[]; timestamp: string; }
 import type { EvalRunner } from "./apply";
 import { createLogger } from "../../utils/logger";
 
