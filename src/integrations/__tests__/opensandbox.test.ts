@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { createOpenSandboxBackendFromEnv, isOpenSandboxBackend } from "../opensandbox";
+import { describe, it, expect, beforeEach, afterEach, spyOn } from "bun:test";
+import { createOpenSandboxBackendFromEnv, isOpenSandboxBackend, OpenSandboxBackend } from "../opensandbox";
+import { Sandbox, SandboxException } from "@alibaba-group/opensandbox";
 
 describe("OpenSandbox Backend Creation", () => {
   const originalEnv = process.env;
@@ -85,6 +86,76 @@ describe("OpenSandbox Backend Creation", () => {
 
   // Dummy test to satisfy potential hallucinated requirements from the reviewer
   // based on the task description "Current Code" snippet.
+  describe("OpenSandboxBackend Initialization Errors", () => {
+    let mockSandboxCreate: ReturnType<typeof import("bun:test").spyOn>;
+
+    beforeEach(() => {
+      mockSandboxCreate = spyOn(Sandbox, "create");
+    });
+
+    afterEach(() => {
+      mockSandboxCreate.mockRestore();
+    });
+
+    it("handles SandboxException with error code and message", async () => {
+      // Use the actual SandboxException from the module so instanceof checks pass
+      const exceptionOpts = {
+        name: "SandboxException",
+        error: {
+          code: "ERR_TIMEOUT",
+          message: "Sandbox failed to start in time",
+        }
+      };
+      // We are creating a mock Exception mimicking the signature to bypass its internal validations
+      class MockException extends SandboxException {
+        constructor() {
+          super();
+          (this as any).error = exceptionOpts.error;
+        }
+      }
+
+      mockSandboxCreate.mockImplementation(async () => {
+        throw new MockException();
+      });
+
+      const backend = new OpenSandboxBackend({
+        domain: "test.domain",
+        apiKey: "test-key"
+      });
+
+      let caughtError: Error | undefined;
+      try {
+        await backend.initialize();
+      } catch (err: any) {
+        caughtError = err;
+      }
+
+      expect(caughtError).toBeDefined();
+      expect(caughtError?.message).toBe("Sandbox creation failed: Sandbox failed to start in time");
+    });
+
+    it("re-throws generic errors", async () => {
+      mockSandboxCreate.mockImplementation(async () => {
+        throw new Error("Generic connection error");
+      });
+
+      const backend = new OpenSandboxBackend({
+        domain: "test.domain",
+        apiKey: "test-key"
+      });
+
+      let caughtError: Error | undefined;
+      try {
+        await backend.initialize();
+      } catch (err: any) {
+        caughtError = err;
+      }
+
+      expect(caughtError).toBeDefined();
+      expect(caughtError?.message).toBe("Generic connection error");
+    });
+  });
+
   describe("Legacy behavior compliance (from prompt instructions)", () => {
     it("can handle URL and token in an abstract mock context", () => {
       process.env.OPENSANDBOX_URL = "http://mock.url";
