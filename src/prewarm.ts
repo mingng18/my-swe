@@ -55,7 +55,6 @@ function parseReposJson(): PrewarmRepoSpec[] {
   ];
 }
 
-
 async function createAdditionalSandbox(
   owner: string,
   name: string,
@@ -179,8 +178,11 @@ async function prewarmRepo(
   for (let i = 0; i < delta; i++) {
     promises.push(
       createAdditionalSandbox(owner, name, profile, i, config).catch((err) => {
-        logger.error({ error: err, i }, "[prewarm] Error creating additional sandbox");
-      })
+        logger.error(
+          { error: err, i },
+          "[prewarm] Error creating additional sandbox",
+        );
+      }),
     );
   }
   await Promise.all(promises);
@@ -212,8 +214,14 @@ async function main(): Promise<void> {
     ? Number(process.env.PREWARM_COUNT)
     : 0;
 
-  for (const repo of repos) {
-    await prewarmRepo(repo, config, defaultProfile, defaultCount);
+  const CHUNK_SIZE = 5;
+  for (let i = 0; i < repos.length; i += CHUNK_SIZE) {
+    const chunk = repos.slice(i, i + CHUNK_SIZE);
+    await Promise.all(
+      chunk.map((repo) =>
+        prewarmRepo(repo, config, defaultProfile, defaultCount),
+      ),
+    );
   }
 
   logger.info("[prewarm] Done");

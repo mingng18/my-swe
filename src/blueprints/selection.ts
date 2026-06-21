@@ -36,7 +36,8 @@ export function selectBlueprint(
 ): BlueprintSelection {
   for (const blueprint of blueprints) {
     // Safety check: skip if no trigger keywords defined
-    if (!blueprint.triggerKeywords || blueprint.triggerKeywords.length === 0) continue;
+    if (!blueprint.triggerKeywords || blueprint.triggerKeywords.length === 0)
+      continue;
 
     const { fastPathRegex, keywordRegexes } = getCompiledBlueprint(blueprint);
 
@@ -60,11 +61,22 @@ export function selectBlueprint(
   return { blueprint: defaultBlueprint, confidence: 0, matchedKeywords: [] };
 }
 
+const blueprintIdMapCache = new WeakMap<Blueprint[], Map<string, Blueprint>>();
+
 export function getBlueprintById(
   id: string,
   blueprints: Blueprint[],
 ): Blueprint | undefined {
-  return blueprints.find((b) => b.id === id);
+  let map = blueprintIdMapCache.get(blueprints);
+  if (!map) {
+    map = new Map();
+    for (let i = 0; i < blueprints.length; i++) {
+      const b = blueprints[i];
+      map.set(b.id, b);
+    }
+    blueprintIdMapCache.set(blueprints, map);
+  }
+  return map.get(id);
 }
 
 export function listBlueprints(blueprints: Blueprint[]): Blueprint[] {

@@ -6,7 +6,10 @@ import { logger as httpLogger } from "hono/logger";
 
 import { runCodeagentTurn, getLoopRunner } from "./server";
 import { runSelfImprovementCycle } from "./loop/self-improve/orchestrator";
-import { createEvalRunner, loadEvalCasesFromEnv } from "./loop/self-improve/eval-runner";
+import {
+  createEvalRunner,
+  loadEvalCasesFromEnv,
+} from "./loop/self-improve/eval-runner";
 import { streamRegistry } from "./stream";
 import { LRUCache } from "lru-cache";
 
@@ -96,16 +99,12 @@ app.use(
   "*",
   cors({
     origin: (origin) => {
-      const allowedOrigin = process.env.CORS_ALLOWED_ORIGIN;
-      if (
-        process.env.NODE_ENV !== "production" &&
-        origin &&
-        /^http:\/\/(localhost|127\.0\.0\.1):(3000|3001)$/.test(origin)
-      ) {
-        return origin;
-      }
-      if (!origin || !allowedOrigin) return "";
-      return origin === allowedOrigin ? origin : "";
+      const allowedOriginsStr = process.env.CORS_ALLOWED_ORIGIN;
+      if (!origin || !allowedOriginsStr) return "";
+
+      // Parse the allowed origins list from environment
+      const allowedOrigins = allowedOriginsStr.split(",").map((o) => o.trim());
+      return allowedOrigins.includes(origin) ? origin : "";
     },
     allowMethods: ["POST", "GET", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization", "X-User-Id"],
@@ -135,8 +134,6 @@ app.use(async (c, next) => {
     const providedHash = createHash("sha256").update(token).digest();
 
     if (!timingSafeEqual(expectedHash, providedHash)) {
-      const delay = 50 + Math.floor(Math.random() * 50);
-      await new Promise((resolve) => setTimeout(resolve, delay));
       return c.json({ error: "Unauthorized" }, 401);
     }
   }
@@ -234,7 +231,11 @@ app.post("/loop/:threadId/resume", async (c) => {
     : runner.hitlStore.getByThread(threadId);
   if (!req) return c.json({ error: "no pending HITL request" }, 404);
   if (!body.decision) return c.json({ error: "decision required" }, 400);
-  const resolved = runner.hitlStore.resolve(req.requestId, body.decision, body.note);
+  const resolved = runner.hitlStore.resolve(
+    req.requestId,
+    body.decision,
+    body.note,
+  );
   return c.json({ threadId, resolved });
 });
 
@@ -250,7 +251,13 @@ app.post("/loop/:threadId/resume", async (c) => {
 // EvalCase[] to swap in a real runner backed by EvalHarness.
 app.post("/loop/self-improve", async (c) => {
   if (process.env.LOOP_SELF_IMPROVE_ENABLED !== "true") {
-    return c.json({ error: "self-improvement is disabled (set LOOP_SELF_IMPROVE_ENABLED=true)" }, 403);
+    return c.json(
+      {
+        error:
+          "self-improvement is disabled (set LOOP_SELF_IMPROVE_ENABLED=true)",
+      },
+      403,
+    );
   }
   const runner = getLoopRunner();
   // Eval runner: a real EvalHarness run is heavy; by default we expose the cycle
@@ -258,7 +265,9 @@ app.post("/loop/self-improve", async (c) => {
   // => reject), so the endpoint is safe by default. When an operator configures a
   // fixed set of eval cases via LOOP_SELF_IMPROVE_EVAL_CASES (inline JSON or a path
   // to a JSON file), we swap in a real runner backed by EvalHarness instead.
-  const evalCases = loadEvalCasesFromEnv(process.env.LOOP_SELF_IMPROVE_EVAL_CASES);
+  const evalCases = loadEvalCasesFromEnv(
+    process.env.LOOP_SELF_IMPROVE_EVAL_CASES,
+  );
   const evalRunner = evalCases
     ? createEvalRunner({ cases: evalCases })
     : async () => {
@@ -431,9 +440,8 @@ app.post("/rewind/:threadId/:checkpointId", async (c) => {
 
   try {
     const { threadManager } = await import("./harness/thread-manager");
-    const { restoreCheckpoint, CheckpointNotFoundError } = await import(
-      "./tools/checkpoint-rewind"
-    );
+    const { restoreCheckpoint, CheckpointNotFoundError } =
+      await import("./tools/checkpoint-rewind");
 
     const agent = threadManager.getAgent(threadId);
     if (!agent) {

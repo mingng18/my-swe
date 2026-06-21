@@ -71,6 +71,23 @@ describe("checkIfModelAlreadyCalledCommitAndOpenPr", () => {
     ];
     expect(checkIfModelAlreadyCalledCommitAndOpenPr(messages)).toBe(false);
   });
+
+  it("should return true if commit_and_open_pr is the second tool call", () => {
+    const messages: BaseMessage[] = [
+      { type: "ai", content: "some stuff" },
+      { type: "tool", name: "some_other_tool", tool_calls: [] },
+      { type: "tool", name: "commit_and_open_pr", tool_calls: [] }
+    ];
+    expect(checkIfModelAlreadyCalledCommitAndOpenPr(messages)).toBe(true);
+  });
+
+  it("should return false if there are tool calls but none have a name", () => {
+    const messages: BaseMessage[] = [
+      { type: "ai", content: "some stuff" },
+      { type: "tool", name: undefined, tool_calls: [] } as unknown as BaseMessage
+    ];
+    expect(checkIfModelAlreadyCalledCommitAndOpenPr(messages)).toBe(false);
+  });
 });
 
 

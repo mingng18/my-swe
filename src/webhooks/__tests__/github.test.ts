@@ -1,10 +1,26 @@
-import { describe, it, expect, mock, beforeEach, afterEach, spyOn } from "bun:test";
+import {
+  describe,
+  it,
+  expect,
+  mock,
+  beforeEach,
+  afterEach,
+  spyOn,
+} from "bun:test";
 
-const mockRunCodeagentTurn = mock(async (input: string) => `Mocked reply for: ${input}`);
+const mockRunCodeagentTurn = mock(
+  async (input: string) => `Mocked reply for: ${input}`,
+);
 
 export const mockGithubState = {
   extractPrContextReturn: [
-    { owner: "test", name: "repo" }, 123, "main", "testuser", "https://github.com/test/repo/pull/123", 1, "node-1",
+    { owner: "test", name: "repo" },
+    123,
+    "main",
+    "testuser",
+    "https://github.com/test/repo/pull/123",
+    1,
+    "node-1",
   ] as any,
   extractPrContextThrow: false,
   fetchPrCommentsReturn: [{ body: "test comment" }] as any,
@@ -19,17 +35,23 @@ mock.module("../../server", () => ({
 
 mock.module("../../utils/github", () => ({
   extractPrContext: mock(async () => {
-    if (mockGithubState.extractPrContextThrow) throw new Error("Mock extract error");
+    if (mockGithubState.extractPrContextThrow)
+      throw new Error("Mock extract error");
     return mockGithubState.extractPrContextReturn;
   }),
-  fetchPrCommentsSinceLastTag: mock(async () => mockGithubState.fetchPrCommentsReturn),
+  fetchPrCommentsSinceLastTag: mock(
+    async () => mockGithubState.fetchPrCommentsReturn,
+  ),
   buildPrPrompt: mock(() => "mock pr prompt"),
   reactToGithubComment: mock(async () => true),
   getThreadIdFromBranch: mock(async () => "mock-thread-id"),
-  getGithubAppInstallationToken: mock(async () => mockGithubState.getGithubAppInstallationTokenReturn),
+  getGithubAppInstallationToken: mock(
+    async () => mockGithubState.getGithubAppInstallationTokenReturn,
+  ),
   storeGithubTokenInThread: mock(async () => {}),
   postGithubComment: mock(async () => {
-    if (mockGithubState.postGithubCommentThrow) throw new Error("Mock post error");
+    if (mockGithubState.postGithubCommentThrow)
+      throw new Error("Mock post error");
     return true;
   }),
   getGithubToken: mock(() => mockGithubState.getGithubTokenReturn),
@@ -46,7 +68,13 @@ describe("handleGithubWebhook", () => {
   beforeEach(() => {
     mockRunCodeagentTurn.mockClear();
     mockGithubState.extractPrContextReturn = [
-      { owner: "test", name: "repo" }, 123, "main", "testuser", "https://github.com/test/repo/pull/123", 1, "node-1",
+      { owner: "test", name: "repo" },
+      123,
+      "main",
+      "testuser",
+      "https://github.com/test/repo/pull/123",
+      1,
+      "node-1",
     ];
     mockGithubState.extractPrContextThrow = false;
     mockGithubState.fetchPrCommentsReturn = [{ body: "test comment" }];
@@ -66,7 +94,7 @@ describe("handleGithubWebhook", () => {
   describe("push events", () => {
     it("handles background processing errors gracefully in push event", async () => {
       const { logger } = await import("../../utils/logger");
-      const errorSpy = spyOn(logger, 'error');
+      const errorSpy = spyOn(logger, "error");
 
       mockRunCodeagentTurn.mockImplementationOnce(async () => {
         throw new Error("Mock runCodeagentTurn error for push");
@@ -85,7 +113,7 @@ describe("handleGithubWebhook", () => {
       expect(mockRunCodeagentTurn).toHaveBeenCalled();
       expect(errorSpy).toHaveBeenCalledWith(
         expect.objectContaining({ error: expect.any(Error) }),
-        "[github] Error running agent on push event"
+        "[github] Error running agent on push event",
       );
       errorSpy.mockRestore();
     });
@@ -149,7 +177,13 @@ describe("handleGithubWebhook", () => {
 
     it("returns early if no prNumber is extracted", async () => {
       mockGithubState.extractPrContextReturn = [
-        { owner: "test", name: "repo" }, null, "main", "testuser", "https://github.com/test/repo/pull/123", 1, "node-1",
+        { owner: "test", name: "repo" },
+        null,
+        "main",
+        "testuser",
+        "https://github.com/test/repo/pull/123",
+        1,
+        "node-1",
       ];
 
       handleGithubWebhook(
@@ -199,26 +233,36 @@ describe("handleGithubWebhook", () => {
     });
 
     it("handles background processing errors gracefully when extracting PR context fails", async () => {
+      const { logger } = await import("../../utils/logger");
+      const errorSpy = spyOn(logger, "error");
       mockGithubState.extractPrContextThrow = true;
 
-      expect(() => {
-        handleGithubWebhook(
-          {
-            action: "opened",
-            pull_request: { number: 123 },
-            repository: { full_name: "test/repo" },
-          },
-          "pull_request",
-        );
-      }).not.toThrow();
+      try {
+        expect(() => {
+          handleGithubWebhook(
+            {
+              action: "opened",
+              pull_request: { number: 123 },
+              repository: { full_name: "test/repo" },
+            },
+            "pull_request",
+          );
+        }).not.toThrow();
 
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      expect(mockRunCodeagentTurn).not.toHaveBeenCalled();
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(mockRunCodeagentTurn).not.toHaveBeenCalled();
+        expect(errorSpy).toHaveBeenCalledWith(
+          expect.objectContaining({ err: expect.any(Error) }),
+          "[github] Background PR processing failed",
+        );
+      } finally {
+        errorSpy.mockRestore();
+      }
     });
 
     it("handles background processing errors gracefully in PR agent turn", async () => {
       const { logger } = await import("../../utils/logger");
-      const errorSpy = spyOn(logger, 'error');
+      const errorSpy = spyOn(logger, "error");
 
       mockRunCodeagentTurn.mockImplementationOnce(async () => {
         throw new Error("Mock runCodeagentTurn error for PR");
@@ -237,7 +281,7 @@ describe("handleGithubWebhook", () => {
       expect(mockRunCodeagentTurn).toHaveBeenCalled();
       expect(errorSpy).toHaveBeenCalledWith(
         expect.objectContaining({ err: expect.any(Error) }),
-        "[github] Background PR processing failed"
+        "[github] Background PR processing failed",
       );
       errorSpy.mockRestore();
     });
@@ -275,7 +319,7 @@ describe("handleGithubWebhook", () => {
             repository: { full_name: "test/repo" },
           },
           "issues",
-        )
+        ),
       ).not.toThrow();
 
       await new Promise((resolve) => setTimeout(resolve, 50));
@@ -358,7 +402,7 @@ describe("handleGithubWebhook", () => {
 
     it("handles background processing errors gracefully in issue agent turn", async () => {
       const { logger } = await import("../../utils/logger");
-      const errorSpy = spyOn(logger, 'error');
+      const errorSpy = spyOn(logger, "error");
 
       mockRunCodeagentTurn.mockImplementationOnce(async () => {
         throw new Error("Mock runCodeagentTurn error for issue");
@@ -385,7 +429,7 @@ describe("handleGithubWebhook", () => {
       expect(mockRunCodeagentTurn).toHaveBeenCalled();
       expect(errorSpy).toHaveBeenCalledWith(
         expect.objectContaining({ err: expect.any(Error) }),
-        "[github] Error processing issue event"
+        "[github] Error processing issue event",
       );
       errorSpy.mockRestore();
     });

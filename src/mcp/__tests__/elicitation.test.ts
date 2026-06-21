@@ -240,6 +240,23 @@ describe("installElicitationHandler", () => {
     expect(r.action).toBe("decline");
   });
 
+  it("catches unexpected errors in wrappedHandler (defensive catch block)", async () => {
+    const client = new FakeMcpClient();
+    const handler: ElicitationHandler = async () =>
+      ({
+        get action() {
+          throw new Error("unexpected internal failure");
+        },
+      }) as any;
+    installElicitationHandler(client, "srv", { handler });
+
+    // The inner resolveHandlerResult try/catch won't catch this because
+    // it happens after the handler completes, during property access.
+    // It should hit the outer wrappedHandler try/catch.
+    const r = await client.elicit(formRequest());
+    expect(r.action).toBe("decline");
+  });
+
   it("surfaces the server name in the request passed to the handler", async () => {
     const client = new FakeMcpClient();
     let seen: any;

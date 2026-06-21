@@ -12,6 +12,7 @@
  */
 
 import { spawn } from "node:child_process";
+import { parseArgsStringToArgv } from "string-argv";
 import { createLogger } from "../utils/logger";
 import type {
   HookEntry,
@@ -132,10 +133,16 @@ export class HooksRegistry {
       HOOK_THREAD_ID: payload.thread_id ?? "",
     };
 
+    const parsedCommand = parseArgsStringToArgv(handler.command);
+    if (parsedCommand.length === 0) {
+      return undefined;
+    }
+    const [executable, ...args] = parsedCommand;
+
     const result = await new Promise<{ code: number; stdout: string; stderr: string }>(
       (resolve) => {
-        const child = spawn(handler.command, {
-          shell: true,
+        const child = spawn(executable, args, {
+          shell: false,
           cwd: handler.cwd,
           env,
           stdio: ["pipe", "pipe", "pipe"],

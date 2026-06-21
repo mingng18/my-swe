@@ -47,7 +47,11 @@ export class ConsolidationService {
       }
 
       // Find and merge duplicates
-      const duplicateGroups = await this.findDuplicates(threadId);
+      const duplicateGroups = await this.findDuplicates(
+        threadId,
+        DEFAULT_SIMILARITY_THRESHOLD,
+        memories,
+      );
 
       // ⚡ Bolt: Use Promise.all to merge duplicate groups concurrently in chunks to prevent unbounded DB connection exhaust
       const CHUNK_SIZE = 5;
@@ -62,14 +66,21 @@ export class ConsolidationService {
               const errorMsg =
                 error instanceof Error ? error.message : String(error);
               result.errors.push(`Failed to merge duplicates: ${errorMsg}`);
-              logger.error({ error, threadId }, "Failed to merge duplicate group");
+              logger.error(
+                { error, threadId },
+                "Failed to merge duplicate group",
+              );
             }
-          })
+          }),
         );
       }
 
       // Find and archive stale memories
-      const staleMemories = await this.findStaleMemories(threadId);
+      const staleMemories = await this.findStaleMemories(
+        threadId,
+        DEFAULT_STALE_DAYS,
+        memories,
+      );
       if (staleMemories.length > 0) {
         try {
           // If the repository supports batch soft delete, use it to avoid N+1 queries
@@ -83,7 +94,9 @@ export class ConsolidationService {
             // Fallback for older repository implementations
             // ⚡ Bolt: Use Promise.all to prevent N+1 sequential I/O waiting during fallback deletions
             await Promise.all(
-              staleMemories.map((memory) => this.repository.softDelete(memory.id!))
+              staleMemories.map((memory) =>
+                this.repository.softDelete(memory.id!),
+              ),
             );
             result.archived += staleMemories.length;
           }
@@ -121,8 +134,10 @@ export class ConsolidationService {
   async findDuplicates(
     threadId: string,
     similarityThreshold: number = DEFAULT_SIMILARITY_THRESHOLD,
+    existingMemories?: Memory[],
   ): Promise<Memory[][]> {
-    const memories = await this.repository.getByThread(threadId);
+    const memories =
+      existingMemories ?? (await this.repository.getByThread(threadId));
     const duplicateGroups: Memory[][] = [];
     const processed = new Set<string>();
 
@@ -132,7 +147,8 @@ export class ConsolidationService {
         if (!memory.embedding || memory.embedding.length === 0) {
           try {
             const text = `${memory.title}. ${memory.content}`;
-            memory.embedding = await this.embeddingService.generateEmbedding(text);
+            memory.embedding =
+              await this.embeddingService.generateEmbedding(text);
             await this.repository.update(memory.id!, {
               embedding: memory.embedding,
             });
@@ -143,7 +159,7 @@ export class ConsolidationService {
             );
           }
         }
-      })
+      }),
     );
 
     // Find duplicate groups
@@ -290,7 +306,7 @@ export class ConsolidationService {
         // Fallback
         // ⚡ Bolt: Use Promise.all to prevent N+1 sequential I/O waiting during fallback deletions
         await Promise.all(
-          toDelete.map((memory) => this.repository.softDelete(memory.id!))
+          toDelete.map((memory) => this.repository.softDelete(memory.id!)),
         );
       }
 
@@ -318,8 +334,10 @@ export class ConsolidationService {
   async findStaleMemories(
     threadId: string,
     staleDays: number = DEFAULT_STALE_DAYS,
+    existingMemories?: Memory[],
   ): Promise<Memory[]> {
-    const memories = await this.repository.getByThread(threadId);
+    const memories =
+      existingMemories ?? (await this.repository.getByThread(threadId));
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - staleDays);
 

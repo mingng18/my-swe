@@ -327,9 +327,8 @@ describe("Security Tests - Timing Attack Mitigation", () => {
     // Verify hashed secret comparison (sha256 or HMAC)
     expect(webappCode).toMatch(/createHash|createHmac/);
 
-    // Verify constant-time delay on auth failure
-    expect(webappCode).toContain("setTimeout");
-    expect(webappCode).toMatch(/delay.*=.*\d+.*Math\.random/);
+    // Ensure no random delay on auth failure
+    expect(webappCode).not.toContain("Math.random() * 50");
   });
 
   test("should not have early return on missing token", async () => {

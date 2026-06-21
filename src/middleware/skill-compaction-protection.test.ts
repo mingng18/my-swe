@@ -3,7 +3,7 @@ import {
   createSkillCompactionProtectionMiddleware,
   isMessageProtected,
   filterProtectedMessages,
-  getProtectedMessages
+  getProtectedMessages,
 } from "./skill-compaction-protection";
 
 describe("Skill Compaction Protection Middleware", () => {
@@ -12,15 +12,23 @@ describe("Skill Compaction Protection Middleware", () => {
       const middleware = createSkillCompactionProtectionMiddleware();
       const mockHandler = mock(async (req: any) => ({
         messages: [
-          { type: "tool", content: "some text <skill_content> data </skill_content>" },
-          { type: "tool", content: "normal text" }
-        ]
+          {
+            type: "tool",
+            content: "some text <skill_content> data </skill_content>",
+          },
+          { type: "tool", content: "normal text" },
+        ],
       }));
 
-      const response = await middleware.wrapModelCall!({} as any, mockHandler as any) as any;
+      const response = (await middleware.wrapModelCall!(
+        {} as any,
+        mockHandler as any,
+      )) as any;
 
       expect(response.messages[0].additional_kwargs._protected).toBe(true);
-      expect(response.messages[1].additional_kwargs?._protected).toBeUndefined();
+      expect(
+        response.messages[1].additional_kwargs?._protected,
+      ).toBeUndefined();
     });
 
     it("should flag messages with <skill_content in array content", async () => {
@@ -29,19 +37,28 @@ describe("Skill Compaction Protection Middleware", () => {
         messages: [
           {
             type: "tool-result",
-            content: [{ type: "text", text: "text with <skill_content> tag" }]
+            content: [
+              { type: "text", text: "first text" },
+              { type: "text", text: "text with <skill_content> tag" },
+              { type: "text", text: "another block" },
+            ],
           },
           {
             type: "tool-result",
-            content: [{ type: "image", url: "http://example.com" }]
-          }
-        ]
+            content: [{ type: "image", url: "http://example.com" }],
+          },
+        ],
       }));
 
-      const response = await middleware.wrapModelCall!({} as any, mockHandler as any) as any;
+      const response = (await middleware.wrapModelCall!(
+        {} as any,
+        mockHandler as any,
+      )) as any;
 
       expect(response.messages[0].additional_kwargs._protected).toBe(true);
-      expect(response.messages[1].additional_kwargs?._protected).toBeUndefined();
+      expect(
+        response.messages[1].additional_kwargs?._protected,
+      ).toBeUndefined();
     });
 
     it("should only flag tool or tool-result messages", async () => {
@@ -50,14 +67,21 @@ describe("Skill Compaction Protection Middleware", () => {
         messages: [
           { type: "human", content: "<skill_content>" },
           { type: "ai", content: "<skill_content>" },
-          { type: "tool", content: "<skill_content>" }
-        ]
+          { type: "tool", content: "<skill_content>" },
+        ],
       }));
 
-      const response = await middleware.wrapModelCall!({} as any, mockHandler as any) as any;
+      const response = (await middleware.wrapModelCall!(
+        {} as any,
+        mockHandler as any,
+      )) as any;
 
-      expect(response.messages[0].additional_kwargs?._protected).toBeUndefined();
-      expect(response.messages[1].additional_kwargs?._protected).toBeUndefined();
+      expect(
+        response.messages[0].additional_kwargs?._protected,
+      ).toBeUndefined();
+      expect(
+        response.messages[1].additional_kwargs?._protected,
+      ).toBeUndefined();
       expect(response.messages[2].additional_kwargs._protected).toBe(true);
     });
 
@@ -65,7 +89,10 @@ describe("Skill Compaction Protection Middleware", () => {
       const middleware = createSkillCompactionProtectionMiddleware();
       const mockHandler = mock(async (req: any) => ({}));
 
-      const response = await middleware.wrapModelCall!({} as any, mockHandler as any) as any;
+      const response = (await middleware.wrapModelCall!(
+        {} as any,
+        mockHandler as any,
+      )) as any;
 
       expect(response).toEqual({});
     });
@@ -73,25 +100,60 @@ describe("Skill Compaction Protection Middleware", () => {
     it("should propagate errors from the handler", async () => {
       const middleware = createSkillCompactionProtectionMiddleware();
       const error = new Error("Handler error");
-      const mockHandler = mock(async (req: any) => { throw error; });
+      const mockHandler = mock(async (req: any) => {
+        throw error;
+      });
 
-      expect(middleware.wrapModelCall!({} as any, mockHandler as any)).rejects.toThrow("Handler error");
+      expect(
+        middleware.wrapModelCall!({} as any, mockHandler as any),
+      ).rejects.toThrow("Handler error");
     });
   });
 
   describe("isMessageProtected", () => {
     it("should return true if _protected is in additional_kwargs", () => {
-      expect(isMessageProtected({ additional_kwargs: { _protected: true } })).toBe(true);
+      expect(
+        isMessageProtected({ additional_kwargs: { _protected: true } }),
+      ).toBe(true);
     });
 
     it("should return true if _protected is in kwargs", () => {
       expect(isMessageProtected({ kwargs: { _protected: true } })).toBe(true);
     });
 
+    it("should return true if _protected is in kwargs but not additional_kwargs", () => {
+      expect(
+        isMessageProtected({
+          additional_kwargs: {},
+          kwargs: { _protected: true },
+        }),
+      ).toBe(true);
+    });
+
+    it("should return true if _protected is in additional_kwargs but not kwargs", () => {
+      expect(
+        isMessageProtected({
+          additional_kwargs: { _protected: true },
+          kwargs: {},
+        }),
+      ).toBe(true);
+    });
+
+    it("should return true if _protected is in both", () => {
+      expect(
+        isMessageProtected({
+          additional_kwargs: { _protected: true },
+          kwargs: { _protected: true },
+        }),
+      ).toBe(true);
+    });
+
     it("should return false if _protected is not set", () => {
       expect(isMessageProtected({})).toBe(false);
       expect(isMessageProtected({ additional_kwargs: {} })).toBe(false);
-      expect(isMessageProtected({ additional_kwargs: { _protected: false } })).toBe(false);
+      expect(
+        isMessageProtected({ additional_kwargs: { _protected: false } }),
+      ).toBe(false);
     });
 
     it("should return false for null or undefined input", () => {
@@ -106,9 +168,15 @@ describe("Skill Compaction Protection Middleware", () => {
     });
 
     it("should return false if _protected is not strictly boolean true", () => {
-      expect(isMessageProtected({ additional_kwargs: { _protected: "true" } })).toBe(false);
-      expect(isMessageProtected({ additional_kwargs: { _protected: 1 } })).toBe(false);
-      expect(isMessageProtected({ additional_kwargs: { _protected: null } })).toBe(false);
+      expect(
+        isMessageProtected({ additional_kwargs: { _protected: "true" } }),
+      ).toBe(false);
+      expect(isMessageProtected({ additional_kwargs: { _protected: 1 } })).toBe(
+        false,
+      );
+      expect(
+        isMessageProtected({ additional_kwargs: { _protected: null } }),
+      ).toBe(false);
     });
   });
 
@@ -118,7 +186,7 @@ describe("Skill Compaction Protection Middleware", () => {
         { id: 1, additional_kwargs: { _protected: true } },
         { id: 2 },
         { id: 3, kwargs: { _protected: true } },
-        { id: 4, additional_kwargs: { _protected: false } }
+        { id: 4, additional_kwargs: { _protected: false } },
       ];
 
       const result = filterProtectedMessages(messages);
@@ -134,7 +202,7 @@ describe("Skill Compaction Protection Middleware", () => {
         { id: 1, additional_kwargs: { _protected: true } },
         { id: 2 },
         { id: 3, kwargs: { _protected: true } },
-        { id: 4, additional_kwargs: { _protected: false } }
+        { id: 4, additional_kwargs: { _protected: false } },
       ];
 
       const result = getProtectedMessages(messages);
@@ -150,7 +218,7 @@ describe("Skill Compaction Protection Middleware", () => {
     it("should return all messages if all are protected", () => {
       const messages = [
         { id: 1, additional_kwargs: { _protected: true } },
-        { id: 2, kwargs: { _protected: true } }
+        { id: 2, kwargs: { _protected: true } },
       ];
 
       const result = getProtectedMessages(messages);
@@ -161,7 +229,7 @@ describe("Skill Compaction Protection Middleware", () => {
     it("should return an empty array if none are protected", () => {
       const messages = [
         { id: 1 },
-        { id: 2, additional_kwargs: { _protected: false } }
+        { id: 2, additional_kwargs: { _protected: false } },
       ];
 
       const result = getProtectedMessages(messages);
@@ -174,12 +242,15 @@ describe("Skill Compaction Protection Middleware", () => {
         undefined,
         { id: 1, additional_kwargs: { _protected: true } },
         "string element",
-        123
+        123,
       ];
 
       const result = getProtectedMessages(messages);
       expect(result).toHaveLength(1);
-      expect(result[0]).toEqual({ id: 1, additional_kwargs: { _protected: true } });
+      expect(result[0]).toEqual({
+        id: 1,
+        additional_kwargs: { _protected: true },
+      });
     });
   });
 });

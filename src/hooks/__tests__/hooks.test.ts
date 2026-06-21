@@ -199,7 +199,7 @@ describe("HooksRegistry", () => {
         {
           name: "block",
           events: ["PreToolUse"],
-          handler: { type: "shell", command: "echo blocked >&2; exit 2" },
+          handler: { type: "shell", command: "node -e \"console.error('blocked'); process.exit(2)\"" },
         },
       ],
     });
@@ -220,7 +220,7 @@ describe("HooksRegistry", () => {
         {
           name: "session-fail",
           events: ["SessionStart"],
-          handler: { type: "shell", command: "exit 1" },
+          handler: { type: "shell", command: "node -e \"process.exit(1)\"" },
         },
       ],
     });
@@ -239,7 +239,7 @@ describe("HooksRegistry", () => {
         {
           name: "capture",
           events: ["PreToolUse"],
-          handler: { type: "shell", command: "cat > /dev/null; true" },
+          handler: { type: "shell", command: "node -e \"process.exit(0)\"" },
         },
       ],
     });
@@ -417,7 +417,7 @@ describe("HooksDispatcher", () => {
         {
           name: "block",
           events: ["PreToolUse"],
-          handler: { type: "shell", command: "echo no >&2; exit 1" },
+          handler: { type: "shell", command: "node -e \"console.error('no'); process.exit(1)\"" },
         },
       ],
     });
@@ -488,7 +488,7 @@ describe("createHooksMiddleware", () => {
           name: "block-grep",
           events: ["PreToolUse"],
           tools: ["grep"],
-          handler: { type: "shell", command: "echo blocked >&2; exit 1" },
+          handler: { type: "shell", command: "node -e \"console.error('blocked'); process.exit(1)\"" },
         },
       ],
     });
