@@ -91,9 +91,10 @@ describe("fetchUrl", () => {
     const domainBlocklist = await import("../../utils/domain-blocklist");
 
     const dns = await import("node:dns");
-    const dnsSpy = spyOn(dns, "lookup").mockImplementation(((hostname: any, callback: any) => {
+    const dnsSpy = spyOn(dns, "lookup").mockImplementation((((...args: any[]) => {
+        const callback = args[args.length - 1];
         callback(null, "93.184.215.14", 4);
-    }) as any);
+    }) as unknown) as any);
 
     // We mock checkDomainBlocklist to return 'check_failed'
     const spy = spyOn(domainBlocklist, "checkDomainBlocklist").mockResolvedValue({
