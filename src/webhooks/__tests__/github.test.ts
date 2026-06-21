@@ -233,8 +233,8 @@ describe("handleGithubWebhook", () => {
     });
 
     it("handles background processing errors gracefully when extracting PR context fails", async () => {
-      const { default: log } = await import("../../utils/logger");
-      const errorSpy = spyOn(log, "error");
+      const { logger } = await import("../../utils/logger");
+      const errorSpy = spyOn(logger, "error");
       mockGithubState.extractPrContextThrow = true;
 
       try {
