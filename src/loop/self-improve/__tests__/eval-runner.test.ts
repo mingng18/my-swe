@@ -1,7 +1,15 @@
 // src/loop/self-improve/__tests__/eval-runner.test.ts
 import { test, expect } from "bun:test";
 import { createEvalRunner, loadEvalCasesFromEnv } from "../eval-runner";
-import type { EvalCase, EvalReport } from "../../../eval/harness";
+type EvalCase = any;
+interface EvalReport {
+  totalCases: number;
+  passed: number;
+  failed: number;
+  avgDurationMs: number;
+  results: any[];
+  timestamp: string;
+}
 
 // Build a fake report without running a real eval. Only the aggregate counts
 // matter for pass-rate computation.

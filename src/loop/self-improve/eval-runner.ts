@@ -16,8 +16,15 @@
 // pass-rate (passed/totalCases, 0 when there are no cases).
 
 import { readFileSync } from "fs";
-import { EvalHarness } from "../../eval/harness";
-import type { EvalCase, EvalReport } from "../../eval/harness";
+type EvalCase = any;
+interface EvalReport {
+  totalCases: number;
+  passed: number;
+  failed: number;
+  avgDurationMs: number;
+  results: any[];
+  timestamp: string;
+}
 import type { EvalRunner } from "./apply";
 import { createLogger } from "../../utils/logger";
 
@@ -58,7 +65,14 @@ export function passRateFromReport(report: EvalReport): number {
  */
 export function createEvalRunner(opts: CreateEvalRunnerOpts = {}): EvalRunner {
   const cases = opts.cases ?? [];
-  const runSuite = opts.runSuite ?? new EvalHarness().runSuite.bind(new EvalHarness());
+  const runSuite = opts.runSuite ?? (async () => ({
+    totalCases: cases.length,
+    passed: 0,
+    failed: cases.length,
+    avgDurationMs: 0,
+    results: [],
+    timestamp: ""
+  }));
   return async function evalRunner(_delta) {
     const report = await runSuite(cases);
     return passRateFromReport(report);
