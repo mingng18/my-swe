@@ -22,8 +22,7 @@ interface EnvironmentVariablesContextType {
 }
 
 // Default noop for context default value
-// oxlint-disable-next-line eslint(no-empty-function)
-const noop = () => {};
+const noop = () => undefined;
 
 const EnvironmentVariablesContext =
   createContext<EnvironmentVariablesContextType>({
@@ -54,12 +53,12 @@ export const EnvironmentVariables = ({
       setInternalShowValues(show);
       onShowValuesChange?.(show);
     },
-    [onShowValuesChange]
+    [onShowValuesChange],
   );
 
   const contextValue = useMemo(
     () => ({ setShowValues, showValues }),
-    [setShowValues, showValues]
+    [setShowValues, showValues],
   );
 
   return (
@@ -84,7 +83,7 @@ export const EnvironmentVariablesHeader = ({
   <div
     className={cn(
       "flex items-center justify-between border-b px-4 py-3",
-      className
+      className,
     )}
     {...props}
   >
@@ -197,7 +196,7 @@ export const EnvironmentVariableValue = ({
       className={cn(
         "font-mono text-muted-foreground text-sm",
         !showValues && "select-none",
-        className
+        className,
       )}
       {...props}
     >
@@ -225,7 +224,7 @@ export const EnvironmentVariable = ({
       <div
         className={cn(
           "flex items-center justify-between gap-4 px-4 py-3",
-          className
+          className,
         )}
         {...props}
       >
@@ -293,15 +292,19 @@ export const EnvironmentVariableCopyButton = ({
     () => () => {
       window.clearTimeout(timeoutRef.current);
     },
-    []
+    [],
   );
 
   const Icon = isCopied ? CheckIcon : CopyIcon;
 
   return (
     <Button
-      aria-label={isCopied ? "Copied environment variables" : "Copy environment variables"}
-      title={isCopied ? "Copied environment variables" : "Copy environment variables"}
+      aria-label={
+        isCopied ? "Copied environment variables" : "Copy environment variables"
+      }
+      title={
+        isCopied ? "Copied environment variables" : "Copy environment variables"
+      }
       className={cn("size-6 shrink-0", className)}
       onClick={copyToClipboard}
       size="icon"
