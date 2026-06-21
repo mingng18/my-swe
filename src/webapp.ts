@@ -134,8 +134,6 @@ app.use(async (c, next) => {
     const providedHash = createHash("sha256").update(token).digest();
 
     if (!timingSafeEqual(expectedHash, providedHash)) {
-      const delay = 50 + Math.floor(Math.random() * 50);
-      await new Promise((resolve) => setTimeout(resolve, delay));
       return c.json({ error: "Unauthorized" }, 401);
     }
   }
