@@ -123,12 +123,14 @@ interface OptimizedBlueprint {
  */
 export class BlueprintRegistry {
   private blueprints: Blueprint[];
+  private blueprintsById: Map<string, Blueprint>;
   private optimizedBlueprints: OptimizedBlueprint[];
   private cachedDefaultBlueprint: Blueprint | undefined;
   private optimizedCache = new Map<Blueprint, OptimizedBlueprint>();
 
   constructor() {
     this.blueprints = [];
+    this.blueprintsById = new Map();
     this.optimizedBlueprints = [];
   }
 
@@ -137,6 +139,7 @@ export class BlueprintRegistry {
    */
   register(blueprint: Blueprint): void {
     this.blueprints.push(blueprint);
+    this.blueprintsById.set(blueprint.id, blueprint);
     // Sort by priority (descending)
     this.blueprints.sort((a, b) => b.priority - a.priority);
 
@@ -211,7 +214,7 @@ export class BlueprintRegistry {
    * Get a blueprint by ID.
    */
   getById(id: string): Blueprint | undefined {
-    return this.blueprints.find((b) => b.id === id);
+    return this.blueprintsById.get(id);
   }
 
   /**
