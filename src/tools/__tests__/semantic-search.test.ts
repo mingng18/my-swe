@@ -1,5 +1,5 @@
-import { describe, it, expect } from "bun:test";
-import { extractTerms, cosineSimilarity } from "../semantic-search";
+import { describe, it, expect, beforeEach } from "bun:test";
+import { extractTerms, cosineSimilarity, semanticSearchCache } from "../semantic-search";
 
 describe("Semantic Search", () => {
   describe("extractTerms", () => {
@@ -103,6 +103,42 @@ describe("Semantic Search", () => {
       expect(terms.has("getuserdata")).toBe(true);
       expect(terms.has("fetch_user_profile")).toBe(true);
       expect(terms.has("api_base_url")).toBe(true);
+    });
+  });
+
+  describe("SemanticSearchCache", () => {
+    beforeEach(() => {
+      semanticSearchCache.clear();
+    });
+
+    describe("invalidateFile", () => {
+      it("should invalidate the cache for a specific file", () => {
+        const filePath = "src/foo/bar.ts";
+        const vectors = [{ filePath, line: 1, chunk: "test", terms: ["test"] }];
+        semanticSearchCache.setDocumentVectors(filePath, vectors);
+
+        expect(semanticSearchCache.getDocumentVectors(filePath)).toEqual(vectors);
+
+        semanticSearchCache.invalidateFile(filePath);
+
+        expect(semanticSearchCache.getDocumentVectors(filePath)).toBeNull();
+      });
+
+      it("should not invalidate cache for other files", () => {
+        const filePath1 = "src/foo/bar.ts";
+        const filePath2 = "src/foo/baz.ts";
+
+        const vectors1 = [{ filePath: filePath1, line: 1, chunk: "test1", terms: ["test1"] }];
+        const vectors2 = [{ filePath: filePath2, line: 1, chunk: "test2", terms: ["test2"] }];
+
+        semanticSearchCache.setDocumentVectors(filePath1, vectors1);
+        semanticSearchCache.setDocumentVectors(filePath2, vectors2);
+
+        semanticSearchCache.invalidateFile(filePath1);
+
+        expect(semanticSearchCache.getDocumentVectors(filePath1)).toBeNull();
+        expect(semanticSearchCache.getDocumentVectors(filePath2)).toEqual(vectors2);
+      });
     });
   });
 });
