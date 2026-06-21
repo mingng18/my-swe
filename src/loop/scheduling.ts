@@ -1,6 +1,5 @@
 // src/loop/scheduling.ts
 import { LoopScheduler } from "./scheduler";
-import { createPrBabysitterPattern } from "./patterns/pr-babysitter";
 import { createCiSweeperPattern } from "./patterns/ci-sweeper";
 import { createDailyTriagePattern } from "./patterns/daily-triage";
 import { createLogger } from "../utils/logger";
@@ -24,20 +23,6 @@ export function registerScheduledPatterns(): LoopScheduler {
   const githubToken = process.env.GITHUB_TOKEN;
   const repo = parseRepo(process.env.LOOP_REPO);
 
-  if (
-    process.env.LOOP_SCHEDULE_PR_BABYSITTER_MS &&
-    githubToken &&
-    repo
-  ) {
-    scheduler.register(
-      createPrBabysitterPattern({
-        repoConfig: repo,
-        githubToken,
-        repoDir: process.env.WORKSPACE_ROOT ?? "/workspace",
-        intervalMs: Number(process.env.LOOP_SCHEDULE_PR_BABYSITTER_MS),
-      }),
-    );
-  }
   if (process.env.LOOP_SCHEDULE_CI_SWEEPER_MS) {
     scheduler.register(
       createCiSweeperPattern({

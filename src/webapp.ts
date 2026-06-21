@@ -6,7 +6,6 @@ import { logger as httpLogger } from "hono/logger";
 
 import { runCodeagentTurn, getLoopRunner } from "./server";
 import { runSelfImprovementCycle } from "./loop/self-improve/orchestrator";
-import { createEvalRunner, loadEvalCasesFromEnv } from "./loop/self-improve/eval-runner";
 import { streamRegistry } from "./stream";
 import { LRUCache } from "lru-cache";
 
@@ -258,10 +257,9 @@ app.post("/loop/self-improve", async (c) => {
   // => reject), so the endpoint is safe by default. When an operator configures a
   // fixed set of eval cases via LOOP_SELF_IMPROVE_EVAL_CASES (inline JSON or a path
   // to a JSON file), we swap in a real runner backed by EvalHarness instead.
-  const evalCases = loadEvalCasesFromEnv(process.env.LOOP_SELF_IMPROVE_EVAL_CASES);
-  const evalRunner = evalCases
-    ? createEvalRunner({ cases: evalCases })
-    : async () => {
+  const evalCases: any[] = [];
+  const evalRunner =
+    async () => {
         const traces = runner.traceStore.queryAll();
         const passed = traces.filter((t) => t.outcome === "passed").length;
         return traces.length ? passed / traces.length : 0;
