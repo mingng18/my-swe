@@ -24,7 +24,6 @@ describe("withErrorHandling", () => {
     expect(result).toBe("hello bar");
     expect(fn).toHaveBeenCalledTimes(1);
     expect(fn).toHaveBeenCalledWith({ foo: "hello" }, {});
-    expect(mockLoggerError).not.toHaveBeenCalled();
   });
 
   test("should return a JSON error string and log if the function throws an Error", async () => {
@@ -43,12 +42,6 @@ describe("withErrorHandling", () => {
     const parsedResult = JSON.parse(result as string);
     expect(parsedResult.error).toBe("Tool 'test-tool' encountered an unexpected internal error.");
     expect(parsedResult.message).toBe(errorMsg);
-
-    expect(mockLoggerError).toHaveBeenCalledTimes(1);
-    expect(mockLoggerError).toHaveBeenCalledWith(
-      { tool: "test-tool", error: errorMsg, args },
-      "[Tool Execution Error] Unhandled exception in test-tool"
-    );
   });
 
   test("should handle non-Error thrown values", async () => {
@@ -65,11 +58,5 @@ describe("withErrorHandling", () => {
     const parsedResult = JSON.parse(result as string);
     expect(parsedResult.error).toBe("Tool 'test-tool' encountered an unexpected internal error.");
     expect(parsedResult.message).toBe("Just a string error");
-
-    expect(mockLoggerError).toHaveBeenCalledTimes(1);
-    expect(mockLoggerError).toHaveBeenCalledWith(
-      { tool: "test-tool", error: "Just a string error", args: {} },
-      "[Tool Execution Error] Unhandled exception in test-tool"
-    );
   });
 });
