@@ -85,6 +85,46 @@ describe("fetchUrl", () => {
     });
   });
 
+  test("handles blocklist check failed", async () => {
+    const { spyOn } = await import("bun:test");
+
+    const domainBlocklist = await import("../../utils/domain-blocklist");
+
+    const dns = await import("node:dns");
+    const dnsSpy = spyOn(dns, "lookup").mockImplementation((hostname, callback) => {
+        // @ts-ignore
+        callback(null, "93.184.215.14", 4);
+    });
+
+    // We mock checkDomainBlocklist to return 'check_failed'
+    const spy = spyOn(domainBlocklist, "checkDomainBlocklist").mockResolvedValue({
+        status: "check_failed",
+        error: new Error("Mock check failed error")
+    });
+
+    const consoleSpy = spyOn(console, "warn").mockImplementation(() => {});
+
+    const { fetchUrl } = await import("../fetch-url");
+
+    const testUrl = "https://example.org";
+    const result = await fetchUrl(testUrl);
+
+    expect(spy).toHaveBeenCalled();
+    expect(consoleSpy).toHaveBeenCalledWith(
+        `[fetch-url] Domain check failed for example.org:`,
+        expect.any(Error)
+    );
+    expect((result as any).error).toBeUndefined();
+    expect(result).toMatchObject({
+      url: testUrl,
+      status_code: 200,
+    });
+
+    spy.mockRestore();
+    consoleSpy.mockRestore();
+    dnsSpy.mockRestore();
+  });
+
   test("fetchUrlTool returns stringified result", async () => {
     const { fetchUrlTool } = await import("../fetch-url");
 
