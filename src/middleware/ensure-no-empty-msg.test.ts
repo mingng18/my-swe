@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { ensureNoEmptyMsg, AgentState, BaseMessage, getEveryMessageSinceLastHuman, checkIfModelAlreadyCalledCommitAndOpenPr, checkIfModelMessagedUser } from "./ensure-no-empty-msg";
+import { ensureNoEmptyMsg, AgentState, BaseMessage, getEveryMessageSinceLastHuman, checkIfModelAlreadyCalledCommitAndOpenPr, checkIfModelMessagedUser, checkIfConfirmingCompletion, checkIfNoOp } from "./ensure-no-empty-msg";
 
 
 describe("getEveryMessageSinceLastHuman", () => {
@@ -120,6 +120,67 @@ describe("checkIfModelMessagedUser", () => {
       { type: "ai", name: "github_comment", content: "I am an AI acting weird" }
     ];
     expect(checkIfModelMessagedUser(messages)).toBe(false);
+  });
+});
+
+
+
+
+describe("checkIfConfirmingCompletion", () => {
+  it("should return false for an empty array of messages", () => {
+    expect(checkIfConfirmingCompletion([])).toBe(false);
+  });
+
+  it("should return false if no message is a tool call for confirming_completion", () => {
+    const messages: BaseMessage[] = [
+      { type: "ai", content: "hello" },
+      { type: "tool", name: "some_other_tool", tool_calls: [] }
+    ];
+    expect(checkIfConfirmingCompletion(messages)).toBe(false);
+  });
+
+  it("should return true if there is a tool message named confirming_completion", () => {
+    const messages: BaseMessage[] = [
+      { type: "ai", content: "I am confirming completion" },
+      { type: "tool", name: "confirming_completion", tool_calls: [] }
+    ];
+    expect(checkIfConfirmingCompletion(messages)).toBe(true);
+  });
+
+  it("should return false if the message has the name but is not of type 'tool'", () => {
+    const messages: BaseMessage[] = [
+      { type: "ai", name: "confirming_completion", content: "I am an AI acting weird" }
+    ];
+    expect(checkIfConfirmingCompletion(messages)).toBe(false);
+  });
+});
+
+describe("checkIfNoOp", () => {
+  it("should return false for an empty array of messages", () => {
+    expect(checkIfNoOp([])).toBe(false);
+  });
+
+  it("should return false if no message is a tool call for no_op", () => {
+    const messages: BaseMessage[] = [
+      { type: "ai", content: "hello" },
+      { type: "tool", name: "some_other_tool", tool_calls: [] }
+    ];
+    expect(checkIfNoOp(messages)).toBe(false);
+  });
+
+  it("should return true if there is a tool message named no_op", () => {
+    const messages: BaseMessage[] = [
+      { type: "ai", content: "doing nothing" },
+      { type: "tool", name: "no_op", tool_calls: [] }
+    ];
+    expect(checkIfNoOp(messages)).toBe(true);
+  });
+
+  it("should return false if the message has the name but is not of type 'tool'", () => {
+    const messages: BaseMessage[] = [
+      { type: "ai", name: "no_op", content: "I am an AI acting weird" }
+    ];
+    expect(checkIfNoOp(messages)).toBe(false);
   });
 });
 
