@@ -1,5 +1,6 @@
 import { createLogger } from "../utils/logger";
 import { MemoryRepository } from "./repository";
+import { escapeRegex } from "../utils/regex";
 import type { MemorySearchResult, MemorySearchOptions, Memory } from "./types";
 
 const logger = createLogger("search-service");
@@ -244,15 +245,7 @@ export class SearchService {
 
     // ⚡ Bolt Optimization: Use a single compiled regex to find all matching terms at once
     // instead of scanning the full string multiple times with string.includes()
-    const escapedTerms = queryTerms.map((t) => {
-      let escaped = "";
-      for (let i = 0; i < t.length; i++) {
-        const c = t[i];
-        if (".*+?^$()|[]\\{}".includes(c)) escaped += "\\";
-        escaped += c;
-      }
-      return escaped;
-    });
+    const escapedTerms = queryTerms.map(escapeRegex);
     const termRegex = new RegExp(escapedTerms.join("|"), "g");
 
     for (const memory of memories) {
