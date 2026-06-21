@@ -1,14 +1,26 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 
 describe("CORS Configuration", () => {
-  let originalEnv: typeof process.env;
+  let originalCorsAllowedOrigin: string | undefined;
+  let originalNodeEnv: string | undefined;
 
   beforeEach(() => {
-    originalEnv = { ...process.env };
+    originalCorsAllowedOrigin = process.env.CORS_ALLOWED_ORIGIN;
+    originalNodeEnv = process.env.NODE_ENV;
   });
 
   afterEach(() => {
-    process.env = { ...originalEnv };
+    if (originalCorsAllowedOrigin !== undefined) {
+      process.env.CORS_ALLOWED_ORIGIN = originalCorsAllowedOrigin;
+    } else {
+      delete process.env.CORS_ALLOWED_ORIGIN;
+    }
+
+    if (originalNodeEnv !== undefined) {
+      process.env.NODE_ENV = originalNodeEnv;
+    } else {
+      delete process.env.NODE_ENV;
+    }
   });
 
   it("should allow origins specified in CORS_ALLOWED_ORIGIN", async () => {

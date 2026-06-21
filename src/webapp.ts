@@ -102,6 +102,7 @@ app.use(
       const allowedOriginsStr = process.env.CORS_ALLOWED_ORIGIN;
       if (!origin || !allowedOriginsStr) return "";
 
+      // Parse the allowed origins list from environment
       const allowedOrigins = allowedOriginsStr.split(",").map((o) => o.trim());
       return allowedOrigins.includes(origin) ? origin : "";
     },
