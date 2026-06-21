@@ -1,0 +1,20 @@
+# Fly.io config for my-swe (Bullhorse)
+# Deploy: fly deploy   |  logs: fly logs  |  shell: fly ssh console
+app = "my-swe-ming"
+primary_region = "sin"   # Singapore — closest to Malaysia
+
+[build]
+  dockerfile = "Dockerfile"
+
+[http_service]
+  internal_port = 3000          # my-swe reads PORT from env (.env sets PORT=3000)
+  force_https = true
+  # Always-on: the app long-polls Telegram, so it must not sleep.
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  memory = "1gb"
+  cpu_kind = "shared"
+  cpus = 1

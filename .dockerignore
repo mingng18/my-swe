@@ -1,0 +1,45 @@
+# --- NEVER ship these (huge / non-runtime / secret) ---
+# Claude Code + agent local data (~2GB)
+.claude
+.auto-claude
+.auto-claude-security.json
+.auto-claude-status
+.full-review
+.cursor
+
+# VCS + host tooling state
+.git
+.gitignore
+.wrangler
+.jules
+.vscode
+.idea
+
+# Host node_modules is rebuilt in the image (also: copying it would overwrite
+# the clean --production install). Build artifacts:
+node_modules
+dist
+build
+*.tsbuildinfo
+
+# Untracked clones / separate frontends / artifacts
+my-swe-494
+swe-ui
+
+# Docs, tests, plans — not needed at runtime
+docs
+tests
+**/*.test.ts
+**/*.test.tsx
+**/__tests__
+
+# Logs + env (secrets must never bake into the image)
+*.log
+logs
+.env
+.env.*
+!.env.example
+
+# OS cruft
+.DS_Store
+Thumbs.db

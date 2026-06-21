@@ -2,10 +2,10 @@
 FROM oven/bun:1 AS base
 WORKDIR /app
 
-# Install dependencies
+# Install dependencies (production only — excludes devDependencies)
 FROM base AS install
 COPY package.json bun.lockb ./
-RUN bun install --frozen-lockfile
+RUN bun install --frozen-lockfile --production
 
 # Production image
 FROM base AS release

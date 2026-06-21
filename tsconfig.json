@@ -9,5 +9,5 @@
     "jsx": "react-jsx",
     "jsxImportSource": "hono/jsx"
   },
-  "exclude": ["swe-ui/**/*"]
+  "exclude": ["swe-ui/**/*", "cf/**/*", "worker-configuration.d.ts", ".wrangler/**/*"]
 }
