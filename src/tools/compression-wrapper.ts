@@ -42,10 +42,9 @@ function wrapToolFunctionWithCompression(
     if (typeof originalResult === "string") {
       resultString = originalResult;
     } else if (typeof originalResult === "object" && originalResult !== null) {
-      const obj = originalResult as Record<string, unknown>;
-      exitCode = (obj.exitCode as number) ?? 0;
+      exitCode = (originalResult as any).exitCode ?? 0;
       command = (args as any).command;
-      resultString = JSON.stringify(obj);
+      resultString = JSON.stringify(originalResult);
     } else {
       resultString = String(originalResult);
     }
