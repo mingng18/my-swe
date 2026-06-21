@@ -5,6 +5,28 @@ const logger = createLogger("telegram-utils");
 const recentlyProcessedMessages = new Map<string, number>();
 const MESSAGE_DEDUP_WINDOW_MS = 30000;
 
+// Special characters in Telegram MarkdownV2 that need escaping
+const TELEGRAM_MARKDOWN_V2_SPECIAL_CHARS = [
+  "_",
+  "*",
+  "[",
+  "]",
+  "(",
+  ")",
+  "~",
+  "`",
+  ">",
+  "#",
+  "+",
+  "-",
+  "=",
+  "|",
+  "{",
+  "}",
+  ".",
+  "!",
+];
+
 /** Valid Telegram chat actions for sendChatAction API */
 export type TelegramChatAction =
   | "typing"
@@ -75,9 +97,7 @@ export async function sendChatAction(
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(
-        `Telegram API error (${response.status}): ${errorText}`,
-      );
+      throw new Error(`Telegram API error (${response.status}): ${errorText}`);
     }
 
     logger.debug({ chatId, action }, "Chat action sent successfully");
@@ -133,34 +153,6 @@ export function formatTelegramMarkdownV2(text: string): string {
   if (!text) {
     return "";
   }
-
-  // Special characters in Telegram MarkdownV2 that need escaping
-  const specialChars = [
-    "_",
-    "*",
-    "[",
-    "]",
-    "(",
-    ")",
-    "~",
-    "`",
-    ">",
-    "#",
-    "+",
-    "-",
-    "=",
-    "|",
-    "{",
-    "}",
-    ".",
-    "!",
-  ];
-
-  // Build regex pattern for all special chars
-  const escapePattern = new RegExp(
-    `([${specialChars.map((c) => `\\${c}`).join("")}])`,
-    "g",
-  );
 
   let result = "";
   let i = 0;
@@ -220,7 +212,7 @@ export function formatTelegramMarkdownV2(text: string): string {
     }
 
     // Escape special characters
-    if (specialChars.includes(text[i])) {
+    if (TELEGRAM_MARKDOWN_V2_SPECIAL_CHARS.includes(text[i])) {
       result += `\\${text[i]}`;
       i++;
     } else {
