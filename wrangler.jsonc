@@ -1,0 +1,45 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "my-swe",
+  "main": "cf/worker.ts",
+  "compatibility_date": "2026-06-01",
+
+  // --- Cloudflare Containers: a Worker (entry) + a Container Durable-Object
+  // class that runs the my-swe Docker image unchanged in a Linux VM. ---
+  "containers": [
+    {
+      // The Durable-Object class defined in cf/container.ts.
+      "class_name": "MySweContainer",
+      // Build this app's existing Docker image (linux/amd64) and push it to the
+      // Cloudflare registry on `wrangler deploy` (requires Docker running locally).
+      "image": "./Dockerfile",
+      // v1: a single instance (avoids duplicate in-process LoopScheduler runs and
+      // matches the ephemeral local state/traces decision).
+      "max_instances": 1
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      { "name": "MY_SWE", "class_name": "MySweContainer" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["MySweContainer"] }
+  ],
+
+  // Non-secret config defaults. Secrets (tokens/keys) are NOT listed here — set
+  // them with `wrangler secret put <NAME>`; they flow into env and are passed to
+  // the container by cf/container.ts. See docs/deployment-cloudflare.md.
+  "vars": {
+    "NODE_ENV": "production",
+    "PORT": "7860",
+    "AGENT_PROVIDER": "opencode",
+    "USE_SANDBOX": "false",
+    // Loop engineering flags — all OFF by default (zero behavior change).
+    "LOOP_ENABLED": "false",
+    "LOOP_SCHEDULING_ENABLED": "false",
+    "LOOP_SELF_IMPROVE_ENABLED": "false"
+  },
+
+  "observability": { "enabled": true }
+}

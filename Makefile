@@ -1,4 +1,4 @@
-.PHONY: dev start build test clean docker-build docker-run help prewarm
+.PHONY: dev start build test clean docker-build docker-run langgraph prewarm cf-deploy help
 
 # Default target
 help:
@@ -12,6 +12,7 @@ help:
 	@echo "  docker-run    - Run Docker container"
 	@echo "  langgraph     - Run LangGraph dev server"
 	@echo "  prewarm       - Prewarm Daytona sandboxes (pool by labels)"
+	@echo "  cf-deploy     - Deploy to Cloudflare Containers (wrangler deploy)"
 
 dev:
 	bun run dev
@@ -39,3 +40,6 @@ langgraph:
 
 prewarm:
 	bun run prewarm
+
+cf-deploy:
+	bunx wrangler deploy
