@@ -1,3 +1,3 @@
-## 2025-06-20 - Ensure icon buttons have both aria-label and title
-**Learning:** React components that use Radix/shadcn tooltips often still need native `title` attributes for robust, immediate hover feedback across various interaction modes, and pairing `title` with `aria-label` ensures standard and assistive technology alignment.
-**Action:** When adding accessible labels to icon-only buttons, pair `aria-label` and `title` to provide comprehensive support without requiring complex Tooltip wrappers.
+## 2024-06-22 - ThreadTimeline Focus & ARIA Additions
+**Learning:** Collapsible `<summary>` elements in this app's components (e.g., `ThreadTimeline.tsx`) lack default keyboard focus indicators due to CSS resets. Furthermore, dynamically rendered status updates (like the agent working state) need explicit `aria-live` attributes to be announced by screen readers.
+**Action:** When working with `<summary>` tags or clickable details, ensure they include `focus-visible` Tailwind classes (e.g., `focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none`). Use `aria-live="polite"` on dynamically appearing status elements like loaders to ensure screen reader users are notified of state changes without interrupting their current flow.

@@ -25,7 +25,11 @@ interface ThreadTimelineProps {
   connectionState: "connecting" | "connected" | "disconnected" | "error";
 }
 
-export function ThreadTimeline({ messages, thread, connectionState }: ThreadTimelineProps) {
+export function ThreadTimeline({
+  messages,
+  thread,
+  connectionState,
+}: ThreadTimelineProps) {
   return (
     <ScrollArea className="flex-1 p-4">
       {messages.length === 0 ? (
@@ -45,15 +49,15 @@ export function ThreadTimeline({ messages, thread, connectionState }: ThreadTime
             {thread.status === "running"
               ? "Agent is processing..."
               : connectionState === "connecting"
-              ? "Connecting to stream..."
-              : "Waiting for events"}
+                ? "Connecting to stream..."
+                : "Waiting for events"}
           </h3>
           <p className="text-sm text-muted-foreground max-w-md">
             {thread.status === "running"
               ? "The agent is working on your task. Events will appear here as they happen."
               : connectionState === "connecting"
-              ? "Establishing connection to the agent stream..."
-              : "Start an agent run to see the timeline of events."}
+                ? "Establishing connection to the agent stream..."
+                : "Start an agent run to see the timeline of events."}
           </p>
           {connectionState === "connecting" && (
             <div className="mt-6 space-y-2 w-full max-w-sm">
@@ -109,7 +113,7 @@ export function ThreadTimeline({ messages, thread, connectionState }: ThreadTime
                       </p>
                       {message.metadata?.args && (
                         <details className="mt-2">
-                          <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">
+                          <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 rounded-sm">
                             Arguments
                           </summary>
                           <pre className="text-xs bg-muted/50 p-2 rounded mt-1 overflow-x-auto">
@@ -129,14 +133,16 @@ export function ThreadTimeline({ messages, thread, connectionState }: ThreadTime
             );
           })}
           {thread.status === "running" && (
-            <div className="flex gap-3">
+            <div className="flex gap-3" aria-live="polite">
               <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                 <span className="text-sm">🤖</span>
               </div>
               <Card className="flex-1 p-3 max-w-2xl">
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                  <span className="text-sm text-muted-foreground">Agent is working...</span>
+                  <span className="text-sm text-muted-foreground">
+                    Agent is working...
+                  </span>
                 </div>
               </Card>
             </div>
