@@ -1,3 +1,21 @@
-## 2025-06-20 - Ensure icon buttons have both aria-label and title
-**Learning:** React components that use Radix/shadcn tooltips often still need native `title` attributes for robust, immediate hover feedback across various interaction modes, and pairing `title` with `aria-label` ensures standard and assistive technology alignment.
-**Action:** When adding accessible labels to icon-only buttons, pair `aria-label` and `title` to provide comprehensive support without requiring complex Tooltip wrappers.
+## 2024-04-06 - Accessible Dynamic Selectables
+**Learning:** Dynamically injected UI components (like A/B choices or cards) often lack proper keyboard accessibility because they use simple container elements (`div`, `span`) rather than semantic interactive elements. Without explicit `tabindex="0"`, `role="button"`, and keyboard event handlers (Enter/Space), screen reader and keyboard users cannot interact with them. Additionally, visual updates to selection state indicators require `aria-live` regions to be announced.
+**Action:** When working with dynamic choice inputs built from non-semantic elements, use a MutationObserver to automatically assign `tabindex="0"`, `role="button"`, and a keyboard listener for Enter/Space clicks, and add `aria-live="polite"` to the status bar indicating the selected items.
+## 2026-04-07 - Add ARIA pressed states to brainstorming interactive elements
+**Learning:** Interactive elements designed for screen readers mimicking toggles/options should explicitly convey their selected state using `aria-pressed` or `aria-selected`, especially when focus is dynamically set or selection is complex, to properly inform assistive technologies of state changes.
+**Action:** Ensure custom DOM manipulation scripts (e.g. `window.toggleSelect`) consistently update corresponding ARIA attributes such as `aria-pressed` immediately alongside visual class changes.
+## 2024-04-10 - Add keyboard shortcut hints and tactile feedback
+**Learning:** Using inclusive language like "Select" instead of "Click" accommodates users employing various interaction methods (keyboard, screen reader, switch device). Furthermore, dynamically showing keyboard shortcuts (like <kbd>Tab</kbd>) in custom elements aids discoverability, and custom interactive elements should provide immediate tactile feedback via CSS `:active` (e.g., `transform: scale(0.99)`) to mimic native button responses.
+**Action:** Default to inclusive verbs ("Select", "Choose") instead of device-specific ones ("Click", "Tap"). Make keyboard navigation explicit by adding small `<kbd>` hints in indicator bars or tooltips. Add `:active` transforms to custom interactive cards or options for better tactile feedback.
+## 2026-04-14 - Semantic HTML Replacements
+**Learning:** Native semantic HTML tags (`<header>`, `<main>`, `<footer>`, `<nav>`) provide implicit ARIA landmark roles, offering a lightweight and robust way to improve accessibility for screen readers in vanilla web interfaces compared to using generic `<div>` wrappers.
+**Action:** Always prefer native semantic HTML elements over standard `<div>` tags when structuring the layout for web interfaces in the repository, especially in the `.agents/skills/` directories.
+## 2026-04-22 - Resolving UI Merge Conflicts
+**Learning:** When resolving Git merge conflicts that combine accessibility improvements (like `<kbd>` keyboard hints) with semantic HTML structure updates, it's crucial to manually ensure the newly combined layout applies all required styling hooks (e.g., preserving `.kbd-hint` classes). Otherwise, the new semantic structure may render the accessibility hints without the intended tactile visual feedback or sizing.
+**Action:** Always visually verify merged UI template files using tools like Playwright or visual inspection to ensure that custom CSS styles and accessibility affordances added in parallel branches apply correctly when combined.
+## 2025-02-14 - Keyboard Shortcut Discovery
+**Learning:** Combining explicit keyboard hints (<kbd>Tab</kbd>) with semantic roles (like <footer aria-live="polite">) creates a highly discoverable and accessible experience for companion web frames without cluttering the visual UI.
+**Action:** Consistently pair visual shortcut hints (<kbd>) with ARIA live regions when instructing users on keyboard-driven navigation in isolated frame views.
+## 2024-04-23 - Add ARIA labels to icon-only clear/close buttons
+**Learning:** Icon-only buttons (like those using a simple X icon for closing tabs or clearing inputs) often lack descriptive text. Without an explicit `aria-label`, screen readers might read them simply as "button", leaving users without context about what the button does.
+**Action:** Always ensure that icon-only interactive elements, especially common ones like clear inputs or close modals/tabs, have descriptive `aria-label` attributes.
