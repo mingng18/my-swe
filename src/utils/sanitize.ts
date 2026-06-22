@@ -109,7 +109,9 @@ export function sanitizeString(
       { context, hasControlChars: true },
       "[sanitize] Input contains control characters",
     );
-    throw new Error(`[${context}] Input contains null byte or control characters`);
+    throw new Error(
+      `[${context}] Input contains null byte or control characters`,
+    );
   }
 
   // Check for dangerous patterns BEFORE normalization
@@ -258,7 +260,9 @@ export function sanitizeUrl(input: unknown): string {
 
     return url.toString();
   } catch (err) {
-    throw new Error(`Invalid URL: ${err instanceof Error ? err.message : "unknown error"}`);
+    throw new Error(
+      `Invalid URL: ${err instanceof Error ? err.message : "unknown error"}`,
+    );
   }
 }
 
@@ -309,38 +313,43 @@ export function parseJsonSafely<T = unknown>(
   try {
     parsed = JSON.parse(input);
   } catch (err) {
-    throw new Error(`Invalid JSON: ${err instanceof Error ? err.message : "unknown error"}`);
+    throw new Error(
+      `Invalid JSON: ${err instanceof Error ? err.message : "unknown error"}`,
+    );
   }
 
-  // Check depth
-  const checkDepth = (obj: unknown, currentDepth = 0): void => {
+  // Check depth and block prototype pollution
+  const checkDepthAndProto = (obj: unknown, currentDepth = 0): void => {
     if (currentDepth > maxDepth) {
       throw new Error(`JSON depth exceeds maximum of ${maxDepth}`);
     }
 
     if (typeof obj === "object" && obj !== null) {
+      if (
+        blockProto &&
+        (Object.prototype.hasOwnProperty.call(obj, "__proto__") ||
+          Object.prototype.hasOwnProperty.call(obj, "constructor"))
+      ) {
+        throw new Error("Prototype pollution detected in JSON input");
+      }
+
       if (Array.isArray(obj)) {
-        for (const item of obj) {
-          checkDepth(item, currentDepth + 1);
+        for (let i = 0; i < obj.length; i++) {
+          checkDepthAndProto(obj[i], currentDepth + 1);
         }
       } else {
-        for (const value of Object.values(obj)) {
-          checkDepth(value, currentDepth + 1);
+        const keys = Object.keys(obj);
+        for (let i = 0; i < keys.length; i++) {
+          checkDepthAndProto(
+            (obj as Record<string, unknown>)[keys[i]],
+            currentDepth + 1,
+          );
         }
       }
     }
   };
 
-  checkDepth(parsed);
-
-  // Block prototype pollution
-  if (blockProto) {
-    const sanitized = JSON.parse(JSON.stringify(parsed));
-    if (Object.prototype.hasOwnProperty.call(sanitized, "__proto__") || Object.prototype.hasOwnProperty.call(sanitized, "constructor")) {
-      throw new Error("Prototype pollution detected in JSON input");
-    }
-    parsed = sanitized;
-  }
+  checkDepthAndProto(parsed);
 
   // Validate schema
   if (schema) {
