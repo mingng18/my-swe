@@ -20,13 +20,19 @@ interface ThreadMonitorProps {
   className?: string;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_BULLHORSE_API_URL || "http://localhost:3000";
+const API_URL =
+  process.env.NEXT_PUBLIC_BULLHORSE_API_URL || "http://localhost:3000";
 
-export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonitorProps) {
+export function ThreadMonitor({
+  threadId: propThreadId,
+  className,
+}: ThreadMonitorProps) {
   const activeThreadId = useThreadStore((state) => state.activeThreadId);
   const threadId = propThreadId || activeThreadId;
   // OPTIMIZATION: Select only the active thread to prevent re-renders when other threads update, and memoize the expensive message derivation.
-  const thread = useThreadStore((state) => threadId ? state.threads[threadId] : null);
+  const thread = useThreadStore((state) =>
+    threadId ? state.threads[threadId] : null,
+  );
   const addThread = useThreadStore((state) => state.addThread);
   const updateThread = useThreadStore((state) => state.updateThread);
   const setActiveThread = useThreadStore((state) => state.setActiveThread);
@@ -37,7 +43,9 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Track connection state in a ref that handleStartAgent can read
-  const connectionStateRef = useRef<"connecting" | "connected" | "disconnected" | "error">("disconnected");
+  const connectionStateRef = useRef<
+    "connecting" | "connected" | "disconnected" | "error"
+  >("disconnected");
 
   // Keyboard shortcut to focus input
   useKeyboardShortcut({
@@ -78,32 +86,43 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
       // Generate threadId on client first before connecting
       const clientThreadId = crypto.randomUUID();
 
-      console.log(`[ThreadMonitor] Creating thread ${clientThreadId} and connecting SSE first...`);
+      console.log(
+        `[ThreadMonitor] Creating thread ${clientThreadId} and connecting SSE first...`,
+      );
 
       // Add thread to store and set it as active so SSE hook can start connecting
       addThread(clientThreadId);
       setActiveThread(clientThreadId);
 
       // Wait for React to re-render and useBullhorseStream to start connecting
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Wait for SSE connection to be established before starting the agent
       // This prevents the race condition where events are emitted before the client is listening
       const maxWaitTime = 5000; // 5 seconds max wait for connection
       const startTime = Date.now();
 
-      console.log(`[ThreadMonitor] Waiting for SSE connection... (current: ${connectionStateRef.current})`);
+      console.log(
+        `[ThreadMonitor] Waiting for SSE connection... (current: ${connectionStateRef.current})`,
+      );
 
       // Use the ref to check connection state instead of the captured state variable
-      while (connectionStateRef.current !== "connected" && Date.now() - startTime < maxWaitTime) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+      while (
+        connectionStateRef.current !== "connected" &&
+        Date.now() - startTime < maxWaitTime
+      ) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
 
       if (connectionStateRef.current !== "connected") {
-        throw new Error("Failed to establish SSE connection. Please check your network.");
+        throw new Error(
+          "Failed to establish SSE connection. Please check your network.",
+        );
       }
 
-      console.log(`[ThreadMonitor] SSE connected! Starting agent for thread ${clientThreadId}`);
+      console.log(
+        `[ThreadMonitor] SSE connected! Starting agent for thread ${clientThreadId}`,
+      );
 
       // Now that we're connected, start the agent with the existing threadId
       const response = await fetch(`${API_URL}/run`, {
@@ -120,10 +139,14 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
 
       // Verify the server returned the same threadId we used
       if (data.threadId !== clientThreadId) {
-        console.warn(`Server returned different threadId: ${data.threadId} vs ${clientThreadId}`);
+        console.warn(
+          `Server returned different threadId: ${data.threadId} vs ${clientThreadId}`,
+        );
       }
 
-      console.log(`[ThreadMonitor] Agent started successfully for thread ${data.threadId}`);
+      console.log(
+        `[ThreadMonitor] Agent started successfully for thread ${data.threadId}`,
+      );
 
       // Clear input
       setUserInput("");
@@ -143,7 +166,10 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
   };
 
   // Convert events to messages for display
-  const messages = useMemo(() => thread ? groupLLMChunks(adaptEventsToMessages(thread.events)) : [], [thread]);
+  const messages = useMemo(
+    () => (thread ? groupLLMChunks(adaptEventsToMessages(thread.events)) : []),
+    [thread],
+  );
 
   return (
     <div className={cn("flex flex-col h-screen bg-background", className)}>
@@ -191,11 +217,20 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
               />
             </div>
 
-            <ThreadTimeline messages={messages} thread={thread} connectionState={connectionState} />
+            <ThreadTimeline
+              messages={messages}
+              thread={thread}
+              connectionState={connectionState}
+            />
           </div>
         </div>
       ) : (
-        <ThreadEmptyState />
+        <ThreadEmptyState
+          onSuggestionClick={(text) => {
+            setUserInput(text);
+            inputRef.current?.focus();
+          }}
+        />
       )}
     </div>
   );
