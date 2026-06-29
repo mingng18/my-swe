@@ -338,10 +338,10 @@ export function parseJsonSafely<T = unknown>(
           checkDepthAndProto(obj[i], currentDepth + 1);
         }
       } else {
-        const keys = Object.keys(obj);
-        for (let i = 0; i < keys.length; i++) {
+        // hasOwnProperty is omitted because JSON.parse output is guaranteed to be a plain object
+        for (const key in obj) {
           checkDepthAndProto(
-            (obj as Record<string, unknown>)[keys[i]],
+            (obj as Record<string, unknown>)[key],
             currentDepth + 1,
           );
         }
