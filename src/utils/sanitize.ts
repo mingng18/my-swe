@@ -325,23 +325,18 @@ export function parseJsonSafely<T = unknown>(
     }
 
     if (typeof obj === "object" && obj !== null) {
-      if (
-        blockProto &&
-        (Object.prototype.hasOwnProperty.call(obj, "__proto__") ||
-          Object.prototype.hasOwnProperty.call(obj, "constructor"))
-      ) {
-        throw new Error("Prototype pollution detected in JSON input");
-      }
-
       if (Array.isArray(obj)) {
         for (let i = 0; i < obj.length; i++) {
           checkDepthAndProto(obj[i], currentDepth + 1);
         }
       } else {
-        const keys = Object.keys(obj);
-        for (let i = 0; i < keys.length; i++) {
+        for (const key in obj as Record<string, unknown>) {
+          // hasOwnProperty is omitted because JSON.parse output is guaranteed to be a plain object
+          if (blockProto && (key === "__proto__" || key === "constructor")) {
+            throw new Error("Prototype pollution detected in JSON input");
+          }
           checkDepthAndProto(
-            (obj as Record<string, unknown>)[keys[i]],
+            (obj as Record<string, unknown>)[key],
             currentDepth + 1,
           );
         }
