@@ -179,7 +179,7 @@ export const FileTreeFolder = ({
                 aria-label={
                   isExpanded ? "Collapse directory" : "Expand directory"
                 }
-                className="flex shrink-0 cursor-pointer items-center border-none bg-transparent p-0"
+                className="flex shrink-0 cursor-pointer items-center border-none bg-transparent p-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
                 type="button"
               >
                 <ChevronRightIcon
@@ -191,7 +191,7 @@ export const FileTreeFolder = ({
               </button>
             </CollapsibleTrigger>
             <button
-              className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 border-none bg-transparent p-0 text-left"
+              className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 border-none bg-transparent p-0 text-left rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
               onClick={handleSelect}
               type="button"
             >
