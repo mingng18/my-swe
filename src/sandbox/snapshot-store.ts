@@ -319,32 +319,27 @@ export class FilesystemSnapshotStore implements SnapshotStore {
         (file) => file.startsWith(prefix) && file.endsWith(METADATA_EXT),
       );
 
-      // Process files in batches to avoid high memory usage and EMFILE errors
-      const BATCH_SIZE = 500;
-      for (let i = 0; i < filteredFiles.length; i += BATCH_SIZE) {
-        const chunk = filteredFiles.slice(i, i + BATCH_SIZE);
-        const metadataPromises = chunk.map(async (file) => {
-          try {
-            const filePath = join(this.storageDir, file);
-            const data = await readFile(filePath, "utf-8");
-            const metadata = JSON.parse(data) as SnapshotMetadata;
-            metadata.createdAt = new Date(metadata.createdAt);
-            metadata.refreshedAt = new Date(metadata.refreshedAt);
-            return metadata;
-          } catch (error) {
-            logger.warn(
-              { error, file },
-              `[snapshot-store] Failed to read snapshot file`,
-            );
-            return null;
-          }
-        });
+      const metadataPromises = filteredFiles.map(async (file) => {
+        try {
+          const filePath = join(this.storageDir, file);
+          const data = await readFile(filePath, "utf-8");
+          const metadata = JSON.parse(data) as SnapshotMetadata;
+          metadata.createdAt = new Date(metadata.createdAt);
+          metadata.refreshedAt = new Date(metadata.refreshedAt);
+          return metadata;
+        } catch (error) {
+          logger.warn(
+            { error, file },
+            `[snapshot-store] Failed to read snapshot file`,
+          );
+          return null;
+        }
+      });
 
-        const results = await Promise.all(metadataPromises);
-        for (const metadata of results) {
-          if (metadata) {
-            snapshots.push(metadata);
-          }
+      const results = await Promise.all(metadataPromises);
+      for (const metadata of results) {
+        if (metadata) {
+          snapshots.push(metadata);
         }
       }
     } catch (error) {
@@ -372,32 +367,27 @@ export class FilesystemSnapshotStore implements SnapshotStore {
         (file) => file.startsWith(prefix) && file.endsWith(METADATA_EXT),
       );
 
-      // Process files in batches to avoid high memory usage and EMFILE errors
-      const BATCH_SIZE = 500;
-      for (let i = 0; i < filteredFiles.length; i += BATCH_SIZE) {
-        const chunk = filteredFiles.slice(i, i + BATCH_SIZE);
-        const metadataPromises = chunk.map(async (file) => {
-          try {
-            const filePath = join(this.storageDir, file);
-            const data = await readFile(filePath, "utf-8");
-            const metadata = JSON.parse(data) as SnapshotMetadata;
-            metadata.createdAt = new Date(metadata.createdAt);
-            metadata.refreshedAt = new Date(metadata.refreshedAt);
-            return metadata;
-          } catch (error) {
-            logger.warn(
-              { error, file },
-              `[snapshot-store] Failed to read snapshot file`,
-            );
-            return null;
-          }
-        });
+      const metadataPromises = filteredFiles.map(async (file) => {
+        try {
+          const filePath = join(this.storageDir, file);
+          const data = await readFile(filePath, "utf-8");
+          const metadata = JSON.parse(data) as SnapshotMetadata;
+          metadata.createdAt = new Date(metadata.createdAt);
+          metadata.refreshedAt = new Date(metadata.refreshedAt);
+          return metadata;
+        } catch (error) {
+          logger.warn(
+            { error, file },
+            `[snapshot-store] Failed to read snapshot file`,
+          );
+          return null;
+        }
+      });
 
-        const results = await Promise.all(metadataPromises);
-        for (const metadata of results) {
-          if (metadata) {
-            snapshots.push(metadata);
-          }
+      const results = await Promise.all(metadataPromises);
+      for (const metadata of results) {
+        if (metadata) {
+          snapshots.push(metadata);
         }
       }
     } catch (error) {
