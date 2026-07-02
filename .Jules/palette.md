@@ -19,6 +19,9 @@
 ## 2024-04-23 - Add ARIA labels to icon-only clear/close buttons
 **Learning:** Icon-only buttons (like those using a simple X icon for closing tabs or clearing inputs) often lack descriptive text. Without an explicit `aria-label`, screen readers might read them simply as "button", leaving users without context about what the button does.
 **Action:** Always ensure that icon-only interactive elements, especially common ones like clear inputs or close modals/tabs, have descriptive `aria-label` attributes.
+## 2024-06-23 - Checkbox Accessibility in Lists
+**Learning:** Found that custom `Checkbox` components used within iterative lists (like `todos.map(...)`) often lack context for screen readers when they are icon-only or visually associated with adjacent text but not programmatically linked. The disabled "completed" state checkbox in `TodoSidebar.tsx` was completely silent to screen readers about *which* task it belonged to.
+**Action:** When reviewing custom interactive components in map loops, always ensure they either use `aria-labelledby` referencing a nearby ID, or have a direct `aria-label` providing full context (e.g., `aria-label={\`Task: \${task.name}\`}`).
 ## 2026-06-25 - Interactive Empty States
 **Learning:** Empty state examples (like "Code Search: Find auth implementations") appear interactive but were static text. Users naturally try to click these to quickly test the application, and making them clickable reduces friction.
 **Action:** When providing example queries or templates in an empty state, implement them as interactive buttons that pre-fill or trigger the primary action.
