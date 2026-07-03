@@ -195,7 +195,12 @@ export function ThreadMonitor({ threadId: propThreadId, className }: ThreadMonit
           </div>
         </div>
       ) : (
-        <ThreadEmptyState />
+        <ThreadEmptyState
+          onExampleClick={(text) => {
+            setUserInput(text);
+            inputRef.current?.focus();
+          }}
+        />
       )}
     </div>
   );
