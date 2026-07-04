@@ -226,9 +226,9 @@ export function ThreadMonitor({
         </div>
       ) : (
         <ThreadEmptyState
-          onSuggestionClick={(text) => {
-            setUserInput(text);
-            inputRef.current?.focus();
+          onSuggestionClick={(suggestion) => {
+            setUserInput(suggestion);
+            setTimeout(() => inputRef.current?.focus(), 0);
           }}
         />
       )}
