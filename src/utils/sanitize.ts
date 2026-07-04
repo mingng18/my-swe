@@ -319,6 +319,7 @@ export function parseJsonSafely<T = unknown>(
   }
 
   // Check depth and block prototype pollution
+  // ⚡ Bolt: Use optimized single-pass for...in traversal avoiding Object.keys allocation
   const checkDepthAndProto = (obj: unknown, currentDepth = 0): void => {
     if (currentDepth > maxDepth) {
       throw new Error(`JSON depth exceeds maximum of ${maxDepth}`);
@@ -331,14 +332,15 @@ export function parseJsonSafely<T = unknown>(
         }
       } else {
         for (const key in obj) {
-          // hasOwnProperty is omitted because JSON.parse output is guaranteed to be a plain object
-          if (blockProto && (key === "__proto__" || key === "constructor")) {
-            throw new Error("Prototype pollution detected in JSON input");
+          if (Object.prototype.hasOwnProperty.call(obj, key)) {
+            if (blockProto && (key === "__proto__" || key === "constructor")) {
+              throw new Error("Prototype pollution detected in JSON input");
+            }
+            checkDepthAndProto(
+              (obj as Record<string, unknown>)[key],
+              currentDepth + 1,
+            );
           }
-          checkDepthAndProto(
-            (obj as Record<string, unknown>)[key],
-            currentDepth + 1,
-          );
         }
       }
     }
