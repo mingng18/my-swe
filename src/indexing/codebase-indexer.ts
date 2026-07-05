@@ -50,13 +50,10 @@ export interface CodebaseIndex {
 const RE_EXPORT_FUNCTION =
   /export\s+(?:async\s+)?function\s+(\w+)\s*([^{}]*?)\{/g;
 const RE_EXPORT_CLASS = /export\s+(?:abstract\s+)?class\s+(\w+)\s*([^{]*?)\{/g;
-const RE_EXPORT_INTERFACE =
-  /export\s+interface\s+(\w+)\s*([^{]*?)\{/g;
-const RE_EXPORT_TYPE =
-  /export\s+type\s+(\w+)\s*=\s*([^;]+);/g;
+const RE_EXPORT_INTERFACE = /export\s+interface\s+(\w+)\s*([^{]*?)\{/g;
+const RE_EXPORT_TYPE = /export\s+type\s+(\w+)\s*=\s*([^;]+);/g;
 const RE_EXPORT_ENUM = /export\s+(?:const\s+)?enum\s+(\w+)\s*\{/g;
-const RE_EXPORT_VAR =
-  /export\s+(?:const|let|var)\s+(\w+)\s*[:=]/g;
+const RE_EXPORT_VAR = /export\s+(?:const|let|var)\s+(\w+)\s*[:=]/g;
 
 const RE_NAMED_EXPORT = /export\s*\{([^}]+)\}/g;
 const RE_EXPORT_ALL = /export\s+\*\s+from\s+['"]([^'"]+)['"]/g;
@@ -144,11 +141,51 @@ export class CodebaseIndexer {
 
     // -- Extract symbols ------------------------------------------------
 
-    this.extractSymbols(RE_EXPORT_FUNCTION, "function", content, lines, absPath, symbols, exports);
-    this.extractSymbols(RE_EXPORT_CLASS, "class", content, lines, absPath, symbols, exports);
-    this.extractSymbols(RE_EXPORT_INTERFACE, "interface", content, lines, absPath, symbols, exports);
-    this.extractSymbols(RE_EXPORT_TYPE, "type", content, lines, absPath, symbols, exports);
-    this.extractSymbols(RE_EXPORT_ENUM, "enum", content, lines, absPath, symbols, exports);
+    this.extractSymbols(
+      RE_EXPORT_FUNCTION,
+      "function",
+      content,
+      lines,
+      absPath,
+      symbols,
+      exports,
+    );
+    this.extractSymbols(
+      RE_EXPORT_CLASS,
+      "class",
+      content,
+      lines,
+      absPath,
+      symbols,
+      exports,
+    );
+    this.extractSymbols(
+      RE_EXPORT_INTERFACE,
+      "interface",
+      content,
+      lines,
+      absPath,
+      symbols,
+      exports,
+    );
+    this.extractSymbols(
+      RE_EXPORT_TYPE,
+      "type",
+      content,
+      lines,
+      absPath,
+      symbols,
+      exports,
+    );
+    this.extractSymbols(
+      RE_EXPORT_ENUM,
+      "enum",
+      content,
+      lines,
+      absPath,
+      symbols,
+      exports,
+    );
     this.extractExportedVars(content, lines, absPath, symbols, exports);
 
     // Named re-exports: export { Foo, Bar }
@@ -199,18 +236,27 @@ export class CodebaseIndexer {
 
     const filePaths = await this.discoverFiles(dir, allExclude);
 
-    for (const fp of filePaths) {
-      try {
-        const fileIndex = await this.indexFile(fp);
-        files.set(fp, fileIndex);
+    const CHUNK_SIZE = 50;
+    for (let i = 0; i < filePaths.length; i += CHUNK_SIZE) {
+      const chunk = filePaths.slice(i, i + CHUNK_SIZE);
+      await Promise.all(
+        chunk.map(async (fp) => {
+          try {
+            const fileIndex = await this.indexFile(fp);
+            files.set(fp, fileIndex);
+          } catch (error) {
+            logger.warn({ filePath: fp, error }, "Failed to index file");
+          }
+        }),
+      );
+    }
 
-        for (const sym of fileIndex.symbols) {
-          const existing = symbolIndex.get(sym.name) ?? [];
-          existing.push(sym);
-          symbolIndex.set(sym.name, existing);
-        }
-      } catch (error) {
-        logger.warn({ filePath: fp, error }, "Failed to index file");
+    // Build symbol index after all files are indexed
+    for (const fileIndex of files.values()) {
+      for (const sym of fileIndex.symbols) {
+        const existing = symbolIndex.get(sym.name) ?? [];
+        existing.push(sym);
+        symbolIndex.set(sym.name, existing);
       }
     }
 
@@ -264,11 +310,7 @@ export class CodebaseIndexer {
       const importedSymbols = new Map<string, string[]>();
 
       for (const imp of fileIdx.imports) {
-        const resolved = this.resolveImportPath(
-          imp,
-          fileIdx.filePath,
-          index,
-        );
+        const resolved = this.resolveImportPath(imp, fileIdx.filePath, index);
         const targetFile = index.files.get(resolved);
         if (targetFile) {
           importedSymbols.set(imp, targetFile.exports);
@@ -419,17 +461,20 @@ export class CodebaseIndexer {
     }
   }
 
-  private extractNamedExports(
-    content: string,
-    exports: string[],
-  ): void {
+  private extractNamedExports(content: string, exports: string[]): void {
     const re = new RegExp(RE_NAMED_EXPORT.source, RE_NAMED_EXPORT.flags);
     let match: RegExpExecArray | null;
 
     while ((match = re.exec(content)) !== null) {
       const names = match[1]
         .split(",")
-        .map((s) => s.trim().split(/\s+as\s+/).pop()!.trim())
+        .map((s) =>
+          s
+            .trim()
+            .split(/\s+as\s+/)
+            .pop()!
+            .trim(),
+        )
         .filter(Boolean);
 
       for (const name of names) {
@@ -447,10 +492,7 @@ export class CodebaseIndexer {
     symbols: SymbolInfo[],
     exports: string[],
   ): void {
-    const re = new RegExp(
-      RE_DEFAULT_EXPORT.source,
-      RE_DEFAULT_EXPORT.flags,
-    );
+    const re = new RegExp(RE_DEFAULT_EXPORT.source, RE_DEFAULT_EXPORT.flags);
     let match: RegExpExecArray | null;
 
     while ((match = re.exec(content)) !== null) {

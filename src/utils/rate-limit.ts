@@ -284,8 +284,10 @@ export function createRateLimitMiddleware(
     const ip =
       c.req.header("x-forwarded-for") || c.req.header("x-real-ip") || "unknown";
 
-    const threadId = c.req.header("X-Thread-Id") || c.req.query("threadId");
-    const userId = c.req.header("X-User-Id") || c.req.query("userId");
+    // Get identity from context (set by auth middleware).
+    // We intentionally DO NOT allow setting these via headers or query parameters
+    const threadId = c.get?.("threadId");
+    const userId = c.get?.("user")?.id || c.get?.("userId");
 
     const result = await rateLimiter.checkLimit(
       {

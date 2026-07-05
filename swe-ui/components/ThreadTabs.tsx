@@ -10,9 +10,10 @@ import { cn } from "@/lib/utils";
 
 interface ThreadTabsProps {
   className?: string;
+  onNewThread?: () => void;
 }
 
-export function ThreadTabs({ className }: ThreadTabsProps) {
+export function ThreadTabs({ className, onNewThread }: ThreadTabsProps) {
   const threads = useThreadStore((state) => state.threads);
   const activeThreadId = useThreadStore((state) => state.activeThreadId);
   const setActiveThread = useThreadStore((state) => state.setActiveThread);
@@ -48,9 +49,7 @@ export function ThreadTabs({ className }: ThreadTabsProps) {
   };
 
   const handleNewThread = () => {
-    console.log("Start new agent run");
-    // TODO: Open modal/input for new agent run
-    // This will be implemented in ThreadMonitor
+    onNewThread?.();
   };
 
   if (threadEntries.length === 0) {
