@@ -256,12 +256,6 @@ describe("SearchService", () => {
     // First get memories from repository
     const memories = await repository.getByThread(testThreadId);
 
-    // Debug: check if memories have embeddings
-    console.log(
-      "Memories with embeddings:",
-      memories.filter((m) => m.embedding && m.embedding.length > 0).length,
-    );
-
     const results = await searchService["semanticSearch"](
       "user likes TS programming language",
       memories,
