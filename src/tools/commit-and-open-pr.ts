@@ -46,11 +46,11 @@ async function runPreCommitReview(
     };
   }
   // Get staged files
-  const diffResult = await runGit(
-    sandbox,
-    workspaceDir,
-    "git diff --staged --name-only",
-  );
+  const diffResult = await runGit(sandbox, workspaceDir, [
+    "diff",
+    "--staged",
+    "--name-only",
+  ]);
   if (!diffResult)
     return { shouldBlock: false, issues: [], summary: "No staged files" };
 
@@ -102,7 +102,6 @@ async function runPreCommitReview(
 
   return { shouldBlock: criticalFound, issues: allIssues, summary };
 }
-
 
 /**
 Commit all current changes and open a GitHub Pull Request.
@@ -282,11 +281,7 @@ export const commitAndOpenPrTool = tool(
         if (branchName) {
           // Existing branch — plain checkout, do not create or reset
           try {
-            await runGit(
-              sandbox,
-              workspaceDir,
-              `git checkout ${shellEscapeSingleQuotes(targetBranch)}`,
-            );
+            await runGit(sandbox, workspaceDir, ["checkout", targetBranch]);
           } catch (err) {
             return JSON.stringify({
               success: false,
@@ -296,11 +291,11 @@ export const commitAndOpenPrTool = tool(
           }
         } else {
           // Create new branch
-          const checkoutSuccess = await runGit(
-            sandbox,
-            workspaceDir,
-            `git checkout -b ${shellEscapeSingleQuotes(targetBranch)}`,
-          );
+          const checkoutSuccess = await runGit(sandbox, workspaceDir, [
+            "checkout",
+            "-b",
+            targetBranch,
+          ]);
           if (!checkoutSuccess) {
             return JSON.stringify({
               success: false,

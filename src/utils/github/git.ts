@@ -29,15 +29,16 @@ export interface RepoConfig {
 export function runGit(
   backend: SandboxService,
   repoDir: string,
-  command: string,
+  args: string[],
 ): Promise<string> {
+  const safeArgs = args.map((arg) => shellEscapeSingleQuotes(arg)).join(" ");
   return backend
-    .execute(`cd ${shellEscapeSingleQuotes(repoDir)} && ${command}`)
+    .execute(`cd ${shellEscapeSingleQuotes(repoDir)} && git ${safeArgs}`)
     .then((r) => {
       const exitCode = r.exitCode ?? 0;
       if (exitCode !== 0) {
         const details = (r.output || "unknown error").trim();
-        throw new Error(`Git command failed: ${command}\n${details}`);
+        throw new Error(`Git command failed: ${args.join(" ")}\n${details}`);
       }
       return r.output;
     });
@@ -88,7 +89,7 @@ export async function gitHasUncommittedChanges(
   repoDir: string,
 ): Promise<boolean> {
   logger.debug(`[gitHasUncommittedChanges] Checking status in ${repoDir}`);
-  const result = await runGit(backend, repoDir, "git status --porcelain");
+  const result = await runGit(backend, repoDir, ["status", "--porcelain"]);
   const hasChanges = result.trim().length > 0;
   logger.debug(`[gitHasUncommittedChanges] Has uncommitted: ${hasChanges}`);
   return hasChanges;
@@ -105,11 +106,12 @@ export async function gitFetchOrigin(
   repoDir: string,
 ): Promise<string> {
   logger.debug(`[gitFetchOrigin] Fetching origin in ${repoDir}`);
-  const result = await runGit(
-    backend,
-    repoDir,
-    "git fetch origin 2>/dev/null || true",
-  );
+  let result = "";
+  try {
+    result = await runGit(backend, repoDir, ["fetch", "origin"]);
+  } catch (err: any) {
+    // Ignore fetch errors
+  }
   logger.debug(`[gitFetchOrigin] Fetch complete`);
   return result;
 }
@@ -124,7 +126,11 @@ export async function gitPull(
   backend: SandboxService,
   repoDir: string,
 ): Promise<string> {
-  return await runGit(backend, repoDir, "git pull 2>/dev/null || true");
+  try {
+    return await runGit(backend, repoDir, ["pull"]);
+  } catch (err: any) {
+    return "";
+  }
 }
 
 /**
@@ -140,11 +146,24 @@ export async function gitHasUnpushedCommits(
   logger.debug(
     `[gitHasUnpushedCommits] Checking for unpushed commits in ${repoDir}`,
   );
-  const gitLogCmd =
-    "git log --oneline @{upstream}..HEAD 2>/dev/null " +
-    "|| git log --oneline origin/HEAD..HEAD 2>/dev/null || echo ''";
-  logger.debug(`[gitHasUnpushedCommits] Running: ${gitLogCmd}`);
-  const result = await runGit(backend, repoDir, gitLogCmd);
+  let result = "";
+  try {
+    result = await runGit(backend, repoDir, [
+      "log",
+      "--oneline",
+      "@{upstream}..HEAD",
+    ]);
+  } catch {
+    try {
+      result = await runGit(backend, repoDir, [
+        "log",
+        "--oneline",
+        "origin/HEAD..HEAD",
+      ]);
+    } catch {
+      result = "";
+    }
+  }
   const hasUnpushed = result.trim().length > 0;
   logger.debug(`[gitHasUnpushedCommits] Has unpushed: ${hasUnpushed}`);
   return hasUnpushed;
@@ -160,11 +179,11 @@ export async function gitCurrentBranch(
   backend: SandboxService,
   repoDir: string,
 ): Promise<string> {
-  const result = await runGit(
-    backend,
-    repoDir,
-    "git rev-parse --abbrev-ref HEAD",
-  );
+  const result = await runGit(backend, repoDir, [
+    "rev-parse",
+    "--abbrev-ref",
+    "HEAD",
+  ]);
   return result.trim();
 }
 
@@ -180,11 +199,7 @@ export async function gitCheckoutBranch(
   repoDir: string,
   branch: string,
 ): Promise<boolean> {
-  await runGit(
-    backend,
-    repoDir,
-    `git checkout -B ${shellEscapeSingleQuotes(branch)}`,
-  );
+  await runGit(backend, repoDir, ["checkout", "-B", branch]);
   return true;
 }
 
@@ -202,19 +217,11 @@ export async function gitConfigUser(
   email: string,
 ): Promise<void> {
   logger.debug(`[gitConfigUser] Setting user.name: ${name} in ${repoDir}`);
-  await runGit(
-    backend,
-    repoDir,
-    `git config user.name ${shellEscapeSingleQuotes(name)}`,
-  );
+  await runGit(backend, repoDir, ["config", "user.name", name]);
   logger.debug(
     `[gitConfigUser] user.name set, now setting user.email: ${email}`,
   );
-  await runGit(
-    backend,
-    repoDir,
-    `git config user.email ${shellEscapeSingleQuotes(email)}`,
-  );
+  await runGit(backend, repoDir, ["config", "user.email", email]);
   logger.debug(`[gitConfigUser] Git user configured successfully`);
 }
 
@@ -228,7 +235,7 @@ export async function gitAddAll(
   backend: SandboxService,
   repoDir: string,
 ): Promise<string> {
-  return await runGit(backend, repoDir, "git add -A");
+  return await runGit(backend, repoDir, ["add", "-A"]);
 }
 
 /**
@@ -245,11 +252,17 @@ export async function gitCommit(
 ): Promise<string> {
   // Only commit if there are actually changes to commit.
   // This prevents "nothing to commit, working tree clean" errors.
-  return await runGit(
-    backend,
-    repoDir,
-    `git diff --quiet && git diff --staged --quiet || git commit -m ${shellEscapeSingleQuotes(message)}`,
-  );
+  let hasChanges = false;
+  try {
+    await runGit(backend, repoDir, ["diff", "--quiet"]);
+    await runGit(backend, repoDir, ["diff", "--staged", "--quiet"]);
+  } catch {
+    hasChanges = true;
+  }
+  if (hasChanges) {
+    return await runGit(backend, repoDir, ["commit", "-m", message]);
+  }
+  return "";
 }
 
 /**
@@ -262,7 +275,7 @@ export async function gitResetHard(
   backend: SandboxService,
   repoDir: string,
 ): Promise<string> {
-  return await runGit(backend, repoDir, "git reset --hard");
+  return await runGit(backend, repoDir, ["reset", "--hard"]);
 }
 
 /**
@@ -275,7 +288,7 @@ export async function gitCleanFd(
   backend: SandboxService,
   repoDir: string,
 ): Promise<string> {
-  return await runGit(backend, repoDir, "git clean -fd");
+  return await runGit(backend, repoDir, ["clean", "-fd"]);
 }
 
 /**
@@ -302,7 +315,11 @@ export async function gitGetRemoteUrl(
   backend: SandboxService,
   repoDir: string,
 ): Promise<string | null> {
-  const result = await runGit(backend, repoDir, "git remote get-url origin");
+  const result = await runGit(backend, repoDir, [
+    "remote",
+    "get-url",
+    "origin",
+  ]);
   const trimmed = result.trim();
   return trimmed || null;
 }
@@ -342,11 +359,7 @@ export async function gitPush(
   githubToken?: string,
 ): Promise<string> {
   if (!githubToken) {
-    return await runGit(
-      backend,
-      repoDir,
-      `git push origin ${shellEscapeSingleQuotes(branch)}`,
-    );
+    return await runGit(backend, repoDir, ["push", "origin", branch]);
   }
 
   // Get current remote URL
@@ -364,11 +377,13 @@ export async function gitPush(
     );
 
     // Push using the credential helper
-    const result = await runGit(
-      backend,
-      repoDir,
-      `git -c credential.helper="store --file=${credPath}" push origin ${shellEscapeSingleQuotes(branch)}`,
-    );
+    const result = await runGit(backend, repoDir, [
+      "-c",
+      `credential.helper=store --file=${credPath}`,
+      "push",
+      "origin",
+      branch,
+    ]);
 
     return result;
   } catch (err: any) {
