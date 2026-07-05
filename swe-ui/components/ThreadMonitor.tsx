@@ -14,6 +14,12 @@ import { ThreadInput } from "./thread-monitor/ThreadInput";
 import { ThreadBanners } from "./thread-monitor/ThreadBanners";
 import { ThreadTimeline } from "./thread-monitor/ThreadTimeline";
 import { ThreadEmptyState } from "./thread-monitor/ThreadEmptyState";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface ThreadMonitorProps {
   threadId?: string;
@@ -40,6 +46,7 @@ export function ThreadMonitor({
   const [userInput, setUserInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isNewRunModalOpen, setIsNewRunModalOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Track connection state in a ref that handleStartAgent can read
@@ -150,6 +157,8 @@ export function ThreadMonitor({
 
       // Clear input
       setUserInput("");
+      // Close modal on success
+      setIsNewRunModalOpen(false);
     } catch (err) {
       console.error(`[ThreadMonitor] Error starting agent:`, err);
       setError(err instanceof Error ? err.message : "Failed to start agent");
@@ -175,7 +184,7 @@ export function ThreadMonitor({
     <div className={cn("flex flex-col h-screen bg-background", className)}>
       <ThreadHeader threadId={threadId} connectionState={connectionState} />
 
-      <ThreadTabs />
+      <ThreadTabs onNewThread={() => setIsNewRunModalOpen(true)} />
 
       {!threadId && (
         <ThreadInput
@@ -232,6 +241,23 @@ export function ThreadMonitor({
           }}
         />
       )}
+
+      <Dialog open={isNewRunModalOpen} onOpenChange={setIsNewRunModalOpen}>
+        <DialogContent className="max-w-3xl border-0 p-0 overflow-hidden bg-transparent shadow-none" showCloseButton={false}>
+          <div className="bg-background border rounded-xl overflow-hidden shadow-2xl">
+            <DialogHeader className="p-4 border-b bg-muted/30">
+              <DialogTitle>Start New Agent Run</DialogTitle>
+            </DialogHeader>
+            <ThreadInput
+              userInput={userInput}
+              setUserInput={setUserInput}
+              isLoading={isLoading}
+              onStartAgent={handleStartAgent}
+              className="border-0 bg-transparent"
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
