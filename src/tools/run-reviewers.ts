@@ -52,7 +52,7 @@ export const runReviewersTool = tool(
       | { owner?: string; name?: string; workspaceDir?: string }
       | undefined;
     const workspaceDir = repoConfig?.workspaceDir;
-    
+
     if (!workspaceDir) {
       return JSON.stringify({
         error: "Unable to determine workspace directory",
@@ -61,25 +61,41 @@ export const runReviewersTool = tool(
 
     // Get list of files to review based on scope
     try {
-      let gitCommand: string;
-
-      switch (scope) {
-        case "staged":
-          gitCommand = "diff --name-only --cached";
-          break;
-        case "unstaged":
-          gitCommand = "diff --name-only";
-          break;
-        case "all":
-          gitCommand = "diff --name-only --cached && git diff --name-only";
-          break;
-        default:
-          gitCommand = "diff --name-only --cached";
-      }
-
       let gitOutput: string;
       try {
-        gitOutput = await runGit(sandbox, workspaceDir, gitCommand);
+        switch (scope) {
+          case "staged":
+            gitOutput = await runGit(sandbox, workspaceDir, [
+              "diff",
+              "--name-only",
+              "--cached",
+            ]);
+            break;
+          case "unstaged":
+            gitOutput = await runGit(sandbox, workspaceDir, [
+              "diff",
+              "--name-only",
+            ]);
+            break;
+          case "all":
+            const staged = await runGit(sandbox, workspaceDir, [
+              "diff",
+              "--name-only",
+              "--cached",
+            ]);
+            const unstaged = await runGit(sandbox, workspaceDir, [
+              "diff",
+              "--name-only",
+            ]);
+            gitOutput = staged + "\n" + unstaged;
+            break;
+          default:
+            gitOutput = await runGit(sandbox, workspaceDir, [
+              "diff",
+              "--name-only",
+              "--cached",
+            ]);
+        }
       } catch (err: any) {
         return JSON.stringify({
           error: `Failed to get ${scope} files: ${err.message}`,
@@ -140,13 +156,22 @@ export const runReviewersTool = tool(
           });
 
           // ⚡ Bolt: Provide a unique thread_id for each concurrent execution to avoid state corruption
-          return agent.invoke(
-            { messages: [{ role: "user", content: `Review these files for quality, security, and maintainability:\n\n${files.join("\n")}` }] },
-            { configurable: { thread_id: `${threadId}-${reviewerName}` } }
-          )
+          return agent
+            .invoke(
+              {
+                messages: [
+                  {
+                    role: "user",
+                    content: `Review these files for quality, security, and maintainability:\n\n${files.join("\n")}`,
+                  },
+                ],
+              },
+              { configurable: { thread_id: `${threadId}-${reviewerName}` } },
+            )
             .then((result) => {
               const lastMsg = result.messages[result.messages.length - 1];
-              const reply = typeof lastMsg?.content === "string" ? lastMsg.content : "";
+              const reply =
+                typeof lastMsg?.content === "string" ? lastMsg.content : "";
               const issues = parseReviewerOutput(reply);
               return {
                 name: reviewerName,
@@ -167,11 +192,15 @@ export const runReviewersTool = tool(
                 error: error instanceof Error ? error.message : "Unknown error",
               };
             });
-        })
+        }),
       );
 
       for (const res of promiseResults) {
-        if (res.status === "success" && "issues" in res && Array.isArray(res.issues)) {
+        if (
+          res.status === "success" &&
+          "issues" in res &&
+          Array.isArray(res.issues)
+        ) {
           allIssues.push(...res.issues);
           if (res.critical_issues) {
             criticalFound = true;
