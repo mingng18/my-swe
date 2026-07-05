@@ -33,6 +33,7 @@ export const ThreadInput = forwardRef<HTMLInputElement, ThreadInputProps>(
               }}
               disabled={isLoading}
               className="flex-1 pr-12 transition-all focus:ring-2 focus:ring-primary/20"
+              aria-label="Agent task input"
             />
             {userInput && (
               <Tooltip>
