@@ -82,7 +82,6 @@ export {
   oldBlueprintRegistry as blueprintRegistry,
   selectOldBlueprint,
   buildInputWithBlueprint,
-  blueprintToInvokeConfig,
   DEFAULT_BLUEPRINTS,
 } from "./blueprint";
 

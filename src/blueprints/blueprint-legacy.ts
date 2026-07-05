@@ -12,7 +12,6 @@
  * - Internal enterprise transformation plan (Phase 1)
  */
 
-import type { AgentInvokeOptions } from "../harness/agentHarness";
 
 /**
  * Verification requirements for a blueprint.
@@ -444,19 +443,3 @@ export function buildInputWithBlueprint(
   return modified;
 }
 
-/**
- * Get blueprint configuration for agent invoke options.
- *
- * Since AgentInvokeOptions is minimal, this returns the options unchanged.
- * The blueprint selection should be used at the call site to customize behavior.
- *
- * @deprecated Use buildInputWithBlueprint to customize input instead
- */
-export function blueprintToInvokeConfig(
-  _selection: BlueprintSelection,
-  baseOptions: AgentInvokeOptions,
-): AgentInvokeOptions {
-  // Currently, AgentInvokeOptions only has threadId
-  // Blueprint customization happens via input modification
-  return baseOptions;
-}

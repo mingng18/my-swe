@@ -18,7 +18,6 @@ import {
   blueprintRegistry,
   selectBlueprint as _selectBlueprint,
   buildInputWithBlueprint,
-  blueprintToInvokeConfig,
   DEFAULT_BLUEPRINTS,
 } from "./blueprint-legacy";
 import { BlueprintRegistry } from "./blueprint-legacy";
@@ -34,5 +33,4 @@ export { BlueprintRegistry as OldBlueprintRegistry };
 export const oldBlueprintRegistry = blueprintRegistry;
 export const selectOldBlueprint = _selectBlueprint;
 export { buildInputWithBlueprint };
-export { blueprintToInvokeConfig };
 export { DEFAULT_BLUEPRINTS };
