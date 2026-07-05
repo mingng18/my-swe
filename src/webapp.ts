@@ -103,7 +103,15 @@ app.use(
       if (!origin || !allowedOriginsStr) return "";
 
       // Parse the allowed origins list from environment
-      const allowedOrigins = allowedOriginsStr.split(",").map((o) => o.trim());
+      const allowedOrigins = allowedOriginsStr
+        .split(",")
+        .map((o) => o.trim())
+        .filter((o) => o !== "");
+
+      if (allowedOrigins.includes("*")) {
+        return "*";
+      }
+
       return allowedOrigins.includes(origin) ? origin : "";
     },
     allowMethods: ["POST", "GET", "OPTIONS"],
