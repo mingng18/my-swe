@@ -142,25 +142,30 @@ export class ConsolidationService {
     const processed = new Set<string>();
 
     // Generate embeddings for memories that don't have them
-    await Promise.all(
-      memories.map(async (memory) => {
-        if (!memory.embedding || memory.embedding.length === 0) {
-          try {
-            const text = `${memory.title}. ${memory.content}`;
-            memory.embedding =
-              await this.embeddingService.generateEmbedding(text);
-            await this.repository.update(memory.id!, {
-              embedding: memory.embedding,
-            });
-          } catch (error) {
-            logger.warn(
-              { memoryId: memory.id },
-              "Failed to generate embedding for duplicate detection",
-            );
+    // ⚡ Bolt: Use Promise.all with chunking to prevent LLM API rate limits and DB connection pool exhaustion
+    const CHUNK_SIZE = 5;
+    for (let i = 0; i < memories.length; i += CHUNK_SIZE) {
+      const chunk = memories.slice(i, i + CHUNK_SIZE);
+      await Promise.all(
+        chunk.map(async (memory) => {
+          if (!memory.embedding || memory.embedding.length === 0) {
+            try {
+              const text = `${memory.title}. ${memory.content}`;
+              memory.embedding =
+                await this.embeddingService.generateEmbedding(text);
+              await this.repository.update(memory.id!, {
+                embedding: memory.embedding,
+              });
+            } catch (error) {
+              logger.warn(
+                { memoryId: memory.id },
+                "Failed to generate embedding for duplicate detection",
+              );
+            }
           }
-        }
-      }),
-    );
+        }),
+      );
+    }
 
     // Find duplicate groups
     for (let i = 0; i < memories.length; i++) {
