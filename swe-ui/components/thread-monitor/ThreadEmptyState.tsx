@@ -8,7 +8,6 @@ interface ThreadEmptyStateProps {
 export function ThreadEmptyState({
   onSuggestionClick,
 }: ThreadEmptyStateProps = {}) {
-
   return (
     <div className="flex-1 flex items-center justify-center p-8">
       <Card className="max-w-lg w-full p-8 text-center shadow-lg border-2">
@@ -25,7 +24,6 @@ export function ThreadEmptyState({
             type="button"
             onClick={() => onSuggestionClick?.("Find auth implementations")}
             className="flex w-full text-left items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
-
           >
             <Search className="h-5 w-5 text-primary shrink-0 mt-0.5" />
             <div>
@@ -39,7 +37,6 @@ export function ThreadEmptyState({
             type="button"
             onClick={() => onSuggestionClick?.("Fix login flow error")}
             className="flex w-full text-left items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
-
           >
             <FileCode className="h-5 w-5 text-primary shrink-0 mt-0.5" />
             <div>
@@ -53,7 +50,6 @@ export function ThreadEmptyState({
             type="button"
             onClick={() => onSuggestionClick?.("Test user service")}
             className="flex w-full text-left items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
-
           >
             <Zap className="h-5 w-5 text-primary shrink-0 mt-0.5" />
             <div>
@@ -67,7 +63,6 @@ export function ThreadEmptyState({
             type="button"
             onClick={() => onSuggestionClick?.("Review PR #123")}
             className="flex w-full text-left items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
-
           >
             <Bot className="h-5 w-5 text-primary shrink-0 mt-0.5" />
             <div>

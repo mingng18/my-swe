@@ -22,6 +22,3 @@
 ## 2024-06-23 - Checkbox Accessibility in Lists
 **Learning:** Found that custom `Checkbox` components used within iterative lists (like `todos.map(...)`) often lack context for screen readers when they are icon-only or visually associated with adjacent text but not programmatically linked. The disabled "completed" state checkbox in `TodoSidebar.tsx` was completely silent to screen readers about *which* task it belonged to.
 **Action:** When reviewing custom interactive components in map loops, always ensure they either use `aria-labelledby` referencing a nearby ID, or have a direct `aria-label` providing full context (e.g., `aria-label={\`Task: \${task.name}\`}`).
-## 2025-07-03 - Empty State Actionability & Screen Reader Accessibility
-**Learning:** Found that static example prompts in empty states (`ThreadEmptyState.tsx`) were not interactive, causing friction for users wanting to start a quick test run. Additionally, the main task input field lacked an `aria-label`, making it difficult for screen readers to announce its purpose.
-**Action:** Always ensure that "example" or "suggested" content in empty states are semantic `<button>` elements with keyboard focus styles that auto-fill inputs. Always verify that main input fields have explicit `aria-label` attributes if a visible `<label>` is not present.

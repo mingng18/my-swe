@@ -229,7 +229,6 @@ export function ThreadMonitor({
           onSuggestionClick={(suggestion) => {
             setUserInput(suggestion);
             setTimeout(() => inputRef.current?.focus(), 0);
-
           }}
         />
       )}
