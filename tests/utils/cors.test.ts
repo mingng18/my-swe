@@ -78,4 +78,37 @@ describe("CORS Configuration", () => {
       "http://localhost:3000",
     );
   });
+
+  it("should handle wildcard * securely and allow all origins", async () => {
+    process.env.CORS_ALLOWED_ORIGIN = "*, https://example.com";
+    const { default: app } = await import("../../src/webapp");
+
+    const req = new Request("http://localhost/health", {
+      method: "OPTIONS",
+      headers: {
+        Origin: "https://evil.com",
+      },
+    });
+
+    const res = await app.request(req);
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBe("*");
+  });
+
+  it("should ignore empty strings and trailing commas in CORS_ALLOWED_ORIGIN without creating vulnerabilities", async () => {
+    process.env.CORS_ALLOWED_ORIGIN = "https://example.com, ";
+    const { default: app } = await import("../../src/webapp");
+
+    const req = new Request("http://localhost/health", {
+      method: "OPTIONS",
+      headers: {
+        Origin: "https://evil.com",
+      },
+    });
+
+    const res = await app.request(req);
+    expect(res.headers.get("Access-Control-Allow-Origin")).not.toBe(
+      "https://evil.com",
+    );
+    expect(res.headers.get("Access-Control-Allow-Origin")).not.toBe("");
+  });
 });

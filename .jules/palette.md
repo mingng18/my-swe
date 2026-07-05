@@ -19,6 +19,9 @@
 ## 2024-04-23 - Add ARIA labels to icon-only clear/close buttons
 **Learning:** Icon-only buttons (like those using a simple X icon for closing tabs or clearing inputs) often lack descriptive text. Without an explicit `aria-label`, screen readers might read them simply as "button", leaving users without context about what the button does.
 **Action:** Always ensure that icon-only interactive elements, especially common ones like clear inputs or close modals/tabs, have descriptive `aria-label` attributes.
+## 2025-03-05 - Add New Agent Run Modal
+**Learning:** When moving a feature like a ThreadInput to a modal that reuses existing page state (like userInput), be aware of state leakage if the modal is closed without submitting. If state isolation is desired, manage local state in the modal component instead. However, for a simple prompt input, reusing state is often acceptable and keeps the implementation simple.
+**Action:** Always consider the UX implications of shared state in new dialogs and document if state is intentionally reused.
 ## 2024-06-22 - ThreadTimeline Focus & ARIA Additions
 **Learning:** Collapsible `<summary>` elements in this app's components (e.g., `ThreadTimeline.tsx`) lack default keyboard focus indicators due to CSS resets. Furthermore, dynamically rendered status updates (like the agent working state) need explicit `aria-live` attributes to be announced by screen readers.
 **Action:** When working with `<summary>` tags or clickable details, ensure they include `focus-visible` Tailwind classes (e.g., `focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none`). Use `aria-live="polite"` on dynamically appearing status elements like loaders to ensure screen reader users are notified of state changes without interrupting their current flow.

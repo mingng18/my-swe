@@ -119,6 +119,11 @@ function matchesDomainPattern(hostname: string, pattern: string): boolean {
   const wildcardIndex = pattern.indexOf("*");
   const baseDomain = pattern.slice(wildcardIndex + 1);
 
+  // If baseDomain already starts with a dot, we don't need to check for another dot
+  if (baseDomain.startsWith(".")) {
+    return hostname.endsWith(baseDomain) && hostname.length > baseDomain.length;
+  }
+
   // Check if hostname ends with the base domain
   // and has at least one subdomain before it
   return (
