@@ -1,15 +1,15 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-
 import {
   defang,
   stripInjectionPhrases,
   buildUntrustedEnvelope,
   sanitizeEnvelopeTags,
   UNTRUSTED_DATA_OPEN_TAG,
-  UNTRUSTED_DATA_CLOSE_TAG,
   UNTRUSTED_DATA_PREAMBLE,
+  UNTRUSTED_DATA_CLOSE_TAG,
   NEUTRALIZED_OPEN_TAG,
   NEUTRALIZED_CLOSE_TAG,
+  stripInjectionsEnabled,
 } from "../index";
 
 const originalEnv = { ...process.env };
@@ -159,6 +159,33 @@ describe("stripInjectionPhrases", () => {
     // banned phrase; benign text is preserved.
     expect(out).toContain("follow the project's existing instructions");
     expect(out).toContain("the previous tests are fine");
+  });
+});
+
+
+describe("stripInjectionsEnabled", () => {
+  beforeEach(() => {
+    delete process.env.DEFANG_STRIP_INJECTIONS;
+  });
+
+  afterEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  it("returns false by default (when env var is not set)", () => {
+    expect(stripInjectionsEnabled()).toBe(false);
+  });
+
+  it("returns false when env var is set to 0, true, or other values", () => {
+    process.env.DEFANG_STRIP_INJECTIONS = "0";
+    expect(stripInjectionsEnabled()).toBe(false);
+    process.env.DEFANG_STRIP_INJECTIONS = "true";
+    expect(stripInjectionsEnabled()).toBe(false);
+  });
+
+  it("returns true when env var is exactly '1'", () => {
+    process.env.DEFANG_STRIP_INJECTIONS = "1";
+    expect(stripInjectionsEnabled()).toBe(true);
   });
 });
 
