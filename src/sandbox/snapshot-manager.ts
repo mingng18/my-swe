@@ -150,15 +150,23 @@ export class SnapshotManager {
         ...(setupCommands || []),
       ];
 
-      for (const cmd of allSetupCommands) {
-        try {
-          await sandbox.execute(`cd ${shellEscapeSingleQuotes(repoDir)} && ${cmd}`);
-        } catch (error) {
-          logger.warn(
-            { error, cmd },
-            `[snapshot-manager] Setup command failed (non-fatal)`,
-          );
-        }
+      const CHUNK_SIZE = 5;
+      for (let i = 0; i < allSetupCommands.length; i += CHUNK_SIZE) {
+        const chunk = allSetupCommands.slice(i, i + CHUNK_SIZE);
+        await Promise.all(
+          chunk.map(async (cmd) => {
+            try {
+              await sandbox.execute(
+                `cd ${shellEscapeSingleQuotes(repoDir)} && ${cmd}`,
+              );
+            } catch (error) {
+              logger.warn(
+                { error, cmd },
+                `[snapshot-manager] Setup command failed (non-fatal)`,
+              );
+            }
+          }),
+        );
       }
 
       // Run optional pre-build
