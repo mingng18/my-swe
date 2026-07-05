@@ -15,6 +15,7 @@
  */
 
 import { createLogger } from "../utils/logger";
+import { shellEscapeSingleQuotes } from "../utils/shell";
 import { randomUUID } from "node:crypto";
 import { type SandboxService, createSandboxServiceWithConfig } from "../integrations/sandbox-service";
 import {
@@ -131,7 +132,7 @@ export class SnapshotManager {
 
       // Get current commit SHA
       const shaResult = await sandbox.execute(
-        `cd ${repoDir} && git rev-parse HEAD`,
+        `cd ${shellEscapeSingleQuotes(repoDir)} && git rev-parse HEAD`,
       );
       const commitSha = shaResult.output.trim();
 
@@ -151,7 +152,7 @@ export class SnapshotManager {
 
       for (const cmd of allSetupCommands) {
         try {
-          await sandbox.execute(`cd ${repoDir} && ${cmd}`);
+          await sandbox.execute(`cd ${shellEscapeSingleQuotes(repoDir)} && ${cmd}`);
         } catch (error) {
           logger.warn(
             { error, cmd },
@@ -338,7 +339,7 @@ export class SnapshotManager {
         if (packageJson?.dependencies) {
           logger.debug(`[snapshot-manager] Installing Node.js dependencies`);
           try {
-            await sandbox.execute(`cd ${repoDir} && npm install --silent`);
+            await sandbox.execute(`cd ${shellEscapeSingleQuotes(repoDir)} && npm install --silent`);
             dependencies.push(...Object.keys(packageJson.dependencies));
           } catch (error) {
             logger.warn({ error }, `[snapshot-manager] npm install failed`);
@@ -363,11 +364,11 @@ export class SnapshotManager {
           try {
             if (hasRequirementsTxt) {
               await sandbox.execute(
-                `cd ${repoDir} && pip install -r requirements.txt -q`,
+                `cd ${shellEscapeSingleQuotes(repoDir)} && pip install -r requirements.txt -q`,
               );
             }
             if (hasPyprojectToml) {
-              await sandbox.execute(`cd ${repoDir} && pip install -e . -q`);
+              await sandbox.execute(`cd ${shellEscapeSingleQuotes(repoDir)} && pip install -e . -q`);
             }
           } catch (error) {
             logger.warn({ error }, `[snapshot-manager] pip install failed`);
@@ -383,7 +384,7 @@ export class SnapshotManager {
         if (hasPomXml) {
           logger.debug(`[snapshot-manager] Installing Java dependencies`);
           try {
-            await sandbox.execute(`cd ${repoDir} && mvn dependency:resolve -q`);
+            await sandbox.execute(`cd ${shellEscapeSingleQuotes(repoDir)} && mvn dependency:resolve -q`);
           } catch (error) {
             logger.warn({ error }, `[snapshot-manager] Maven resolve failed`);
           }
@@ -415,7 +416,7 @@ export class SnapshotManager {
           logger.debug(`[snapshot-manager] Running pre-build: npm run build`);
           try {
             const result = await sandbox.execute(
-              `cd ${repoDir} && npm run build`,
+              `cd ${shellEscapeSingleQuotes(repoDir)} && npm run build`,
             );
             return result.exitCode === 0;
           } catch (error) {
@@ -430,7 +431,7 @@ export class SnapshotManager {
         // Try to run Maven compile
         try {
           const result = await sandbox.execute(
-            `cd ${repoDir} && mvn compile -q`,
+            `cd ${shellEscapeSingleQuotes(repoDir)} && mvn compile -q`,
           );
           return result.exitCode === 0;
         } catch (error) {
@@ -524,7 +525,7 @@ export class SnapshotManager {
 
     // Fallback: estimate based on repository size if we don't have provider size
     try {
-      const result = await sandbox.execute(`du -sb ${repoDir}`);
+      const result = await sandbox.execute(`du -sb ${shellEscapeSingleQuotes(repoDir)}`);
       if (result.exitCode === 0 && result.output) {
         const match = result.output.match(/^(\d+)/);
         if (match && match[1]) {
@@ -618,7 +619,7 @@ export class SnapshotManager {
   ): Promise<boolean> {
     try {
       const result = await sandbox.execute(
-        `test -f "${path}" && echo "exists"`,
+        `test -f ${shellEscapeSingleQuotes(path)} && echo "exists"`,
       );
       return result.output.includes("exists");
     } catch {
