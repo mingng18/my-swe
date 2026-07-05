@@ -643,15 +643,30 @@ describe("sanitizeVetoReason", () => {
     const dirty = "\x1b[31mRED\x1b[0m\x00noise\x07";
     expect(sanitizeVetoReason(dirty)).toBe("REDnoise");
   });
-  it("collapses whitespace and truncates", () => {
+  it("collapses whitespace and newlines into single spaces", () => {
     const { sanitizeVetoReason } = require("../dispatcher");
-    const long = "a".repeat(2000) + "   trailing";
-    const out = sanitizeVetoReason(long);
-    expect(out.length).toBeLessThanOrEqual(500);
+    const spaced = "line1\n\nline2\r\n\t  line3";
+    expect(sanitizeVetoReason(spaced)).toBe("line1 line2 line3");
   });
-  it("returns a safe default for empty/non-string input", () => {
+  it("truncates strictly to MAX_VETO_REASON_LEN", () => {
+    const { sanitizeVetoReason } = require("../dispatcher");
+    const long = "a".repeat(1000);
+    const out = sanitizeVetoReason(long);
+    expect(out.length).toBe(500);
+    expect(out).toBe("a".repeat(500));
+  });
+  it("returns a safe default for empty string and whitespace-only input", () => {
     const { sanitizeVetoReason } = require("../dispatcher");
     expect(sanitizeVetoReason("")).toBe("handler vetoed the tool call");
+    expect(sanitizeVetoReason("   \n  \t  ")).toBe("handler vetoed the tool call");
+  });
+  it("returns a safe default for non-string inputs", () => {
+    const { sanitizeVetoReason } = require("../dispatcher");
+    expect(sanitizeVetoReason(null as any)).toBe("handler vetoed the tool call");
+    expect(sanitizeVetoReason(undefined as any)).toBe("handler vetoed the tool call");
+    expect(sanitizeVetoReason(123 as any)).toBe("handler vetoed the tool call");
+    expect(sanitizeVetoReason({} as any)).toBe("handler vetoed the tool call");
+    expect(sanitizeVetoReason([] as any)).toBe("handler vetoed the tool call");
   });
 });
 
