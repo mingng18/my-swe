@@ -90,7 +90,7 @@ export function isPreapprovedHost(hostname: string): boolean {
   if (
     PREAPPROVED_DOMAINS.some(
       (domain) =>
-        lowerHostname === domain || lowerHostname.endsWith(`.${domain}`)
+        lowerHostname === domain || lowerHostname.endsWith(`.${domain}`),
     )
   ) {
     return true;
@@ -119,17 +119,17 @@ function matchesDomainPattern(hostname: string, pattern: string): boolean {
   const wildcardIndex = pattern.indexOf("*");
   const baseDomain = pattern.slice(wildcardIndex + 1);
 
-  // If baseDomain already starts with a dot, we don't need to check for another dot
-  if (baseDomain.startsWith(".")) {
-    return hostname.endsWith(baseDomain) && hostname.length > baseDomain.length;
-  }
+  // Normalize base domain to always start with a dot for subdomain matching
+  const normalizedBase = baseDomain.startsWith(".")
+    ? baseDomain
+    : `.${baseDomain}`;
 
-  // Check if hostname ends with the base domain
-  // and has at least one subdomain before it
+  // Hostname must end with the normalized base domain, have a valid subdomain,
+  // and must not contain invalid double dots (e.g. test..github.io)
   return (
-    hostname.endsWith(baseDomain) &&
-    hostname.length > baseDomain.length &&
-    hostname[hostname.length - baseDomain.length - 1] === "."
+    hostname.endsWith(normalizedBase) &&
+    hostname.length > normalizedBase.length &&
+    !hostname.includes("..")
   );
 }
 
@@ -152,7 +152,10 @@ export function isPreapprovedUrl(url: string): boolean {
 const runtimePreapprovedDomains = new Set<string>();
 
 export function addPreapprovedDomain(domain: string): void {
-  const normalized = domain.toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+  const normalized = domain
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/\/.*$/, "");
   runtimePreapprovedDomains.add(normalized);
   logger.info(`[preapproved-domains] Added domain: ${normalized}`);
 }
@@ -161,7 +164,10 @@ export function addPreapprovedDomain(domain: string): void {
  * Remove a domain from the runtime preapproved list.
  */
 export function removePreapprovedDomain(domain: string): void {
-  const normalized = domain.toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+  const normalized = domain
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/\/.*$/, "");
   runtimePreapprovedDomains.delete(normalized);
   logger.info(`[preapproved-domains] Removed domain: ${normalized}`);
 }

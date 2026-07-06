@@ -79,11 +79,11 @@ describe("preapproved-domains", () => {
       expect(isPreapprovedUrl("https://api.github.com/users")).toBe(true);
     });
 
-    it("returns false for wildcard domain patterns (due to known bug in implementation)", () => {
-      // The current implementation of matchesDomainPattern expects an extra dot before the base domain
-      // (e.g. test..github.io instead of test.github.io).
-      expect(isPreapprovedUrl("https://test.github.io")).toBe(false);
-      expect(isPreapprovedUrl("https://test..github.io")).toBe(true);
+    it("returns true for wildcard domain patterns, fixing the previous implementation bug", () => {
+      // The implementation of matchesDomainPattern has been fixed to correctly match standard
+      // subdomains and reject invalid double-dot domains.
+      expect(isPreapprovedUrl("https://test.github.io")).toBe(true);
+      expect(isPreapprovedUrl("https://test..github.io")).toBe(false);
 
       // user.gist.github.com actually returns true because gist.github.com is in PREAPPROVED_DOMAINS
       // and the subdomain check matches it before it even reaches wildcard check!
@@ -120,7 +120,7 @@ describe("preapproved-domains", () => {
       // (This is a bit tricky since we can't distinguish static from runtime easily without parsing getPreapprovedDomains vs PREAPPROVED_DOMAINS,
       // but removePreapprovedDomain will remove from runtime only)
       for (const domain of domains) {
-          removePreapprovedDomain(domain);
+        removePreapprovedDomain(domain);
       }
     });
 
