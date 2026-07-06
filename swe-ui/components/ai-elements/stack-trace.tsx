@@ -447,7 +447,7 @@ const FilePathButton = memo(
     return (
       <button
         className={cn(
-          "underline decoration-dotted hover:text-primary rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1",
+          "underline decoration-dotted hover:text-primary",
           onFilePathClick && "cursor-pointer"
         )}
         disabled={!onFilePathClick}
