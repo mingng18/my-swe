@@ -154,8 +154,16 @@ export class OpenSandboxBackend extends BaseSandboxBackend {
     try {
       const execution = await this.sandbox!.commands.run(command);
 
-      const stdout = execution.logs.stdout.reduce((acc, log) => acc + log.text, "");
-      const stderr = execution.logs.stderr.reduce((acc, log) => acc + log.text, "");
+      // ⚡ Bolt: Use a for loop instead of reduce for significantly faster string concatenation
+      let stdout = "";
+      for (let i = 0; i < execution.logs.stdout.length; i++) {
+        stdout += execution.logs.stdout[i].text;
+      }
+
+      let stderr = "";
+      for (let i = 0; i < execution.logs.stderr.length; i++) {
+        stderr += execution.logs.stderr[i].text;
+      }
       const output = stdout + stderr;
       const exitCode = execution.exitCode || 0;
 
@@ -414,7 +422,7 @@ export class OpenSandboxBackend extends BaseSandboxBackend {
                   : "invalid_path";
             return { path, error };
           }
-        })
+        }),
       );
 
       return fallbackResults;
