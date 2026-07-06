@@ -25,3 +25,4 @@
 ## 2025-02-27 - Keyboard Focus Indicators for Custom Interactive Elements
 **Learning:** Custom interactive elements (like specific buttons in file trees, queues, and stack traces) often lack default focus indicators when built without standard UI libraries. This breaks keyboard navigation accessibility as users cannot track their current position.
 **Action:** Always ensure that custom interactive elements implement standardized keyboard focus utility classes (e.g., `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1`) for consistent accessibility and screen reader support.
+>>>>>>> 5378035 (Add keyboard focus indicators to custom interactive elements)
