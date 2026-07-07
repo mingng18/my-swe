@@ -690,10 +690,8 @@ function summarizeUpdateForTrace(node: string, data: unknown): string {
   if (!last) return "";
   const toolCalls = last.tool_calls as Array<{ name?: string }> | undefined;
   if (toolCalls?.length) {
-    return toolCalls.reduce(
-      (acc, t, i) => acc + (i === 0 ? "" : ", ") + (t.name ?? "?"),
-      " → ",
-    );
+    // ⚡ Bolt: Replaced Array.prototype.reduce with .map().join() for faster string concatenation by avoiding callback overhead per element.
+    return " → " + toolCalls.map(t => t.name ?? "?").join(", ");
   }
   if (last.type === "tool" || last.role === "tool") {
     return ` → tool:${String(last.name ?? "?")}`;
