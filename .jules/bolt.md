@@ -5,3 +5,7 @@
 ## 2024-06-24 - Unbounded Concurrent DB/IO Read Anti-Pattern
 **Learning:** Calling `Promise.all` directly on the output of an unchunked array map over the filesystem or DB instances creates an unbound concurrency trap. Doing this with high-quantity entities (such as snapshots or cache items) will exhaust file descriptor limits or cause Node.js EMFILE crashes.
 **Action:** When evaluating `Promise.all` in functions designed to load resources, chunk the iteration loop with a safe bound (e.g., `BATCH_SIZE = 500`) to process batches of promises without crashing the system or draining connection pools.
+
+## 2025-07-06 - Array.prototype.reduce Overhead in Aggregations
+**Learning:** In the Bun/V8 runtime, using multiple sequential `Array.prototype.reduce` passes over the same array to calculate distinct aggregates introduces unnecessary callback overhead and increases iteration from O(N) to O(k*N). Also, using `reduce` for string concatenation (e.g. `arr.reduce((acc, x) => acc + x, "")`) is slower than simple `for` loops primarily due to the function callback overhead on every element, rather than string buffer allocations (since V8 optimizes string appends via ConsStrings).
+**Action:** Replace `reduce` string concatenations with standard `for` loops or `.map().join()`. Combine multiple mapping/reducing passes over the same data into a single `for` loop to avoid redundant iteration and callback overhead.

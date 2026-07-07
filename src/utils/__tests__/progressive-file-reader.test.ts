@@ -73,37 +73,37 @@ import a from 'a';
 });
 
 describe("getExports", () => {
-  it("should extract regular function exports", () => {
+  test("should extract regular function exports", () => {
     const source = "export function parseYAML() {}";
     const result = getExports(source);
     expect(result).toEqual([{ name: "parseYAML", line: 1 }]);
   });
 
-  it("should extract async function exports", () => {
+  test("should extract async function exports", () => {
     const source = "export async function fetchData() {}";
     const result = getExports(source);
     expect(result).toEqual([{ name: "fetchData", line: 1 }]);
   });
 
-  it("should extract class exports", () => {
+  test("should extract class exports", () => {
     const source = "export class DataManager {}";
     const result = getExports(source);
     expect(result).toEqual([{ name: "DataManager", line: 1 }]);
   });
 
-  it("should extract const exports", () => {
+  test("should extract const exports", () => {
     const source = "export const MAX_LIMIT = 100;";
     const result = getExports(source);
     expect(result).toEqual([{ name: "MAX_LIMIT", line: 1 }]);
   });
 
-  it("should extract default const exports", () => {
+  test("should extract default const exports", () => {
     const source = "export default const Config = {};";
     const result = getExports(source);
     expect(result).toEqual([{ name: "Config", line: 1 }]);
   });
 
-  it("should extract named exports block", () => {
+  test("should extract named exports block", () => {
     const source = "export { validateInput, formatOutput };";
     const result = getExports(source);
     expect(result).toEqual([
@@ -112,7 +112,7 @@ describe("getExports", () => {
     ]);
   });
 
-  it("should correctly identify line numbers across multiple lines", () => {
+  test("should correctly identify line numbers across multiple lines", () => {
     const source = `import { something } from "somewhere";
 
 export function helper1() {}
@@ -127,7 +127,7 @@ export const config = {};
     ]);
   });
 
-  it("should ignore lines that do not start with export", () => {
+  test("should ignore lines that do not start with export", () => {
     const source = `
       function internalHelper() {}
       const internalConst = 1;
@@ -138,13 +138,13 @@ export const config = {};
     expect(result).toEqual([{ name: "exposedFunction", line: 5 }]);
   });
 
-  it("should handle exports with extra whitespace", () => {
+  test("should handle exports with extra whitespace", () => {
     const source = "export    async   function   spacedFunction() {}";
     const result = getExports(source);
     expect(result).toEqual([{ name: "spacedFunction", line: 1 }]);
   });
 
-  it("should ignore lines with export keyword not at the beginning", () => {
+  test("should ignore lines with export keyword not at the beginning", () => {
     const source = `
       // this is an export function
       const str = "export function";
