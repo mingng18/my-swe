@@ -294,37 +294,54 @@ function detectAnomalies(
  * Get the sum of all values for a given metric name.
  */
 function getCompressionMetric(metrics: any[], name: string): number {
-  return metrics
-    .filter((m) => m.name === name)
-    .reduce((sum, m) => sum + (m.value || 0), 0);
+  let sum = 0;
+  // ⚡ Bolt: Use a single O(N) pass to avoid multiple iteration over arrays
+  for (let i = 0; i < metrics.length; i++) {
+    const m = metrics[i];
+    if (m.name === name) {
+      sum += m.value || 0;
+    }
+  }
+  return sum;
 }
 
 /**
  * Get the average compression savings ratio as a percentage.
  */
 function getCompressionAvgSavings(metrics: any[]): number {
-  const savingsMetrics = metrics.filter(
-    (m) => m.name === "compression.savings_ratio",
-  );
-  if (savingsMetrics.length === 0) return 0;
-  const total = savingsMetrics.reduce((sum, m) => sum + (m.value || 0), 0);
-  return total / savingsMetrics.length;
+  let sum = 0;
+  let count = 0;
+  // ⚡ Bolt: Use a single O(N) pass to avoid multiple iteration over arrays
+  for (let i = 0; i < metrics.length; i++) {
+    const m = metrics[i];
+    if (m.name === "compression.savings_ratio") {
+      sum += m.value || 0;
+      count++;
+    }
+  }
+  if (count === 0) return 0;
+  return sum / count;
 }
 
 /**
  * Get compression savings display string for a specific tool.
  */
 function getToolCompressionSavings(metrics: any[], toolName: string): string {
-  const savingsMetrics = metrics.filter(
-    (m) =>
-      m.name === "compression.savings_ratio" && m.attributes?.tool === toolName,
-  );
-  if (savingsMetrics.length === 0)
+  let sum = 0;
+  let count = 0;
+  // ⚡ Bolt: Use a single O(N) pass to avoid multiple iteration over arrays
+  for (let i = 0; i < metrics.length; i++) {
+    const m = metrics[i];
+    if (m.name === "compression.savings_ratio" && m.attributes?.tool === toolName) {
+      sum += m.value || 0;
+      count++;
+    }
+  }
+
+  if (count === 0)
     return '<span style="color: #64748b;" aria-label="Not available" title="Compression savings ratio not available for this tool">N/A</span>';
 
-  const avgSavings =
-    savingsMetrics.reduce((sum, m) => sum + (m.value || 0), 0) /
-    savingsMetrics.length;
+  const avgSavings = sum / count;
 
   const savingsClass =
     avgSavings > 50 ? "success" : avgSavings > 20 ? "warning" : "error";
