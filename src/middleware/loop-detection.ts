@@ -38,11 +38,8 @@ function toolCallFingerprint(tc: { name?: string; args?: unknown }): string {
 function turnFingerprint(
   toolCalls: Array<{ name?: string; args?: unknown }>,
 ): string {
-  return toolCalls.reduce((acc, tc, i) => {
-    return i === 0
-      ? toolCallFingerprint(tc)
-      : acc + "|" + toolCallFingerprint(tc);
-  }, "");
+  // ⚡ Bolt: Replaced Array.prototype.reduce with .map().join() for faster string concatenation by avoiding callback overhead per element.
+  return toolCalls.map(tc => toolCallFingerprint(tc)).join("|");
 }
 
 /**
