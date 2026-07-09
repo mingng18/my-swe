@@ -9,3 +9,6 @@
 ## 2025-07-06 - Array.prototype.reduce Overhead in Aggregations
 **Learning:** In the Bun/V8 runtime, using multiple sequential `Array.prototype.reduce` passes over the same array to calculate distinct aggregates introduces unnecessary callback overhead and increases iteration from O(N) to O(k*N). Also, using `reduce` for string concatenation (e.g. `arr.reduce((acc, x) => acc + x, "")`) is slower than simple `for` loops primarily due to the function callback overhead on every element, rather than string buffer allocations (since V8 optimizes string appends via ConsStrings).
 **Action:** Replace `reduce` string concatenations with standard `for` loops or `.map().join()`. Combine multiple mapping/reducing passes over the same data into a single `for` loop to avoid redundant iteration and callback overhead.
+## 2025-07-08 - Optimized O(N) array traversals in trace-dashboard
+**Learning:** Chaining `.filter().reduce()` on large metrics arrays causes unnecessary O(N^2) behavior due to multiple array traversals and intermediate allocations.
+**Action:** Replace chained `.filter().reduce()` operations with a single-pass `for` loop, especially in dashboard or metric aggregations, to reduce memory pressure and execution time.
