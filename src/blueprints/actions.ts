@@ -19,11 +19,13 @@ const execFileAsync = promisify(execFile);
 export function parseCommandArgs(commandStr: string): {
   command: string;
   args: string[];
+  originalCommand: string;
 } {
   const parsed = parseArgsStringToArgv(commandStr);
-  if (parsed.length === 0) return { command: "", args: [] };
+  if (parsed.length === 0) return { command: "", args: [], originalCommand: "" };
 
-  let command = parsed[0]!;
+  const originalCommand = parsed[0]!;
+  let command = originalCommand;
   let args = parsed.slice(1);
 
   // Security: prevent PATH manipulation by using the absolute process.execPath for bun/bunx
@@ -34,7 +36,7 @@ export function parseCommandArgs(commandStr: string): {
     args = ["x", ...args];
   }
 
-  return { command, args };
+  return { command, args, originalCommand };
 }
 
 /**
@@ -94,14 +96,14 @@ const runLintersAction: DeterministicAction = {
   execute: async (_state: BlueprintState): Promise<ActionResult> => {
     const linterCommand = process.env.LINTER_COMMAND || "bunx tsc --noEmit";
     try {
-      const { command, args } = parseCommandArgs(linterCommand);
+      const { command, args, originalCommand } = parseCommandArgs(linterCommand);
       if (!command) {
         return { success: false, error: "Empty linter command" };
       }
-      if (!ALLOWED_COMMANDS.has(command)) {
+      if (!ALLOWED_COMMANDS.has(originalCommand)) {
         return {
           success: false,
-          error: `Command "${command}" is not allowed for security reasons`,
+          error: `Command "${originalCommand}" is not allowed for security reasons`,
         };
       }
       const { stdout, stderr } = await execFileAsync(command, args);
@@ -127,14 +129,14 @@ const runTestsAction: DeterministicAction = {
   execute: async (_state: BlueprintState): Promise<ActionResult> => {
     const testCommand = process.env.TEST_COMMAND || "bun test";
     try {
-      const { command, args } = parseCommandArgs(testCommand);
+      const { command, args, originalCommand } = parseCommandArgs(testCommand);
       if (!command) {
         return { success: false, error: "Empty test command" };
       }
-      if (!ALLOWED_COMMANDS.has(command)) {
+      if (!ALLOWED_COMMANDS.has(originalCommand)) {
         return {
           success: false,
-          error: `Command "${command}" is not allowed for security reasons`,
+          error: `Command "${originalCommand}" is not allowed for security reasons`,
         };
       }
       const { stdout, stderr } = await execFileAsync(command, args);
@@ -159,11 +161,11 @@ const runTypecheckAction: DeterministicAction = {
   description: "Run TypeScript type checking",
   execute: async (_state: BlueprintState): Promise<ActionResult> => {
     try {
-      const { command, args } = parseCommandArgs("bunx tsc --noEmit");
-      if (!command || !ALLOWED_COMMANDS.has(command)) {
+      const { command, args, originalCommand } = parseCommandArgs("bunx tsc --noEmit");
+      if (!command || !ALLOWED_COMMANDS.has(originalCommand)) {
         return {
           success: false,
-          error: `Command "${command}" is not allowed for security reasons`,
+          error: `Command "${originalCommand}" is not allowed for security reasons`,
         };
       }
       const { stdout, stderr } = await execFileAsync(command, args);
