@@ -64,6 +64,7 @@ describe("parseCommandArgs", () => {
     expect(parseCommandArgs("bun test")).toEqual({
       command: process.execPath,
       args: ["test"],
+      originalCommand: "bun",
     });
   });
 
@@ -71,6 +72,7 @@ describe("parseCommandArgs", () => {
     expect(parseCommandArgs('bun test "src/my test.ts"')).toEqual({
       command: process.execPath,
       args: ["test", "src/my test.ts"],
+      originalCommand: "bun",
     });
   });
 
@@ -78,6 +80,7 @@ describe("parseCommandArgs", () => {
     expect(parseCommandArgs("bun test 'src/my test.ts'")).toEqual({
       command: process.execPath,
       args: ["test", "src/my test.ts"],
+      originalCommand: "bun",
     });
   });
 
@@ -85,6 +88,7 @@ describe("parseCommandArgs", () => {
     expect(parseCommandArgs("")).toEqual({
       command: "",
       args: [],
+      originalCommand: "",
     });
   });
 
@@ -92,6 +96,7 @@ describe("parseCommandArgs", () => {
     expect(parseCommandArgs("   ")).toEqual({
       command: "",
       args: [],
+      originalCommand: "",
     });
   });
 
@@ -99,6 +104,7 @@ describe("parseCommandArgs", () => {
     expect(parseCommandArgs("bunx tsc --noEmit")).toEqual({
       command: process.execPath,
       args: ["x", "tsc", "--noEmit"],
+      originalCommand: "bunx",
     });
   });
 
@@ -106,6 +112,7 @@ describe("parseCommandArgs", () => {
     expect(parseCommandArgs("npm run dev")).toEqual({
       command: "npm",
       args: ["run", "dev"],
+      originalCommand: "npm",
     });
   });
 });
