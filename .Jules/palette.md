@@ -25,3 +25,6 @@
 ## 2026-07-07 - Add Tactile Feedback to Custom Buttons
 **Learning:** Custom interactive elements (like the suggestion cards in the empty state) often lack the immediate visual feedback of native buttons, making them feel unresponsive.
 **Action:** When creating or modifying custom interactive elements (buttons, cards), ensure they provide tactile feedback using CSS transforms, such as the Tailwind class `active:scale-[0.98]` along with `transition-all`, to mimic native click behavior.
+## 2024-07-11 - Semantic Forms for Better UX
+**Learning:** React patterns using `<div>` wrappers and manual `onKeyDown` handlers for form submission are a common anti-pattern that breaks native accessibility and keyboard interactions (like mobile virtual keyboards).
+**Action:** When building or fixing input components that trigger an action on "Enter", always wrap them in a semantic `<form>` and use native `onSubmit` handlers. Explicitly mark non-submit buttons within the form with `type="button"` to prevent accidental submissions.
