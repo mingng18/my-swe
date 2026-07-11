@@ -5,6 +5,18 @@ import { getTokenUsage } from "./token-tracker";
 const logger = createLogger("trace-dashboard");
 
 /**
+ * Escape HTML special characters to prevent XSS.
+ */
+function escapeHTML(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+/**
  * Generate HTML for trace analysis dashboard.
  */
 function generateStyles(): string {
@@ -202,13 +214,15 @@ export function generateTraceDashboardHTML(threadId: string): string {
   const metrics = getThreadMetrics(threadId);
   const tokenUsage = getTokenUsage(threadId);
 
+  const safeThreadId = escapeHTML(threadId);
+
   return `
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Trace Dashboard - ${threadId}</title>
+  <title>Trace Dashboard - ${safeThreadId}</title>
   <style>
 ${generateStyles()}
   </style>
@@ -217,7 +231,7 @@ ${generateStyles()}
   <div class="container">
     <header>
       <h1>🔍 Trace Dashboard</h1>
-      <p style="color: #94a3b8; margin-bottom: 20px;">Thread ID: <code style="background: #334155; padding: 4px 8px; border-radius: 4px;">${threadId}</code></p>
+      <p style="color: #94a3b8; margin-bottom: 20px;">Thread ID: <code style="background: #334155; padding: 4px 8px; border-radius: 4px;">${safeThreadId}</code></p>
     </header>
     <main>
 ${generateTokenUsageHTML(tokenUsage, metrics)}
