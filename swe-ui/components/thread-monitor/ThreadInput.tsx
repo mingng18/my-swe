@@ -18,19 +18,21 @@ export const ThreadInput = forwardRef<HTMLInputElement, ThreadInputProps>(
   ({ userInput, setUserInput, isLoading, onStartAgent, className, placeholder = "Enter your task for the agent... (⌘K)" }, ref) => {
     return (
       <div className={cn("p-4 border-b", className)}>
-        <div className="flex gap-2 max-w-4xl mx-auto">
+        <form
+          className="flex gap-2 max-w-4xl mx-auto"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!isLoading && userInput.trim()) {
+              onStartAgent();
+            }
+          }}
+        >
           <div className="relative flex-1">
             <Input
               ref={ref}
               placeholder={placeholder}
               value={userInput}
               onChange={(e) => setUserInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  onStartAgent();
-                }
-              }}
               disabled={isLoading}
               className="flex-1 pr-12 transition-all focus:ring-2 focus:ring-primary/20"
               aria-label="Agent task input"
@@ -39,6 +41,7 @@ export const ThreadInput = forwardRef<HTMLInputElement, ThreadInputProps>(
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
+                    type="button"
                     variant="ghost"
                     size="icon-xs"
                     aria-label="Clear input"
@@ -54,7 +57,7 @@ export const ThreadInput = forwardRef<HTMLInputElement, ThreadInputProps>(
             )}
           </div>
           <Button
-            onClick={onStartAgent}
+            type="submit"
             disabled={isLoading || !userInput.trim()}
             className="gap-2 shadow-md hover:shadow-lg transition-all disabled:opacity-50"
             size="default"
@@ -73,7 +76,7 @@ export const ThreadInput = forwardRef<HTMLInputElement, ThreadInputProps>(
               </>
             )}
           </Button>
-        </div>
+        </form>
       </div>
     );
   }
