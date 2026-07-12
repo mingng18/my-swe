@@ -24,7 +24,7 @@ interface PrewarmConfig {
   githubToken?: string;
 }
 
-function parseReposJson(): PrewarmRepoSpec[] {
+export function parseReposJson(): PrewarmRepoSpec[] {
   const raw = process.env.PREWARM_REPOS_JSON?.trim();
   if (raw) {
     const parsed = JSON.parse(raw) as PrewarmRepoSpec[];
@@ -227,7 +227,9 @@ async function main(): Promise<void> {
   logger.info("[prewarm] Done");
 }
 
-main().catch((err) => {
-  logger.error({ error: err }, "[prewarm] Failed");
-  process.exit(1);
-});
+if (import.meta.main) {
+  main().catch((err) => {
+    logger.error({ error: err }, "[prewarm] Failed");
+    process.exit(1);
+  });
+}

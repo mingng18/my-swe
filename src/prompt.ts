@@ -1,5 +1,8 @@
 import { UNTRUSTED_GITHUB_COMMENT_OPEN_TAG } from "./utils/github/github-comments";
 import { discoverSkills, buildSkillCatalog } from "./skills";
+import { createLogger } from "./utils/logger";
+
+const logger = createLogger("prompt");
 
 export type SystemPrompt = readonly string[] & {
   readonly __brand: "SystemPrompt";
@@ -380,7 +383,7 @@ export async function constructSystemPrompt(
     }
   } catch (error) {
     // Non-fatal: log and continue without skills
-    console.warn("[prompt] Failed to discover skills:", error);
+    logger.warn({ error }, "Failed to discover skills");
   }
 
   const sections = asSystemPrompt([
