@@ -12,3 +12,6 @@
 ## 2025-07-08 - Optimized O(N) array traversals in trace-dashboard
 **Learning:** Chaining `.filter().reduce()` on large metrics arrays causes unnecessary O(N^2) behavior due to multiple array traversals and intermediate allocations.
 **Action:** Replace chained `.filter().reduce()` operations with a single-pass `for` loop, especially in dashboard or metric aggregations, to reduce memory pressure and execution time.
+## 2026-07-12 - Use Promise.all over sequential async maps
+**Learning:** Sequential await loops over independent tasks (like CI failed run fetching and handling) cause unneeded I/O bottlenecks.
+**Action:** Use `Promise.all` with `.map` to enable concurrent execution for independent looping asynchronous actions to gain O(1)-like time scaling with O(n) task lists instead of O(n) time.
