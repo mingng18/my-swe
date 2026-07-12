@@ -11,6 +11,7 @@ import {
   getRoleModelConfig,
   isArchitectEditorRoutingEnabled,
 } from "../utils/config";
+import type { ModelConfig } from "../utils/model-factory";
 import {
   getMode,
   getModelOverride,
@@ -93,9 +94,7 @@ import { streamRegistry, type SSEEvent, type LLMStartEvent } from "../stream";
 
 const logger = createLogger("deepagents");
 
-// ============================================================================
 // SSE Event Emission Helpers
-// ============================================================================
 
 /**
  * Emit an event to the SSE stream for a thread
@@ -143,9 +142,7 @@ const AGENT_RECURSION_LIMIT = Number.parseInt(
 );
 let hasLoadedPersistedRepos = false;
 
-// ============================================================================
 // Thread Cleanup Configuration
-// ============================================================================
 
 export async function cleanupThreadMaps(
   ttlMs: number = 3600000,
@@ -164,10 +161,10 @@ export async function cleanupThreadMaps(
 
 async function buildMiddleware(
   chatModel: BaseChatModel,
-  modelConfig: any,
+  modelConfig: ModelConfig,
   fallback?: { openaiBaseUrl?: string; openaiApiKey?: string; model?: string },
-): Promise<any[]> {
-  const middleware: any[] = [
+): Promise<unknown[]> {
+  const middleware: unknown[] = [
     // Resilience: automatic retry on transient model errors
     modelRetryMiddleware({
       maxRetries: 3,
