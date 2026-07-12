@@ -28,3 +28,6 @@
 ## 2024-07-11 - Semantic Forms for Better UX
 **Learning:** React patterns using `<div>` wrappers and manual `onKeyDown` handlers for form submission are a common anti-pattern that breaks native accessibility and keyboard interactions (like mobile virtual keyboards).
 **Action:** When building or fixing input components that trigger an action on "Enter", always wrap them in a semantic `<form>` and use native `onSubmit` handlers. Explicitly mark non-submit buttons within the form with `type="button"` to prevent accidental submissions.
+## 2025-05-18 - Added Progress Bar to TodoSidebar
+**Learning:** Re-calculated values from simple arrays (like `todos.filter(t => t.status === "completed").length`) can be abstracted into standalone local variables prior to return functions for cleaner JSX readability, instead of keeping them inline with string concatenation.
+**Action:** Extract repeated length checks or array filtering logic out of the JSX render body and into the component scope before returning, especially if the value is used multiple times (e.g. for text display and for progress value calculation).
