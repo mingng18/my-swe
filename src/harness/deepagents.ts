@@ -11,7 +11,11 @@ import {
   getRoleModelConfig,
   isArchitectEditorRoutingEnabled,
 } from "../utils/config";
-import { getMode, getModelOverride, purgeStaleSessions } from "../utils/session-store";
+import {
+  getMode,
+  getModelOverride,
+  purgeStaleSessions,
+} from "../utils/session-store";
 import { createChatModel } from "../utils/model-factory";
 import { createDeepAgent, FilesystemBackend, type DeepAgent } from "deepagents";
 import {
@@ -85,11 +89,7 @@ import { loadRepoAgents, mergeSubagents } from "../subagents/agentsLoader";
 import { asyncSubagents } from "../subagents/async";
 import { type BaseMessage, type ToolCall } from "@langchain/core/messages";
 import { type BaseChatModel } from "@langchain/core/language_models/chat_models";
-import {
-  streamRegistry,
-  type SSEEvent,
-  type LLMStartEvent,
-} from "../stream";
+import { streamRegistry, type SSEEvent, type LLMStartEvent } from "../stream";
 
 const logger = createLogger("deepagents");
 
@@ -294,7 +294,11 @@ export async function loadAgentTools(
   // (includeMcp === false) so dynamically-registered MCP server tools — which
   // evade the static PLAN_MODE_BLOCKED_TOOLS denylist — can never write while
   // the agent is planning. (#510)
-  if (opts?.includeMcp !== false && process.env.MCP_ENABLED !== "false" && workspaceRoot) {
+  if (
+    opts?.includeMcp !== false &&
+    process.env.MCP_ENABLED !== "false" &&
+    workspaceRoot
+  ) {
     try {
       const { loadMcpTools } = await import("../mcp/tool-factory.js");
       const mcpTools = await loadMcpTools(workspaceRoot);
@@ -360,7 +364,9 @@ function isReadOnlyTool(tool: any): boolean {
  * Plan-mode toolset: same load path as `loadAgentTools`, but write/shell/mutation
  * tools are filtered out so the agent physically cannot edit while planning.
  */
-export async function loadReadOnlyTools(workspaceRoot?: string): Promise<any[]> {
+export async function loadReadOnlyTools(
+  workspaceRoot?: string,
+): Promise<any[]> {
   // Exclude MCP tools entirely in plan mode (#510): they're loaded as top-level
   // tools and a mutating MCP server tool would evade the static denylist.
   const all = await loadAgentTools(workspaceRoot, { includeMcp: false });
@@ -444,9 +450,7 @@ async function createAgentInstance(args: {
   // Plan mode (#498): enforce "no edits" at the tool layer by loading only
   // read-only tools. Mode changes (/plan, /act) recreate the agent via
   // clearAgent(); the per-thread checkpointer preserves history across it.
-  const planMode = args.threadId
-    ? getMode(args.threadId) === "plan"
-    : false;
+  const planMode = args.threadId ? getMode(args.threadId) === "plan" : false;
   const tools = planMode
     ? await loadReadOnlyTools(args.workspaceRoot)
     : await loadAgentTools(args.workspaceRoot);
@@ -543,9 +547,10 @@ export async function generateArchitectPlan(
     const modelConfig = getRoleModelConfig("architect");
     const model = await createChatModel(modelConfig);
 
-    const repoLine = repoContext?.owner && repoContext?.name
-      ? `\n\nRepo: ${repoContext.owner}/${repoContext.name}`
-      : "";
+    const repoLine =
+      repoContext?.owner && repoContext?.name
+        ? `\n\nRepo: ${repoContext.owner}/${repoContext.name}`
+        : "";
     const userContent = `Task:\n${task}${repoLine}`;
 
     // Cost/usage attribution (#497): emit llm_start (role='architect') and
@@ -574,9 +579,7 @@ export async function generateArchitectPlan(
     );
 
     const plan =
-      typeof response.content === "string"
-        ? response.content.trim()
-        : "";
+      typeof response.content === "string" ? response.content.trim() : "";
 
     // Unbounded plan size (#497): cap before returning so the editor's context
     // can't be inflated by a rambling architect. Truncate at a sentence/line
@@ -636,7 +639,8 @@ function capArchitectPlan(plan: string, maxChars: number): string {
   if (plan.length <= maxChars) return plan;
   const slice = plan.slice(0, maxChars);
   const lastNewline = slice.lastIndexOf("\n");
-  const body = lastNewline > maxChars * 0.5 ? slice.slice(0, lastNewline) : slice;
+  const body =
+    lastNewline > maxChars * 0.5 ? slice.slice(0, lastNewline) : slice;
   return `${body}\n[plan truncated to stay within ${maxChars} chars]`;
 }
 
@@ -691,7 +695,7 @@ function summarizeUpdateForTrace(node: string, data: unknown): string {
   const toolCalls = last.tool_calls as Array<{ name?: string }> | undefined;
   if (toolCalls?.length) {
     // ⚡ Bolt: Replaced Array.prototype.reduce with .map().join() for faster string concatenation by avoiding callback overhead per element.
-    return " → " + toolCalls.map(t => t.name ?? "?").join(", ");
+    return " → " + toolCalls.map((t) => t.name ?? "?").join(", ");
   }
   if (last.type === "tool" || last.role === "tool") {
     return ` → tool:${String(last.name ?? "?")}`;
@@ -1450,17 +1454,14 @@ If you need to make additional changes, continue working and they'll be added to
         // plan, so the architect's automatic plan would double-plan. Skip the
         // architect step in plan mode. Plan mode = the user's planning;
         // architect = the model's auto-planning; never both.
-        if (
-          isArchitectEditorRoutingEnabled() && getMode(threadId) !== "plan"
-        ) {
-          const plan = await generateArchitectPlan(
-            modifiedInput,
-            activeRepo,
-            { threadId },
-          );
+        if (isArchitectEditorRoutingEnabled() && getMode(threadId) !== "plan") {
+          const plan = await generateArchitectPlan(modifiedInput, activeRepo, {
+            threadId,
+          });
           if (plan) {
             modifiedInput =
-              `[ARCHITECT PLAN]\n${plan}\n[/ARCHITECT PLAN]\n\n` + modifiedInput;
+              `[ARCHITECT PLAN]\n${plan}\n[/ARCHITECT PLAN]\n\n` +
+              modifiedInput;
           }
         }
 
@@ -1488,9 +1489,7 @@ If you need to make additional changes, continue working and they'll be added to
           type: "llm_end",
           totalTokens: Math.round(totalTokens),
           timestamp: Date.now(),
-          ...(editorModelConfig.role
-            ? { role: editorModelConfig.role }
-            : {}),
+          ...(editorModelConfig.role ? { role: editorModelConfig.role } : {}),
         });
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
@@ -1796,7 +1795,7 @@ If you need to make additional changes, continue working and they'll be added to
     }
   }
 
-  async getState(threadId: string): Promise<any> {
+  async getState(threadId: string): Promise<unknown> {
     const agent = threadManager.getAgent(threadId);
     if (!agent) return null;
 
