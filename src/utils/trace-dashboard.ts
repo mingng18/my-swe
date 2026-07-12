@@ -148,7 +148,7 @@ function generateToolStatsHTML(metrics: any, telemetry: any): string {
               const savings = savingsByTool.get(tool) || { sum: 0, count: 0 };
               return `
             <tr>
-              <td><code>${tool}</code></td>
+              <td><code>${escapeHTML(tool)}</code></td>
               <td>${(stats as any).count}</td>
               <td>
                 <span class="badge ${(stats as any).successRate > 0.8 ? "success" : (stats as any).successRate > 0.5 ? "warning" : "error"}">
