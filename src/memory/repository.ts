@@ -46,13 +46,6 @@ class RealSupabaseClient implements SupabaseClient {
 /**
  * Repository for managing memories in Supabase
  */
-export interface DataloaderTask {
-  threadId: string;
-  types?: MemoryType[];
-  resolve: (val: Memory[]) => void;
-  reject: (err: unknown) => void;
-}
-
 export class MemoryRepository {
   private supabaseUrl: string;
   private client: SupabaseClient;
@@ -62,8 +55,13 @@ export class MemoryRepository {
     ttl: 1000 * 60 * 5,
   });
   private pendingThreadRequests = new Map<string, Promise<Memory[]>>();
-  private dataloaderQueue: DataloaderTask[] = [];
-  private dataloaderTimeout: ReturnType<typeof setTimeout> | null = null;
+  private dataloaderQueue: {
+    threadId: string;
+    types?: MemoryType[];
+    resolve: (val: Memory[]) => void;
+    reject: (err: any) => void;
+  }[] = [];
+  private dataloaderTimeout: any = null;
 
   constructor(client?: SupabaseClient) {
     const url = process.env.SUPABASE_URL?.trim();
@@ -163,7 +161,7 @@ export class MemoryRepository {
           try {
             const byTypes = new Map<
               string,
-              { threadIds: string[]; tasks: DataloaderTask[] }
+              { threadIds: string[]; tasks: any[] }
             >();
 
             for (const item of queue) {
