@@ -12,3 +12,6 @@
 ## 2025-07-08 - Optimized O(N) array traversals in trace-dashboard
 **Learning:** Chaining `.filter().reduce()` on large metrics arrays causes unnecessary O(N^2) behavior due to multiple array traversals and intermediate allocations.
 **Action:** Replace chained `.filter().reduce()` operations with a single-pass `for` loop, especially in dashboard or metric aggregations, to reduce memory pressure and execution time.
+## 2024-07-12 - Parallelize EvalHarness runSuite
+**Learning:** Sequential async iteration over tests/evals creates artificial bottlenecks when the tasks could be run concurrently.
+**Action:** Used `p-limit` to bound concurrency, reducing execution time while preventing overwhelming resources/APIs. Always consider bounded parallelism for IO-heavy loops.
