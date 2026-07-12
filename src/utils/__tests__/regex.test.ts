@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { escapeRegex } from "../regex.ts";
+import { escapeRegex } from "../regex";
 
 describe("escapeRegex", () => {
   it("escapes regex special characters", () => {
