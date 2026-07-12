@@ -10,6 +10,10 @@
 **Vulnerability:** Reflected XSS in `src/utils/trace-dashboard.ts` due to directly interpolating the user-controlled `threadId` into an HTML template string.
 **Learning:** Raw string interpolation in template literals (`${variable}`) bypasses any framework-level auto-escaping when generating raw HTML. This is a common pitfall when building lightweight dashboards or email templates outside of a React/JSX context.
 **Prevention:** Always wrap untrusted variables in an explicit HTML escaping function (like `escapeHTML`) before injecting them into raw HTML strings.
+## 2024-11-20 - Command Injection Fix in eval/harness.ts
+**Vulnerability:** Use of `execFile("sh", ["-c", cmd])` with user-provided commands allows for command injection.
+**Learning:** Command runners that execute arbitrary task configurations using shell wrappers are inherently prone to command injection if left unescaped.
+**Prevention:** Avoid shell wrappers completely (e.g. `sh -c`) when executing untrusted configurations. Always parse command strings into explicit arrays of arguments and execute the binary directly using `execFile(parsed[0], parsed.slice(1))`.
 ## 2026-07-12 - Command Injection via Child Process execFile Subshell Spawning
 **Vulnerability:** Command injection risk in `src/blueprints/actions.ts` where shell metacharacters passed via configuration commands were not sanitized before being parsed by `string-argv` and executed.
 **Learning:** Even though `child_process.execFile` does not spawn a shell by default, wrapping commands that *do* spawn subshells internally (like `npm run` or `bunx`) bypasses this protection.

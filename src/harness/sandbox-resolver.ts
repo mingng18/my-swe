@@ -9,6 +9,7 @@
 import { createLogger } from "../utils/logger";
 import {
   type SandboxProfile,
+  type AcquireSandboxParams,
   getSandboxProfileFromEnv,
   acquireRepoSandbox,
   releaseRepoSandbox,
@@ -78,8 +79,9 @@ export async function acquireDaytonaSandboxForThreadRepo(args: {
     repoName: args.repoName,
     threadId: args.threadId,
     image: process.env.DAYTONA_IMAGE,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    language: (process.env.DAYTONA_LANGUAGE as any) || undefined,
+    language:
+      (process.env.DAYTONA_LANGUAGE as AcquireSandboxParams["language"]) ||
+      undefined,
     cpu: process.env.DAYTONA_CPU
       ? parseInt(process.env.DAYTONA_CPU, 10)
       : undefined,
@@ -143,14 +145,44 @@ export async function resolveSandboxContext(
   parsedRepo: { owner: string; name: string },
   profile: SandboxProfile,
   threadManager: {
-    getRepo(threadId: string): { owner: string; name: string; workspaceDir: string; lastAccessed: number } | undefined;
-    setRepo(threadId: string, repo: { owner: string; name: string; workspaceDir: string; lastAccessed: number }): void;
+    getRepo(
+      threadId: string,
+    ):
+      | {
+          owner: string;
+          name: string;
+          workspaceDir: string;
+          lastAccessed: number;
+        }
+      | undefined;
+    setRepo(
+      threadId: string,
+      repo: {
+        owner: string;
+        name: string;
+        workspaceDir: string;
+        lastAccessed: number;
+      },
+    ): void;
     setSandbox(threadId: string, entry: unknown): void;
-    getSandbox(threadId: string): { backend: SandboxService; profile: SandboxProfile; repo: { owner: string; name: string; workspaceDir: string } } | undefined;
+    getSandbox(
+      threadId: string,
+    ):
+      | {
+          backend: SandboxService;
+          profile: SandboxProfile;
+          repo: { owner: string; name: string; workspaceDir: string };
+        }
+      | undefined;
   },
   setSandboxBackend: (threadId: string, backend: SandboxService) => void,
 ): Promise<{
-  activeRepo: { owner: string; name: string; workspaceDir: string; lastAccessed: number };
+  activeRepo: {
+    owner: string;
+    name: string;
+    workspaceDir: string;
+    lastAccessed: number;
+  };
   backend: SandboxService;
   workspaceDir: string;
 }> {

@@ -9,6 +9,7 @@ import { execFile as execFileCb } from "child_process";
 import { promisify } from "util";
 import { getAgentHarness } from "../harness";
 import { createLogger } from "../utils/logger";
+import { parseArgsStringToArgv } from "string-argv";
 
 const execFile = promisify(execFileCb);
 const logger = createLogger("eval-harness");
@@ -66,9 +67,7 @@ export interface EvalReport {
 function parsePrUrl(
   prUrl: string,
 ): { owner: string; repo: string; prNumber: number } | null {
-  const match = prUrl.match(
-    /github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/,
-  );
+  const match = prUrl.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
   if (!match) return null;
   return { owner: match[1], repo: match[2], prNumber: Number(match[3]) };
 }
@@ -77,13 +76,12 @@ function parsePrUrl(
  * Run a list of shell commands sequentially in the given working directory.
  * Returns concatenated stdout/stderr, throws on first non-zero exit.
  */
-async function runCommands(
-  commands: string[],
-  cwd: string,
-): Promise<string> {
+async function runCommands(commands: string[], cwd: string): Promise<string> {
   const chunks: string[] = [];
   for (const cmd of commands) {
-    const { stdout, stderr } = await execFile("sh", ["-c", cmd], {
+    const args = parseArgsStringToArgv(cmd);
+    if (args.length === 0) continue;
+    const { stdout, stderr } = await execFile(args[0], args.slice(1), {
       cwd,
       timeout: 120_000,
     });
@@ -258,8 +256,7 @@ export class EvalHarness {
     const avgDurationMs =
       results.length > 0
         ? Math.round(
-            results.reduce((sum, r) => sum + r.durationMs, 0) /
-              results.length,
+            results.reduce((sum, r) => sum + r.durationMs, 0) / results.length,
           )
         : 0;
 
@@ -310,26 +307,30 @@ export class EvalHarness {
       // Clone the PR head reference
       logger.info({ prUrl, tmpDir }, "Cloning PR branch for verification");
 
-      await execFile("gh", [
-        "pr",
-        "checkout",
-        String(prNumber),
-        "--repo",
-        `${owner}/${repo}`,
-        "--clone",
-      ], { cwd: "/tmp", timeout: 120_000 }).catch(async () => {
+      await execFile(
+        "gh",
+        [
+          "pr",
+          "checkout",
+          String(prNumber),
+          "--repo",
+          `${owner}/${repo}`,
+          "--clone",
+        ],
+        { cwd: "/tmp", timeout: 120_000 },
+      ).catch(async () => {
         // Fallback: manual clone + fetch
-        await execFile("git", [
-          "clone",
-          `https://github.com/${owner}/${repo}.git`,
-          tmpDir,
-        ], { timeout: 120_000 });
+        await execFile(
+          "git",
+          ["clone", `https://github.com/${owner}/${repo}.git`, tmpDir],
+          { timeout: 120_000 },
+        );
 
-        await execFile("git", [
-          "fetch",
-          "origin",
-          `pull/${prNumber}/head:${branch}`,
-        ], { cwd: tmpDir, timeout: 60_000 });
+        await execFile(
+          "git",
+          ["fetch", "origin", `pull/${prNumber}/head:${branch}`],
+          { cwd: tmpDir, timeout: 60_000 },
+        );
 
         await execFile("git", ["checkout", branch], {
           cwd: tmpDir,
@@ -348,11 +349,9 @@ export class EvalHarness {
       logger.info({ prUrl, passed: true }, "Verification passed");
       return { passed: true, output };
     } catch (err: any) {
-      const output = err.stdout ?? "" + (err.stderr ?? "") + (err.message ?? "");
-      logger.warn(
-        { prUrl, error: err.message },
-        "Verification failed",
-      );
+      const output =
+        err.stdout ?? "" + (err.stderr ?? "") + (err.message ?? "");
+      logger.warn({ prUrl, error: err.message }, "Verification failed");
       return { passed: false, output };
     } finally {
       // Clean up temp directory
