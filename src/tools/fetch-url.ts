@@ -8,6 +8,9 @@ import { isPreapprovedHost } from "../utils/preapproved-domains";
 import { checkDomainBlocklist } from "../utils/domain-blocklist";
 import { Agent, fetch as undiciFetch } from "undici";
 import { defang } from "../security/defang";
+import { createLogger } from "../utils/logger";
+
+const logger = createLogger("fetch-url");
 
 const lookupAsync = promisify(dns.lookup);
 
@@ -312,9 +315,9 @@ export async function fetchUrl(
       }
       if (blocklistCheck.status === "check_failed") {
         // Log but continue - the fetch will likely fail anyway if truly blocked
-        console.warn(
-          `[fetch-url] Domain check failed for ${parsedUrl.hostname}:`,
-          blocklistCheck.error,
+        logger.warn(
+          { error: blocklistCheck.error, hostname: parsedUrl.hostname },
+          "Domain check failed",
         );
       }
     }
