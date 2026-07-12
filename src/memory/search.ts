@@ -40,8 +40,8 @@ export class SearchService {
 
     // Get all memories for the specified threads
     let allMemories: Memory[] = [];
-    if (typeof (this.repository as any).getByThreads === "function") {
-      allMemories = await (this.repository as any).getByThreads(
+    if (typeof this.repository.getByThreads === "function") {
+      allMemories = await this.repository.getByThreads(
         threadIds,
         options.types,
       );
