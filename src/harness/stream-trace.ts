@@ -228,7 +228,7 @@ export function logAgentTraceChunk(
     trace.midLine = false;
   }
 
-  console.error(
+  logger.error(
     `[agent-trace] [${src}] ${mode} ${stringifyPayloadForTrace(payload, 280)}`,
   );
 }
