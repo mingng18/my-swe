@@ -9,13 +9,6 @@ export interface SupabaseClient {
   fetch(url: string, options?: RequestInit): Promise<Response>;
 }
 
-interface DataloaderTask {
-  threadId: string;
-  types?: MemoryType[];
-  resolve: (val: Memory[]) => void;
-  reject: (err: unknown) => void;
-}
-
 interface SupabaseMemoryRow {
   id: string;
   thread_id: string;
@@ -62,8 +55,13 @@ export class MemoryRepository {
     ttl: 1000 * 60 * 5,
   });
   private pendingThreadRequests = new Map<string, Promise<Memory[]>>();
-  private dataloaderQueue: DataloaderTask[] = [];
-  private dataloaderTimeout: ReturnType<typeof setTimeout> | null = null;
+  private dataloaderQueue: {
+    threadId: string;
+    types?: MemoryType[];
+    resolve: (val: Memory[]) => void;
+    reject: (err: any) => void;
+  }[] = [];
+  private dataloaderTimeout: any = null;
 
   constructor(client?: SupabaseClient) {
     const url = process.env.SUPABASE_URL?.trim();
@@ -163,7 +161,7 @@ export class MemoryRepository {
           try {
             const byTypes = new Map<
               string,
-              { threadIds: string[]; tasks: DataloaderTask[] }
+              { threadIds: string[]; tasks: any[] }
             >();
 
             for (const item of queue) {
@@ -186,7 +184,7 @@ export class MemoryRepository {
                   uniqueThreadIds[0],
                   types,
                 );
-                allMemories = rows.map((row) => this.fromRow(row));
+                allMemories = rows.map((row: any) => this.fromRow(row));
               } else {
                 allMemories = await this.getByThreads(uniqueThreadIds, types);
               }
@@ -194,7 +192,7 @@ export class MemoryRepository {
               // ⚡ Bolt: Group memories by threadId in a single pass to avoid O(N*M) filtering overhead
               const memoriesByThread = new Map<string, Memory[]>();
               for (let i = 0; i < allMemories.length; i++) {
-                const m = allMemories[i];
+                const m = allMemories[i] as any;
                 const threadArr = memoriesByThread.get(m.threadId);
                 if (!threadArr) {
                   memoriesByThread.set(m.threadId, [m]);
