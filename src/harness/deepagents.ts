@@ -820,8 +820,9 @@ function logAgentTraceChunk(
     process.stderr.write("\n");
     trace.midLine = false;
   }
-  console.error(
-    `[agent-trace] [${src}] ${mode} ${stringifyPayloadForTrace(payload, 280)}`,
+  logger.error(
+    { payload: stringifyPayloadForTrace(payload, 280) },
+    `[agent-trace] [${src}] ${mode}`,
   );
 }
 

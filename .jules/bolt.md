@@ -3,6 +3,10 @@
 **Learning:** The automated `request_code_review` tool may incorrectly object to perfectly valid type corrections (like removing an unnecessary `any` cast on an interface method) by hallucinating that it breaks runtime compatibility, even though TypeScript interfaces guarantee method existence and no test regressions exist.
 **Action:** Trust manual verification of the repository interface and passing test suite, ignore the incorrect feedback regarding removed "fallback" blocks if the interface explicitly provides the method, and proceed with submission.
 
+## 2025-02-12 - UI Render Loop Arrays
+**Learning:** Chained array methods (e.g., `.filter().map()`) in frequently called frontend code or UI render loops create intermediate arrays that cause unnecessary garbage collection pressure and can impact UI rendering performance.
+**Action:** Consolidate chained array manipulations into a single-pass `for` loop in critical rendering paths to avoid intermediate allocations.
+
 ## 2024-06-24 - Unbounded Concurrent DB/IO Read Anti-Pattern
 **Learning:** Calling `Promise.all` directly on the output of an unchunked array map over the filesystem or DB instances creates an unbound concurrency trap. Doing this with high-quantity entities (such as snapshots or cache items) will exhaust file descriptor limits or cause Node.js EMFILE crashes.
 **Action:** When evaluating `Promise.all` in functions designed to load resources, chunk the iteration loop with a safe bound (e.g., `BATCH_SIZE = 500`) to process batches of promises without crashing the system or draining connection pools.
