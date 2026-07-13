@@ -94,7 +94,9 @@ import { streamRegistry, type SSEEvent, type LLMStartEvent } from "../stream";
 
 const logger = createLogger("deepagents");
 
+// ============================================================================
 // SSE Event Emission Helpers
+// ============================================================================
 
 /**
  * Emit an event to the SSE stream for a thread
@@ -142,7 +144,9 @@ const AGENT_RECURSION_LIMIT = Number.parseInt(
 );
 let hasLoadedPersistedRepos = false;
 
+// ============================================================================
 // Thread Cleanup Configuration
+// ============================================================================
 
 export async function cleanupThreadMaps(
   ttlMs: number = 3600000,
