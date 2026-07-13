@@ -35,13 +35,28 @@ export async function runSelfImprovementCycle(
   const traces = deps.traceStore.queryAll();
   const report = analyze(traces);
   const deltas = proposeDeltas(report);
-  const decisions = await Promise.all(
-    deltas.map(async (delta) => {
-      const decision = await evaluateDelta(delta, {
-        evalRunner: deps.evalRunner,
-        baselinePassRate: report.passRate,
-      });
+  const CONCURRENCY_LIMIT = 5;
+  const decisions: EvalDecision[] = [];
+
+  for (let i = 0; i < deltas.length; i += CONCURRENCY_LIMIT) {
+    const batch = deltas.slice(i, i + CONCURRENCY_LIMIT);
+
+    // Evaluate concurrently, but don't record concurrently to preserve order and safety.
+    const batchDecisions = await Promise.all(
+      batch.map((delta) =>
+        evaluateDelta(delta, {
+          evalRunner: deps.evalRunner,
+          baselinePassRate: report.passRate,
+        }),
+      ),
+    );
+
+    // Sequential writes for deterministic recording & HITL creation
+    for (let j = 0; j < batch.length; j++) {
+      const delta = batch[j];
+      const decision = batchDecisions[j];
       recordDecision(deps.traceStore, decision, delta);
+      decisions.push(decision);
       if (decision.decision === "accept" && deps.hitlStore) {
         deps.hitlStore.create({
           threadId: `self-improve-${delta.id}`,
@@ -51,9 +66,8 @@ export async function runSelfImprovementCycle(
           options: ["approve", "reject", "modify"],
         });
       }
-      return decision;
-    }),
-  );
+    }
+  }
 
   return { report, deltas, decisions };
 }
