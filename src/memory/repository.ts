@@ -43,6 +43,13 @@ class RealSupabaseClient implements SupabaseClient {
   }
 }
 
+interface DataloaderTask {
+  threadId: string;
+  types?: MemoryType[];
+  resolve: (val: Memory[]) => void;
+  reject: (err: unknown) => void;
+}
+
 /**
  * Repository for managing memories in Supabase
  */
@@ -55,12 +62,7 @@ export class MemoryRepository {
     ttl: 1000 * 60 * 5,
   });
   private pendingThreadRequests = new Map<string, Promise<Memory[]>>();
-  private dataloaderQueue: {
-    threadId: string;
-    types?: MemoryType[];
-    resolve: (val: Memory[]) => void;
-    reject: (err: unknown) => void;
-  }[] = [];
+  private dataloaderQueue: DataloaderTask[] = [];
   private dataloaderTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor(client?: SupabaseClient) {
@@ -161,7 +163,7 @@ export class MemoryRepository {
           try {
             const byTypes = new Map<
               string,
-              { threadIds: string[]; tasks: { threadId: string; types?: MemoryType[]; resolve: (val: Memory[]) => void; reject: (err: unknown) => void; }[] }
+              { threadIds: string[]; tasks: DataloaderTask[] }
             >();
 
             for (const item of queue) {
@@ -184,7 +186,7 @@ export class MemoryRepository {
                   uniqueThreadIds[0],
                   types,
                 );
-                allMemories = rows.map((row: SupabaseMemoryRow) => this.fromRow(row));
+                allMemories = rows.map((row) => this.fromRow(row));
               } else {
                 allMemories = await this.getByThreads(uniqueThreadIds, types);
               }

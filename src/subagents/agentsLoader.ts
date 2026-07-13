@@ -3,6 +3,9 @@ import { join } from "path";
 import { parse } from "yaml";
 import type { SubAgent } from "deepagents";
 import { filterToolsByName } from "./toolFilter";
+import { createLogger } from "../utils/logger";
+
+const logger = createLogger("agentsLoader");
 
 interface AgentsMdMetadata {
   name: string;
@@ -30,7 +33,7 @@ export async function loadRepoAgents(
   } catch (err) {
     // Directory doesn't exist or isn't readable - that's fine
     if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
-      console.warn(`[agentsLoader] Error reading agents directory: ${err}`);
+      logger.warn(`Error reading agents directory: ${err}`);
     }
     return [];
   }
@@ -43,7 +46,7 @@ export function parseAgentsMd(
   try {
     const match = content.match(/^---\n([\s\S]+?)\n---/);
     if (!match) {
-      console.warn(`[agentsLoader] No YAML frontmatter found in ${filename}`);
+      logger.warn(`No YAML frontmatter found in ${filename}`);
       return null;
     }
 
@@ -51,17 +54,14 @@ export function parseAgentsMd(
 
     // Validate required fields
     if (!metadata.name || !metadata.description) {
-      console.warn(
-        `[agentsLoader] Missing required fields in ${filename}`,
-        metadata,
-      );
+      logger.warn(metadata, `Missing required fields in ${filename}`);
       return null;
     }
 
     const systemPrompt = content.slice(match[0].length).trim();
 
     if (!systemPrompt) {
-      console.warn(`[agentsLoader] Empty system prompt in ${filename}`);
+      logger.warn(`Empty system prompt in ${filename}`);
       return null;
     }
 
@@ -73,7 +73,7 @@ export function parseAgentsMd(
       model: metadata.model || "inherit",
     };
   } catch (err) {
-    console.error(`[agentsLoader] Failed to parse ${filename}:`, err);
+    logger.error(err, `Failed to parse ${filename}:`);
     return null;
   }
 }
@@ -87,9 +87,7 @@ export function mergeSubagents(
 
   for (const repoAgent of repo) {
     if (seenNames.has(repoAgent.name)) {
-      console.warn(
-        `[subagent] Repo agent "${repoAgent.name}" overrides built-in agent`,
-      );
+      logger.warn(`Repo agent "${repoAgent.name}" overrides built-in agent`);
       const idx = merged.findIndex((a) => a.name === repoAgent.name);
       if (idx !== -1) merged.splice(idx, 1);
     }

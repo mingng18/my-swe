@@ -102,7 +102,8 @@ describe("fetchUrl", () => {
         error: new Error("Mock check failed error")
     });
 
-    const consoleSpy = spyOn(console, "warn").mockImplementation(() => {});
+    const { logger } = await import("../../utils/logger");
+    const consoleSpy = spyOn(logger, "warn").mockImplementation(() => {});
 
     const { fetchUrl } = await import("../fetch-url");
 
@@ -111,8 +112,8 @@ describe("fetchUrl", () => {
 
     expect(spy).toHaveBeenCalled();
     expect(consoleSpy).toHaveBeenCalledWith(
-        `[fetch-url] Domain check failed for example.org:`,
-        expect.any(Error)
+        expect.objectContaining({ error: expect.any(Error), hostname: "example.org" }),
+        "Domain check failed"
     );
     expect((result as any).error).toBeUndefined();
     expect(result).toMatchObject({
