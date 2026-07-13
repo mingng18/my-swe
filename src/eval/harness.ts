@@ -80,7 +80,9 @@ function parsePrUrl(
 async function runCommands(commands: string[], cwd: string): Promise<string> {
   const chunks: string[] = [];
   for (const cmd of commands) {
-    const { stdout, stderr } = await execFile("sh", ["-c", cmd], {
+    const args = parseArgsStringToArgv(cmd);
+    if (args.length === 0) continue;
+    const { stdout, stderr } = await execFile(args[0], args.slice(1), {
       cwd,
       timeout: 120_000,
     });

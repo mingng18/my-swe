@@ -101,11 +101,18 @@ export const ConversationScrollButton = ({
   );
 };
 
-const getMessageText = (message: UIMessage): string =>
-  message.parts
-    .filter((part) => part.type === "text")
-    .map((part) => part.text)
-    .join("");
+const getMessageText = (message: UIMessage): string => {
+  // ⚡ Bolt: Replaced chained .filter().map().join("") with a single-pass for loop
+  // to avoid intermediate array allocations and reduce garbage collection pressure during UI rendering.
+  let text = "";
+  for (let i = 0; i < message.parts.length; i++) {
+    const part = message.parts[i];
+    if (part.type === "text") {
+      text += part.text;
+    }
+  }
+  return text;
+};
 
 export type ConversationDownloadProps = Omit<
   ComponentProps<typeof Button>,

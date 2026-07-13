@@ -22,11 +22,23 @@ export function parseCommandArgs(commandStr: string): {
   originalCommand: string;
 } {
   const parsed = parseArgsStringToArgv(commandStr);
-  if (parsed.length === 0) return { command: "", args: [], originalCommand: "" };
+  if (parsed.length === 0)
+    return { command: "", args: [], originalCommand: "" };
 
   const originalCommand = parsed[0]!;
   let command = originalCommand;
   let args = parsed.slice(1);
+
+  // Security: prevent shell metacharacters that could be interpreted by downstream commands (like npm run)
+  // Check the parsed arguments so we don't break legitimate quotes that string-argv handled safely.
+  const FORBIDDEN_CHARS = /[&|;<>$£`\n\r]/;
+  for (const arg of args) {
+    if (FORBIDDEN_CHARS.test(arg)) {
+      throw new Error(
+        "Command contains forbidden characters for security reasons",
+      );
+    }
+  }
 
   // Security: prevent PATH manipulation by using the absolute process.execPath for bun/bunx
   if (command === "bun") {
@@ -96,7 +108,8 @@ const runLintersAction: DeterministicAction = {
   execute: async (_state: BlueprintState): Promise<ActionResult> => {
     const linterCommand = process.env.LINTER_COMMAND || "bunx tsc --noEmit";
     try {
-      const { command, args, originalCommand } = parseCommandArgs(linterCommand);
+      const { command, args, originalCommand } =
+        parseCommandArgs(linterCommand);
       if (!command) {
         return { success: false, error: "Empty linter command" };
       }
@@ -161,7 +174,8 @@ const runTypecheckAction: DeterministicAction = {
   description: "Run TypeScript type checking",
   execute: async (_state: BlueprintState): Promise<ActionResult> => {
     try {
-      const { command, args, originalCommand } = parseCommandArgs("bunx tsc --noEmit");
+      const { command, args, originalCommand } =
+        parseCommandArgs("bunx tsc --noEmit");
       if (!command || !ALLOWED_COMMANDS.has(originalCommand)) {
         return {
           success: false,
