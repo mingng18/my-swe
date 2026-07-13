@@ -14,7 +14,3 @@
 **Vulnerability:** Use of `execFile("sh", ["-c", cmd])` with user-provided commands allows for command injection.
 **Learning:** Command runners that execute arbitrary task configurations using shell wrappers are inherently prone to command injection if left unescaped.
 **Prevention:** Avoid shell wrappers completely (e.g. `sh -c`) when executing untrusted configurations. Always parse command strings into explicit arrays of arguments and execute the binary directly using `execFile(parsed[0], parsed.slice(1))`.
-## 2026-07-12 - Command Injection via Child Process execFile Subshell Spawning
-**Vulnerability:** Command injection risk in `src/blueprints/actions.ts` where shell metacharacters passed via configuration commands were not sanitized before being parsed by `string-argv` and executed.
-**Learning:** Even though `child_process.execFile` does not spawn a shell by default, wrapping commands that *do* spawn subshells internally (like `npm run` or `bunx`) bypasses this protection.
-**Prevention:** Always sanitize configuration strings explicitly with a blocklist regex (e.g., `/[&|;<>$£\`\n\r]/`) to drop shell metacharacters before argument parsing, particularly if allowing execution of ecosystem package runners.

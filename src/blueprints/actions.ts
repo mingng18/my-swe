@@ -21,14 +21,6 @@ export function parseCommandArgs(commandStr: string): {
   args: string[];
   originalCommand: string;
 } {
-  // Security: prevent shell metacharacters that could be interpreted by downstream commands
-  const FORBIDDEN_CHARS = /[&|;<>$£`\n\r]/;
-  if (FORBIDDEN_CHARS.test(commandStr)) {
-    throw new Error(
-      "Command contains forbidden characters for security reasons",
-    );
-  }
-
   const parsed = parseArgsStringToArgv(commandStr);
   if (parsed.length === 0)
     return { command: "", args: [], originalCommand: "" };
@@ -36,6 +28,17 @@ export function parseCommandArgs(commandStr: string): {
   const originalCommand = parsed[0]!;
   let command = originalCommand;
   let args = parsed.slice(1);
+
+  // Security: prevent shell metacharacters that could be interpreted by downstream commands (like npm run)
+  // Check the parsed arguments so we don't break legitimate quotes that string-argv handled safely.
+  const FORBIDDEN_CHARS = /[&|;<>$£`\n\r]/;
+  for (const arg of args) {
+    if (FORBIDDEN_CHARS.test(arg)) {
+      throw new Error(
+        "Command contains forbidden characters for security reasons",
+      );
+    }
+  }
 
   // Security: prevent PATH manipulation by using the absolute process.execPath for bun/bunx
   if (command === "bun") {
