@@ -22,6 +22,7 @@ export function ThreadEmptyState({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
           <button
             type="button"
+            aria-label="Code Search: Find auth implementations"
             onClick={() => onSuggestionClick?.("Find auth implementations")}
             className="flex w-full text-left items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-all active:scale-[0.98] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
           >
@@ -35,6 +36,7 @@ export function ThreadEmptyState({
           </button>
           <button
             type="button"
+            aria-label="Bug Fixes: Fix login flow error"
             onClick={() => onSuggestionClick?.("Fix login flow error")}
             className="flex w-full text-left items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-all active:scale-[0.98] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
           >
@@ -48,6 +50,7 @@ export function ThreadEmptyState({
           </button>
           <button
             type="button"
+            aria-label="Add Tests: Test user service"
             onClick={() => onSuggestionClick?.("Test user service")}
             className="flex w-full text-left items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-all active:scale-[0.98] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
           >
@@ -61,6 +64,7 @@ export function ThreadEmptyState({
           </button>
           <button
             type="button"
+            aria-label="Code Review: Review PR #123"
             onClick={() => onSuggestionClick?.("Review PR #123")}
             className="flex w-full text-left items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-all active:scale-[0.98] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
           >
