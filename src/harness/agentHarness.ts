@@ -1,10 +1,11 @@
+import type { BaseMessage } from "@langchain/core/messages";
 /**
  * Generic abstraction over any Agent Framework (DeepAgents, LangGraph, etc.)
  */
 export interface AgentResponse {
   reply: string;
   error?: string;
-  messages?: any[];
+  messages?: BaseMessage[];
 }
 
 export interface AgentInvokeOptions {
@@ -39,5 +40,5 @@ export interface AgentHarness {
   /**
    * Get the current state of the agent for a given thread.
    */
-  getState(threadId: string): Promise<any>;
+  getState(threadId: string): Promise<unknown>;
 }
