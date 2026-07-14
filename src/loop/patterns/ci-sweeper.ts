@@ -57,7 +57,9 @@ function buildGithubActionsFetcher(
   };
 }
 
-export function createCiSweeperPattern(opts: CiSweeperOptions): ScheduledPattern {
+export function createCiSweeperPattern(
+  opts: CiSweeperOptions,
+): ScheduledPattern {
   const name = opts.name ?? "ci-sweeper";
   const intervalMs = opts.intervalMs ?? 10 * 60_000;
   const prefix = opts.threadIdPrefix ?? name;
@@ -66,12 +68,12 @@ export function createCiSweeperPattern(opts: CiSweeperOptions): ScheduledPattern
     opts.fetchFailedRuns ??
     (opts.repoConfig && opts.githubToken
       ? buildGithubActionsFetcher(opts.repoConfig, opts.githubToken)
-      : (async () => {
+      : async () => {
           logger.warn(
             "[ci-sweeper] no repoConfig+githubToken and no fetchFailedRuns injected; returning no failed runs",
           );
           return [] as FailedCIRun[];
-        }));
+        });
 
   const runLoop =
     opts.runLoop ??
@@ -89,11 +91,13 @@ export function createCiSweeperPattern(opts: CiSweeperOptions): ScheduledPattern
       let runsHandled = 0;
       try {
         const runs = await fetchFailedRuns();
-        for (const r of runs) {
-          const input = `CI run "${r.id}" failed: ${r.description}. Diagnose the failure and fix it.`;
-          await runLoop({ input, threadId: `${prefix}-${r.id}` });
-          runsHandled += 1;
-        }
+        await Promise.all(
+          runs.map(async (r) => {
+            const input = `CI run "${r.id}" failed: ${r.description}. Diagnose the failure and fix it.`;
+            await runLoop({ input, threadId: `${prefix}-${r.id}` });
+            runsHandled += 1;
+          }),
+        );
         return {
           name,
           ok: true,
