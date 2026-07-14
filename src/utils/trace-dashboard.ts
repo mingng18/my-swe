@@ -357,7 +357,6 @@ function getCompressionAvgSavings(metrics: any[]): number {
 /**
  * Get compression savings display string for a specific tool.
  */
-function formatCompressionSavings(sum: number, count: number): string {
 function getToolCompressionSavings(metrics: any[], toolName: string): string {
   let sum = 0;
   let count = 0;
