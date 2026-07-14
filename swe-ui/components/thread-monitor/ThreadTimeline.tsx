@@ -1,7 +1,7 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
-import { Loader2, Zap } from "lucide-react";
+import { Loader2, Zap, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ThreadState } from "@/lib/types";
 
@@ -108,13 +108,16 @@ export function ThreadTimeline({ messages, thread, connectionState }: ThreadTime
                         {message.content}
                       </p>
                       {message.metadata?.args && (
-                        <details className="mt-2">
-                          <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">
+                        <details className="mt-2 group/details">
+                          <summary className="inline-flex items-center gap-1 text-xs text-muted-foreground cursor-pointer hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 rounded-sm select-none list-none [&::-webkit-details-marker]:hidden">
+                            <ChevronRight className="h-3 w-3 transition-transform duration-200 group-open/details:rotate-90" />
                             Arguments
                           </summary>
-                          <pre className="text-xs bg-muted/50 p-2 rounded mt-1 overflow-x-auto">
-                            {JSON.stringify(message.metadata.args, null, 2)}
-                          </pre>
+                          <div className="pl-4 mt-1">
+                            <pre className="text-xs bg-muted/50 p-2 rounded border overflow-x-auto text-muted-foreground">
+                              {JSON.stringify(message.metadata.args, null, 2)}
+                            </pre>
+                          </div>
                         </details>
                       )}
                       {message.metadata?.duration && (

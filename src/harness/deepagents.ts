@@ -17,7 +17,6 @@ import {
   getModelOverride,
   purgeStaleSessions,
 } from "../utils/session-store";
-import { getMode, getModelOverride, purgeStaleSessions } from "../utils/session-store";
 import { createChatModel } from "../utils/model-factory";
 import { createDeepAgent, FilesystemBackend, type DeepAgent } from "deepagents";
 import {
