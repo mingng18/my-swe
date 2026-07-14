@@ -17,6 +17,7 @@ import {
   getModelOverride,
   purgeStaleSessions,
 } from "../utils/session-store";
+import { getMode, getModelOverride, purgeStaleSessions } from "../utils/session-store";
 import { createChatModel } from "../utils/model-factory";
 import { createDeepAgent, FilesystemBackend, type DeepAgent } from "deepagents";
 import {
@@ -824,8 +825,9 @@ function logAgentTraceChunk(
     process.stderr.write("\n");
     trace.midLine = false;
   }
-  console.error(
-    `[agent-trace] [${src}] ${mode} ${stringifyPayloadForTrace(payload, 280)}`,
+  logger.error(
+    { payload: stringifyPayloadForTrace(payload, 280) },
+    `[agent-trace] [${src}] ${mode}`,
   );
 }
 

@@ -117,9 +117,32 @@ describe("parseCommandArgs", () => {
   });
 });
 
-
-
 describe("Security Validation", () => {
+  it("should allow commands with quoted arguments", () => {
+    const parsed = parseCommandArgs(
+      "npm run test -- \"some arg\" 'another arg'",
+    );
+    expect(parsed.command).toBe("npm");
+    expect(parsed.args).toEqual([
+      "run",
+      "test",
+      "--",
+      "some arg",
+      "another arg",
+    ]);
+    expect(parsed.originalCommand).toBe("npm");
+  });
+
+  it("should reject commands containing shell metacharacters", () => {
+    const metachars = ["&", "|", ";", "<", ">", "$", "`", "\n", "\r"];
+    for (const char of metachars) {
+      // Note: for characters like $ and ` to be parsed as their own token by string-argv, we might need quotes or specific spacing, but string-argv keeps them if they are adjacent or separated by spaces.
+      expect(() => parseCommandArgs(`npm run test "${char}"`)).toThrow(
+        "Command contains forbidden characters for security reasons",
+      );
+    }
+  });
+
   it("should reject unallowed commands in run_tests", async () => {
     process.env.TEST_COMMAND = "rm -rf /";
     const runTestsAction = actionRegistry.get("run_tests");
