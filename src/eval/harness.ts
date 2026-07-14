@@ -10,6 +10,7 @@ import { promisify } from "util";
 import { getAgentHarness } from "../harness";
 import { createLogger } from "../utils/logger";
 import { parseArgsStringToArgv } from "string-argv";
+import pLimit from "p-limit";
 
 const execFile = promisify(execFileCb);
 const logger = createLogger("eval-harness");
@@ -228,28 +229,34 @@ export class EvalHarness {
   async runSuite(cases: EvalCase[]): Promise<EvalReport> {
     logger.info({ totalCases: cases.length }, "Starting eval suite");
 
+    const limit = pLimit(5); // Run up to 5 cases concurrently
     const results: EvalResult[] = [];
 
-    for (let i = 0; i < cases.length; i++) {
-      const c = cases[i];
-      logger.info(
-        { caseId: c.id, progress: `${i + 1}/${cases.length}` },
-        "Running case",
-      );
+    const casePromises = cases.map((c, i) =>
+      limit(async () => {
+        logger.info(
+          { caseId: c.id, progress: `${i + 1}/${cases.length}` },
+          "Running case",
+        );
 
-      const result = await this.runCase(c);
-      results.push(result);
+        const result = await this.runCase(c);
 
-      logger.info(
-        {
-          caseId: c.id,
-          passed: result.passed,
-          durationMs: result.durationMs,
-          progress: `${i + 1}/${cases.length}`,
-        },
-        "Case complete",
-      );
-    }
+        logger.info(
+          {
+            caseId: c.id,
+            passed: result.passed,
+            durationMs: result.durationMs,
+            progress: `${i + 1}/${cases.length}`,
+          },
+          "Case complete",
+        );
+
+        return result;
+      }),
+    );
+
+    const rawResults = await Promise.all(casePromises);
+    results.push(...rawResults);
 
     const passed = results.filter((r) => r.passed).length;
     const failed = results.length - passed;
