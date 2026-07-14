@@ -112,6 +112,22 @@ function generateCompressionMetricsHTML(telemetry: any): string {
 }
 
 function generateToolStatsHTML(metrics: any, telemetry: any): string {
+  const savingsByTool = new Map<string, { sum: number; count: number }>();
+
+  // ⚡ Bolt: Pre-calculate tool compression savings in a single O(N) pass
+  if (telemetry.metrics) {
+    for (let i = 0; i < telemetry.metrics.length; i++) {
+      const m = telemetry.metrics[i];
+      if (m.name === "compression.savings_ratio" && m.attributes?.tool) {
+        const tool = m.attributes.tool;
+        const current = savingsByTool.get(tool) || { sum: 0, count: 0 };
+        current.sum += m.value || 0;
+        current.count++;
+        savingsByTool.set(tool, current);
+      }
+    }
+  }
+
   return `
     <h2>🔧 Tool Statistics</h2>
     <div class="table-container" tabindex="0">
@@ -128,10 +144,11 @@ function generateToolStatsHTML(metrics: any, telemetry: any): string {
         </thead>
         <tbody>
           ${Object.entries(metrics.tools)
-            .map(
-              ([tool, stats]) => `
+            .map(([tool, stats]) => {
+              const savings = savingsByTool.get(tool) || { sum: 0, count: 0 };
+              return `
             <tr>
-              <td><code>${tool}</code></td>
+              <td><code>${escapeHTML(tool)}</code></td>
               <td>${(stats as any).count}</td>
               <td>
                 <span class="badge ${(stats as any).successRate > 0.8 ? "success" : (stats as any).successRate > 0.5 ? "warning" : "error"}">
@@ -140,10 +157,10 @@ function generateToolStatsHTML(metrics: any, telemetry: any): string {
               </td>
               <td>${(stats as any).avgDuration.toFixed(0)}ms</td>
               <td>${(stats as any).avgOutputSize.toFixed(0)} chars</td>
-              <td>${getToolCompressionSavings(telemetry.metrics, tool)}</td>
+              <td>${formatCompressionSavings(savings.sum, savings.count)}</td>
             </tr>
-          `,
-            )
+          `;
+            })
             .join("")}
         </tbody>
       </table>
@@ -340,6 +357,7 @@ function getCompressionAvgSavings(metrics: any[]): number {
 /**
  * Get compression savings display string for a specific tool.
  */
+function formatCompressionSavings(sum: number, count: number): string {
 function getToolCompressionSavings(metrics: any[], toolName: string): string {
   let sum = 0;
   let count = 0;
