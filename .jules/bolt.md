@@ -19,6 +19,9 @@
 **Learning:** Chaining `.filter().reduce()` on large metrics arrays causes unnecessary O(N^2) behavior due to multiple array traversals and intermediate allocations.
 **Action:** Replace chained `.filter().reduce()` operations with a single-pass `for` loop, especially in dashboard or metric aggregations, to reduce memory pressure and execution time.
 
+## 2025-02-14 - Parallelize self-improve config delta evaluation
+**Learning:** Sequential `for...of` loops awaiting I/O bound calls (like LLM evals or async evaluations) create significant bottlenecks. In this case, `evaluateDelta` was run sequentially for each configuration delta.
+**Action:** Replace sequential I/O loops mapping items into a collection with an asynchronous mapping using `Promise.all` (e.g., `const results = await Promise.all(items.map(async item => { ... }))`) to execute the promises concurrently. Ensure thread safety and the independence of internal loop side-effects.
 ## 2026-07-12 - Use Promise.all over sequential async maps
 **Learning:** Sequential await loops over independent tasks (like CI failed run fetching and handling) cause unneeded I/O bottlenecks.
 **Action:** Use `Promise.all` with `.map` to enable concurrent execution for independent looping asynchronous actions to gain O(1)-like time scaling with O(n) task lists instead of O(n) time.
