@@ -358,6 +358,21 @@ function getCompressionAvgSavings(metrics: any[]): number {
  * Get compression savings display string for a specific tool.
  */
 function formatCompressionSavings(sum: number, count: number): string {
+function getToolCompressionSavings(metrics: any[], toolName: string): string {
+  let sum = 0;
+  let count = 0;
+  // ⚡ Bolt: Use a single O(N) pass to avoid multiple iteration over arrays
+  for (let i = 0; i < metrics.length; i++) {
+    const m = metrics[i];
+    if (
+      m.name === "compression.savings_ratio" &&
+      m.attributes?.tool === toolName
+    ) {
+      sum += m.value || 0;
+      count++;
+    }
+  }
+
   if (count === 0)
     return '<span style="color: #64748b;" aria-label="Not available" title="Compression savings ratio not available for this tool">N/A</span>';
 
