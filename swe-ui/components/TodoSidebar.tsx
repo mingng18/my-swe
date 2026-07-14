@@ -5,6 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { CheckCircle2, Circle, Loader2, ListTodo } from "lucide-react";
 import type { Todo } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -62,20 +63,31 @@ export function TodoSidebar({ threadId, className }: TodoSidebarProps) {
     }
   };
 
+  const completedTasks = todos.filter((t) => t.status === "completed").length;
+  const inProgressTasks = todos.filter((t) => t.status === "in_progress").length;
+  const progressPercentage = todos.length > 0 ? (completedTasks / todos.length) * 100 : 0;
+
   return (
     <Card className={cn("flex flex-col h-full", className)}>
       <div className="p-4 border-b bg-muted/30">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-3">
           <h2 className="font-semibold text-sm flex items-center gap-2">
             <ListTodo className="h-4 w-4 text-primary" />
             Tasks
           </h2>
           <Badge variant="secondary" className="text-xs font-medium">
-            {todos.filter((t) => t.status === "completed").length} / {todos.length}
+            {completedTasks} / {todos.length}
           </Badge>
         </div>
-        <p className="text-xs text-muted-foreground mt-2">
-          {todos.filter((t) => t.status === "in_progress").length} in progress
+
+        <Progress
+          value={progressPercentage}
+          className="h-1.5 mb-2"
+          aria-label={`Task progress: ${Math.round(progressPercentage)}% completed`}
+        />
+
+        <p className="text-xs text-muted-foreground">
+          {inProgressTasks} in progress
         </p>
       </div>
       <ScrollArea className="flex-1 p-4">

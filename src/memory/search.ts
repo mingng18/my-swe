@@ -39,24 +39,10 @@ export class SearchService {
     }
 
     // Get all memories for the specified threads
-    let allMemories: Memory[] = [];
-    if (typeof (this.repository as any).getByThreads === "function") {
-      allMemories = await (this.repository as any).getByThreads(
-        threadIds,
-        options.types,
-      );
-    } else {
-      // Fallback for older repository implementations
-      const results = await Promise.all(
-        threadIds.map(async (threadId) => {
-          if (typeof this.repository.getByThread !== "function") {
-            return [];
-          }
-          return await this.repository.getByThread(threadId, options.types);
-        }),
-      );
-      allMemories = results.flat();
-    }
+    let allMemories: Memory[] = await this.repository.getByThreads(
+      threadIds,
+      options.types,
+    );
 
     if (allMemories.length === 0) {
       return [];

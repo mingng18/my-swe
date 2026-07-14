@@ -11,6 +11,7 @@ import {
   getRoleModelConfig,
   isArchitectEditorRoutingEnabled,
 } from "../utils/config";
+import type { ModelConfig } from "../utils/model-factory";
 import { getMode, getModelOverride, purgeStaleSessions } from "../utils/session-store";
 import { createChatModel } from "../utils/model-factory";
 import { createDeepAgent, FilesystemBackend, type DeepAgent } from "deepagents";
@@ -164,10 +165,10 @@ export async function cleanupThreadMaps(
 
 async function buildMiddleware(
   chatModel: BaseChatModel,
-  modelConfig: any,
+  modelConfig: ModelConfig,
   fallback?: { openaiBaseUrl?: string; openaiApiKey?: string; model?: string },
-): Promise<any[]> {
-  const middleware: any[] = [
+): Promise<unknown[]> {
+  const middleware: unknown[] = [
     // Resilience: automatic retry on transient model errors
     modelRetryMiddleware({
       maxRetries: 3,
@@ -819,8 +820,9 @@ function logAgentTraceChunk(
     process.stderr.write("\n");
     trace.midLine = false;
   }
-  console.error(
-    `[agent-trace] [${src}] ${mode} ${stringifyPayloadForTrace(payload, 280)}`,
+  logger.error(
+    { payload: stringifyPayloadForTrace(payload, 280) },
+    `[agent-trace] [${src}] ${mode}`,
   );
 }
 
