@@ -4,3 +4,6 @@
 ## 2024-07-14 - Animated Chevron for Details Element
 **Learning:** Native `<details>` and `<summary>` elements in this design system can be drastically improved by hiding the default webkit marker (`[&::-webkit-details-marker]:hidden`), adding a custom SVG icon (like `ChevronRight`), and applying a rotational transition class (`group-open/details:rotate-90`) when the `details` state opens. Adding proper `focus-visible` styles ensures strong keyboard accessibility for these interactive elements.
 **Action:** Always prefer restyling native `<details>` elements with standard icons and focus rings rather than relying on the default browser styles, especially in data-heavy components like timelines where users frequently toggle views.
+## 2025-02-28 - Auto-scroll for Live Event Timelines
+**Learning:** When displaying a streaming list of events or messages (like an LLM agent timeline), failing to auto-scroll to the bottom forces users to manually scroll to see updates. This is a common pattern that is easy to fix.
+**Action:** Use a standard `useRef` targeting an empty `div` at the bottom of the list, and trigger `scrollIntoView({ behavior: 'smooth' })` within a `useEffect` that depends on the list contents.
