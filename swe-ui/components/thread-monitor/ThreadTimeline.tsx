@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
@@ -26,6 +27,12 @@ interface ThreadTimelineProps {
 }
 
 export function ThreadTimeline({ messages, thread, connectionState }: ThreadTimelineProps) {
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, thread.status]);
+
   return (
     <ScrollArea className="flex-1 p-4">
       {messages.length === 0 ? (
@@ -144,6 +151,7 @@ export function ThreadTimeline({ messages, thread, connectionState }: ThreadTime
               </Card>
             </div>
           )}
+          <div ref={messagesEndRef} />
         </div>
       )}
     </ScrollArea>
