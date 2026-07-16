@@ -46,7 +46,14 @@ export const ThreadInput = forwardRef<HTMLInputElement, ThreadInputProps>(
                     size="icon-xs"
                     aria-label="Clear input"
                     title="Clear input"
-                    onClick={() => setUserInput("")}
+                    onClick={() => {
+                      setUserInput("");
+                      setTimeout(() => {
+                        if (ref && 'current' in ref) {
+                          ref.current?.focus();
+                        }
+                      }, 0);
+                    }}
                     className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 opacity-50 hover:opacity-100 focus-visible:opacity-100 transition-opacity"
                   >
                     <X className="h-3 w-3" />
