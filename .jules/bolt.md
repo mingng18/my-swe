@@ -53,3 +53,6 @@
 ## 2025-02-12 - UI Render Loop Arrays
 **Learning:** Chained array methods (e.g., `.filter().map()`) in frequently called frontend code or UI render loops create intermediate arrays that cause unnecessary garbage collection pressure and can impact UI rendering performance.
 **Action:** Consolidate chained array manipulations into a single-pass `for` loop in critical rendering paths to avoid intermediate allocations.
+## 2024-07-17 - Avoid multiple filter().length array passes
+**Learning:** Using multiple `.filter(...).length` passes over the same array to calculate distinct statistics creates unnecessary intermediate arrays and traverses the source array multiple times. This adds unnecessary memory allocations and compute overhead (O(2N) instead of O(N)).
+**Action:** Replace multiple `.filter(...).length` calls with a single `for` loop to compute multiple metrics in a single pass over the array.
