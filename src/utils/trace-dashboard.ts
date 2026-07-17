@@ -197,7 +197,7 @@ function generateRecentActivityHTML(telemetry: any): string {
           .map(
             (span: any) => `
           <div role="listitem" class="timeline-item ${span.status === "error" ? "error" : ""}">
-            <div style="font-weight: 600; margin-bottom: 4px;">${span.name}</div>
+            <div style="font-weight: 600; margin-bottom: 4px;">${escapeHTML(span.name)}</div>
             <div class="timestamp">${new Date(span.startTime).toISOString()}</div>
             ${span.endTime ? `<div style="font-size: 0.85rem; color: #94a3b8; margin-top: 4px;">Duration: ${span.endTime - span.startTime}ms</div>` : ""}
           </div>

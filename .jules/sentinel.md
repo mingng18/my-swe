@@ -14,3 +14,7 @@
 **Vulnerability:** Use of `execFile("sh", ["-c", cmd])` with user-provided commands allows for command injection.
 **Learning:** Command runners that execute arbitrary task configurations using shell wrappers are inherently prone to command injection if left unescaped.
 **Prevention:** Avoid shell wrappers completely (e.g. `sh -c`) when executing untrusted configurations. Always parse command strings into explicit arrays of arguments and execute the binary directly using `execFile(parsed[0], parsed.slice(1))`.
+## 2024-07-16 - Trace Dashboard XSS Vulnerability
+**Vulnerability:** Cross-Site Scripting (XSS) in `src/utils/trace-dashboard.ts` where `span.name` was directly rendered into HTML output without escaping.
+**Learning:** Even internal developer tools and dashboards must sanitize data, as telemetry attributes can originate from untrusted sources or inputs. The file already contained a handy `escapeHTML` function that wasn't being used consistently.
+**Prevention:** Always use `escapeHTML` (or safe templating) when dynamically inserting variables into HTML template literals, regardless of the perceived trust level of the data source.
