@@ -345,10 +345,17 @@ export function summarizeRemovedMessages(removed: BaseMessage[]): string {
     return "";
   }
 
-  const toolCalls = removed.filter(
-    (m) => m.getType() === "tool" || m.getType() === "tool-result",
-  ).length;
-  const aiMessages = removed.filter((m) => m.getType() === "ai").length;
+  // ⚡ Bolt: Replaced multiple .filter().length passes with a single O(N) loop
+  let toolCalls = 0;
+  let aiMessages = 0;
+  for (const m of removed) {
+    const type = m.getType();
+    if (type === "tool" || type === "tool-result") {
+      toolCalls++;
+    } else if (type === "ai") {
+      aiMessages++;
+    }
+  }
 
   const summaryParts: string[] = [
     `[Context compaction: ${removed.length} older messages removed]`,

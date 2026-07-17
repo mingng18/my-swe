@@ -49,8 +49,8 @@ export const ThreadInput = forwardRef<HTMLInputElement, ThreadInputProps>(
                     onClick={() => {
                       setUserInput("");
                       setTimeout(() => {
-                        if (ref && 'current' in ref) {
-                          ref.current?.focus();
+                        if (ref && typeof ref !== 'function' && ref.current) {
+                          ref.current.focus();
                         }
                       }, 0);
                     }}

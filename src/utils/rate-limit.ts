@@ -222,8 +222,13 @@ export class MultiDimensionalRateLimiter {
     const oneMinuteAgo = now - 60000;
     const oneHourAgo = now - 3600000;
 
-    const minuteCount = timestamps.filter((t) => t > oneMinuteAgo).length;
-    const hourCount = timestamps.filter((t) => t > oneHourAgo).length;
+    // ⚡ Bolt: Replaced multiple .filter().length passes with a single O(N) loop
+    let minuteCount = 0;
+    let hourCount = 0;
+    for (const t of timestamps) {
+      if (t > oneMinuteAgo) minuteCount++;
+      if (t > oneHourAgo) hourCount++;
+    }
 
     return {
       minuteCount,
