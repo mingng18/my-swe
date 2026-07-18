@@ -56,3 +56,6 @@
 ## 2024-07-17 - Avoid multiple filter().length array passes
 **Learning:** Using multiple `.filter(...).length` passes over the same array to calculate distinct statistics creates unnecessary intermediate arrays and traverses the source array multiple times. This adds unnecessary memory allocations and compute overhead (O(2N) instead of O(N)).
 **Action:** Replace multiple `.filter(...).length` calls with a single `for` loop to compute multiple metrics in a single pass over the array.
+## 2025-02-28 - Avoid Array allocations with multiple .filter().length passes
+**Learning:** Found an anti-pattern in the codebase where developers were chaining or running multiple `.filter(...).length` iterations to calculate metrics on arrays (e.g., in `analyzer.ts` and `shutdown.ts`). This creates unnecessary intermediate array allocations and causes redundant O(N^2) traversal overhead.
+**Action:** Replace multiple `.filter().length` passes on large metrics or event stream objects with a single O(N) `for` loop that safely calculates all variables without additional memory overhead.
