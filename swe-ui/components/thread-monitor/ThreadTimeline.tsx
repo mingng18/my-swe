@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
-import { Loader2, Zap, ChevronRight } from "lucide-react";
+import { Loader2, Zap, ChevronRight, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ThreadState } from "@/lib/types";
 
@@ -90,7 +90,7 @@ export function ThreadTimeline({ messages, thread, connectionState }: ThreadTime
                         <span className="text-sm">⚙️</span>
                       )}
                     </div>
-                    <Card className="flex-1 p-3 max-w-2xl">
+                    <Card className="flex-1 p-3 max-w-2xl shadow-sm">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-xs font-medium text-muted-foreground">
                           {message.role === "assistant" ? "Agent" : "System"}
@@ -133,6 +133,20 @@ export function ThreadTimeline({ messages, thread, connectionState }: ThreadTime
                         </p>
                       )}
                     </Card>
+                  </>
+                ) : message.role === "user" ? (
+                  <>
+                    <Card className="flex-1 p-3 max-w-2xl bg-primary text-primary-foreground shadow-sm">
+                      <div className="flex items-center gap-2 mb-1 opacity-90">
+                        <span className="text-xs font-medium">You</span>
+                      </div>
+                      <p className="text-sm whitespace-pre-wrap break-words">
+                        {message.content}
+                      </p>
+                    </Card>
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground shadow-sm">
+                      <User className="h-4 w-4" />
+                    </div>
                   </>
                 ) : null}
               </div>
