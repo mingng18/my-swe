@@ -24,11 +24,15 @@ function classify(output: string): FailureCluster["pattern"] {
 
 export function analyze(traces: TraceRecord[]): AnalysisReport {
   const totalRuns = traces.length;
-  const passed = traces.filter((t) => t.outcome === "passed").length;
-  const escalated = traces.filter((t) => t.outcome === "escalated").length;
+
+  // ⚡ Bolt: Replaced multiple .filter().length passes with a single O(N) loop
+  let passed = 0;
+  let escalated = 0;
 
   const clusters = new Map<string, FailureCluster>();
   for (const t of traces) {
+    if (t.outcome === "passed") passed++;
+    else if (t.outcome === "escalated") escalated++;
     for (const iter of t.iterations) {
       for (const v of iter.verification) {
         if (v.passed) continue;

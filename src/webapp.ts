@@ -280,7 +280,13 @@ app.post("/loop/self-improve", async (c) => {
     ? createEvalRunner({ cases: evalCases })
     : async () => {
         const traces = runner.traceStore.queryAll();
-        const passed = traces.filter((t) => t.outcome === "passed").length;
+
+        // ⚡ Bolt: Replaced multiple .filter().length passes with a single O(N) loop
+        let passed = 0;
+        for (const t of traces) {
+          if (t.outcome === "passed") passed++;
+        }
+
         return traces.length ? passed / traces.length : 0;
       };
   const res = await runSelfImprovementCycle({
