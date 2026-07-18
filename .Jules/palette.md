@@ -10,3 +10,7 @@
 ## 2024-07-17 - Fix Focus Restoration on Unmounting Elements
 **Learning:** When interacting with an element that immediately unmounts (e.g. a "Clear Input" button that disappears when the input is empty), keyboard focus will naturally be lost, resetting it to the body. Using `ref.current.focus()` inside the click handler is necessary to programmatically restore focus to the input.
 **Action:** In interactive forms with conditional buttons (like a clear button), always manually redirect focus to a relevant stable element (like the input field) before or immediately after the button unmounts.
+## 2024-05-18 - Avoid Package Modifications
+
+**Learning:** When improving UI/UX as Palette, simply running `bun` or `pnpm` install commands can inadvertently mutate `package.json` with mismatched or hallucinated versions, breaking the build.
+**Action:** Always run `git status` after verifying frontend UI to check if lockfiles or `package.json` were accidentally modified, and run `git restore` on them before creating a PR.
