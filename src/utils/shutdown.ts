@@ -96,8 +96,13 @@ async function initiateShutdown(signal: string): Promise<void> {
       }),
     );
 
-    const successful = results.filter((r) => r.status === "fulfilled").length;
-    const failed = results.filter((r) => r.status === "rejected").length;
+    // ⚡ Bolt: Replaced multiple .filter().length passes with a single O(N) loop
+    let successful = 0;
+    let failed = 0;
+    for (const r of results) {
+      if (r.status === "fulfilled") successful++;
+      else if (r.status === "rejected") failed++;
+    }
 
     logger.info(
       { successful, failed, total: state.handlers.length },
