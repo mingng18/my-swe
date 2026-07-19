@@ -71,7 +71,13 @@ export function ThreadTimeline({ messages, thread, connectionState }: ThreadTime
           )}
         </div>
       ) : (
-        <div className="space-y-4 max-w-4xl mx-auto">
+        <div
+          className="space-y-4 max-w-4xl mx-auto"
+          role="log"
+          aria-live="polite"
+          aria-atomic="false"
+          aria-label="Agent messages timeline"
+        >
           {messages.map((message, index: number) => {
             return (
               <div

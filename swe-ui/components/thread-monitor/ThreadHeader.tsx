@@ -16,7 +16,7 @@ export function ThreadHeader({ threadId, connectionState }: ThreadHeaderProps) {
           </h1>
         </div>
         {threadId && (
-          <div className="flex items-center gap-2 text-sm">
+          <div className="flex items-center gap-2 text-sm" role="status" aria-live="polite" aria-atomic="true">
             {connectionState === "connected" ? (
               <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-500/10 text-green-600 dark:text-green-400 font-medium transition-all hover:bg-green-500/15">
                 <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
