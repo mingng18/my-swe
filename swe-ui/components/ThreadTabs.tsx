@@ -86,9 +86,10 @@ export function ThreadTabs({ className, onNewThread }: ThreadTabsProps) {
             <TabsTrigger
               key={threadId}
               value={threadId}
+              aria-label={`Thread ${getShortThreadId(threadId)}, ${thread.status}`}
               className="gap-2 pr-8 data-[icon=inline-end] transition-all hover:bg-background/50 relative group"
             >
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2" aria-hidden="true">
                 {getStatusIcon(thread.status)}
                 <span className="text-xs font-mono font-medium">{getShortThreadId(threadId)}</span>
               </div>
@@ -96,8 +97,8 @@ export function ThreadTabs({ className, onNewThread }: ThreadTabsProps) {
                 <TooltipTrigger asChild>
                   <button
                     type="button"
-                    aria-label="Close thread"
-                    title="Close thread"
+                    aria-label={`Close thread ${getShortThreadId(threadId)}`}
+                    title={`Close thread ${getShortThreadId(threadId)}`}
                     onClick={(e) => handleClose(e, threadId)}
                     className="absolute right-1.5 top-1/2 -translate-y-1/2 h-5 w-5 p-0 opacity-0 group-hover:opacity-100 hover:bg-destructive/20 hover:text-destructive focus-visible:opacity-100 focus-visible:ring-2 focus-visible:outline-none transition-all rounded-md flex items-center justify-center"
                   >

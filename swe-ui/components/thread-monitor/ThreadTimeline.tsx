@@ -85,9 +85,9 @@ export function ThreadTimeline({ messages, thread, connectionState }: ThreadTime
                   <>
                     <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                       {message.role === "assistant" ? (
-                        <span className="text-sm">🤖</span>
+                        <span className="text-sm" role="img" aria-label="Agent">🤖</span>
                       ) : (
-                        <span className="text-sm">⚙️</span>
+                        <span className="text-sm" role="img" aria-label="System">⚙️</span>
                       )}
                     </div>
                     <Card className="flex-1 p-3 max-w-2xl shadow-sm">
@@ -155,7 +155,7 @@ export function ThreadTimeline({ messages, thread, connectionState }: ThreadTime
           {thread.status === "running" && (
             <div className="flex gap-3">
               <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                <span className="text-sm">🤖</span>
+                <span className="text-sm" role="img" aria-label="Agent">🤖</span>
               </div>
               <Card className="flex-1 p-3 max-w-2xl">
                 <div className="flex items-center gap-2">

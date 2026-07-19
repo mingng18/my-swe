@@ -22,3 +22,6 @@
 ## 2025-03-05 - Add New Agent Run Modal
 **Learning:** When moving a feature like a ThreadInput to a modal that reuses existing page state (like userInput), be aware of state leakage if the modal is closed without submitting. If state isolation is desired, manage local state in the modal component instead. However, for a simple prompt input, reusing state is often acceptable and keeps the implementation simple.
 **Action:** Always consider the UX implications of shared state in new dialogs and document if state is intentionally reused.
+## 2024-07-16 - Handling Focus Restoration for Unmounting Elements
+**Learning:** In React, when a UI element like a 'Clear input' button is clicked and unmounts immediately (e.g., because the input text was cleared and the button is conditionally rendered), the browser's focus will often be lost to the `body` element before standard `onClick` focus logic can complete, especially if the `onClick` handler executes synchronously.
+**Action:** When restoring focus after a clearing action that causes the trigger element to unmount, wrap the `.focus()` call in a `setTimeout(..., 0)` to ensure it executes in the next event loop tick, after React has completed its render cycle and the DOM has settled.
