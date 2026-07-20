@@ -59,3 +59,6 @@
 ## 2025-02-28 - Avoid Array allocations with multiple .filter().length passes
 **Learning:** Found an anti-pattern in the codebase where developers were chaining or running multiple `.filter(...).length` iterations to calculate metrics on arrays (e.g., in `analyzer.ts` and `shutdown.ts`). This creates unnecessary intermediate array allocations and causes redundant O(N^2) traversal overhead.
 **Action:** Replace multiple `.filter().length` passes on large metrics or event stream objects with a single O(N) `for` loop that safely calculates all variables without additional memory overhead.
+## 2025-07-20 - Avoid .reduce() in high-frequency string metric calculations
+**Learning:** In hot loops like compaction token evaluation (`countTruncatableArguments`), using `.reduce` with optional chaining (e.g., `p.text?.length || 0`) over arrays adds unnecessary callback overhead on every object, which can cause excessive garbage collection pressure.
+**Action:** Replace `Array.prototype.reduce` in performance-critical calculation paths with a single-pass `for` loop to eliminate the intermediate anonymous function allocation and improve raw iteration speed.
