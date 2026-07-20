@@ -1,10 +1,32 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
-import { Loader2, Zap, ChevronRight, User } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Loader2, Zap, ChevronRight, User, Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ThreadState } from "@/lib/types";
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-sm"
+      className="absolute top-2 right-2 opacity-0 group-hover/message:opacity-100 focus-visible:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+      onClick={() => {
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }}
+      aria-label={copied ? "Copied" : "Copy message"}
+      title={copied ? "Copied" : "Copy message"}
+    >
+      {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+    </Button>
+  );
+}
 
 // Properly typed interface to avoid 'any'
 interface MessageContent {
@@ -90,8 +112,8 @@ export function ThreadTimeline({ messages, thread, connectionState }: ThreadTime
                         <span className="text-sm" role="img" aria-label="System">⚙️</span>
                       )}
                     </div>
-                    <Card className="flex-1 p-3 max-w-2xl shadow-sm">
-                      <div className="flex items-center gap-2 mb-1">
+                    <Card className="flex-1 p-3 max-w-2xl shadow-sm relative group/message">
+                      <div className="flex items-center gap-2 mb-1 pr-8">
                         <span className="text-xs font-medium text-muted-foreground">
                           {message.role === "assistant" ? "Agent" : "System"}
                         </span>
@@ -111,9 +133,10 @@ export function ThreadTimeline({ messages, thread, connectionState }: ThreadTime
                           </span>
                         )}
                       </div>
-                      <p className="text-sm whitespace-pre-wrap break-words">
+                      <p className="text-sm whitespace-pre-wrap break-words pr-8">
                         {message.content}
                       </p>
+                      <CopyButton text={message.content} />
                       {message.metadata?.args && (
                         <details className="mt-2 group/details">
                           <summary className="inline-flex items-center gap-1 text-xs text-muted-foreground cursor-pointer hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 rounded-sm select-none list-none [&::-webkit-details-marker]:hidden">
