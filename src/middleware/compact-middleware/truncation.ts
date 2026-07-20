@@ -260,15 +260,15 @@ export function countTruncatableArguments(
     const messageType = msg.getType();
     if (messageType === "tool" || messageType === "tool-result") {
       const content = msg.content as any;
-      const contentLength =
-        typeof content === "string"
-          ? content.length
-          : Array.isArray(content)
-            ? content.reduce(
-                (sum: number, p: any) => sum + (p.text?.length || 0),
-                0,
-              )
-            : 0;
+      let contentLength = 0;
+      if (typeof content === "string") {
+        contentLength = content.length;
+      } else if (Array.isArray(content)) {
+        // ⚡ Bolt: Replaced .reduce() with a single-pass for loop to avoid intermediate allocations and reduce garbage collection pressure.
+        for (let j = 0; j < content.length; j++) {
+          contentLength += content[j].text?.length || 0;
+        }
+      }
 
       if (contentLength > maxLength) {
         count++;
