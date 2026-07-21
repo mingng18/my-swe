@@ -18,6 +18,7 @@ import type {
 } from "./sandbox-protocol";
 import { OpenSandboxBackend, type OpenSandboxConfig } from "./opensandbox";
 import { DaytonaBackend, type DaytonaConfig } from "./daytona";
+import { sanitizeTokenFromString } from "../utils/github/git";
 
 const logger = createLogger("sandbox-service");
 
@@ -584,7 +585,8 @@ export class SandboxService implements FilesystemPort, SandboxBackendPort {
       );
 
       if (result.exitCode !== 0) {
-        throw new Error(`Failed to clone repo: ${result.output}`);
+        const safeOutput = githubToken ? sanitizeTokenFromString(result.output, githubToken) : result.output;
+        throw new Error(`Failed to clone repo: ${safeOutput}`);
       }
 
       // Configure git user for commits
