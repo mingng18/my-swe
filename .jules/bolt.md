@@ -62,3 +62,7 @@
 ## 2025-07-20 - Avoid .reduce() in high-frequency string metric calculations
 **Learning:** In hot loops like compaction token evaluation (`countTruncatableArguments`), using `.reduce` with optional chaining (e.g., `p.text?.length || 0`) over arrays adds unnecessary callback overhead on every object, which can cause excessive garbage collection pressure.
 **Action:** Replace `Array.prototype.reduce` in performance-critical calculation paths with a single-pass `for` loop to eliminate the intermediate anonymous function allocation and improve raw iteration speed.
+
+## 2025-07-21 - Replace .map().filter() chains with single-pass loops
+**Learning:** Chained array methods (like `.map().filter()`) on string processing create intermediate arrays, causing unnecessary garbage collection pressure which can impact memory and performance.
+**Action:** When iterating over items to process and filter them (especially in hot paths like codebase indexing regex matches), use a single-pass `for` loop to avoid intermediate allocations.
