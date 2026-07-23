@@ -75,8 +75,10 @@ export function TodoSidebar({ threadId, className }: TodoSidebarProps) {
             <ListTodo className="h-4 w-4 text-primary" />
             Tasks
           </h2>
-          <Badge variant="secondary" className="text-xs font-medium">
+          <Badge variant="secondary" className="text-xs font-medium" role="status">
+            <span className="sr-only">Task progress: </span>
             {completedTasks} / {todos.length}
+            <span className="sr-only"> completed</span>
           </Badge>
         </div>
 
@@ -86,25 +88,25 @@ export function TodoSidebar({ threadId, className }: TodoSidebarProps) {
           aria-label={`Task progress: ${Math.round(progressPercentage)}% completed`}
         />
 
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-muted-foreground" role="status">
           {inProgressTasks} in progress
         </p>
       </div>
       <ScrollArea className="flex-1 p-4">
-        <div className="space-y-2">
-          {todos.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
-                <ListTodo className="h-8 w-8 text-muted-foreground" />
-              </div>
-              <p className="text-sm font-medium mb-1">No tasks yet</p>
-              <p className="text-xs text-muted-foreground">
-                Tasks will appear here as the agent works
-              </p>
+        {todos.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+              <ListTodo className="h-8 w-8 text-muted-foreground" />
             </div>
-          ) : (
-            todos.map((todo) => (
-              <div
+            <p className="text-sm font-medium mb-1">No tasks yet</p>
+            <p className="text-xs text-muted-foreground">
+              Tasks will appear here as the agent works
+            </p>
+          </div>
+        ) : (
+          <ul className="space-y-2">
+            {todos.map((todo) => (
+              <li
                 key={todo.id}
                 className={cn(
                   "group flex items-start gap-3 p-3 rounded-lg border transition-all hover:shadow-sm",
@@ -127,12 +129,13 @@ export function TodoSidebar({ threadId, className }: TodoSidebarProps) {
                         "text-sm font-medium truncate",
                         todo.status === "completed" && "line-through text-muted-foreground",
                       )}
+                      title={todo.subject}
                     >
                       {todo.subject}
                     </p>
                   </div>
                   {todo.description && (
-                    <p className="text-xs text-muted-foreground line-clamp-2">
+                    <p className="text-xs text-muted-foreground line-clamp-2" title={todo.description}>
                       {todo.description}
                     </p>
                   )}
@@ -143,10 +146,10 @@ export function TodoSidebar({ threadId, className }: TodoSidebarProps) {
                 >
                   {todo.status.replace("_", " ")}
                 </Badge>
-              </div>
-            ))
-          )}
-        </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </ScrollArea>
     </Card>
   );
