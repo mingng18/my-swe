@@ -85,33 +85,35 @@ export function hasCriticalIssues(issues: ReviewIssue[]): boolean {
 export function formatIssues(issues: ReviewIssue[]): string {
   if (issues.length === 0) return "No issues found.";
 
-  const grouped = issues.reduce(
-    (acc, issue) => {
-      if (!acc[issue.severity]) {
-        acc[issue.severity] = [];
-      }
-      acc[issue.severity].push(issue);
-      return acc;
-    },
-    {} as Record<string, ReviewIssue[]>,
-  );
+  // ⚡ Bolt: Replaced .reduce() and string concatenation with a single-pass for loop and .join() to avoid intermediate array allocations and reduce garbage collection pressure.
+  const grouped: Record<string, ReviewIssue[]> = {};
+  for (let i = 0; i < issues.length; i++) {
+    const issue = issues[i];
+    if (!grouped[issue.severity]) {
+      grouped[issue.severity] = [];
+    }
+    grouped[issue.severity].push(issue);
+  }
 
   const severityOrder = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
-  let output = "";
+  const outputParts: string[] = [];
 
-  for (const severity of severityOrder) {
-    if (grouped[severity]?.length) {
-      output += `\n\n${severity} Issues (${grouped[severity].length}):\n`;
-      output += "=".repeat(50) + "\n";
+  for (let i = 0; i < severityOrder.length; i++) {
+    const severity = severityOrder[i];
+    const severityGroup = grouped[severity];
+    if (severityGroup?.length) {
+      outputParts.push(`\n\n${severity} Issues (${severityGroup.length}):\n`);
+      outputParts.push("=".repeat(50) + "\n");
 
-      for (const issue of grouped[severity]) {
-        output += `File: ${issue.file}${issue.line ? `:${issue.line}` : ""}\n`;
-        output += `Issue: ${issue.issue}\n`;
-        output += `Fix: ${issue.fix}\n`;
-        output += "-".repeat(50) + "\n";
+      for (let j = 0; j < severityGroup.length; j++) {
+        const issue = severityGroup[j];
+        outputParts.push(`File: ${issue.file}${issue.line ? `:${issue.line}` : ""}\n`);
+        outputParts.push(`Issue: ${issue.issue}\n`);
+        outputParts.push(`Fix: ${issue.fix}\n`);
+        outputParts.push("-".repeat(50) + "\n");
       }
     }
   }
 
-  return output.trim();
+  return outputParts.join("").trim();
 }
