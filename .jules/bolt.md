@@ -66,3 +66,6 @@
 ## 2025-07-21 - Replace .map().filter() chains with single-pass loops
 **Learning:** Chained array methods (like `.map().filter()`) on string processing create intermediate arrays, causing unnecessary garbage collection pressure which can impact memory and performance.
 **Action:** When iterating over items to process and filter them (especially in hot paths like codebase indexing regex matches), use a single-pass `for` loop to avoid intermediate allocations.
+## 2024-07-23 - String Concatenation and reduce overhead in Formatting
+**Learning:** Using Array.prototype.reduce() coupled with iterative string concatenation (+=) in loops can cause significant memory allocation overhead in V8/Bun due to the creation of intermediate strings and callback overhead.
+**Action:** Replace .reduce() with standard for loops and use array building with .join("") for efficient string construction, especially for functions formatting potentially large sets of issues.
