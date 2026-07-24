@@ -65,7 +65,6 @@ export function ThreadTabs({ className, onNewThread }: ThreadTabsProps) {
           onClick={handleNewThread}
           className="h-7 gap-1.5 hover:bg-primary/10 hover:text-primary transition-colors"
           aria-label="New Run"
-          title="New Run"
         >
           <Plus className="h-4 w-4" />
           <span className="hidden sm:inline">New Run</span>
@@ -98,7 +97,6 @@ export function ThreadTabs({ className, onNewThread }: ThreadTabsProps) {
                   <button
                     type="button"
                     aria-label={`Close thread ${getShortThreadId(threadId)}`}
-                    title={`Close thread ${getShortThreadId(threadId)}`}
                     onClick={(e) => handleClose(e, threadId)}
                     className="absolute right-1.5 top-1/2 -translate-y-1/2 h-5 w-5 p-0 opacity-0 group-hover:opacity-100 hover:bg-destructive/20 hover:text-destructive focus-visible:opacity-100 focus-visible:ring-2 focus-visible:outline-none transition-all rounded-md flex items-center justify-center"
                   >
@@ -117,7 +115,6 @@ export function ThreadTabs({ className, onNewThread }: ThreadTabsProps) {
         onClick={handleNewThread}
         className="h-7 gap-1.5 shrink-0 hover:bg-primary/10 hover:text-primary transition-colors"
         aria-label="New Run"
-        title="New Run"
       >
         <Plus className="h-4 w-4" />
         <span className="hidden sm:inline">New Run</span>
