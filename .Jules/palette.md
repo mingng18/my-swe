@@ -1,3 +1,8 @@
 ## 2026-07-19 - Added ARIA attributes to Agent Thread Monitor
 **Learning:** For continuous live-updating chat logs or event streams (like ThreadTimeline), adding `role="log"` and `aria-live="polite"` automatically notifies screen readers of incoming messages without requiring manual user navigation, massively improving accessibility. Similarly, wrapping status indicators (like connection state in ThreadHeader) with `role="status" aria-live="polite"` is crucial for conveying realtime system states.
 **Action:** Always wrap dynamic lists of messages, feeds, and critical status indicators with appropriate ARIA live regions so assistive tech can gracefully announce state changes as they happen.
+## 2026-07-24 - Prevent Duplicate Tooltips
+
+**Learning:** When using custom UI Tooltip components (like Radix UI's Tooltip), also defining native HTML `title` attributes on the same element or its trigger causes the browser to render a second native tooltip overlapping the custom one.
+
+**Action:** Remove native `title` attributes from elements that are already wrapped in custom `<Tooltip>` components, ensuring we keep `aria-label` for screen reader accessibility without visual duplication.

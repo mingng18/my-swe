@@ -7,6 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { CheckCircle2, Circle, Loader2, ListTodo } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Todo } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -113,12 +114,19 @@ export function TodoSidebar({ threadId, className }: TodoSidebarProps) {
                   todo.status === "pending" && "bg-background hover:bg-muted/50",
                 )}
               >
-                <Checkbox
-                  checked={todo.status === "completed"}
-                  disabled
-                  className="mt-0.5"
-                  aria-label={`Task: ${todo.subject}`}
-                />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span tabIndex={0} className="inline-flex cursor-help mt-0.5">
+                      <Checkbox
+                        checked={todo.status === "completed"}
+                        disabled
+                        className="pointer-events-none"
+                        aria-label={`Task: ${todo.subject}`}
+                      />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>Task status is managed by the agent</TooltipContent>
+                </Tooltip>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     {getStatusIcon(todo.status)}
