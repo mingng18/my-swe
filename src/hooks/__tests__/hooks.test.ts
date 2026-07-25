@@ -371,6 +371,19 @@ describe("HooksDispatcher", () => {
     resetHooksDispatcher();
   });
 
+  it("maintains a singleton instance via getHooksDispatcher", () => {
+    const d1 = getHooksDispatcher();
+    const d2 = getHooksDispatcher();
+    expect(d1).toBe(d2);
+  });
+
+  it("creates a new instance after resetHooksDispatcher is called", () => {
+    const d1 = getHooksDispatcher();
+    resetHooksDispatcher();
+    const d2 = getHooksDispatcher();
+    expect(d1).not.toBe(d2);
+  });
+
   it("is disabled when config is empty", () => {
     const d = new HooksDispatcher({ enabled: false, handlers: [] });
     expect(d.enabled).toBe(false);
