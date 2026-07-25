@@ -16,6 +16,7 @@
 
 import { createLogger } from "../utils/logger";
 import { shellEscapeSingleQuotes } from "../utils/shell";
+import pLimit from "p-limit";
 import { randomUUID } from "node:crypto";
 import { type SandboxService, createSandboxServiceWithConfig } from "../integrations/sandbox-service";
 import {
@@ -150,11 +151,11 @@ export class SnapshotManager {
         ...(setupCommands || []),
       ];
 
-      const CHUNK_SIZE = 5;
-      for (let i = 0; i < allSetupCommands.length; i += CHUNK_SIZE) {
-        const chunk = allSetupCommands.slice(i, i + CHUNK_SIZE);
-        await Promise.all(
-          chunk.map(async (cmd) => {
+      const CONCURRENCY_LIMIT = 5;
+      const limit = pLimit(CONCURRENCY_LIMIT);
+      await Promise.all(
+        allSetupCommands.map((cmd) =>
+          limit(async () => {
             try {
               await sandbox.execute(
                 `cd ${shellEscapeSingleQuotes(repoDir)} && ${cmd}`,
@@ -165,9 +166,9 @@ export class SnapshotManager {
                 `[snapshot-manager] Setup command failed (non-fatal)`,
               );
             }
-          }),
-        );
-      }
+          })
+        )
+      );
 
       // Run optional pre-build
       let preBuildSuccess = true;
