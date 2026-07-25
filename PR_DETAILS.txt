@@ -1,0 +1,11 @@
+PR Creation Details:
+Title: "🧹 [Refactor] Extract active status check in search tests"
+
+Description:
+🎯 **What:** Extracted the duplicated complex condition `m.is_active !== false && m.isActive !== false` into a helper method `isMemoryActive` in `MockSupabaseClient`.
+
+💡 **Why:** Reduces duplication and improves readability of the mock search logic in `MockSupabaseClient`.
+
+✅ **Verification:** Verified by running `bun run build && bun test src/memory/__tests__/search.test.ts` to ensure no functionality is broken. Tests pass successfully.
+
+✨ **Result:** Cleaner and more maintainable test mock logic.

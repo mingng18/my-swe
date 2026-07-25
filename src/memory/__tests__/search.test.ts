@@ -10,6 +10,10 @@ class MockSupabaseClient implements SupabaseClient {
   private memories: Map<string, any> = new Map();
   private nextId = 1;
 
+  private isMemoryActive(m: any): boolean {
+    return m.is_active !== false && m.isActive !== false;
+  }
+
   async fetch(url: string, options?: RequestInit): Promise<Response> {
     const method = options?.method || "GET";
     const urlObj = new URL(url);
@@ -27,8 +31,7 @@ class MockSupabaseClient implements SupabaseClient {
         let memories = Array.from(this.memories.values()).filter(
           (m: any) =>
             threadIds.includes(m.thread_id || m.threadId) &&
-            m.is_active !== false &&
-            m.isActive !== false,
+            this.isMemoryActive(m),
         );
 
         // Check for type filter
@@ -53,8 +56,7 @@ class MockSupabaseClient implements SupabaseClient {
         let memories = Array.from(this.memories.values()).filter(
           (m: any) =>
             (m.thread_id || m.threadId) === threadId &&
-            m.is_active !== false &&
-            m.isActive !== false,
+            this.isMemoryActive(m),
         );
 
         // Check for type filter
