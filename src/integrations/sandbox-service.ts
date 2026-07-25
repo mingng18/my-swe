@@ -359,6 +359,12 @@ export class SandboxService implements FilesystemPort, SandboxBackendPort {
     return "/workspace";
   }
 
+  private async tryInstallPackage(pkgManager: string, installCommand: string): Promise<boolean> {
+    const script = `command -v ${pkgManager} >/dev/null 2>&1 && (${installCommand}) || exit 127`;
+    const result = await this.execute(`sh -lc '${script}'`);
+    return result.exitCode === 0;
+  }
+
   private async ensureGitAvailable(): Promise<void> {
     // Daytona exposes git operations via `sandbox.git` even if `git` isn't installed in the image.
     if (this.provider === "daytona") {
@@ -374,16 +380,10 @@ export class SandboxService implements FilesystemPort, SandboxBackendPort {
     );
 
     // Debian/Ubuntu
-    const apt = await this.execute(
-      `sh -lc 'command -v apt-get >/dev/null 2>&1 && (apt-get update -y && apt-get install -y git ca-certificates) || exit 127'`,
-    );
-    if (apt.exitCode === 0) return;
+    if (await this.tryInstallPackage("apt-get", "apt-get update -y && apt-get install -y git ca-certificates")) return;
 
     // Alpine
-    const apk = await this.execute(
-      `sh -lc 'command -v apk >/dev/null 2>&1 && (apk add --no-cache git ca-certificates) || exit 127'`,
-    );
-    if (apk.exitCode === 0) return;
+    if (await this.tryInstallPackage("apk", "apk add --no-cache git ca-certificates")) return;
 
     throw new Error(
       `git is required but was not found and could not be installed automatically (apt-get/apk unavailable).`,
