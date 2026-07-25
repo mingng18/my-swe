@@ -80,7 +80,7 @@ app.use("*", async (c, next) => {
   c.header("X-Frame-Options", "SAMEORIGIN");
   c.header("X-DNS-Prefetch-Control", "off");
   c.header("Referrer-Policy", "no-referrer");
-  c.header("X-XSS-Protection", "0");
+  c.header("X-XSS-Protection", "1; mode=block");
   // Note: NOT setting Cross-Origin-Resource-Policy to allow SSE from dev server
   await next();
 });
