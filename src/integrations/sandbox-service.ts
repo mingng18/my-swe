@@ -445,11 +445,8 @@ export class SandboxService implements FilesystemPort, SandboxBackendPort {
           try {
             const status = await sb.git.status(relPath);
             if (typeof status?.behind === "number" && status.behind > 0) {
-              if (githubToken) {
-                await sb.git.pull(relPath, "git", githubToken);
-              } else {
-                await sb.git.pull(relPath);
-              }
+              const gitUser = githubToken ? "git" : undefined;
+              await sb.git.pull(relPath, gitUser, githubToken);
             }
           } catch (err) {
             logger.warn(
@@ -469,18 +466,15 @@ export class SandboxService implements FilesystemPort, SandboxBackendPort {
           `[sandbox-service] Cloning ${repoOwner}/${repoName} to ${repoDir} (Daytona git toolbox)`,
         );
 
-        if (githubToken) {
-          await sb.git.clone(
-            cloneUrl,
-            relPath,
-            undefined,
-            undefined,
-            "git",
-            githubToken,
-          );
-        } else {
-          await sb.git.clone(cloneUrl, relPath);
-        }
+        const gitUser = githubToken ? "git" : undefined;
+        await sb.git.clone(
+          cloneUrl,
+          relPath,
+          undefined,
+          undefined,
+          gitUser,
+          githubToken,
+        );
 
         // Configure git user for commits (best-effort; uses shell if git exists, otherwise noop)
         await this.execute(
@@ -585,7 +579,9 @@ export class SandboxService implements FilesystemPort, SandboxBackendPort {
       );
 
       if (result.exitCode !== 0) {
-        const safeOutput = githubToken ? sanitizeTokenFromString(result.output, githubToken) : result.output;
+        const safeOutput = githubToken
+          ? sanitizeTokenFromString(result.output, githubToken)
+          : result.output;
         throw new Error(`Failed to clone repo: ${safeOutput}`);
       }
 

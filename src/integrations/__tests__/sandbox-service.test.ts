@@ -302,7 +302,7 @@ describe("SandboxService", () => {
 
       expect(repoDir).toBe("/daytona-workspace/repo");
       expect(mockGit.status).toHaveBeenCalledWith("repo");
-      expect(mockGit.pull).toHaveBeenCalledWith("repo");
+      expect(mockGit.pull).toHaveBeenCalledWith("repo", undefined, undefined);
       expect(mockGit.clone).not.toHaveBeenCalled();
     });
   });
