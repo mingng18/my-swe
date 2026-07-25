@@ -156,25 +156,26 @@ export class BlueprintCompiler {
         if (profile.includes("typecheck")) checks.push("run_typecheck");
 
         // NOTE: do NOT accumulate — return only this iteration's results.
-        const results: VerificationResult[] = [];
-        for (const name of checks) {
+        const promises = checks.map(async (name): Promise<VerificationResult | null> => {
           const action = actionReg.get(name);
-          if (!action) continue;
+          if (!action) return null;
           try {
             const r = await action.execute(state as BlueprintState);
-            results.push({
+            return {
               step: name,
               passed: r.success,
               output: r.output ?? r.error ?? "",
-            });
+            };
           } catch (err) {
-            results.push({
+            return {
               step: name,
               passed: false,
               output: err instanceof Error ? err.message : String(err),
-            });
+            };
           }
-        }
+        });
+
+        const results = (await Promise.all(promises)).filter((r): r is VerificationResult => r !== null);
         return { verificationResults: results };
       },
     );

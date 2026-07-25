@@ -69,3 +69,6 @@
 ## 2024-07-23 - String Concatenation and reduce overhead in Formatting
 **Learning:** Using Array.prototype.reduce() coupled with iterative string concatenation (+=) in loops can cause significant memory allocation overhead in V8/Bun due to the creation of intermediate strings and callback overhead.
 **Action:** Replace .reduce() with standard for loops and use array building with .join("") for efficient string construction, especially for functions formatting potentially large sets of issues.
+## 2026-07-25 - Concurrently execute Verification checks
+**Learning:** Sequential execution of array processing code that yields promises (e.g. running independent test, linting, typecheck tasks on a sandbox) will dramatically increase pipeline time due to wait loops.
+**Action:** Always identify if actions are independently executable and use Promise.all to map over independent task Promises concurrently to cut response time in blueprint orchestration flows.
