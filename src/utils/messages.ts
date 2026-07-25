@@ -6,5 +6,5 @@ import { type BaseMessage } from "@langchain/core/messages";
  */
 export function isToolMessage(msg: Record<string, any> | BaseMessage): boolean {
   if (!msg) return false;
-  return msg.type === "tool" || msg.role === "tool";
+  return (msg as any).type === "tool" || (msg as any).role === "tool";
 }
