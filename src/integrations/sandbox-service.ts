@@ -427,75 +427,98 @@ export class SandboxService implements FilesystemPort, SandboxBackendPort {
     if (this.provider === "daytona") {
       const sb = this.getSandbox();
       if (sb?.git && typeof sb.git.clone === "function") {
-        // Ensure the workDir exists (some images default to /root, others to /workspace).
-        await this.execute(`mkdir -p ${escapeShellArg(workDir)}`);
-
-        const relPath = repoName; // relative to sandbox workdir per Daytona docs
-
-        // Check if repo already exists
-        const checkResult = await this.execute(
-          `test -d ${escapeShellArg(repoDir + "/.git")} && echo "exists" || echo "not_found"`,
-        );
-
-        if (checkResult.output.includes("exists")) {
-          logger.info(
-            `[sandbox-service] Repo ${repoOwner}/${repoName} already exists at ${repoDir}, pulling latest changes (Daytona git toolbox)`,
-          );
-
-          try {
-            const status = await sb.git.status(relPath);
-            if (typeof status?.behind === "number" && status.behind > 0) {
-              if (githubToken) {
-                await sb.git.pull(relPath, "git", githubToken);
-              } else {
-                await sb.git.pull(relPath);
-              }
-            }
-          } catch (err) {
-            logger.warn(
-              { error: err },
-              "[sandbox-service] Daytona git status/pull failed; continuing",
-            );
-          }
-
-          logger.info(
-            `[sandbox-service] Repo updated successfully at ${repoDir}`,
-          );
-          await this.setupRipgrep();
-          return repoDir;
-        }
-
-        logger.info(
-          `[sandbox-service] Cloning ${repoOwner}/${repoName} to ${repoDir} (Daytona git toolbox)`,
-        );
-
-        if (githubToken) {
-          await sb.git.clone(
-            cloneUrl,
-            relPath,
-            undefined,
-            undefined,
-            "git",
-            githubToken,
-          );
-        } else {
-          await sb.git.clone(cloneUrl, relPath);
-        }
-
-        // Configure git user for commits (best-effort; uses shell if git exists, otherwise noop)
-        await this.execute(
-          `cd ${escapeShellArg(repoDir)} && git config user.name "open-swe[bot]" 2>/dev/null || true`,
-        );
-        await this.execute(
-          `cd ${escapeShellArg(repoDir)} && git config user.email "open-swe@users.noreply.github.com" 2>/dev/null || true`,
-        );
-
-        logger.info(`[sandbox-service] Repo cloned successfully to ${repoDir}`);
-        await this.setupRipgrep();
-        return repoDir;
+        return this.cloneWithDaytona(sb, workDir, repoDir, repoOwner, repoName, cloneUrl, githubToken);
       }
     }
 
+    return this.cloneWithGitCLI(workDir, repoDir, repoOwner, repoName, cloneUrl, githubToken);
+  }
+
+  private async cloneWithDaytona(
+    sb: any,
+    workDir: string,
+    repoDir: string,
+    repoOwner: string,
+    repoName: string,
+    cloneUrl: string,
+    githubToken?: string,
+  ): Promise<string> {
+    // Ensure the workDir exists (some images default to /root, others to /workspace).
+    await this.execute(`mkdir -p ${escapeShellArg(workDir)}`);
+
+    const relPath = repoName; // relative to sandbox workdir per Daytona docs
+
+    // Check if repo already exists
+    const checkResult = await this.execute(
+      `test -d ${escapeShellArg(repoDir + "/.git")} && echo "exists" || echo "not_found"`,
+    );
+
+    if (checkResult.output.includes("exists")) {
+      logger.info(
+        `[sandbox-service] Repo ${repoOwner}/${repoName} already exists at ${repoDir}, pulling latest changes (Daytona git toolbox)`,
+      );
+
+      try {
+        const status = await sb.git.status(relPath);
+        if (typeof status?.behind === "number" && status.behind > 0) {
+          if (githubToken) {
+            await sb.git.pull(relPath, "git", githubToken);
+          } else {
+            await sb.git.pull(relPath);
+          }
+        }
+      } catch (err) {
+        logger.warn(
+          { error: err },
+          "[sandbox-service] Daytona git status/pull failed; continuing",
+        );
+      }
+
+      logger.info(
+        `[sandbox-service] Repo updated successfully at ${repoDir}`,
+      );
+      await this.setupRipgrep();
+      return repoDir;
+    }
+
+    logger.info(
+      `[sandbox-service] Cloning ${repoOwner}/${repoName} to ${repoDir} (Daytona git toolbox)`,
+    );
+
+    if (githubToken) {
+      await sb.git.clone(
+        cloneUrl,
+        relPath,
+        undefined,
+        undefined,
+        "git",
+        githubToken,
+      );
+    } else {
+      await sb.git.clone(cloneUrl, relPath);
+    }
+
+    // Configure git user for commits (best-effort; uses shell if git exists, otherwise noop)
+    await this.execute(
+      `cd ${escapeShellArg(repoDir)} && git config user.name "open-swe[bot]" 2>/dev/null || true`,
+    );
+    await this.execute(
+      `cd ${escapeShellArg(repoDir)} && git config user.email "open-swe@users.noreply.github.com" 2>/dev/null || true`,
+    );
+
+    logger.info(`[sandbox-service] Repo cloned successfully to ${repoDir}`);
+    await this.setupRipgrep();
+    return repoDir;
+  }
+
+  private async cloneWithGitCLI(
+    workDir: string,
+    repoDir: string,
+    repoOwner: string,
+    repoName: string,
+    cloneUrl: string,
+    githubToken?: string,
+  ): Promise<string> {
     // Non-Daytona / fallback: ensure `git` binary exists.
     await this.ensureGitAvailable();
     const cloneUrlWithCreds = githubToken
