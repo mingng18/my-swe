@@ -18,3 +18,7 @@
 **Vulnerability:** Cross-Site Scripting (XSS) in `src/utils/trace-dashboard.ts` where `span.name` was directly rendered into HTML output without escaping.
 **Learning:** Even internal developer tools and dashboards must sanitize data, as telemetry attributes can originate from untrusted sources or inputs. The file already contained a handy `escapeHTML` function that wasn't being used consistently.
 **Prevention:** Always use `escapeHTML` (or safe templating) when dynamically inserting variables into HTML template literals, regardless of the perceived trust level of the data source.
+## 2026-04-29 - Prevent Git Clone Credential Leakage
+**Vulnerability:** Git clone commands with embedded credentials (https://token@github.com/...) can leak the token in `stderr`/`stdout` when the command fails (e.g., repo not found, network error), resulting in exposed credentials in logs or UI.
+**Learning:** Sandboxed shell command outputs must always be sanitized when the command string itself contains secrets, as underlying tools (like git) may echo parts of the original command or the URL in their failure output.
+**Prevention:** Always use a sanitization utility (like `sanitizeTokenFromString`) to scrub raw output streams from subprocesses that were executed with embedded secrets before throwing errors or logging.

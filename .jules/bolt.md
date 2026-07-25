@@ -59,3 +59,13 @@
 ## 2025-02-28 - Avoid Array allocations with multiple .filter().length passes
 **Learning:** Found an anti-pattern in the codebase where developers were chaining or running multiple `.filter(...).length` iterations to calculate metrics on arrays (e.g., in `analyzer.ts` and `shutdown.ts`). This creates unnecessary intermediate array allocations and causes redundant O(N^2) traversal overhead.
 **Action:** Replace multiple `.filter().length` passes on large metrics or event stream objects with a single O(N) `for` loop that safely calculates all variables without additional memory overhead.
+## 2025-07-20 - Avoid .reduce() in high-frequency string metric calculations
+**Learning:** In hot loops like compaction token evaluation (`countTruncatableArguments`), using `.reduce` with optional chaining (e.g., `p.text?.length || 0`) over arrays adds unnecessary callback overhead on every object, which can cause excessive garbage collection pressure.
+**Action:** Replace `Array.prototype.reduce` in performance-critical calculation paths with a single-pass `for` loop to eliminate the intermediate anonymous function allocation and improve raw iteration speed.
+
+## 2025-07-21 - Replace .map().filter() chains with single-pass loops
+**Learning:** Chained array methods (like `.map().filter()`) on string processing create intermediate arrays, causing unnecessary garbage collection pressure which can impact memory and performance.
+**Action:** When iterating over items to process and filter them (especially in hot paths like codebase indexing regex matches), use a single-pass `for` loop to avoid intermediate allocations.
+## 2024-07-23 - String Concatenation and reduce overhead in Formatting
+**Learning:** Using Array.prototype.reduce() coupled with iterative string concatenation (+=) in loops can cause significant memory allocation overhead in V8/Bun due to the creation of intermediate strings and callback overhead.
+**Action:** Replace .reduce() with standard for loops and use array building with .join("") for efficient string construction, especially for functions formatting potentially large sets of issues.

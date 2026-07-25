@@ -124,9 +124,16 @@ export function adaptEventToMessage(event: SSEEvent): AdaptedMessage | null {
 }
 
 export function adaptEventsToMessages(events: SSEEvent[]): AdaptedMessage[] {
-  return events
-    .map((event) => adaptEventToMessage(event))
-    .filter((msg): msg is AdaptedMessage => msg !== null);
+  // ⚡ Bolt: Replaced chained .map().filter() with a single-pass for loop
+  // to avoid intermediate array allocations and reduce garbage collection pressure.
+  const messages: AdaptedMessage[] = [];
+  for (let i = 0; i < events.length; i++) {
+    const msg = adaptEventToMessage(events[i]);
+    if (msg !== null) {
+      messages.push(msg);
+    }
+  }
+  return messages;
 }
 
 // Group LLM chunks to reduce message count

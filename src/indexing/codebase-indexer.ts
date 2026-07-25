@@ -466,16 +466,18 @@ export class CodebaseIndexer {
     let match: RegExpExecArray | null;
 
     while ((match = re.exec(content)) !== null) {
-      const names = match[1]
-        .split(",")
-        .map((s) =>
-          s
-            .trim()
-            .split(/\s+as\s+/)
-            .pop()!
-            .trim(),
-        )
-        .filter(Boolean);
+      // ⚡ Bolt: Replaced chained .map().filter() with a single-pass loop to reduce memory allocations and GC pressure.
+      const rawNames = match[1].split(",");
+      const names: string[] = [];
+      for (const s of rawNames) {
+        const trimmed = s.trim();
+        if (!trimmed) continue;
+        const parts = trimmed.split(/\s+as\s+/);
+        const finalName = parts[parts.length - 1].trim();
+        if (finalName) {
+          names.push(finalName);
+        }
+      }
 
       for (const name of names) {
         if (!exports.includes(name)) {

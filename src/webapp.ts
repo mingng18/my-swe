@@ -211,7 +211,7 @@ app.post("/run", async (c) => {
   } catch (error) {
     log.error({ error }, "[webapp] /run error");
     return c.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
+      { error: "Internal Server Error" },
       500,
     );
   }
@@ -351,7 +351,7 @@ app.post("/v1/chat/completions", async (c) => {
   } catch (error) {
     log.error({ error }, "[webapp] /v1/chat/completions error");
     return c.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
+      { error: "Internal Server Error" },
       500,
     );
   }
@@ -380,7 +380,7 @@ app.post("/webhook/telegram", async (c) => {
   } catch (error) {
     log.error({ error }, "[webapp] /webhook/telegram error");
     return c.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
+      { error: "Internal Server Error" },
       500,
     );
   }
@@ -434,7 +434,7 @@ app.post("/webhook/github", async (c) => {
   } catch (error) {
     log.error({ error }, "[webapp] /webhook/github error");
     return c.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
+      { error: "Internal Server Error" },
       500,
     );
   }
@@ -500,7 +500,7 @@ app.post("/rewind/:threadId/:checkpointId", async (c) => {
   } catch (error) {
     log.error({ error, threadId, checkpointId }, "[webapp] /rewind error");
     return c.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
+      { error: "Internal Server Error" },
       500,
     );
   }
@@ -538,7 +538,7 @@ app.get("/metrics/thread/:threadId", async (c) => {
   } catch (error) {
     log.error({ error, threadId }, "[webapp] /metrics/thread error");
     return c.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
+      { error: "Internal Server Error" },
       500,
     );
   }
@@ -577,7 +577,7 @@ app.get("/metrics", async (c) => {
   } catch (error) {
     log.error({ error }, "[webapp] /metrics error");
     return c.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
+      { error: "Internal Server Error" },
       500,
     );
   }
@@ -633,7 +633,7 @@ app.get("/analytics/tools", async (c) => {
   } catch (error) {
     log.error({ error }, "[webapp] /analytics/tools error");
     return c.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
+      { error: "Internal Server Error" },
       500,
     );
   }
@@ -654,7 +654,7 @@ app.get("/dashboard/thread/:threadId", async (c) => {
   } catch (error) {
     log.error({ error, threadId }, "[webapp] /dashboard/thread error");
     return c.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
+      { error: "Internal Server Error" },
       500,
     );
   }
@@ -674,7 +674,7 @@ app.get("/trace/:threadId", async (c) => {
   } catch (error) {
     log.error({ error, threadId }, "[webapp] /trace error");
     return c.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
+      { error: "Internal Server Error" },
       500,
     );
   }
@@ -716,7 +716,7 @@ app.post("/api/memory/consolidate", async (c) => {
   } catch (error) {
     log.error({ error }, "[webapp] /api/memory/consolidate error");
     return c.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
+      { error: "Internal Server Error" },
       500,
     );
   }
@@ -737,7 +737,7 @@ app.get("/api/memory/consolidation/status", async (c) => {
   } catch (error) {
     log.error({ error }, "[webapp] /api/memory/consolidation/status error");
     return c.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
+      { error: "Internal Server Error" },
       500,
     );
   }
@@ -761,7 +761,7 @@ app.get("/api/memory/consolidation/sessions", async (c) => {
   } catch (error) {
     log.error({ error }, "[webapp] /api/memory/consolidation/sessions error");
     return c.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
+      { error: "Internal Server Error" },
       500,
     );
   }
@@ -788,7 +788,7 @@ app.post("/api/memory/consolidation/start", async (c) => {
   } catch (error) {
     log.error({ error }, "[webapp] /api/memory/consolidation/start error");
     return c.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
+      { error: "Internal Server Error" },
       500,
     );
   }
@@ -815,7 +815,7 @@ app.post("/api/memory/consolidation/stop", async (c) => {
   } catch (error) {
     log.error({ error }, "[webapp] /api/memory/consolidation/stop error");
     return c.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
+      { error: "Internal Server Error" },
       500,
     );
   }
