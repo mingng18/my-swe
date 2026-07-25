@@ -5,3 +5,7 @@
 ## 2026-07-20 - Improved Task Sidebar Accessibility
 **Learning:** Using `role="status"` combined with visually hidden (`sr-only`) spans inside Badge components ensures screen readers announce dynamic counters properly. Converting generic `<div className="space-y-2">` lists to semantic `<ul>`/`<li>` structures provides critical list boundary and item count context for assistive tech.
 **Action:** Always use semantic list elements (`<ul>`, `<ol>`, `<li>`) for lists of items and add contextual `sr-only` text alongside `role="status"` on dynamic counters.
+
+## 2026-07-22 - Added keyboard focus to scrollable code blocks
+**Learning:** Horizontally scrolling code blocks or JSON payloads (like `<pre>` tags) must have `tabIndex={0}` and proper `focus-visible` styles so that keyboard-only users can focus them and scroll their contents using arrow keys. Without this, hidden content in overflowing containers becomes inaccessible.
+**Action:** Always add `tabIndex={0}` and an `aria-label` along with standard focus ring utility classes to any scrollable container (especially `<pre>` or `<div>` with `overflow-x-auto`) to ensure keyboard accessibility.
