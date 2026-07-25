@@ -79,32 +79,32 @@ describe("hooks config discovery", () => {
     process.env = { ...origEnv };
   });
 
-  it("returns disabled empty config when nothing is configured", () => {
-    const cfg = loadHooksConfig();
+  it("returns disabled empty config when nothing is configured", async () => {
+    const cfg = await loadHooksConfig();
     expect(cfg.enabled).toBe(false);
-    expect(cfg.handlers).toEqual([]);
+    expect(cfg.handlers).toHaveLength(0);
   });
 
-  it("loads inline HOOKS_CONFIG json", () => {
+  it("loads inline HOOKS_CONFIG json", async () => {
     process.env.HOOKS_CONFIG = JSON.stringify({
       handlers: [
         { name: "h", events: ["SessionStart"], handler: { type: "shell", command: "true" } },
       ],
     });
-    const cfg = loadHooksConfig();
+    const cfg = await loadHooksConfig();
     expect(cfg.enabled).toBe(true);
     expect(cfg.handlers).toHaveLength(1);
   });
 
-  it("falls back to disabled config on malformed json", () => {
+  it("falls back to disabled config on malformed json", async () => {
     process.env.HOOKS_CONFIG = "{ not json";
-    const cfg = loadHooksConfig();
+    const cfg = await loadHooksConfig();
     expect(cfg.enabled).toBe(false);
-    expect(cfg.handlers).toEqual([]);
+    expect(cfg.handlers).toHaveLength(0);
   });
 
-  it("accepts an explicit config object", () => {
-    const cfg = loadHooksConfig({
+  it("accepts an explicit config object", async () => {
+    const cfg = await loadHooksConfig({
       enabled: true,
       handlers: [
         { name: "h", events: ["PostToolUse"], handler: { type: "shell", command: "true" } },
@@ -769,7 +769,7 @@ describe("production mcp_tool wiring", () => {
       // The workspace is resolved from the middleware-set active context.
       setActiveHooksWorkspace("/tmp/repo-xyz");
 
-      const dispatcher = getHooksDispatcher();
+      const dispatcher = await getHooksDispatcher();
       const mw = createHooksMiddleware(dispatcher);
 
       let handlerRan = false;
