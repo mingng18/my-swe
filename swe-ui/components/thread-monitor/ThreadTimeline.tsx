@@ -16,9 +16,12 @@ function CopyButton({ text }: { text: string }) {
       size="icon-sm"
       className="absolute top-2 right-2 opacity-0 group-hover/message:opacity-100 focus-visible:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
       onClick={() => {
-        navigator.clipboard.writeText(text);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        navigator.clipboard.writeText(text).then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        }).catch(err => {
+          console.error("Failed to copy text: ", err);
+        });
       }}
       aria-label={copied ? "Copied" : "Copy message"}
       title={copied ? "Copied" : "Copy message"}
