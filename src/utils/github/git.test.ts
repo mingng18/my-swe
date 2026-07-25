@@ -1,5 +1,89 @@
-import { describe, expect, test } from "bun:test";
-import { sanitizeAuthUrl, sanitizeTokenFromString } from "./git";
+import { describe, expect, test, mock, afterEach, spyOn } from "bun:test";
+import { sanitizeAuthUrl, sanitizeTokenFromString, gitPush } from "./git";
+
+describe("gitPush", () => {
+  afterEach(() => {
+    mock.restore();
+  });
+
+  test("cleans up credential file on success", async () => {
+    const backend = {
+      execute: mock().mockImplementation(async (cmd) => {
+        if (cmd.includes("remote' 'get-url' 'origin")) {
+          return { exitCode: 0, output: "https://github.com/owner/repo.git\n" };
+        }
+        if (cmd.includes("credential.helper")) {
+          return { exitCode: 0, output: "Success" };
+        }
+        if (cmd.includes("rm -f")) {
+          return { exitCode: 0, output: "" };
+        }
+        return { exitCode: 0, output: "" };
+      })
+    };
+
+    await gitPush(backend as any, "/repo", "main", "token");
+
+    const calls = backend.execute.mock.calls;
+    const rmCall = calls.find((c: any) => c[0].includes("rm -f"));
+    expect(rmCall).toBeDefined();
+  });
+
+  test("cleans up credential file even if push fails", async () => {
+    const backend = {
+      execute: mock().mockImplementation(async (cmd) => {
+        if (cmd.includes("remote' 'get-url' 'origin")) {
+          return { exitCode: 0, output: "https://github.com/owner/repo.git\n" };
+        }
+        if (cmd.includes("credential.helper")) {
+          return { exitCode: 1, output: "", error: "Push failed" };
+        }
+        if (cmd.includes("rm -f")) {
+          return { exitCode: 0, output: "" };
+        }
+        return { exitCode: 0, output: "" };
+      })
+    };
+
+    try {
+      await gitPush(backend as any, "/repo", "main", "token");
+    } catch(e) {}
+
+    const calls = backend.execute.mock.calls;
+    const rmCall = calls.find((c: any) => c[0].includes("rm -f"));
+    expect(rmCall).toBeDefined();
+  });
+
+  test("logs error if cleanup fails", async () => {
+    const errorLog = spyOn(console, "error").mockImplementation(() => {});
+
+    const backend = {
+      execute: mock().mockImplementation(async (cmd) => {
+        if (cmd.includes("remote' 'get-url' 'origin")) {
+          return { exitCode: 0, output: "https://github.com/owner/repo.git\n" };
+        }
+        if (cmd.includes("credential.helper")) {
+          return { exitCode: 0, output: "Success" };
+        }
+        if (cmd.includes("rm -f")) {
+          throw new Error("rm failed");
+        }
+        return { exitCode: 0, output: "" };
+      })
+    };
+
+    await gitPush(backend as any, "/repo", "main", "token");
+
+    const calls = backend.execute.mock.calls;
+    const rmCall = calls.find((c: any) => c[0].includes("rm -f"));
+    expect(rmCall).toBeDefined();
+
+    expect(errorLog).toHaveBeenCalledWith(
+      "[github] Failed to clean up git credentials file",
+      expect.any(Error)
+    );
+  });
+});
 
 describe("git", () => {
   describe("sanitizeAuthUrl", () => {
