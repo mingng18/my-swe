@@ -11,10 +11,10 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "state-"));
 });
 
-test("save/load round-trips LoopState", () => {
+test("save/load round-trips LoopState", async () => {
   const ss = createStateStore(dir);
   const goal = deriveGoal("t");
-  ss.save({
+  await ss.save({
     threadId: "th1",
     goal,
     iteration: 2,
@@ -24,17 +24,17 @@ test("save/load round-trips LoopState", () => {
     traceId: "trace_x",
     updatedAt: new Date().toISOString(),
   });
-  const loaded = ss.load("th1");
+  const loaded = await ss.load("th1");
   expect(loaded?.iteration).toBe(2);
   expect(loaded?.done).toEqual(["a"]);
   expect(loaded?.goal.objective).toBe("t");
 });
 
-test("load returns undefined when absent; clear removes", () => {
+test("load returns undefined when absent; clear removes", async () => {
   const ss = createStateStore(dir);
-  expect(ss.load("nope")).toBeUndefined();
-  ss.save({ threadId: "th2", goal: deriveGoal("t"), iteration: 0, done: [], next: [], tried: [], traceId: "t1", updatedAt: "" });
-  expect(ss.load("th2")).toBeDefined();
-  ss.clear("th2");
-  expect(ss.load("th2")).toBeUndefined();
+  expect(await ss.load("nope")).toBeUndefined();
+  await ss.save({ threadId: "th2", goal: deriveGoal("t"), iteration: 0, done: [], next: [], tried: [], traceId: "t1", updatedAt: "" });
+  expect(await ss.load("th2")).toBeDefined();
+  await ss.clear("th2");
+  expect(await ss.load("th2")).toBeUndefined();
 });
