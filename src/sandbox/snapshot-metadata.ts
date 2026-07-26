@@ -222,23 +222,18 @@ export function detectProfileFromFiles(files: string[]): SandboxProfile | null {
   let hasPythonFiles = false;
   let hasJavaFiles = false;
 
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
+  for (const file of files) {
     const lowerFile = file.toLowerCase();
 
-    if (lowerFile === "tsconfig.json" || lowerFile === "package.json") {
+    if (PROFILE_DEPENDENCY_FILES.typescript.includes(lowerFile) || PROFILE_DEPENDENCY_FILES.javascript.includes(lowerFile)) {
       hasTsConfigOrPackageJson = true;
-    } else if (
-      lowerFile === "requirements.txt" ||
-      lowerFile === "pyproject.toml" ||
-      lowerFile === "setup.py"
-    ) {
+    } else if (PROFILE_DEPENDENCY_FILES.python.includes(lowerFile)) {
       hasPythonFiles = true;
-    } else if (lowerFile === "pom.xml" || lowerFile === "build.gradle") {
+    } else if (PROFILE_DEPENDENCY_FILES.java.includes(lowerFile)) {
       hasJavaFiles = true;
     }
 
-    if (!hasTsFiles && (file.endsWith(".ts") || file.endsWith(".tsx"))) {
+    if (!hasTsFiles && (lowerFile.endsWith(".ts") || lowerFile.endsWith(".tsx"))) {
       hasTsFiles = true;
     }
   }

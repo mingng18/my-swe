@@ -13,6 +13,7 @@
  */
 
 import { createLogger } from "../utils/logger";
+import { isToolMessage } from "../utils/messages";
 import type { DeepAgent } from "deepagents";
 
 const logger = createLogger("stream-trace");
@@ -95,7 +96,7 @@ export function summarizeUpdateForTrace(
     // ⚡ Bolt: Replaced Array.prototype.reduce with .map().join() for faster string concatenation by avoiding callback overhead per element.
     return " → " + toolCalls.map(t => t.name ?? "?").join(", ");
   }
-  if (last.type === "tool" || last.role === "tool") {
+  if (isToolMessage(last)) {
     return ` → tool:${String(last.name ?? "?")}`;
   }
   void node;
