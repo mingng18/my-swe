@@ -35,6 +35,6 @@ test("load returns undefined when absent; clear removes", async () => {
   expect(await ss.load("nope")).toBeUndefined();
   await ss.save({ threadId: "th2", goal: deriveGoal("t"), iteration: 0, done: [], next: [], tried: [], traceId: "t1", updatedAt: "" });
   expect(await ss.load("th2")).toBeDefined();
-  ss.clear("th2");
+  await ss.clear("th2");
   expect(await ss.load("th2")).toBeUndefined();
 });

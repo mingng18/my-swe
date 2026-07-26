@@ -1,6 +1,6 @@
 // src/loop/state-store.ts
-import { mkdirSync, existsSync, unlinkSync } from "fs";
-import { readFile, writeFile } from "fs/promises";
+import { mkdirSync, existsSync } from "fs";
+import { readFile, writeFile, unlink } from "fs/promises";
 import { join } from "path";
 import type { GoalSpec } from "./goal";
 
@@ -20,7 +20,7 @@ export interface LoopState {
 export interface StateStore {
   load(threadId: string): Promise<LoopState | undefined>;
   save(state: LoopState): Promise<void>;
-  clear(threadId: string): void;
+  clear(threadId: string): Promise<void>;
 }
 
 function defaultDir(): string {
@@ -38,8 +38,7 @@ export function createStateStore(dir: string = defaultDir()): StateStore {
     async load(threadId) {
       const f = file(dir, threadId);
       if (!existsSync(f)) return undefined;
-      const data = await readFile(f, "utf-8");
-      return JSON.parse(data) as LoopState;
+      return JSON.parse(await readFile(f, "utf-8")) as LoopState;
     },
     async save(state) {
       await writeFile(
@@ -47,9 +46,9 @@ export function createStateStore(dir: string = defaultDir()): StateStore {
         JSON.stringify({ ...state, updatedAt: new Date().toISOString() }, null, 2),
       );
     },
-    clear(threadId) {
+    async clear(threadId) {
       const f = file(dir, threadId);
-      if (existsSync(f)) unlinkSync(f);
+      if (existsSync(f)) await unlink(f);
     },
   };
 }
