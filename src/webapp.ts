@@ -108,10 +108,6 @@ app.use(
         .map((o) => o.trim())
         .filter((o) => o !== "");
 
-      if (allowedOrigins.includes("*")) {
-        return "*";
-      }
-
       return allowedOrigins.includes(origin) ? origin : "";
     },
     allowMethods: ["POST", "GET", "OPTIONS"],
