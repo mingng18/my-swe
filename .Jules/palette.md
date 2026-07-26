@@ -1,11 +1,6 @@
-## 2026-07-19 - Added ARIA attributes to Agent Thread Monitor
-**Learning:** For continuous live-updating chat logs or event streams (like ThreadTimeline), adding `role="log"` and `aria-live="polite"` automatically notifies screen readers of incoming messages without requiring manual user navigation, massively improving accessibility. Similarly, wrapping status indicators (like connection state in ThreadHeader) with `role="status" aria-live="polite"` is crucial for conveying realtime system states.
-**Action:** Always wrap dynamic lists of messages, feeds, and critical status indicators with appropriate ARIA live regions so assistive tech can gracefully announce state changes as they happen.
-
-## 2026-07-22 - Added keyboard focus to scrollable code blocks
-**Learning:** Horizontally scrolling code blocks or JSON payloads (like `<pre>` tags) must have `tabIndex={0}` and proper `focus-visible` styles so that keyboard-only users can focus them and scroll their contents using arrow keys. Without this, hidden content in overflowing containers becomes inaccessible.
-**Action:** Always add `tabIndex={0}` and an `aria-label` along with standard focus ring utility classes to any scrollable container (especially `<pre>` or `<div>` with `overflow-x-auto`) to ensure keyboard accessibility.
-
+## 2025-02-18 - Tooltip Components vs Native Title Attributes
+**Learning:** In the `swe-ui` Next.js frontend using Radix UI/shadcn Tooltip components, placing native HTML `title` attributes on a `<TooltipTrigger>` or the element inside it creates a poor UX because the browser will display the unstyled native tooltip *over* or next to the custom UI Tooltip, resulting in duplicate tooltips. Also, using native `title` on generic interactive elements like buttons is less polished than using standard custom tooltips for the app.
+**Action:** When working on tooltips, never apply a native `title` to an element wrapped in a custom `<Tooltip>`. Use `aria-label` for screen reader accessibility, which does not trigger the browser's visual tooltip, leaving only the polished custom tooltip for sighted users. Upgrade native tooltips on primary actions to Radix tooltips where appropriate.
 ## 2026-07-24 - Prevent Duplicate Tooltips
 
 **Learning:** When using custom UI Tooltip components (like Radix UI's Tooltip), also defining native HTML `title` attributes on the same element or its trigger causes the browser to render a second native tooltip overlapping the custom one.
