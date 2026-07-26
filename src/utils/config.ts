@@ -110,6 +110,17 @@ export function loadLlmConfig(): {
     );
   }
 
+  return {
+    provider,
+    openaiBaseUrl,
+    openaiApiKey,
+    model,
+    googleApiKey,
+    fallback: getFallbackConfig(openaiBaseUrl),
+  };
+}
+
+function getFallbackConfig(openaiBaseUrl: string) {
   const fallbackApiKey = process.env.OPENAI_API_KEY_FALLBACK?.trim();
   const fallbackModel = process.env.MODEL_FALLBACK?.trim();
   const fallbackBaseUrl =
@@ -126,23 +137,13 @@ export function loadLlmConfig(): {
     );
   }
 
-  const fallback =
-    fallbackApiKey && fallbackModel
-      ? {
-          openaiBaseUrl: fallbackBaseUrl,
-          openaiApiKey: fallbackApiKey,
-          model: fallbackModel,
-        }
-      : undefined;
-
-  return {
-    provider,
-    openaiBaseUrl,
-    openaiApiKey,
-    model,
-    googleApiKey,
-    fallback,
-  };
+  return fallbackApiKey && fallbackModel
+    ? {
+        openaiBaseUrl: fallbackBaseUrl,
+        openaiApiKey: fallbackApiKey,
+        model: fallbackModel,
+      }
+    : undefined;
 }
 
 /**

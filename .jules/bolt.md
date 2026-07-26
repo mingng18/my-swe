@@ -72,3 +72,15 @@
 ## 2026-07-25 - Concurrently execute Verification checks
 **Learning:** Sequential execution of array processing code that yields promises (e.g. running independent test, linting, typecheck tasks on a sandbox) will dramatically increase pipeline time due to wait loops.
 **Action:** Always identify if actions are independently executable and use Promise.all to map over independent task Promises concurrently to cut response time in blueprint orchestration flows.
+=======
+## 2025-07-25 - Async file io in state-store
+**Learning:** Synchronous file I/O operations (`readFileSync`, `writeFileSync`) block the event loop, severely degrading performance in a concurrent environment. Using their asynchronous equivalents from `fs/promises` (`readFile`, `writeFile`) allows the event loop to continue processing other tasks, improving throughput.
+**Action:** Always prefer `fs/promises` methods for file I/O operations, especially in high-throughput or concurrent paths like a state store, and coordinate them via `Promise.all` when possible.
+
+## 2026-07-25 - Concurrently execute Verification checks
+**Learning:** Sequential execution of array processing code that yields promises (e.g. running independent test, linting, typecheck tasks on a sandbox) will dramatically increase pipeline time due to wait loops.
+**Action:** Always identify if actions are independently executable and use Promise.all to map over independent task Promises concurrently to cut response time in blueprint orchestration flows.=======
+## 2026-07-25 - Concurrently execute Verification checks
+**Learning:** Sequential execution of array processing code that yields promises (e.g. running independent test, linting, typecheck tasks on a sandbox) will dramatically increase pipeline time due to wait loops.
+**Action:** Always identify if actions are independently executable and use Promise.all to map over independent task Promises concurrently to cut response time in blueprint orchestration flows.
+>>>>>>> 84bc259 (perf: execute verification checks concurrently using Promise.all)
