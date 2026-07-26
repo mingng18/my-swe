@@ -122,9 +122,9 @@ export abstract class BaseSandboxBackend
 
     try {
       // Build grep command
-      let cmd = `grep -rn --exclude-dir=node_modules ${shellEscapeSingleQuotes(pattern)} ${shellEscapeSingleQuotes(searchPath)}`;
+      let cmd = `grep -rn --exclude-dir=node_modules -e ${shellEscapeSingleQuotes(pattern)} ${shellEscapeSingleQuotes(searchPath)}`;
       if (glob) {
-        cmd = `find ${shellEscapeSingleQuotes(searchPath)} -name ${shellEscapeSingleQuotes(glob)} -exec grep -Hn ${shellEscapeSingleQuotes(pattern)} {} +`;
+        cmd = `grep -rn --exclude-dir=node_modules --include=${shellEscapeSingleQuotes(glob)} -e ${shellEscapeSingleQuotes(pattern)} ${shellEscapeSingleQuotes(searchPath)}`;
       }
 
       const result = await this.execute(cmd);

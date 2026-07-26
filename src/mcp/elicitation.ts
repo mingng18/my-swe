@@ -45,19 +45,28 @@ export function normalizeElicitParams(
   serverName: string,
 ): ElicitRequest {
   const params = (raw && raw.params) || raw || {};
-  const mode: "form" | "url" = params.mode === "url" ? "url" : "form";
+  const message = typeof params.message === "string" ? params.message : "";
+
+  if (params.mode === "url") {
+    return {
+      serverName,
+      params: {
+        message,
+        mode: "url",
+        url: params.url,
+        elicitationId: params.elicitationId,
+      },
+    };
+  }
 
   return {
     serverName,
     params: {
-      message: typeof params.message === "string" ? params.message : "",
-      mode,
-      requestedSchema:
-        mode === "form" && params.requestedSchema
-          ? params.requestedSchema
-          : undefined,
-      url: mode === "url" ? params.url : undefined,
-      elicitationId: mode === "url" ? params.elicitationId : undefined,
+      message,
+      mode: "form",
+      requestedSchema: params.requestedSchema
+        ? params.requestedSchema
+        : undefined,
     },
   };
 }
