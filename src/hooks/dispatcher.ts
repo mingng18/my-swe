@@ -53,8 +53,8 @@ export class HooksDispatcher {
    */
   private readonly sessionStarted = new Map<string, number>();
 
-  constructor(config?: HooksConfig, mcpCaller?: McpToolCaller) {
-    this.config = config ?? loadHooksConfig();
+  constructor(config: HooksConfig, mcpCaller?: McpToolCaller) {
+    this.config = config;
     this.registry = new HooksRegistry(this.config, mcpCaller);
   }
 
@@ -199,9 +199,9 @@ export class HooksDispatcher {
  */
 let _dispatcher: HooksDispatcher | null = null;
 
-export function getHooksDispatcher(): HooksDispatcher {
+export async function getHooksDispatcher(): Promise<HooksDispatcher> {
   if (!_dispatcher) {
-    _dispatcher = new HooksDispatcher(undefined, createMcpToolCaller());
+    _dispatcher = new HooksDispatcher(await loadHooksConfig(), createMcpToolCaller());
   }
   return _dispatcher;
 }
@@ -304,12 +304,13 @@ function resolveAgentIdentity(
  * pure passthrough.
  */
 export function createHooksMiddleware(
-  dispatcher: HooksDispatcher = getHooksDispatcher(),
+  dispatcherOrPromise?: HooksDispatcher | Promise<HooksDispatcher>,
 ) {
   return createMiddleware({
     name: "hooksMiddleware",
 
     wrapToolCall: async (request: any, handler: any) => {
+      const dispatcher = dispatcherOrPromise ? await dispatcherOrPromise : await getHooksDispatcher();
       // Passthrough when hooks are not configured.
       if (!dispatcher.enabled) {
         return handler(request);
@@ -412,7 +413,7 @@ export function createHooksMiddleware(
  * completes before the agent turn) should `await` this.
  */
 export async function fireSessionStart(threadId: string): Promise<boolean> {
-  const dispatcher = getHooksDispatcher();
+  const dispatcher = await getHooksDispatcher();
   if (!dispatcher.enabled) return false;
   try {
     return await dispatcher.dispatchSessionStart(threadId);
@@ -441,8 +442,8 @@ export async function registerHooksThreadCleanup(): Promise<void> {
       logger.debug("[hooks] no thread-cleanup-scheduler; skipping SessionStart eviction registration");
       return;
     }
-    scheduler.registerCleanupFn((metadata, ttlMs) => {
-      const dispatcher = getHooksDispatcher();
+    scheduler.registerCleanupFn(async (metadata, ttlMs) => {
+      const dispatcher = await getHooksDispatcher();
       let removed = 0;
       // Evict any tracked session whose thread is no longer active AND older
       // than the TTL. Threads still in the scheduler's metadata store are
