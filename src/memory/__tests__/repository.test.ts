@@ -8,6 +8,31 @@ class MockSupabaseClient implements SupabaseClient {
   private memories: Map<string, any> = new Map();
   private nextId = 1;
 
+  private isActiveMemory(m: any): boolean {
+    return m.is_active !== false && m.isActive !== false;
+  }
+
+  private createFilteredResponse(memories: any[], params: URLSearchParams): Response {
+    const orParam = params.get("or");
+    if (orParam) {
+      const types = orParam
+        .match(/type\.eq\.([^,)]+)/g)
+        ?.map((t: string) => t.replace("type.eq.", ""));
+      if (types) {
+        const filtered = memories.filter((m: any) => types.includes(m.type));
+        return new Response(JSON.stringify(filtered), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+    }
+
+    return new Response(JSON.stringify(memories), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
   async fetch(url: string, options?: RequestInit): Promise<Response> {
     const method = options?.method || "GET";
 
@@ -29,33 +54,10 @@ class MockSupabaseClient implements SupabaseClient {
         const memories = Array.from(this.memories.values()).filter(
           (m: any) =>
             threadIds.includes(m.thread_id || m.threadId) &&
-            m.is_active !== false &&
-            m.isActive !== false,
+            this.isActiveMemory(m),
         );
 
-        // Check for type filter
-        const orParam = params.get("or");
-        if (orParam) {
-          const types = orParam
-            .match(/type\.eq\.([^,)]+)/g)
-            ?.map((t: string) => t.replace("type.eq.", ""));
-          if (types) {
-            return new Response(
-              JSON.stringify(
-                memories.filter((m: any) => types.includes(m.type)),
-              ),
-              {
-                status: 200,
-                headers: { "content-type": "application/json" },
-              },
-            );
-          }
-        }
-
-        return new Response(JSON.stringify(memories), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        });
+        return this.createFilteredResponse(memories, params);
       }
 
       // Check thread_id first to avoid conflict with id regex
@@ -64,31 +66,10 @@ class MockSupabaseClient implements SupabaseClient {
         const memories = Array.from(this.memories.values()).filter(
           (m: any) =>
             (m.thread_id || m.threadId) === threadId &&
-            m.is_active !== false &&
-            m.isActive !== false,
+            this.isActiveMemory(m),
         );
 
-        // Check for type filter
-        const orParam = params.get("or");
-        if (orParam) {
-          const types = orParam
-            .match(/type\.eq\.([^,)]+)/g)
-            ?.map((t: string) => t.replace("type.eq.", ""));
-          if (types) {
-            const filtered = memories.filter((m: any) =>
-              types.includes(m.type),
-            );
-            return new Response(JSON.stringify(filtered), {
-              status: 200,
-              headers: { "content-type": "application/json" },
-            });
-          }
-        }
-
-        return new Response(JSON.stringify(memories), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        });
+        return this.createFilteredResponse(memories, params);
       }
 
       if (idMatch) {

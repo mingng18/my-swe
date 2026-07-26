@@ -280,6 +280,9 @@ async function startTelegramPolling() {
             await handleTelegramCallbackQuery(update, telegramBotToken);
           }
         }
+      } else {
+        // Prevent unbounded polling loop if no updates or unexpected format
+        await new Promise((resolve) => setTimeout(resolve, 2000));
       }
 
       // Reset error counter on successful request

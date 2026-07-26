@@ -8,6 +8,7 @@
  */
 
 import { createMiddleware } from "langchain";
+import { isToolMessage } from "../utils/messages";
 import { createLogger } from "../utils/logger";
 
 const logger = createLogger("loop-detection");
@@ -69,7 +70,7 @@ function countConsecutiveRepeats(messages: Array<Record<string, unknown>>): {
     }
 
     // Tool result messages — skip (they sit between AI messages)
-    if (msg.type === "tool" || msg.role === "tool") {
+    if (isToolMessage(msg)) {
       continue;
     }
 

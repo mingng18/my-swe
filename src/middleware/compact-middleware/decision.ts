@@ -246,7 +246,7 @@ async function applySummarize(
  *
  * Re-reads important files and restores plan state.
  */
-function applyRestorationAfterCompaction(
+export function applyRestorationAfterCompaction(
   messages: BaseMessage[],
   config: CompactionConfig,
 ): { messages: BaseMessage[]; restoredFiles: string[] } {

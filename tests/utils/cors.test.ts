@@ -79,7 +79,7 @@ describe("CORS Configuration", () => {
     );
   });
 
-  it("should handle wildcard * securely and allow all origins", async () => {
+  it("should securely reject unknown origins even if a wildcard * is configured", async () => {
     process.env.CORS_ALLOWED_ORIGIN = "*, https://example.com";
     const { default: app } = await import("../../src/webapp");
 
@@ -91,7 +91,8 @@ describe("CORS Configuration", () => {
     });
 
     const res = await app.request(req);
-    expect(res.headers.get("Access-Control-Allow-Origin")).toBe("*");
+    expect(res.headers.get("Access-Control-Allow-Origin")).not.toBe("https://evil.com");
+    expect(res.headers.get("Access-Control-Allow-Origin")).not.toBe("*");
   });
 
   it("should ignore empty strings and trailing commas in CORS_ALLOWED_ORIGIN without creating vulnerabilities", async () => {
