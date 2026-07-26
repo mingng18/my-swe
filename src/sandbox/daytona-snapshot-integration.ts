@@ -128,69 +128,82 @@ export class ProfileImageBuilder {
  * @param profile - Target profile
  * @returns Image builder configured for the repository
  */
+async function configureNodeImage(image: Image, repoDir: string): Promise<Image> {
+  const { readFile } = await import("node:fs/promises");
+  const { existsSync } = await import("node:fs");
+  const packageJsonPath = `${repoDir}/package.json`;
+  if (existsSync(packageJsonPath)) {
+    logger.debug(
+      `[daytona-snapshot] Found package.json, will install dependencies`,
+    );
+    // We can't directly run npm install during snapshot creation,
+    // but we can add a setup script that runs on sandbox start
+    const packageJson = JSON.parse(
+      await readFile(packageJsonPath, "utf-8"),
+    );
+    if (packageJson.scripts?.postCreate) {
+      logger.debug(
+        `[daytona-snapshot] Found postCreate script, will include in snapshot`,
+      );
+    }
+  }
+  return image;
+}
+
+async function configurePythonImage(image: Image, repoDir: string): Promise<Image> {
+  const { existsSync } = await import("node:fs");
+  const requirementsPath = `${repoDir}/requirements.txt`;
+  const pyprojectPath = `${repoDir}/pyproject.toml`;
+
+  if (existsSync(requirementsPath)) {
+    logger.debug(`[daytona-snapshot] Found requirements.txt`);
+    // Note: We can't call pipInstallFromRequirements directly because
+    // it needs access to the file during snapshot creation
+    // We'll add a setup command that runs on sandbox start
+    image = image.runCommands(
+      `pip install -r /workspace/requirements.txt || true`,
+    );
+  } else if (existsSync(pyprojectPath)) {
+    logger.debug(`[daytona-snapshot] Found pyproject.toml`);
+    image = image.runCommands(`pip install -e /workspace || true`);
+  }
+  return image;
+}
+
+async function configureJavaImage(image: Image, repoDir: string): Promise<Image> {
+  const { existsSync } = await import("node:fs");
+  const pomPath = `${repoDir}/pom.xml`;
+  if (existsSync(pomPath)) {
+    logger.debug(`[daytona-snapshot] Found pom.xml`);
+    image = image.runCommands(
+      // Maven will download dependencies during first build
+      `cd /workspace && mvn dependency:resolve || true`,
+    );
+  }
+  return image;
+}
+
 export async function createImageFromRepo(
   repoDir: string,
   profile: SandboxProfile,
 ): Promise<Image> {
-  const { readFile } = await import("node:fs/promises");
-  const { existsSync } = await import("node:fs");
-
   let image = ProfileImageBuilder.forProfile(profile);
 
   // Profile-specific dependency installation
   switch (profile) {
     case "typescript":
     case "javascript": {
-      // Check for package.json
-      const packageJsonPath = `${repoDir}/package.json`;
-      if (existsSync(packageJsonPath)) {
-        logger.debug(
-          `[daytona-snapshot] Found package.json, will install dependencies`,
-        );
-        // We can't directly run npm install during snapshot creation,
-        // but we can add a setup script that runs on sandbox start
-        const packageJson = JSON.parse(
-          await readFile(packageJsonPath, "utf-8"),
-        );
-        if (packageJson.scripts?.postCreate) {
-          logger.debug(
-            `[daytona-snapshot] Found postCreate script, will include in snapshot`,
-          );
-        }
-      }
+      image = await configureNodeImage(image, repoDir);
       break;
     }
 
     case "python": {
-      // Check for requirements.txt or pyproject.toml
-      const requirementsPath = `${repoDir}/requirements.txt`;
-      const pyprojectPath = `${repoDir}/pyproject.toml`;
-
-      if (existsSync(requirementsPath)) {
-        logger.debug(`[daytona-snapshot] Found requirements.txt`);
-        // Note: We can't call pipInstallFromRequirements directly because
-        // it needs access to the file during snapshot creation
-        // We'll add a setup command that runs on sandbox start
-        image = image.runCommands(
-          `pip install -r /workspace/requirements.txt || true`,
-        );
-      } else if (existsSync(pyprojectPath)) {
-        logger.debug(`[daytona-snapshot] Found pyproject.toml`);
-        image = image.runCommands(`pip install -e /workspace || true`);
-      }
+      image = await configurePythonImage(image, repoDir);
       break;
     }
 
     case "java": {
-      // Check for pom.xml or build.gradle
-      const pomPath = `${repoDir}/pom.xml`;
-      if (existsSync(pomPath)) {
-        logger.debug(`[daytona-snapshot] Found pom.xml`);
-        image = image.runCommands(
-          // Maven will download dependencies during first build
-          `cd /workspace && mvn dependency:resolve || true`,
-        );
-      }
+      image = await configureJavaImage(image, repoDir);
       break;
     }
   }
