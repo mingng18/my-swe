@@ -101,8 +101,13 @@ export function extractFileReferences(
     }
   }
 
-  // Sort by recency (most recent first)
-  return references.sort((a, b) => b.timestamp - a.timestamp);
+  // Sort by recency (most recent first), then by index to ensure deterministic order if timestamps are equal
+  return references.sort((a, b) => {
+    if (b.timestamp !== a.timestamp) {
+      return b.timestamp - a.timestamp;
+    }
+    return b.index - a.index;
+  });
 }
 
 /**
