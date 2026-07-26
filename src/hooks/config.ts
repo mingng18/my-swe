@@ -76,20 +76,25 @@ export function validateHooksConfig(raw: unknown): HooksConfig {
       );
     }
     const h = handler as Record<string, unknown>;
-    if (h.type !== "shell" && h.type !== "mcp_tool") {
-      throw new Error(
-        `hooks handler[${i}] (${e.name}) handler.type must be 'shell' or 'mcp_tool'`,
-      );
-    }
-    if (h.type === "shell" && typeof h.command !== "string") {
-      throw new Error(
-        `hooks handler[${i}] (${e.name}) shell handler requires a 'command' string`,
-      );
-    }
-    if (h.type === "mcp_tool" && (typeof h.server !== "string" || typeof h.tool !== "string")) {
-      throw new Error(
-        `hooks handler[${i}] (${e.name}) mcp_tool handler requires 'server' and 'tool' strings`,
-      );
+    switch (h.type) {
+      case "shell":
+        if (typeof h.command !== "string") {
+          throw new Error(
+            `hooks handler[${i}] (${e.name}) shell handler requires a 'command' string`,
+          );
+        }
+        break;
+      case "mcp_tool":
+        if (typeof h.server !== "string" || typeof h.tool !== "string") {
+          throw new Error(
+            `hooks handler[${i}] (${e.name}) mcp_tool handler requires 'server' and 'tool' strings`,
+          );
+        }
+        break;
+      default:
+        throw new Error(
+          `hooks handler[${i}] (${e.name}) handler.type must be 'shell' or 'mcp_tool'`,
+        );
     }
 
     return {
