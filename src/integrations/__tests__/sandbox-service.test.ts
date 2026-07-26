@@ -1,6 +1,20 @@
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
 import { SandboxService, SandboxServiceConfig } from "../sandbox-service";
 
+const mockCommandExecutions = (
+  responses: Record<string, { exitCode: number; output?: string }>,
+  defaultResponse: { exitCode: number; output?: string } = { exitCode: 127 }
+) => {
+  return async (cmd: string) => {
+    for (const [key, response] of Object.entries(responses)) {
+      if (cmd.includes(key)) {
+        return response;
+      }
+    }
+    return defaultResponse;
+  };
+};
+
 describe("SandboxService", () => {
   let mockBackend: any;
   let service: SandboxService;
@@ -176,23 +190,21 @@ describe("SandboxService", () => {
     });
 
     it("attempts to install git via apt-get if missing", async () => {
-      mockBackend.execute.mockImplementation(async (cmd: string) => {
-         if (cmd.includes('command -v git')) return { exitCode: 1 };
-         if (cmd.includes('apt-get')) return { exitCode: 0 };
-         return { exitCode: 127 };
-      });
+      mockBackend.execute.mockImplementation(mockCommandExecutions({
+        'command -v git': { exitCode: 1 },
+        'apt-get': { exitCode: 0 }
+      }));
       // @ts-ignore
       await service.ensureGitAvailable();
       expect(mockBackend.execute).toHaveBeenCalledWith(`sh -lc 'command -v apt-get >/dev/null 2>&1 && (apt-get update -y && apt-get install -y git ca-certificates) || exit 127'`);
     });
 
     it("attempts to install git via apk if apt-get fails", async () => {
-      mockBackend.execute.mockImplementation(async (cmd: string) => {
-         if (cmd.includes('command -v git')) return { exitCode: 1 };
-         if (cmd.includes('apt-get')) return { exitCode: 127 };
-         if (cmd.includes('apk')) return { exitCode: 0 };
-         return { exitCode: 127 };
-      });
+      mockBackend.execute.mockImplementation(mockCommandExecutions({
+        'command -v git': { exitCode: 1 },
+        'apt-get': { exitCode: 127 },
+        'apk': { exitCode: 0 }
+      }));
       // @ts-ignore
       await service.ensureGitAvailable();
       expect(mockBackend.execute).toHaveBeenCalledWith(`sh -lc 'command -v apk >/dev/null 2>&1 && (apk add --no-cache git ca-certificates) || exit 127'`);
@@ -207,18 +219,11 @@ describe("SandboxService", () => {
 
   describe("cloneRepo", () => {
     it("clones a repository using standard fallback if it doesn't exist", async () => {
-      mockBackend.execute.mockImplementation(async (cmd: string) => {
-         // ensureGitAvailable mock
-         if (cmd.includes('command -v git')) return { exitCode: 0 };
-
-         // directory check mock
-         if (cmd.includes('test -d')) return { output: "not_found", exitCode: 0 };
-
-         // git clone mock
-         if (cmd.includes('git clone')) return { exitCode: 0 };
-
-         return { exitCode: 0 };
-      });
+      mockBackend.execute.mockImplementation(mockCommandExecutions({
+        'command -v git': { exitCode: 0 },
+        'test -d': { output: "not_found", exitCode: 0 },
+        'git clone': { exitCode: 0 }
+      }, { exitCode: 0 }));
 
       const repoDir = await service.cloneRepo("owner", "repo");
       expect(repoDir).toBe("/workspace/repo");
@@ -230,14 +235,10 @@ describe("SandboxService", () => {
     });
 
     it("pulls repository using standard fallback if it already exists", async () => {
-      mockBackend.execute.mockImplementation(async (cmd: string) => {
-         if (cmd.includes('command -v git')) return { exitCode: 0 };
-
-         // return "exists" for the test -d command
-         if (cmd.includes('test -d')) return { output: "exists", exitCode: 0 };
-
-         return { exitCode: 0, output: "main\n" };
-      });
+      mockBackend.execute.mockImplementation(mockCommandExecutions({
+        'command -v git': { exitCode: 0 },
+        'test -d': { output: "exists", exitCode: 0 }
+      }, { exitCode: 0, output: "main\n" }));
 
       const repoDir = await service.cloneRepo("owner", "repo");
       expect(repoDir).toBe("/workspace/repo");
@@ -260,10 +261,9 @@ describe("SandboxService", () => {
            git: mockGit,
            getWorkDir: async () => "/daytona-workspace"
         }),
-        execute: mock().mockImplementation(async (cmd) => {
-           if (cmd.includes('test -d')) return { output: "not_found", exitCode: 0 };
-           return { exitCode: 0 };
-        })
+        execute: mock().mockImplementation(mockCommandExecutions({
+           'test -d': { output: "not_found", exitCode: 0 }
+        }, { exitCode: 0 }))
       };
 
       // @ts-ignore
@@ -290,10 +290,9 @@ describe("SandboxService", () => {
            git: mockGit,
            getWorkDir: async () => "/daytona-workspace"
         }),
-        execute: mock().mockImplementation(async (cmd) => {
-           if (cmd.includes('test -d')) return { output: "exists", exitCode: 0 };
-           return { exitCode: 0 };
-        })
+        execute: mock().mockImplementation(mockCommandExecutions({
+           'test -d': { output: "exists", exitCode: 0 }
+        }, { exitCode: 0 }))
       };
 
       // @ts-ignore

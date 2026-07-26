@@ -27,12 +27,11 @@ class MockSupabaseClient implements SupabaseClient {
     if (method === "GET") {
       if (threadIdMatch) {
         const threadId = decodeURIComponent(threadIdMatch[1]);
-        let memories = Array.from(this.memories.values()).filter(
-          (m: any) =>
-            (m.thread_id || m.threadId) === threadId &&
-            m.is_active !== false &&
-            m.isActive !== false,
-        );
+        let memories = Array.from(this.memories.values()).filter((m: any) => {
+          const matchesThread = (m.thread_id || m.threadId) === threadId;
+          const isActive = m.is_active !== false && m.isActive !== false;
+          return matchesThread && isActive;
+        });
 
         const orParam = params.get("or");
         if (orParam) {
