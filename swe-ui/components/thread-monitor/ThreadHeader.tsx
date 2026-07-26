@@ -44,7 +44,7 @@ export function ThreadHeader({ threadId, connectionState }: ThreadHeaderProps) {
       <div className="flex items-center gap-2">
         <kbd className="hidden sm:inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-muted-foreground bg-muted rounded-md border">
           <span>⌘</span>K
-          <span className="text-[10px] opacity-60">New Run</span>
+          <span className="text-[10px] opacity-60">Focus Input</span>
         </kbd>
       </div>
     </div>
