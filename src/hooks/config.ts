@@ -11,7 +11,7 @@
  * dispatcher becomes a no-op.
  */
 
-import { readFileSync, existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { createLogger } from "../utils/logger";
 import type { HooksConfig, HookEntry, HookEvent } from "./types";
@@ -114,12 +114,17 @@ export function validateHooksConfig(raw: unknown): HooksConfig {
  * Attempt to load the hooks config from the default discovery sources.
  * Returns null when no config source is available (hooks disabled).
  */
-function loadConfigFromSources(): unknown | null {
+async function loadConfigFromSources(): Promise<unknown | null> {
   // 1. Explicit env file path
   const envFile = process.env.HOOKS_CONFIG_FILE;
-  if (envFile && existsSync(envFile)) {
-    logger.debug({ path: envFile }, "[hooks-config] loading from HOOKS_CONFIG_FILE");
-    return JSON.parse(readFileSync(resolve(envFile), "utf-8"));
+  if (envFile) {
+    try {
+      const content = await readFile(resolve(envFile), "utf-8");
+      logger.debug({ path: envFile }, "[hooks-config] loading from HOOKS_CONFIG_FILE");
+      return JSON.parse(content);
+    } catch (e: any) {
+      if (e.code !== "ENOENT") throw e;
+    }
   }
 
   // 2. Inline JSON env var
@@ -131,9 +136,12 @@ function loadConfigFromSources(): unknown | null {
 
   // 3. hooks.json at repo root / cwd
   const localPath = resolve(process.cwd(), "hooks.json");
-  if (existsSync(localPath)) {
+  try {
+    const content = await readFile(localPath, "utf-8");
     logger.debug({ path: localPath }, "[hooks-config] loading local hooks.json");
-    return JSON.parse(readFileSync(localPath, "utf-8"));
+    return JSON.parse(content);
+  } catch (e: any) {
+    if (e.code !== "ENOENT") throw e;
   }
 
   return null;
@@ -144,13 +152,13 @@ function loadConfigFromSources(): unknown | null {
  * and returns a disabled (empty) config rather than throwing — a malformed
  * hooks config must never break the agent.
  */
-export function loadHooksConfig(explicit?: HooksConfig): HooksConfig {
+export async function loadHooksConfig(explicit?: HooksConfig): Promise<HooksConfig> {
   if (explicit) {
     return validateHooksConfig(explicit);
   }
 
   try {
-    const raw = loadConfigFromSources();
+    const raw = await loadConfigFromSources();
     if (raw === null) {
       return { enabled: false, agent_id: "bullhorse", agent_type: "deepagents", handlers: [] };
     }
