@@ -1,4 +1,5 @@
 import { createLogger } from "../utils/logger";
+import { isToolMessage } from "../utils/messages";
 import {
   threadManager,
   threadRepoMap,
@@ -698,7 +699,7 @@ function summarizeUpdateForTrace(node: string, data: unknown): string {
     // ⚡ Bolt: Replaced Array.prototype.reduce with .map().join() for faster string concatenation by avoiding callback overhead per element.
     return " → " + toolCalls.map((t) => t.name ?? "?").join(", ");
   }
-  if (last.type === "tool" || last.role === "tool") {
+  if (isToolMessage(last)) {
     return ` → tool:${String(last.name ?? "?")}`;
   }
   void node;
@@ -1608,7 +1609,7 @@ If you need to make additional changes, continue working and they'll be added to
         }
 
         // Emit tool result events
-        if ((msg.type === "tool" || msg.role === "tool") && msg.name) {
+        if (isToolMessage(msg) && msg.name) {
           const content =
             typeof msg.content === "string"
               ? msg.content
