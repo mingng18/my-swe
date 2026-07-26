@@ -19,5 +19,4 @@ logs/security/
 worker-configuration.d.ts
 .wrangler/
 .dev.vars
-
 dist/
