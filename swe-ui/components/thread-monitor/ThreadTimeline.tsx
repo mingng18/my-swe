@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, memo } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
@@ -51,7 +51,7 @@ interface ThreadTimelineProps {
   connectionState: "connecting" | "connected" | "disconnected" | "error";
 }
 
-export function ThreadTimeline({ messages, thread, connectionState }: ThreadTimelineProps) {
+export const ThreadTimeline = memo(function ThreadTimeline({ messages, thread, connectionState }: ThreadTimelineProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -206,4 +206,4 @@ export function ThreadTimeline({ messages, thread, connectionState }: ThreadTime
       )}
     </ScrollArea>
   );
-}
+});
