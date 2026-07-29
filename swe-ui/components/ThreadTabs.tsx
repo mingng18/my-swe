@@ -59,16 +59,21 @@ export function ThreadTabs({ className, onNewThread }: ThreadTabsProps) {
           <div className="w-2 h-2 rounded-full bg-muted-foreground/30" />
           <p className="text-sm text-muted-foreground font-medium">No active threads</p>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleNewThread}
-          className="h-7 gap-1.5 hover:bg-primary/10 hover:text-primary transition-colors"
-          aria-label="New Run"
-        >
-          <Plus className="h-4 w-4" />
-          <span className="hidden sm:inline">New Run</span>
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleNewThread}
+              className="h-7 gap-1.5 hover:bg-primary/10 hover:text-primary transition-colors"
+              aria-label="New Run"
+            >
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">New Run</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>New Run</TooltipContent>
+        </Tooltip>
       </div>
     );
   }
@@ -109,16 +114,21 @@ export function ThreadTabs({ className, onNewThread }: ThreadTabsProps) {
           ))}
         </TabsList>
       </Tabs>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={handleNewThread}
-        className="h-7 gap-1.5 shrink-0 hover:bg-primary/10 hover:text-primary transition-colors"
-        aria-label="New Run"
-      >
-        <Plus className="h-4 w-4" />
-        <span className="hidden sm:inline">New Run</span>
-      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleNewThread}
+            className="h-7 gap-1.5 shrink-0 hover:bg-primary/10 hover:text-primary transition-colors"
+            aria-label="New Run"
+          >
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">New Run</span>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>New Run</TooltipContent>
+      </Tooltip>
     </div>
   );
 }
