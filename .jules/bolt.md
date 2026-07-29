@@ -53,10 +53,14 @@
 **Learning:** Synchronous file I/O operations (`readFileSync`, `writeFileSync`) block the event loop, severely degrading performance in a concurrent environment. Using their asynchronous equivalents from `fs/promises` (`readFile`, `writeFile`) allows the event loop to continue processing other tasks, improving throughput.
 **Action:** Always prefer `fs/promises` methods for file I/O operations, especially in high-throughput or concurrent paths like a state store, and coordinate them via `Promise.all` when possible.
 
-## 2025-02-28 - Optimizing Batch Async Execution
-**Learning:** Naive chunking (using `slice` and `Promise.all` on slices of a static size) for running async tasks like shell commands forces faster tasks in a chunk to wait for the slowest task in the same chunk to finish before the next batch can begin. This leads to idle concurrency slots.
-**Action:** Use a sliding window concurrency control library like `p-limit` for executing multiple independent async tasks. This keeps the execution pipeline constantly saturated up to the concurrency limit, improving overall execution time when task durations vary.
+## 2026-07-27 - Redundant String Manipulation in Array Chains
+**Learning:** Chaining `.filter().map()` where both operations perform the same string transformation (like `.trim()`) on large terminal outputs creates unnecessary allocations and duplicates work.
+**Action:** Consolidate into a single-pass `for` loop that performs the transformation once and filters out empty results, avoiding intermediate array allocations.
 
 ## 2025-02-28 - Refactor complex conditionals for readability and maintainability
 **Learning:** Complex, deeply nested `if/else` statements and repetitive logical conditions (e.g., `sandbox.getProvider() === ...`) make code difficult to read, maintain, and test, increasing the risk of bugs when adding new features.
 **Action:** Extract conditions into clearly named helper variables (e.g., `const isDaytona = ...`, `const isDaytonaSupported = ...`), consolidate redundant logical checks into unified `if`/`else if` branches, and use early returns where appropriate to simplify the control flow.
+
+## 2025-02-28 - Optimizing Batch Async Execution
+**Learning:** Naive chunking (using `slice` and `Promise.all` on slices of a static size) for running async tasks like shell commands forces faster tasks in a chunk to wait for the slowest task in the same chunk to finish before the next batch can begin. This leads to idle concurrency slots.
+**Action:** Use a sliding window concurrency control library like `p-limit` for executing multiple independent async tasks. This keeps the execution pipeline constantly saturated up to the concurrency limit, improving overall execution time when task durations vary.
