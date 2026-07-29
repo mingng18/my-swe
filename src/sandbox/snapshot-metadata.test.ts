@@ -48,3 +48,32 @@ describe("parseSnapshotKey", () => {
     expect(parseSnapshotKey("///")).toBeNull();
   });
 });
+
+import { detectProfileFromFiles } from "./snapshot-metadata";
+
+describe("detectProfileFromFiles", () => {
+  test("detects typescript profile", () => {
+    expect(detectProfileFromFiles(["package.json", "index.ts"])).toBe("typescript");
+    expect(detectProfileFromFiles(["tsconfig.json", "app.tsx"])).toBe("typescript");
+  });
+
+  test("detects javascript profile", () => {
+    expect(detectProfileFromFiles(["package.json", "index.js"])).toBe("javascript");
+  });
+
+  test("detects python profile", () => {
+    expect(detectProfileFromFiles(["requirements.txt", "main.py"])).toBe("python");
+    expect(detectProfileFromFiles(["pyproject.toml"])).toBe("python");
+    expect(detectProfileFromFiles(["setup.py"])).toBe("python");
+  });
+
+  test("detects java profile", () => {
+    expect(detectProfileFromFiles(["pom.xml", "Main.java"])).toBe("java");
+    expect(detectProfileFromFiles(["build.gradle"])).toBe("java");
+  });
+
+  test("returns null if no profile files match", () => {
+    expect(detectProfileFromFiles(["unknown.txt", "README.md"])).toBeNull();
+    expect(detectProfileFromFiles([])).toBeNull();
+  });
+});

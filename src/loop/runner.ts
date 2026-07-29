@@ -86,7 +86,7 @@ export function createLoopRunner(deps: LoopRunnerDeps = {}) {
       input.getSandbox ?? deps.getSandbox ?? (async () => undefined);
 
     const trace = traceStore.open(threadId, goal);
-    const prior = stateStore.load(threadId);
+    const prior = await stateStore.load(threadId);
 
     // Autonomy maturity ladder: "unattended" must earn its autonomy via the
     // eval gate. If the gate has not passed for this thread/goal, downgrade
@@ -188,7 +188,7 @@ export function createLoopRunner(deps: LoopRunnerDeps = {}) {
         traceId: trace.traceId,
         updatedAt: new Date().toISOString(),
       };
-      stateStore.save(next);
+      await stateStore.save(next);
 
       const reply =
         outcome === "passed"

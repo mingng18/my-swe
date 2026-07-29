@@ -10,8 +10,21 @@ class MockSupabaseClient implements SupabaseClient {
   private memories: Map<string, any> = new Map();
   private nextId = 1;
 
-  private isMemoryActive(m: any): boolean {
+  private isActive(m: any): boolean {
     return m.is_active !== false && m.isActive !== false;
+  }
+
+  private filterByType(memories: any[], params: URLSearchParams): any[] {
+    const orParam = params.get("or");
+    if (orParam) {
+      const types = orParam
+        .match(/type\.eq\.([^,)]+)/g)
+        ?.map((t: string) => t.replace("type.eq.", ""));
+      if (types) {
+        return memories.filter((m: any) => types.includes(m.type));
+      }
+    }
+    return memories;
   }
 
   async fetch(url: string, options?: RequestInit): Promise<Response> {
@@ -30,20 +43,10 @@ class MockSupabaseClient implements SupabaseClient {
           .map((id) => decodeURIComponent(id));
         let memories = Array.from(this.memories.values()).filter(
           (m: any) =>
-            threadIds.includes(m.thread_id || m.threadId) &&
-            this.isMemoryActive(m),
+            threadIds.includes(m.thread_id || m.threadId) && this.isActive(m)
         );
 
-        // Check for type filter
-        const orParam = params.get("or");
-        if (orParam) {
-          const types = orParam
-            .match(/type\.eq\.([^,)]+)/g)
-            ?.map((t: string) => t.replace("type.eq.", ""));
-          if (types) {
-            memories = memories.filter((m: any) => types.includes(m.type));
-          }
-        }
+        memories = this.filterByType(memories, params);
 
         return new Response(JSON.stringify(memories), {
           status: 200,
@@ -55,20 +58,10 @@ class MockSupabaseClient implements SupabaseClient {
         const threadId = decodeURIComponent(threadIdMatch[1]);
         let memories = Array.from(this.memories.values()).filter(
           (m: any) =>
-            (m.thread_id || m.threadId) === threadId &&
-            this.isMemoryActive(m),
+            (m.thread_id || m.threadId) === threadId && this.isActive(m)
         );
 
-        // Check for type filter
-        const orParam = params.get("or");
-        if (orParam) {
-          const types = orParam
-            .match(/type\.eq\.([^,)]+)/g)
-            ?.map((t: string) => t.replace("type.eq.", ""));
-          if (types) {
-            memories = memories.filter((m: any) => types.includes(m.type));
-          }
-        }
+        memories = this.filterByType(memories, params);
 
         return new Response(JSON.stringify(memories), {
           status: 200,
