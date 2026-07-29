@@ -78,3 +78,9 @@
 ## 2026-07-27 - Redundant String Manipulation in Array Chains
 **Learning:** Chaining `.filter().map()` where both operations perform the same string transformation (like `.trim()`) on large terminal outputs creates unnecessary allocations and duplicates work.
 **Action:** Consolidate into a single-pass `for` loop that performs the transformation once and filters out empty results, avoiding intermediate array allocations.
+## 2025-07-29 - Avoid array map allocations in string aggregations
+**Learning:** Using `.map().join()` for formatting large arrays into strings creates unnecessary intermediate arrays and can degrade performance due to garbage collection pressure.
+**Action:** Consolidate these string-building tasks into single-pass `for` loops without intermediary array allocations.
+## 2025-07-29 - Missing memoization in React rendering
+**Learning:** Exporting functional React components without `React.memo()` can cause unnecessary re-renders in large lists or frequently updated components (like timelines), leading to UI stuttering and poor performance.
+**Action:** Wrap frequently updated or large components with `React.memo()` to prevent unnecessary re-renders when their props haven't changed.
