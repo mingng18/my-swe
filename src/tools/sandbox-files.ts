@@ -506,10 +506,13 @@ export const sandboxFindTool = tool(
         `find ${shellEscapeSingleQuotes(searchPath)} -name ${shellEscapeSingleQuotes(pattern)} ${typeFlag}`,
       );
 
-      const files = result.output
-        .split("\n")
-        .filter((line: string) => line.trim())
-        .map((line: string) => line.trim());
+      // ⚡ Bolt: Replaced chained .filter().map() with a single-pass for loop to reduce allocations
+      const files: string[] = [];
+      const filesSplit = result.output.split("\n");
+      for (let i = 0; i < filesSplit.length; i++) {
+        const trimmed = filesSplit[i].trim();
+        if (trimmed) files.push(trimmed);
+      }
 
       return {
         path: searchPath,
@@ -649,10 +652,13 @@ export const sandboxGrepTool = tool(
         };
       }
 
-      const lines = result.output
-        .split("\n")
-        .filter((line: string) => line.trim())
-        .map((line: string) => line.trim());
+      // ⚡ Bolt: Replaced chained .filter().map() with a single-pass for loop to reduce allocations
+      const lines: string[] = [];
+      const linesSplit = result.output.split("\n");
+      for (let i = 0; i < linesSplit.length; i++) {
+        const trimmed = linesSplit[i].trim();
+        if (trimmed) lines.push(trimmed);
+      }
 
       return {
         path: searchPath,

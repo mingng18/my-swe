@@ -602,7 +602,9 @@ export class SandboxService implements FilesystemPort, SandboxBackendPort {
       );
 
       if (result.exitCode !== 0) {
-        const safeOutput = githubToken ? sanitizeTokenFromString(result.output, githubToken) : result.output;
+        const safeOutput = githubToken
+          ? sanitizeTokenFromString(result.output, githubToken)
+          : result.output;
         throw new Error(`Failed to clone repo: ${safeOutput}`);
       }
 
