@@ -371,16 +371,16 @@ describe("HooksDispatcher", () => {
     resetHooksDispatcher();
   });
 
-  it("maintains a singleton instance via getHooksDispatcher", () => {
-    const d1 = getHooksDispatcher();
-    const d2 = getHooksDispatcher();
+  it("maintains a singleton instance via getHooksDispatcher", async () => {
+    const d1 = await getHooksDispatcher();
+    const d2 = await getHooksDispatcher();
     expect(d1).toBe(d2);
   });
 
-  it("creates a new instance after resetHooksDispatcher is called", () => {
-    const d1 = getHooksDispatcher();
+  it("creates a new instance after resetHooksDispatcher is called", async () => {
+    const d1 = await getHooksDispatcher();
     resetHooksDispatcher();
-    const d2 = getHooksDispatcher();
+    const d2 = await getHooksDispatcher();
     expect(d1).not.toBe(d2);
   });
 

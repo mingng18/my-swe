@@ -56,3 +56,7 @@
 ## 2025-02-28 - Optimizing Batch Async Execution
 **Learning:** Naive chunking (using `slice` and `Promise.all` on slices of a static size) for running async tasks like shell commands forces faster tasks in a chunk to wait for the slowest task in the same chunk to finish before the next batch can begin. This leads to idle concurrency slots.
 **Action:** Use a sliding window concurrency control library like `p-limit` for executing multiple independent async tasks. This keeps the execution pipeline constantly saturated up to the concurrency limit, improving overall execution time when task durations vary.
+
+## 2025-02-28 - Refactor complex conditionals for readability and maintainability
+**Learning:** Complex, deeply nested `if/else` statements and repetitive logical conditions (e.g., `sandbox.getProvider() === ...`) make code difficult to read, maintain, and test, increasing the risk of bugs when adding new features.
+**Action:** Extract conditions into clearly named helper variables (e.g., `const isDaytona = ...`, `const isDaytonaSupported = ...`), consolidate redundant logical checks into unified `if`/`else if` branches, and use early returns where appropriate to simplify the control flow.
