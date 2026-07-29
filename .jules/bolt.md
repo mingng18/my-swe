@@ -75,3 +75,6 @@
 ## 2025-07-25 - Async file io in state-store
 **Learning:** Synchronous file I/O operations (`readFileSync`, `writeFileSync`) block the event loop, severely degrading performance in a concurrent environment. Using their asynchronous equivalents from `fs/promises` (`readFile`, `writeFile`) allows the event loop to continue processing other tasks, improving throughput.
 **Action:** Always prefer `fs/promises` methods for file I/O operations, especially in high-throughput or concurrent paths like a state store, and coordinate them via `Promise.all` when possible.
+## 2026-07-27 - Redundant String Manipulation in Array Chains
+**Learning:** Chaining `.filter().map()` where both operations perform the same string transformation (like `.trim()`) on large terminal outputs creates unnecessary allocations and duplicates work.
+**Action:** Consolidate into a single-pass `for` loop that performs the transformation once and filters out empty results, avoiding intermediate array allocations.
