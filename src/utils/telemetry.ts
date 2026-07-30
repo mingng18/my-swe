@@ -348,7 +348,7 @@ function aggregateToolMetrics(metrics: Metric[]) {
 
 	// ⚡ Bolt: Replace Object.entries with for...in to avoid intermediate array allocations
 	for (const tool in toolData) {
-		if (!Object.hasOwn(toolData, tool)) continue;
+		if (!Object.prototype.hasOwnProperty.call(toolData, tool)) continue;
 		const data = toolData[tool];
 		tools[tool] = {
 			count: data.totalCount,
