@@ -4,7 +4,6 @@
 ## 2024-07-27 - Replace native title with Custom Tooltips on Icon Buttons
 **Learning:** Using native HTML `title` attributes on interactive elements in a UI framework using custom tooltips (like Radix/shadcn) creates a poor UX due to the native 2-second delay and risk of overlapping dual tooltips.
 **Action:** Always replace native `title` attributes with styled `Tooltip` components (and remove `title=`) for icon-only buttons to guarantee immediate accessibility affordances and unified styling.
-
-## 2026-07-20 - Improved Task Sidebar Accessibility
-**Learning:** Using `role="status"` combined with visually hidden (`sr-only`) spans inside Badge components ensures screen readers announce dynamic counters properly. Converting generic `<div className="space-y-2">` lists to semantic `<ul>`/`<li>` structures provides critical list boundary and item count context for assistive tech.
-**Action:** Always use semantic list elements (`<ul>`, `<ol>`, `<li>`) for lists of items and add contextual `sr-only` text alongside `role="status"` on dynamic counters.
+## 2025-05-15 - Semantic List Elements for Todo Sidebar
+**Learning:** Generic block elements like `<div>` lack structure and aren't properly parsed by screen readers when used in lists, leading to context loss. Converting generic list elements into semantic `<ol>` or `<ul>` along with `<li>` tags properly notifies assistive tech that a list of items exists and allows for correct numbering and list counts.
+**Action:** Use semantic list tags `<ol>`, `<ul>`, and `<li>` when rendering collections of elements like tasks or messages, ensuring that empty states are handled cleanly outside the list block.
