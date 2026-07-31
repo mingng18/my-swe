@@ -3,7 +3,6 @@
 import { CheckCircle2, Circle, ListTodo, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Todo } from "@/lib/types";
@@ -121,25 +120,19 @@ export function TodoSidebar({ threadId, className }: TodoSidebarProps) {
 										"bg-background hover:bg-muted/50",
 								)}
 							>
-								<Checkbox
-									checked={todo.status === "completed"}
-									disabled
-									className="mt-0.5"
-									aria-label={`Task: ${todo.subject}`}
-								/>
+								<div className="mt-0.5 shrink-0" aria-hidden="true">
+									{getStatusIcon(todo.status)}
+								</div>
 								<div className="flex-1 min-w-0">
-									<div className="flex items-center gap-2 mb-1">
-										{getStatusIcon(todo.status)}
-										<p
-											className={cn(
-												"text-sm font-medium truncate",
-												todo.status === "completed" &&
-													"line-through text-muted-foreground",
-											)}
-										>
-											{todo.subject}
-										</p>
-									</div>
+									<p
+										className={cn(
+											"text-sm font-medium truncate mb-1",
+											todo.status === "completed" &&
+												"line-through text-muted-foreground",
+										)}
+									>
+										{todo.subject}
+									</p>
 									{todo.description && (
 										<p className="text-xs text-muted-foreground line-clamp-2">
 											{todo.description}

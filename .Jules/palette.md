@@ -7,3 +7,6 @@
 ## 2025-05-15 - Semantic List Elements for Todo Sidebar
 **Learning:** Generic block elements like `<div>` lack structure and aren't properly parsed by screen readers when used in lists, leading to context loss. Converting generic list elements into semantic `<ol>` or `<ul>` along with `<li>` tags properly notifies assistive tech that a list of items exists and allows for correct numbering and list counts.
 **Action:** Use semantic list tags `<ol>`, `<ul>`, and `<li>` when rendering collections of elements like tasks or messages, ensuring that empty states are handled cleanly outside the list block.
+## YYYY-MM-DD - Removed redundant Checkbox
+**Learning:** Using a disabled Checkbox alongside an icon for status creates a redundant and inaccessible (poor contrast) element that implies interactivity where none exists for an agent-driven list.
+**Action:** Repositioned the status icon as the primary non-interactive indicator and removed the Checkbox to streamline the Todo item layout.
