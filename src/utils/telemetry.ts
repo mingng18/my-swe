@@ -4,7 +4,7 @@ const logger = createLogger("telemetry");
 
 // Configuration from environment
 const OTEL_EXPORTER_OTLP_ENDPOINT =
-  process.env.OTEL_EXPORTER_OTLP_ENDPOINT || "http://localhost:4317";
+	process.env.OTEL_EXPORTER_OTLP_ENDPOINT || "http://localhost:4317";
 const OTEL_SERVICE_NAME = process.env.OTEL_SERVICE_NAME || "bullhorse-agent";
 const OTEL_ENABLED = process.env.OTEL_ENABLED === "true";
 
@@ -13,63 +13,63 @@ const OTEL_ENABLED = process.env.OTEL_ENABLED === "true";
  * This is a lightweight implementation that doesn't require the full OpenTelemetry SDK.
  */
 export interface Span {
-  name: string;
-  startTime: number;
-  endTime?: number;
-  attributes: Record<string, unknown>;
-  status: "ok" | "error";
-  events: Array<{
-    name: string;
-    time: number;
-    attributes: Record<string, unknown>;
-  }>;
+	name: string;
+	startTime: number;
+	endTime?: number;
+	attributes: Record<string, unknown>;
+	status: "ok" | "error";
+	events: Array<{
+		name: string;
+		time: number;
+		attributes: Record<string, unknown>;
+	}>;
 }
 
 /**
  * Simple metric recorder.
  */
 export interface Metric {
-  name: string;
-  value: number;
-  attributes: Record<string, unknown>;
-  timestamp: number;
+	name: string;
+	value: number;
+	attributes: Record<string, unknown>;
+	timestamp: number;
 }
 
 /**
  * In-memory storage for spans and metrics when OTEL is disabled.
  */
 class InMemoryTelemetry {
-  private spans: Span[] = [];
-  private metrics: Metric[] = [];
-  private maxSpans = 1000;
-  private maxMetrics = 5000;
+	private spans: Span[] = [];
+	private metrics: Metric[] = [];
+	private maxSpans = 1000;
+	private maxMetrics = 5000;
 
-  recordSpan(span: Span): void {
-    this.spans.push(span);
-    if (this.spans.length > this.maxSpans) {
-      this.spans.shift();
-    }
-  }
+	recordSpan(span: Span): void {
+		this.spans.push(span);
+		if (this.spans.length > this.maxSpans) {
+			this.spans.shift();
+		}
+	}
 
-  recordMetric(metric: Metric): void {
-    this.metrics.push(metric);
-    if (this.metrics.length > this.maxMetrics) {
-      this.metrics.shift();
-    }
-  }
+	recordMetric(metric: Metric): void {
+		this.metrics.push(metric);
+		if (this.metrics.length > this.maxMetrics) {
+			this.metrics.shift();
+		}
+	}
 
-  getSpans(): Span[] {
-    return [...this.spans];
-  }
+	getSpans(): Span[] {
+		return [...this.spans];
+	}
 
-  getMetrics(): Metric[] {
-    return [...this.metrics];
-  }
+	getMetrics(): Metric[] {
+		return [...this.metrics];
+	}
 
-  clear(): void {
-    this.spans = [];
-    this.metrics = [];
-  }
+	clear(): void {
+		this.spans = [];
+		this.metrics = [];
+	}
 }
 
 const inMemoryTelemetry = new InMemoryTelemetry();
@@ -89,350 +89,363 @@ const inMemoryTelemetry = new InMemoryTelemetry();
  * ```
  */
 export function createSpan(
-  name: string,
-  attributes: Record<string, unknown> = {},
+	name: string,
+	attributes: Record<string, unknown> = {},
 ): Span & { end: (attrs?: Record<string, unknown>) => void } {
-  const span: Span = {
-    name,
-    startTime: Date.now(),
-    attributes,
-    status: "ok",
-    events: [],
-  };
+	const span: Span = {
+		name,
+		startTime: Date.now(),
+		attributes,
+		status: "ok",
+		events: [],
+	};
 
-  return {
-    ...span,
-    end: (endAttrs?: Record<string, unknown>) => {
-      span.endTime = Date.now();
-      if (endAttrs) {
-        Object.assign(span.attributes, endAttrs);
-        if (endAttrs.status === "error") {
-          span.status = "error";
-        }
-      }
+	return {
+		...span,
+		end: (endAttrs?: Record<string, unknown>) => {
+			span.endTime = Date.now();
+			if (endAttrs) {
+				Object.assign(span.attributes, endAttrs);
+				if (endAttrs.status === "error") {
+					span.status = "error";
+				}
+			}
 
-      const duration = span.endTime - span.startTime;
-      span.attributes.duration = duration;
+			const duration = span.endTime - span.startTime;
+			span.attributes.duration = duration;
 
-      if (OTEL_ENABLED) {
-        logger.debug(
-          { spanName: name, duration, attributes: span.attributes },
-          "[telemetry] Span ended",
-        );
-      }
+			if (OTEL_ENABLED) {
+				logger.debug(
+					{ spanName: name, duration, attributes: span.attributes },
+					"[telemetry] Span ended",
+				);
+			}
 
-      inMemoryTelemetry.recordSpan(span);
-    },
-  };
+			inMemoryTelemetry.recordSpan(span);
+		},
+	};
 }
 
 /**
  * Record a metric value.
  */
 export function recordMetric(
-  name: string,
-  value: number,
-  attributes: Record<string, unknown> = {},
+	name: string,
+	value: number,
+	attributes: Record<string, unknown> = {},
 ): void {
-  const metric: Metric = {
-    name,
-    value,
-    attributes,
-    timestamp: Date.now(),
-  };
+	const metric: Metric = {
+		name,
+		value,
+		attributes,
+		timestamp: Date.now(),
+	};
 
-  inMemoryTelemetry.recordMetric(metric);
+	inMemoryTelemetry.recordMetric(metric);
 
-  if (OTEL_ENABLED) {
-    logger.debug(
-      { metricName: name, value, attributes },
-      "[telemetry] Metric recorded",
-    );
-  }
+	if (OTEL_ENABLED) {
+		logger.debug(
+			{ metricName: name, value, attributes },
+			"[telemetry] Metric recorded",
+		);
+	}
 }
 
 /**
  * Record token usage from an LLM call.
  */
 export function recordLLMCall(params: {
-  model: string;
-  inputTokens: number;
-  outputTokens: number;
-  latency: number;
-  threadId?: string;
+	model: string;
+	inputTokens: number;
+	outputTokens: number;
+	latency: number;
+	threadId?: string;
 }): void {
-  const totalTokens = params.inputTokens + params.outputTokens;
+	const totalTokens = params.inputTokens + params.outputTokens;
 
-  recordMetric("llm.input_tokens", params.inputTokens, {
-    model: params.model,
-    threadId: params.threadId || "unknown",
-  });
+	recordMetric("llm.input_tokens", params.inputTokens, {
+		model: params.model,
+		threadId: params.threadId || "unknown",
+	});
 
-  recordMetric("llm.output_tokens", params.outputTokens, {
-    model: params.model,
-    threadId: params.threadId || "unknown",
-  });
+	recordMetric("llm.output_tokens", params.outputTokens, {
+		model: params.model,
+		threadId: params.threadId || "unknown",
+	});
 
-  recordMetric("llm.total_tokens", totalTokens, {
-    model: params.model,
-    threadId: params.threadId || "unknown",
-  });
+	recordMetric("llm.total_tokens", totalTokens, {
+		model: params.model,
+		threadId: params.threadId || "unknown",
+	});
 
-  recordMetric("llm.latency_ms", params.latency, {
-    model: params.model,
-    threadId: params.threadId || "unknown",
-  });
+	recordMetric("llm.latency_ms", params.latency, {
+		model: params.model,
+		threadId: params.threadId || "unknown",
+	});
 }
 
 /**
  * Record a tool invocation.
  */
 export function recordToolCall(params: {
-  toolName: string;
-  duration: number;
-  success: boolean;
-  outputSize?: number;
-  threadId?: string;
+	toolName: string;
+	duration: number;
+	success: boolean;
+	outputSize?: number;
+	threadId?: string;
 }): void {
-  recordMetric("tool.duration_ms", params.duration, {
-    tool: params.toolName,
-    threadId: params.threadId || "unknown",
-  });
+	recordMetric("tool.duration_ms", params.duration, {
+		tool: params.toolName,
+		threadId: params.threadId || "unknown",
+	});
 
-  recordMetric("tool.success", params.success ? 1 : 0, {
-    tool: params.toolName,
-    threadId: params.threadId || "unknown",
-  });
+	recordMetric("tool.success", params.success ? 1 : 0, {
+		tool: params.toolName,
+		threadId: params.threadId || "unknown",
+	});
 
-  if (params.outputSize !== undefined) {
-    recordMetric("tool.output_size", params.outputSize, {
-      tool: params.toolName,
-      threadId: params.threadId || "unknown",
-    });
-  }
+	if (params.outputSize !== undefined) {
+		recordMetric("tool.output_size", params.outputSize, {
+			tool: params.toolName,
+			threadId: params.threadId || "unknown",
+		});
+	}
 }
 
 /**
  * Get all recorded telemetry data for a thread.
  */
 export function getThreadTelemetry(threadId: string): {
-  spans: Span[];
-  metrics: Metric[];
+	spans: Span[];
+	metrics: Metric[];
 } {
-  const allSpans = inMemoryTelemetry.getSpans();
-  const allMetrics = inMemoryTelemetry.getMetrics();
+	const allSpans = inMemoryTelemetry.getSpans();
+	const allMetrics = inMemoryTelemetry.getMetrics();
 
-  return {
-    spans: allSpans.filter(
-      (s) => (s.attributes.threadId as string) === threadId,
-    ),
-    metrics: allMetrics.filter(
-      (m) => (m.attributes.threadId as string) === threadId,
-    ),
-  };
+	// ⚡ Bolt: Replace multiple `.filter()` array allocations with single-pass loops
+	const spans = [];
+	for (const s of allSpans) {
+		if ((s.attributes.threadId as string) === threadId) {
+			spans.push(s);
+		}
+	}
+
+	const metrics = [];
+	for (const m of allMetrics) {
+		if ((m.attributes.threadId as string) === threadId) {
+			metrics.push(m);
+		}
+	}
+
+	return {
+		spans,
+		metrics,
+	};
 }
 
 /**
  * Get aggregated metrics for a thread.
  */
 
+// ⚡ Bolt: Prevent intermediate array allocations via `.filter()` inside upstream consumers
+// Filtering is handled dynamically inside the loop.
 function aggregateLlmMetrics(metrics: Metric[]) {
-  const llmMetrics = metrics.filter((m) => m.name.startsWith("llm."));
-  const llmCalls = {
-    count: 0,
-    totalTokens: 0,
-    totalInputTokens: 0,
-    totalOutputTokens: 0,
-    totalLatency: 0,
-    avgLatency: 0,
-    model: "unknown",
-  };
+	const llmCalls = {
+		count: 0,
+		totalTokens: 0,
+		totalInputTokens: 0,
+		totalOutputTokens: 0,
+		totalLatency: 0,
+		avgLatency: 0,
+		model: "unknown",
+	};
 
-  for (const metric of llmMetrics) {
-    if (metric.name === "llm.total_tokens") {
-      llmCalls.count++;
-      llmCalls.totalTokens += metric.value;
-      llmCalls.model = (metric.attributes.model as string) || "unknown";
-    }
-    if (metric.name === "llm.input_tokens") {
-      llmCalls.totalInputTokens += metric.value;
-    }
-    if (metric.name === "llm.output_tokens") {
-      llmCalls.totalOutputTokens += metric.value;
-    }
-    if (metric.name === "llm.latency_ms") {
-      llmCalls.totalLatency += metric.value;
-    }
-  }
+	for (const metric of metrics) {
+		if (!metric.name.startsWith("llm.")) continue;
+		if (metric.name === "llm.total_tokens") {
+			llmCalls.count++;
+			llmCalls.totalTokens += metric.value;
+			llmCalls.model = (metric.attributes.model as string) || "unknown";
+		}
+		if (metric.name === "llm.input_tokens") {
+			llmCalls.totalInputTokens += metric.value;
+		}
+		if (metric.name === "llm.output_tokens") {
+			llmCalls.totalOutputTokens += metric.value;
+		}
+		if (metric.name === "llm.latency_ms") {
+			llmCalls.totalLatency += metric.value;
+		}
+	}
 
-  if (llmCalls.count > 0) {
-    llmCalls.avgLatency = llmCalls.totalLatency / llmCalls.count;
-  }
+	if (llmCalls.count > 0) {
+		llmCalls.avgLatency = llmCalls.totalLatency / llmCalls.count;
+	}
 
-  return {
-    count: llmCalls.count,
-    totalTokens: llmCalls.totalTokens,
-    totalInputTokens: llmCalls.totalInputTokens,
-    totalOutputTokens: llmCalls.totalOutputTokens,
-    avgLatency: llmCalls.avgLatency,
-    model: llmCalls.model,
-  };
+	return {
+		count: llmCalls.count,
+		totalTokens: llmCalls.totalTokens,
+		totalInputTokens: llmCalls.totalInputTokens,
+		totalOutputTokens: llmCalls.totalOutputTokens,
+		avgLatency: llmCalls.avgLatency,
+		model: llmCalls.model,
+	};
 }
 
-function aggregateToolMetrics(toolMetrics: Metric[]) {
-  // First pass: collect data
-  const toolData: Record<
-    string,
-    {
-      totalDuration: number;
-      successCount: number;
-      totalCount: number;
-      totalOutputSize: number;
-    }
-  > = {};
+// ⚡ Bolt: Renamed `toolMetrics` to `metrics` because this function now accepts unfiltered metrics
+// to prevent upstream intermediate array allocations via `.filter()`. Filtering is handled dynamically inside the loop.
+function aggregateToolMetrics(metrics: Metric[]) {
+	// First pass: collect data
+	const toolData: Record<
+		string,
+		{
+			totalDuration: number;
+			successCount: number;
+			totalCount: number;
+			totalOutputSize: number;
+		}
+	> = {};
 
-  for (const metric of toolMetrics) {
-    const tool = metric.attributes.tool as string;
-    if (!tool) continue;
+	for (const metric of metrics) {
+		if (!metric.name.startsWith("tool.")) continue;
+		const tool = metric.attributes.tool as string;
+		if (!tool) continue;
 
-    if (!toolData[tool]) {
-      toolData[tool] = {
-        totalDuration: 0,
-        successCount: 0,
-        totalCount: 0,
-        totalOutputSize: 0,
-      };
-    }
+		if (!toolData[tool]) {
+			toolData[tool] = {
+				totalDuration: 0,
+				successCount: 0,
+				totalCount: 0,
+				totalOutputSize: 0,
+			};
+		}
 
-    if (metric.name === "tool.duration_ms") {
-      toolData[tool].totalDuration += metric.value;
-      toolData[tool].totalCount++;
-    }
-    if (metric.name === "tool.success") {
-      toolData[tool].totalCount++;
-      if (metric.value === 1) {
-        toolData[tool].successCount++;
-      }
-    }
-    if (metric.name === "tool.output_size") {
-      toolData[tool].totalOutputSize += metric.value;
-    }
-  }
+		if (metric.name === "tool.duration_ms") {
+			toolData[tool].totalDuration += metric.value;
+			toolData[tool].totalCount++;
+		}
+		if (metric.name === "tool.success") {
+			toolData[tool].totalCount++;
+			if (metric.value === 1) {
+				toolData[tool].successCount++;
+			}
+		}
+		if (metric.name === "tool.output_size") {
+			toolData[tool].totalOutputSize += metric.value;
+		}
+	}
 
-  // Second pass: compute averages
-  const tools: Record<
-    string,
-    {
-      count: number;
-      successRate: number;
-      avgDuration: number;
-      avgOutputSize: number;
-    }
-  > = {};
+	// Second pass: compute averages
+	const tools: Record<
+		string,
+		{
+			count: number;
+			successRate: number;
+			avgDuration: number;
+			avgOutputSize: number;
+		}
+	> = {};
 
-  // ⚡ Bolt: Replace Object.entries with for...in to avoid intermediate array allocations
-  for (const tool in toolData) {
-    if (!Object.prototype.hasOwnProperty.call(toolData, tool)) continue;
-    const data = toolData[tool];
-    tools[tool] = {
-      count: data.totalCount,
-      successRate:
-        data.totalCount > 0 ? data.successCount / data.totalCount : 0,
-      avgDuration:
-        data.totalCount > 0 ? data.totalDuration / data.totalCount : 0,
-      avgOutputSize:
-        data.totalCount > 0 ? data.totalOutputSize / data.totalCount : 0,
-    };
-  }
+	// ⚡ Bolt: Replace Object.entries with for...in to avoid intermediate array allocations
+	for (const tool in toolData) {
+		if (!Object.prototype.hasOwnProperty.call(toolData, tool)) continue;
+		const data = toolData[tool];
+		tools[tool] = {
+			count: data.totalCount,
+			successRate:
+				data.totalCount > 0 ? data.successCount / data.totalCount : 0,
+			avgDuration:
+				data.totalCount > 0 ? data.totalDuration / data.totalCount : 0,
+			avgOutputSize:
+				data.totalCount > 0 ? data.totalOutputSize / data.totalCount : 0,
+		};
+	}
 
-  return tools;
+	return tools;
 }
 
 function calculateTotalDuration(spans: Span[]) {
-  let totalDuration = 0;
-  for (const span of spans) {
-    if (span.endTime) {
-      totalDuration += span.endTime - span.startTime;
-    }
-  }
-  return totalDuration;
+	let totalDuration = 0;
+	for (const span of spans) {
+		if (span.endTime) {
+			totalDuration += span.endTime - span.startTime;
+		}
+	}
+	return totalDuration;
 }
 
 export function getThreadMetrics(threadId: string): {
-  llmCalls: {
-    count: number;
-    totalTokens: number;
-    totalInputTokens: number;
-    totalOutputTokens: number;
-    avgLatency: number;
-    model: string;
-  };
-  tools: Record<
-    string,
-    {
-      count: number;
-      successRate: number;
-      avgDuration: number;
-      avgOutputSize: number;
-    }
-  >;
-  totalDuration: number;
+	llmCalls: {
+		count: number;
+		totalTokens: number;
+		totalInputTokens: number;
+		totalOutputTokens: number;
+		avgLatency: number;
+		model: string;
+	};
+	tools: Record<
+		string,
+		{
+			count: number;
+			successRate: number;
+			avgDuration: number;
+			avgOutputSize: number;
+		}
+	>;
+	totalDuration: number;
 } {
-  const telemetry = getThreadTelemetry(threadId);
+	const telemetry = getThreadTelemetry(threadId);
 
-  return {
-    llmCalls: aggregateLlmMetrics(telemetry.metrics),
-    tools: aggregateToolMetrics(
-      telemetry.metrics.filter((m) => m.name.startsWith("tool.")),
-    ),
-    totalDuration: calculateTotalDuration(telemetry.spans),
-  };
+	return {
+		llmCalls: aggregateLlmMetrics(telemetry.metrics),
+		tools: aggregateToolMetrics(telemetry.metrics),
+		totalDuration: calculateTotalDuration(telemetry.spans),
+	};
 }
 
 /**
  * Get aggregated tool metrics across all threads.
  */
 export function getGlobalToolMetrics(): Record<
-  string,
-  {
-    count: number;
-    successRate: number;
-    avgDuration: number;
-    avgOutputSize: number;
-  }
+	string,
+	{
+		count: number;
+		successRate: number;
+		avgDuration: number;
+		avgOutputSize: number;
+	}
 > {
-  const allMetrics = inMemoryTelemetry.getMetrics();
-  const toolMetrics = allMetrics.filter((m) => m.name.startsWith("tool."));
+	const allMetrics = inMemoryTelemetry.getMetrics();
 
-  return aggregateToolMetrics(toolMetrics);
+	return aggregateToolMetrics(allMetrics);
 }
 
 /**
  * Clear telemetry data for a thread.
  */
 export function clearThreadTelemetry(threadId: string): void {
-  // In a real implementation with OTLP, we would send a signal
-  // For now, we just note that data has been cleared
-  logger.debug({ threadId }, "[telemetry] Thread telemetry cleared");
+	// In a real implementation with OTLP, we would send a signal
+	// For now, we just note that data has been cleared
+	logger.debug({ threadId }, "[telemetry] Thread telemetry cleared");
 }
 
 /**
  * Get telemetry health status.
  */
 export function getTelemetryStatus(): {
-  enabled: boolean;
-  endpoint: string;
-  serviceName: string;
-  spanCount: number;
-  metricCount: number;
+	enabled: boolean;
+	endpoint: string;
+	serviceName: string;
+	spanCount: number;
+	metricCount: number;
 } {
-  return {
-    enabled: OTEL_ENABLED,
-    endpoint: OTEL_EXPORTER_OTLP_ENDPOINT,
-    serviceName: OTEL_SERVICE_NAME,
-    spanCount: inMemoryTelemetry.getSpans().length,
-    metricCount: inMemoryTelemetry.getMetrics().length,
-  };
+	return {
+		enabled: OTEL_ENABLED,
+		endpoint: OTEL_EXPORTER_OTLP_ENDPOINT,
+		serviceName: OTEL_SERVICE_NAME,
+		spanCount: inMemoryTelemetry.getSpans().length,
+		metricCount: inMemoryTelemetry.getMetrics().length,
+	};
 }
 
 /**
@@ -440,17 +453,17 @@ export function getTelemetryStatus(): {
  * Call this at application startup.
  */
 export function initializeTelemetry(): void {
-  if (OTEL_ENABLED) {
-    logger.info(
-      {
-        endpoint: OTEL_EXPORTER_OTLP_ENDPOINT,
-        serviceName: OTEL_SERVICE_NAME,
-      },
-      "[telemetry] OpenTelemetry enabled (in-memory mode)",
-    );
-  } else {
-    logger.debug(
-      "[telemetry] OpenTelemetry disabled. Set OTEL_ENABLED=true to enable.",
-    );
-  }
+	if (OTEL_ENABLED) {
+		logger.info(
+			{
+				endpoint: OTEL_EXPORTER_OTLP_ENDPOINT,
+				serviceName: OTEL_SERVICE_NAME,
+			},
+			"[telemetry] OpenTelemetry enabled (in-memory mode)",
+		);
+	} else {
+		logger.debug(
+			"[telemetry] OpenTelemetry disabled. Set OTEL_ENABLED=true to enable.",
+		);
+	}
 }
