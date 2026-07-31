@@ -84,3 +84,7 @@
 ## 2025-07-29 - Missing memoization in React rendering
 **Learning:** Exporting functional React components without `React.memo()` can cause unnecessary re-renders in large lists or frequently updated components (like timelines), leading to UI stuttering and poor performance.
 **Action:** Wrap frequently updated or large components with `React.memo()` to prevent unnecessary re-renders when their props haven't changed.
+
+## 2025-05-19 - Unbounded Filter Chaining in Telemetry Processing
+**Learning:** Found multiple chained `.filter()` method calls creating unbounded intermediate array allocations in `src/utils/telemetry.ts` when formatting metrics data (e.g. `aggregateLlmMetrics`). Processing large metrics data structures generated a lot of memory churn that showed up in test durations.
+**Action:** Always prefer consolidating multiple `.filter().map()` style loops into a single-pass sequential `for` or `for...of` block on highly active data pipelines to keep V8 memory overhead and garbage collection pauses low.
