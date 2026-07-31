@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { UIMessage } from "ai";
 import { ArrowDownIcon, DownloadIcon } from "lucide-react";
@@ -159,20 +160,24 @@ export const ConversationDownload = ({
   }, [messages, filename, formatMessage]);
 
   return (
-    <Button
-      aria-label="Download conversation"
-      title="Download conversation"
-      className={cn(
-        "absolute top-4 right-4 rounded-full dark:bg-background dark:hover:bg-muted",
-        className
-      )}
-      onClick={handleDownload}
-      size="icon"
-      type="button"
-      variant="outline"
-      {...props}
-    >
-      {children ?? <DownloadIcon className="size-4" />}
-    </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            aria-label="Download conversation"
+            className={cn(
+              "absolute top-4 right-4 rounded-full dark:bg-background dark:hover:bg-muted",
+              className
+            )}
+            onClick={handleDownload}
+            size="icon"
+            type="button"
+            variant="outline"
+            {...props}
+          >
+            {children ?? <DownloadIcon className="size-4" />}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Download conversation</TooltipContent>
+      </Tooltip>
   );
 };
