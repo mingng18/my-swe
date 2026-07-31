@@ -4,3 +4,8 @@
 ## 2024-07-27 - Replace native title with Custom Tooltips on Icon Buttons
 **Learning:** Using native HTML `title` attributes on interactive elements in a UI framework using custom tooltips (like Radix/shadcn) creates a poor UX due to the native 2-second delay and risk of overlapping dual tooltips.
 **Action:** Always replace native `title` attributes with styled `Tooltip` components (and remove `title=`) for icon-only buttons to guarantee immediate accessibility affordances and unified styling.
+## 2026-07-29 - Use custom Tooltip components to clarify disabled states
+
+**Learning:** When inputs like checkboxes are disabled because their state is managed entirely by an external agent (and thus un-clickable by the user), it's crucial to explain *why* they are disabled. Otherwise, users may assume the UI is broken.
+
+**Action:** Wrap the disabled input in a custom UI `Tooltip` (e.g., from shadcn/Radix). In order for the tooltip to trigger on hover/focus when the nested element is disabled, wrap the input inside a `<span>` with `tabIndex={0}` and add a class like `pointer-events-none` to the disabled input itself.
