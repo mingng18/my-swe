@@ -4,6 +4,9 @@
 ## 2024-07-27 - Replace native title with Custom Tooltips on Icon Buttons
 **Learning:** Using native HTML `title` attributes on interactive elements in a UI framework using custom tooltips (like Radix/shadcn) creates a poor UX due to the native 2-second delay and risk of overlapping dual tooltips.
 **Action:** Always replace native `title` attributes with styled `Tooltip` components (and remove `title=`) for icon-only buttons to guarantee immediate accessibility affordances and unified styling.
+## 2025-05-15 - Semantic List Elements for Todo Sidebar
+**Learning:** Generic block elements like `<div>` lack structure and aren't properly parsed by screen readers when used in lists, leading to context loss. Converting generic list elements into semantic `<ol>` or `<ul>` along with `<li>` tags properly notifies assistive tech that a list of items exists and allows for correct numbering and list counts.
+**Action:** Use semantic list tags `<ol>`, `<ul>`, and `<li>` when rendering collections of elements like tasks or messages, ensuring that empty states are handled cleanly outside the list block.
 
 ## 2023-10-25 - Contextual Actions and Hover States
 **Learning:** Adding contextual actions (like copy to clipboard) inside chat bubbles using `group-hover` combined with `focus-visible` provides excellent accessibility without cluttering the UI with persistent icons. The `focus-visible` ensures keyboard users can still access the button cleanly.
