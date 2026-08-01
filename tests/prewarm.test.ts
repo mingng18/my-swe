@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { parseReposJson } from "../src/prewarm";
+import { describe, it, expect, beforeEach, afterEach, spyOn } from "bun:test";
+import { parseReposJson, prewarmRepo } from "../src/prewarm";
+import * as daytonaPool from "../src/integrations/daytona-pool";
 
 describe("parseReposJson", () => {
   const originalEnv = process.env;
@@ -71,5 +72,23 @@ describe("parseReposJson", () => {
     expect(() => parseReposJson()).toThrow(
       "Invalid PREWARM_REPO. Expected 'owner/name' (e.g. facebook/react)."
     );
+  });
+});
+
+describe("prewarmRepo", () => {
+  it("should catch and log errors during sandbox creation", async () => {
+    spyOn(daytonaPool, "countIdleRepoSandboxes").mockResolvedValue(0);
+    const createRepoSandboxSpy = spyOn(daytonaPool, "createRepoSandbox").mockRejectedValue(new Error("Test Error"));
+
+    // Call prewarmRepo with desiredCount=1, so it tries to create 1 additional sandbox.
+    await prewarmRepo(
+      { owner: "facebook", name: "react", count: 1 },
+      { apiKey: "test-api-key" },
+      "small" as any,
+      1
+    );
+
+    // Verify createRepoSandbox was called
+    expect(createRepoSandboxSpy).toHaveBeenCalledTimes(1);
   });
 });

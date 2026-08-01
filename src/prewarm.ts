@@ -133,7 +133,7 @@ async function createAdditionalSandbox(
   });
 }
 
-async function prewarmRepo(
+export async function prewarmRepo(
   repo: PrewarmRepoSpec,
   config: PrewarmConfig,
   defaultProfile: SandboxProfile,
