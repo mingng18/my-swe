@@ -43,14 +43,20 @@ interface GitHubIssueResponse {
   }>;
 }
 
+export interface CreatePrOptions {
+  headRepoOwner: string;
+  headRepoName: string;
+  githubToken: string;
+  title: string;
+  headBranch: string;
+  body: string;
+}
+
 export async function createGithubPr(
-  headRepoOwner: string,
-  headRepoName: string,
-  githubToken: string,
-  title: string,
-  headBranch: string,
-  body: string,
+  options: CreatePrOptions,
 ): Promise<[string | null, number | null, boolean]> {
+  const { headRepoOwner, headRepoName, githubToken, title, headBranch, body } =
+    options;
   const octokit = new Octokit({ auth: githubToken });
 
   // Fork-aware logic: if the head repo is a fork, open the PR against the

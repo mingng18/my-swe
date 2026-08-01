@@ -139,14 +139,14 @@ describe("createGithubPr", () => {
       });
     });
 
-    const result = await createGithubPr(
-      "headOwner",
-      "headRepo",
-      "token",
-      "PR Title",
-      "feature",
-      "PR Body",
-    );
+    const result = await createGithubPr({
+      headRepoOwner: "headOwner",
+      headRepoName: "headRepo",
+      githubToken: "token",
+      title: "PR Title",
+      headBranch: "feature",
+      body: "PR Body",
+    });
 
     expect(result).toEqual(["https://github.com/owner/repo/pull/1", 1, false]);
     expect(pullsCreateMock).toHaveBeenCalledTimes(2);
@@ -193,14 +193,14 @@ describe("createGithubPr", () => {
       });
     });
 
-    const result = await createGithubPr(
-      "headOwner",
-      "headRepo",
-      "token",
-      "PR Title",
-      "feature",
-      "PR Body",
-    );
+    const result = await createGithubPr({
+      headRepoOwner: "headOwner",
+      headRepoName: "headRepo",
+      githubToken: "token",
+      title: "PR Title",
+      headBranch: "feature",
+      body: "PR Body",
+    });
 
     expect(result).toEqual(["https://github.com/owner/repo/pull/2", 2, true]);
     expect(pullsCreateMock).toHaveBeenCalledTimes(1);
@@ -251,14 +251,14 @@ describe("createGithubPr", () => {
       });
     });
 
-    const result = await createGithubPr(
-      "headOwner",
-      "headRepo",
-      "token",
-      "PR Title",
-      "feature",
-      "PR Body",
-    );
+    const result = await createGithubPr({
+      headRepoOwner: "headOwner",
+      headRepoName: "headRepo",
+      githubToken: "token",
+      title: "PR Title",
+      headBranch: "feature",
+      body: "PR Body",
+    });
 
     expect(result).toEqual(["https://github.com/owner/repo/pull/3", 3, true]);
     expect(pullsCreateMock).toHaveBeenCalledTimes(2);

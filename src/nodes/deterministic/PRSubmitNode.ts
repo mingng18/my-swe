@@ -127,14 +127,14 @@ async function pushAndCreatePullRequest(params: {
   }
 
   logger.info("[PRSubmitNode] Creating GitHub PR");
-  const [prUrl, prNumber, success] = await createGithubPr(
-    params.repoOwner,
-    params.repoName,
-    token,
-    params.commitMessage,
-    params.currentBranch,
-    "Automated PR created by Open SWE agent.",
-  );
+  const [prUrl, prNumber, success] = await createGithubPr({
+    headRepoOwner: params.repoOwner,
+    headRepoName: params.repoName,
+    githubToken: token,
+    title: params.commitMessage,
+    headBranch: params.currentBranch,
+    body: "Automated PR created by Open SWE agent.",
+  });
 
   if (prUrl) {
     logger.info({ prUrl, prNumber }, "[PRSubmitNode] PR created successfully");
