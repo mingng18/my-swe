@@ -214,4 +214,14 @@ describe("stringifyPayloadForTrace", () => {
     expect(result.length).toBeLessThanOrEqual(21); // 20 + ellipsis
     expect(result.endsWith("…")).toBe(true);
   });
+
+  it("falls back to String() for circular structures", () => {
+    const circular: any = {};
+    circular.self = circular;
+    expect(stringifyPayloadForTrace(circular, 100)).toBe("[object Object]");
+  });
+
+  it("falls back to String() for BigInt", () => {
+    expect(stringifyPayloadForTrace(42n, 100)).toBe("42");
+  });
 });
