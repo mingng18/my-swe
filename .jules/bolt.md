@@ -88,3 +88,6 @@
 ## 2025-02-12 - Optimizing search loop with O(1) Map lookup
 **Learning:** In code dealing with search filtering and mapping over objects, using `array.find(obj => obj.name === name)` inside a loop over tools (`Array.from(found).map(name => ...)`) creates redundant O(N) nested scans.
 **Action:** When a mapping of `name -> Object` is already constructed to resolve existence (like `toolsLowerMap`), reuse that exact same Map `.get(name)` later in the function to eliminate the $O(N)$ lookup and replace it with $O(1)$.
+## 2025-03-09 - Map lookups for concurrent data access
+**Learning:** Using `Array.find()` inside an asynchronous processing loop (`Promise.all(arr.map(...))`) creates a synchronous CPU bottleneck that delays the scheduling of microtasks, artificially inflating total resolution time.
+**Action:** When mapping over items and looking up references against a static array, proactively compile the array into a `Map` structure before the loop to reduce lookup complexity from O(N) to O(1), ensuring microtasks yield quickly and don't stall concurrent execution.
