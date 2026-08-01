@@ -88,6 +88,3 @@
 ## 2025-02-12 - Optimizing search loop with O(1) Map lookup
 **Learning:** In code dealing with search filtering and mapping over objects, using `array.find(obj => obj.name === name)` inside a loop over tools (`Array.from(found).map(name => ...)`) creates redundant O(N) nested scans.
 **Action:** When a mapping of `name -> Object` is already constructed to resolve existence (like `toolsLowerMap`), reuse that exact same Map `.get(name)` later in the function to eliminate the $O(N)$ lookup and replace it with $O(1)$.
-## 2024-08-01 - Optimize subagent lookup in PR review
-**Learning:** An $O(N \times M)$ lookup nested inside a `.map` loop using `Array.prototype.find` was an unnecessary performance bottleneck that slowed down PR reviews when many reviewers were selected.
-**Action:** Always pre-compute a `Map` structure upfront for repeated array lookups when iterating over collections, transforming the time complexity to $O(N+M)$ and improving lookup speed from ~122.22ms down to ~19.90ms (83% improvement) under heavy loop iterations.
