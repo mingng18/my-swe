@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "bun:test";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 
 /**
  * Lightweight HTTP-level test for the POST /rewind/:threadId/:checkpointId route.
@@ -11,36 +11,32 @@ import { describe, it, expect, beforeAll, afterAll } from "bun:test";
  * src/tools/__tests__/checkpoint-rewind.test.ts against a fake agent.
  */
 
-const REWIND_PORT = parseInt(
-  process.env.REWIND_TEST_PORT || "7871",
-  10,
-);
+const REWIND_PORT = parseInt(process.env.REWIND_TEST_PORT || "7871", 10);
 const REWIND_URL = `http://localhost:${REWIND_PORT}`;
 
 describe("POST /rewind/:threadId/:checkpointId", () => {
-  let server: any;
+	let server: any;
 
-  beforeAll(async () => {
-    // Ensure no auth interferes with the route under test.
-    process.env.API_SECRET_KEY = "";
-    const { default: app } = await import("../webapp");
-    server = Bun.serve({ port: REWIND_PORT, fetch: app.fetch });
-  });
+	beforeAll(async () => {
+		// Ensure no auth interferes with the route under test.
+		delete process.env.API_SECRET_KEY;
+		const { default: app } = await import("../webapp");
+		server = Bun.serve({ port: REWIND_PORT, fetch: app.fetch });
+	});
 
-  afterAll(() => {
-    server?.stop();
-  });
+	afterAll(() => {
+		server?.stop();
+	});
 
-  it("returns 404 when no active agent exists for the thread", async () => {
-    const res = await fetch(
-      `${REWIND_URL}/rewind/no-such-thread/cp-1`,
-      { method: "POST" },
-    );
+	it("returns 404 when no active agent exists for the thread", async () => {
+		const res = await fetch(`${REWIND_URL}/rewind/no-such-thread/cp-1`, {
+			method: "POST",
+		});
 
-    expect(res.status).toBe(404);
-    const body = await res.json();
-    expect(body.error).toContain("No active agent");
-    expect(body.threadId).toBe("no-such-thread");
-    expect(body.checkpointId).toBe("cp-1");
-  });
+		expect(res.status).toBe(404);
+		const body = await res.json();
+		expect(body.error).toContain("No active agent");
+		expect(body.threadId).toBe("no-such-thread");
+		expect(body.checkpointId).toBe("cp-1");
+	});
 });
