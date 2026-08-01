@@ -1,13 +1,17 @@
-1. **Optimize `summarizeRemovedMessages` in `src/utils/context-compactor.ts`**
-   - Replace the multiple `.filter(...).length` calls with a single `for` loop to compute `toolCalls` and `aiMessages` in one pass. This avoids iterating over the `removed` array twice.
-   - This optimization follows the principle of avoiding multiple passes when calculating statistics over arrays.
+1. **Analyze `src/tools/tool-search.ts`**
+   - In `tool-search.ts` lines 43-46, `toolsLowerMap` is built correctly to facilitate `O(1)` access for selected tools. However, at line 66, when constructing the final output, `tools.find((tool) => tool.name === name)` is used, making it an `O(N)` operation for each tool requested.
+2. **Optimize `src/tools/tool-search.ts`**
+   - Update line 66 from:
+     ```typescript
+     const t = tools.find((tool) => tool.name === name);
+     ```
+     to:
+     ```typescript
+     const t = toolsLowerMap.get(name.toLowerCase());
+     ```
+     This change removes the redundant O(N) lookup, giving an immediate O(1) retrieval instead.
 
-2. **Optimize `getRateLimitWindow` in `src/utils/rate-limit.ts`**
-   - Replace the two `.filter(...).length` calls for `minuteCount` and `hourCount` with a single `for` loop. This avoids iterating over the `timestamps` array twice.
-   - This optimization also avoids multiple passes.
-
-3. **Complete pre-commit steps to ensure proper testing, verification, review, and reflection are done.**
-   - Call `pre_commit_instructions` and follow the provided steps.
-
-4. **Submit the PR**
-   - Use the `submit` tool to create a PR with the title `⚡ Bolt: Optimize array traversals in context compactor and rate limiter` and appropriate description.
+3. **Execute Pre-commit instructions**
+   - Complete pre commit steps to make sure proper testing, verifications, reviews and reflections are done.
+4. **Submit PR**
+   - Submit the changes using the `submit` tool with `⚡ Bolt: Optimize tool lookup with toolsLowerMap`.

@@ -63,7 +63,7 @@ export const toolSearchTool = tool(
       // Return detailed info for found tools
       const results = Array.from(found)
         .map((name) => {
-          const t = tools.find((tool) => tool.name === name);
+          const t = toolsLowerMap.get(name.toLowerCase());
           if (!t) return "";
           return formatToolInfo(t);
         })
