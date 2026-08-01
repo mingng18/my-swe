@@ -10,6 +10,7 @@ import {
   createEvalRunner,
   loadEvalCasesFromEnv,
 } from "./loop/self-improve/eval-runner";
+import { generateTraceDashboardHTML, generateTraceSummaryJSON } from "./utils/trace-dashboard";
 import { streamRegistry } from "./stream";
 import { LRUCache } from "lru-cache";
 
@@ -641,8 +642,6 @@ app.get("/analytics/tools", async (c) => {
  */
 app.get("/dashboard/thread/:threadId", async (c) => {
   const { threadId } = c.req.param();
-  const { generateTraceDashboardHTML } =
-    await import("./utils/trace-dashboard");
 
   try {
     const html = generateTraceDashboardHTML(threadId);
@@ -662,7 +661,6 @@ app.get("/dashboard/thread/:threadId", async (c) => {
  */
 app.get("/trace/:threadId", async (c) => {
   const { threadId } = c.req.param();
-  const { generateTraceSummaryJSON } = await import("./utils/trace-dashboard");
 
   try {
     const summary = generateTraceSummaryJSON(threadId);

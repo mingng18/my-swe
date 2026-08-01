@@ -88,3 +88,6 @@
 ## 2025-02-12 - Optimizing search loop with O(1) Map lookup
 **Learning:** In code dealing with search filtering and mapping over objects, using `array.find(obj => obj.name === name)` inside a loop over tools (`Array.from(found).map(name => ...)`) creates redundant O(N) nested scans.
 **Action:** When a mapping of `name -> Object` is already constructed to resolve existence (like `toolsLowerMap`), reuse that exact same Map `.get(name)` later in the function to eliminate the $O(N)$ lookup and replace it with $O(1)$.
+## 2025-02-09 - Async Dynamic Imports in Hot Request Handlers
+**Learning:** Using `await import(...)` inside hot API route handlers introduces unnecessary per-request asynchronous promise resolution and dynamic dependency resolution overhead, which degrades latency.
+**Action:** Always prefer statically importing utility functions at the top of the file unless lazy loading is strictly required to break circular dependencies or save significant memory.
