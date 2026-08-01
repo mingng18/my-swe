@@ -191,60 +191,6 @@ export interface ReactToGithubCommentOptions {
 	nodeId?: string;
 }
 
-export interface ReactToGithubCommentOptions {
-	repoConfig: RepoConfig;
-	commentId: number;
-	eventType: string;
-	token: string;
-	pullNumber?: number;
-	nodeId?: string;
-}
-
-export interface ReactToGithubCommentOptions {
-	repoConfig: RepoConfig;
-	commentId: number;
-	eventType: string;
-	token: string;
-	pullNumber?: number;
-	nodeId?: string;
-}
-
-export interface ReactToGithubCommentOptions {
-	repoConfig: RepoConfig;
-	commentId: number;
-	eventType: string;
-	token: string;
-	pullNumber?: number;
-	nodeId?: string;
-}
-
-export interface ReactToGithubCommentOptions {
-	repoConfig: RepoConfig;
-	commentId: number;
-	eventType: string;
-	token: string;
-	pullNumber?: number;
-	nodeId?: string;
-}
-
-export interface ReactToGithubCommentOptions {
-	repoConfig: RepoConfig;
-	commentId: number;
-	eventType: string;
-	token: string;
-	pullNumber?: number;
-	nodeId?: string;
-}
-
-export interface ReactToGithubCommentOptions {
-	repoConfig: RepoConfig;
-	commentId: number;
-	eventType: string;
-	token: string;
-	pullNumber?: number;
-	nodeId?: string;
-}
-
 /**
  * React to a GitHub comment with an "eyes" emoji.
  * @param options - Options object for reacting to a comment

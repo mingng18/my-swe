@@ -1,18 +1,18 @@
+import { createLogger } from "../utils/logger";
 import { defang } from "../security/defang";
-import { runCodeagentTurn } from "../server";
 import {
-	buildPrPrompt,
-	extractPrContext,
-	fetchPrCommentsSinceLastTag,
-	getGithubAppInstallationToken,
-	getGithubToken,
-	getThreadIdFromBranch,
-	postGithubComment,
-	reactToGithubComment,
-	storeGithubTokenInThread,
+  extractPrContext,
+  fetchPrCommentsSinceLastTag,
+  buildPrPrompt,
+  reactToGithubComment,
+  getThreadIdFromBranch,
+  getGithubAppInstallationToken,
+  storeGithubTokenInThread,
+  postGithubComment,
+  getGithubToken,
 } from "../utils/github";
 import { getEmailForIdentity } from "../utils/identity";
-import { createLogger } from "../utils/logger";
+import { runCodeagentTurn } from "../server";
 
 const log = createLogger("webhooks/github");
 
@@ -22,214 +22,215 @@ const log = createLogger("webhooks/github");
  * Processes pull_request, issues, and push events asynchronously.
  * Returns immediately — work runs in the background.
  */
-export function handleGithubWebhook(payload: any, githubEvent: string): void {
-	switch (githubEvent) {
-		case "ping":
-			break;
+export function handleGithubWebhook(
+  payload: any,
+  githubEvent: string,
+): void {
+  switch (githubEvent) {
+    case "ping":
+      break;
 
-		case "pull_request":
-		case "pull_request_review":
-		case "pull_request_review_comment":
-		case "issue_comment":
-			handlePrEvent(payload, githubEvent);
-			break;
+    case "pull_request":
+    case "pull_request_review":
+    case "pull_request_review_comment":
+    case "issue_comment":
+      handlePrEvent(payload, githubEvent);
+      break;
 
-		case "issues":
-			handleIssuesEvent(payload);
-			break;
+    case "issues":
+      handleIssuesEvent(payload);
+      break;
 
-		case "push":
-			handlePushEvent(payload);
-			break;
+    case "push":
+      handlePushEvent(payload);
+      break;
 
-		default:
-			log.info({ event: githubEvent }, "[github] Unhandled event");
-	}
+    default:
+      log.info({ event: githubEvent }, "[github] Unhandled event");
+  }
 }
 
 function handlePrEvent(payload: any, githubEvent: string): void {
-	log.info(
-		{
-			action: payload.action,
-			event: githubEvent,
-			repository: payload.repository?.full_name,
-		},
-		"[github] PR event received",
-	);
+  log.info(
+    {
+      action: payload.action,
+      event: githubEvent,
+      repository: payload.repository?.full_name,
+    },
+    "[github] PR event received",
+  );
 
-	void (async () => {
-		try {
-			if (githubEvent === "issue_comment" && !payload.issue?.pull_request) {
-				return;
-			}
+  void (async () => {
+    try {
+      if (githubEvent === "issue_comment" && !payload.issue?.pull_request) {
+        return;
+      }
 
-			const [
-				repoConfig,
-				prNumber,
-				branchName,
-				githubLogin,
-				prUrl,
-				commentId,
-				nodeId,
-			] = await extractPrContext(payload, githubEvent);
+      const [
+        repoConfig,
+        prNumber,
+        branchName,
+        githubLogin,
+        prUrl,
+        commentId,
+        nodeId,
+      ] = await extractPrContext(payload, githubEvent);
 
-			if (!prNumber) {
-				return;
-			}
+      if (!prNumber) {
+        return;
+      }
 
-			const token =
-				(await getGithubAppInstallationToken()) ||
-				process.env.GITHUB_TOKEN?.trim() ||
-				"";
+      const token =
+        (await getGithubAppInstallationToken()) ||
+        process.env.GITHUB_TOKEN?.trim() ||
+        "";
 
-			if (!token) {
-				log.error("[github] No GitHub token available to process PR event");
-				return;
-			}
+      if (!token) {
+        log.error(
+          "[github] No GitHub token available to process PR event",
+        );
+        return;
+      }
 
-			const threadId = branchName
-				? await getThreadIdFromBranch(branchName)
-				: null;
-			if (threadId) {
-				await storeGithubTokenInThread(threadId, token);
-			}
+      const threadId = branchName
+        ? await getThreadIdFromBranch(branchName)
+        : null;
+      if (threadId) {
+        await storeGithubTokenInThread(threadId, token);
+      }
 
-			const comments = await fetchPrCommentsSinceLastTag(
-				repoConfig,
-				prNumber,
-				token,
-			);
+      const comments = await fetchPrCommentsSinceLastTag(
+        repoConfig,
+        prNumber,
+        token,
+      );
 
-			if (comments.length === 0) {
-				return;
-			}
+      if (comments.length === 0) {
+        return;
+      }
 
-			if (commentId) {
-				await reactToGithubComment({
-					repoConfig,
-					commentId,
-					eventType: githubEvent,
-					token,
-					pullNumber: prNumber,
-					nodeId: nodeId ?? undefined,
-				});
-			}
+      if (commentId) {
+        await reactToGithubComment({
+          repoConfig,
+          commentId,
+          eventType: githubEvent,
+          token,
+          pullNumber: prNumber,
+          nodeId: nodeId ?? undefined,
+        });
+      }
 
-			const prompt = buildPrPrompt(comments, prUrl);
+      const prompt = buildPrPrompt(comments, prUrl);
 
-			const email =
-				getEmailForIdentity("github", githubLogin) ||
-				"No email found in identity map";
+      const email =
+        getEmailForIdentity("github", githubLogin) ||
+        "No email found in identity map";
 
-			const finalMessage = `[System Context: Webhook event ${githubEvent} from GitHub user @${githubLogin} (Email: ${email})]\n\n${prompt}`;
+      const finalMessage = `[System Context: Webhook event ${githubEvent} from GitHub user @${githubLogin} (Email: ${email})]\n\n${prompt}`;
 
-			await runCodeagentTurn(finalMessage, undefined, undefined, "github");
-		} catch (err) {
-			log.error({ err }, "[github] Background PR processing failed");
-		}
-	})();
+      await runCodeagentTurn(finalMessage, undefined, undefined, "github");
+    } catch (err) {
+      log.error({ err }, "[github] Background PR processing failed");
+    }
+  })();
 }
 
 function handleIssuesEvent(payload: any): void {
-	const action = payload.action;
-	const issue = payload.issue;
-	const repository = payload.repository;
+  const action = payload.action;
+  const issue = payload.issue;
+  const repository = payload.repository;
 
-	log.info(
-		{
-			action,
-			number: issue?.number,
-			title: issue?.title,
-		},
-		"[github] Issue event",
-	);
+  log.info(
+    {
+      action,
+      number: issue?.number,
+      title: issue?.title,
+    },
+    "[github] Issue event",
+  );
 
-	if (action === "opened" && issue && repository) {
-		const issueTitle = issue.title || "";
-		const issueBody = issue.body || "";
-		// Only respond when bot is mentioned
-		const botMention = process.env.GITHUB_BOT_MENTION || "@openswe";
-		const isMentioned =
-			issueBody.toLowerCase().includes(botMention.toLowerCase()) ||
-			issueTitle.toLowerCase().includes(botMention.toLowerCase());
-		if (!isMentioned) {
-			return;
-		}
+  if (action === "opened" && issue && repository) {
+    const issueTitle = issue.title || "";
+    const issueBody = issue.body || "";
+    // Only respond when bot is mentioned
+    const botMention = process.env.GITHUB_BOT_MENTION || "@openswe";
+    const isMentioned = issueBody.toLowerCase().includes(botMention.toLowerCase()) ||
+      issueTitle.toLowerCase().includes(botMention.toLowerCase());
+    if (!isMentioned) {
+      return;
+    }
 
-		const repoOwner = repository.owner?.login;
-		const repoName = repository.name;
-		const issueNumber = issue.number;
+    const repoOwner = repository.owner?.login;
+    const repoName = repository.name;
+    const issueNumber = issue.number;
 
-		if (repoOwner && repoName && issueNumber) {
-			void (async () => {
-				try {
-					// Both the title and body are attacker-controlled GitHub content and
-					// must reach the model as labeled DATA. An issue title can carry an
-					// injection payload just as easily as the body.
-					const safeTitle = defang("github-issue", issueTitle);
-					const safeBody = defang("github-issue", issueBody);
-					const prompt = `New issue opened in ${repoOwner}/${repoName}#${issueNumber}:\nTitle: ${safeTitle}\n\n${safeBody}\n\nPlease analyze this issue and provide a helpful response.`;
-					const reply = await runCodeagentTurn(
-						prompt,
-						undefined,
-						undefined,
-						"github",
-					);
+    if (repoOwner && repoName && issueNumber) {
+      void (async () => {
+        try {
+          // Both the title and body are attacker-controlled GitHub content and
+          // must reach the model as labeled DATA. An issue title can carry an
+          // injection payload just as easily as the body.
+          const safeTitle = defang("github-issue", issueTitle);
+          const safeBody = defang("github-issue", issueBody);
+          const prompt = `New issue opened in ${repoOwner}/${repoName}#${issueNumber}:\nTitle: ${safeTitle}\n\n${safeBody}\n\nPlease analyze this issue and provide a helpful response.`;
+          const reply = await runCodeagentTurn(
+            prompt,
+            undefined,
+            undefined,
+            "github",
+          );
 
-					const token =
-						getGithubToken() || (await getGithubAppInstallationToken());
-					if (token) {
-						await postGithubComment(
-							{ owner: repoOwner, name: repoName },
-							issueNumber,
-							reply,
-							token,
-						);
-						log.info({ issueNumber }, "[github] Posted reply to issue");
-					} else {
-						log.warn(
-							"[github] No GitHub token available to post issue comment",
-						);
-					}
-				} catch (err) {
-					log.error({ err }, "[github] Error processing issue event");
-				}
-			})();
-		}
-	}
+          const token =
+            getGithubToken() || (await getGithubAppInstallationToken());
+          if (token) {
+            await postGithubComment(
+              { owner: repoOwner, name: repoName },
+              issueNumber,
+              reply,
+              token,
+            );
+            log.info({ issueNumber }, "[github] Posted reply to issue");
+          } else {
+            log.warn(
+              "[github] No GitHub token available to post issue comment",
+            );
+          }
+        } catch (err) {
+          log.error({ err }, "[github] Error processing issue event");
+        }
+      })();
+    }
+  }
 }
 
 function handlePushEvent(payload: any): void {
-	const repoName = payload.repository?.full_name || "unknown repository";
-	const ref = payload.ref || "unknown ref";
-	const defaultBranch = payload.repository?.default_branch || "main";
-	const commitsCount =
-		payload.commits?.length || payload.push?.commits?.length || 0;
+  const repoName = payload.repository?.full_name || "unknown repository";
+  const ref = payload.ref || "unknown ref";
+  const defaultBranch = payload.repository?.default_branch || "main";
+  const commitsCount =
+    payload.commits?.length || payload.push?.commits?.length || 0;
 
-	// Only process pushes to the default branch
-	if (ref !== `refs/heads/${defaultBranch}`) {
-		log.debug(
-			{ ref, defaultBranch },
-			"[github] Push event skipped (non-default branch)",
-		);
-		return;
-	}
+  // Only process pushes to the default branch
+  if (ref !== `refs/heads/${defaultBranch}`) {
+    log.debug({ ref, defaultBranch }, "[github] Push event skipped (non-default branch)");
+    return;
+  }
 
-	log.info(
-		{
-			ref: payload.ref,
-			commits: commitsCount,
-		},
-		"[github] Push event",
-	);
+  log.info(
+    {
+      ref: payload.ref,
+      commits: commitsCount,
+    },
+    "[github] Push event",
+  );
 
-	const input = `A push event was received on repository ${repoName} for ref ${ref} with ${commitsCount} commits.`;
+  const input = `A push event was received on repository ${repoName} for ref ${ref} with ${commitsCount} commits.`;
 
-	void (async () => {
-		try {
-			await runCodeagentTurn(input, undefined, undefined, "github");
-		} catch (err) {
-			log.error({ error: err }, "[github] Error running agent on push event");
-		}
-	})();
+  void (async () => {
+    try {
+      await runCodeagentTurn(input, undefined, undefined, "github");
+    } catch (err) {
+      log.error({ error: err }, "[github] Error running agent on push event");
+    }
+  })();
 }
