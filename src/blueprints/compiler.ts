@@ -175,7 +175,8 @@ export class BlueprintCompiler {
           }
         });
 
-        const results = (await Promise.all(promises)).filter((r): r is VerificationResult => r !== null);        return { verificationResults: results };
+        const results = (await Promise.all(promises)).filter((r): r is VerificationResult => r !== null);
+        return { verificationResults: results };
       },
     );
 
