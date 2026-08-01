@@ -69,10 +69,14 @@ async function runPreCommitReview(
   const { builtInSubagents } = await import("../subagents/registry");
 
   const allIssues: any[] = [];
+
+  // Pre-compute map for O(1) lookups instead of O(N*M)
+  const agentMap = new Map(builtInSubagents.map(a => [a.name, a]));
+
   await Promise.all(
     reviewersToRun.map(async (reviewerName) => {
       try {
-        const reviewer = builtInSubagents.find((a) => a.name === reviewerName);
+        const reviewer = agentMap.get(reviewerName);
         if (!reviewer) return;
 
         const agent = createDeepAgent({ subagents: [reviewer] });
