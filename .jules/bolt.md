@@ -69,9 +69,6 @@
 ## 2024-07-23 - String Concatenation and reduce overhead in Formatting
 **Learning:** Using Array.prototype.reduce() coupled with iterative string concatenation (+=) in loops can cause significant memory allocation overhead in V8/Bun due to the creation of intermediate strings and callback overhead.
 **Action:** Replace .reduce() with standard for loops and use array building with .join("") for efficient string construction, especially for functions formatting potentially large sets of issues.
-## 2026-07-25 - Concurrently execute Verification checks
-**Learning:** Sequential execution of array processing code that yields promises (e.g. running independent test, linting, typecheck tasks on a sandbox) will dramatically increase pipeline time due to wait loops.
-**Action:** Always identify if actions are independently executable and use Promise.all to map over independent task Promises concurrently to cut response time in blueprint orchestration flows.
 ## 2025-07-25 - Async file io in state-store
 **Learning:** Synchronous file I/O operations (`readFileSync`, `writeFileSync`) block the event loop, severely degrading performance in a concurrent environment. Using their asynchronous equivalents from `fs/promises` (`readFile`, `writeFile`) allows the event loop to continue processing other tasks, improving throughput.
 **Action:** Always prefer `fs/promises` methods for file I/O operations, especially in high-throughput or concurrent paths like a state store, and coordinate them via `Promise.all` when possible.
@@ -88,3 +85,9 @@
 ## 2025-05-19 - Unbounded Filter Chaining in Telemetry Processing
 **Learning:** Found multiple chained `.filter()` method calls creating unbounded intermediate array allocations in `src/utils/telemetry.ts` when formatting metrics data (e.g. `aggregateLlmMetrics`). Processing large metrics data structures generated a lot of memory churn that showed up in test durations.
 **Action:** Always prefer consolidating multiple `.filter().map()` style loops into a single-pass sequential `for` or `for...of` block on highly active data pipelines to keep V8 memory overhead and garbage collection pauses low.
+## 2025-02-12 - Optimizing search loop with O(1) Map lookup
+**Learning:** In code dealing with search filtering and mapping over objects, using `array.find(obj => obj.name === name)` inside a loop over tools (`Array.from(found).map(name => ...)`) creates redundant O(N) nested scans.
+**Action:** When a mapping of `name -> Object` is already constructed to resolve existence (like `toolsLowerMap`), reuse that exact same Map `.get(name)` later in the function to eliminate the $O(N)$ lookup and replace it with $O(1)$.
+## 2026-07-25 - Concurrently execute Verification checks
+**Learning:** Sequential execution of array processing code that yields promises (e.g. running independent test, linting, typecheck tasks on a sandbox) will dramatically increase pipeline time due to wait loops.
+**Action:** Always identify if actions are independently executable and use Promise.all to map over independent task Promises concurrently to cut response time in blueprint orchestration flows.
