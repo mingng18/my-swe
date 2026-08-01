@@ -155,7 +155,10 @@ describe("githubCommentTool", () => {
     delete process.env.GITHUB_TOKEN;
     mockGetGithubTokenFromThread.mockRejectedValue(new Error('Token retrieval failed'));
 
-    // This should throw since there is no try...catch around getGithubTokenFromThread in the code
-    await expect(githubCommentTool.invoke(validArgs, validConfig as any)).rejects.toThrow('Token retrieval failed');
+    const resultJson = await githubCommentTool.invoke(validArgs, validConfig as any);
+    const result = JSON.parse(resultJson as string);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("Failed to retrieve GitHub token from thread.");
   });
 });

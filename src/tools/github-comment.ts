@@ -24,8 +24,15 @@ export const githubCommentTool = tool(
 
     let githubToken = process.env.GITHUB_TOKEN?.trim() || "";
     if (!githubToken && threadId) {
-      const [threadToken] = await getGithubTokenFromThread(threadId);
-      githubToken = threadToken?.trim() || "";
+      try {
+        const [threadToken] = await getGithubTokenFromThread(threadId);
+        githubToken = threadToken?.trim() || "";
+      } catch (error: any) {
+        return JSON.stringify({
+          success: false,
+          error: "Failed to retrieve GitHub token from thread.",
+        });
+      }
     }
 
     if (!githubToken) {
