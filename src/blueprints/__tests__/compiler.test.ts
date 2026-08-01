@@ -227,7 +227,12 @@ describe("BlueprintCompiler", () => {
 
       const result = await graph.invoke({
         input: "test input",
-        goal: { verifyProfile: "tests" },
+        goal: {
+          objective: "test",
+          acceptanceCriteria: [],
+          maxIterations: 2,
+          autonomyLevel: "assisted",
+          verifyProfile: "tests" },
         iteration: 0,
       });
 
@@ -251,7 +256,12 @@ describe("BlueprintCompiler", () => {
 
       const result = await graph.invoke({
         input: "test input",
-        goal: { verifyProfile: "tests" },
+        goal: {
+          objective: "test",
+          acceptanceCriteria: [],
+          maxIterations: 2,
+          autonomyLevel: "assisted",
+          verifyProfile: "tests" },
         iteration: 0,
       });
 
