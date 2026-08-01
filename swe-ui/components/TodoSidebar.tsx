@@ -120,8 +120,11 @@ export function TodoSidebar({ threadId, className }: TodoSidebarProps) {
 										"bg-background hover:bg-muted/50",
 								)}
 							>
-								<div className="mt-0.5 shrink-0" aria-hidden="true">
-									{getStatusIcon(todo.status)}
+								<div className="mt-0.5 shrink-0">
+									<span className="sr-only">Status: {todo.status.replace("_", " ")}</span>
+									<div aria-hidden="true">
+										{getStatusIcon(todo.status)}
+									</div>
 								</div>
 								<div className="flex-1 min-w-0">
 									<p
