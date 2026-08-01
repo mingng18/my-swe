@@ -88,3 +88,6 @@
 ## 2025-02-12 - Optimizing search loop with O(1) Map lookup
 **Learning:** In code dealing with search filtering and mapping over objects, using `array.find(obj => obj.name === name)` inside a loop over tools (`Array.from(found).map(name => ...)`) creates redundant O(N) nested scans.
 **Action:** When a mapping of `name -> Object` is already constructed to resolve existence (like `toolsLowerMap`), reuse that exact same Map `.get(name)` later in the function to eliminate the $O(N)$ lookup and replace it with $O(1)$.
+## 2026-08-01 - Optimize inner loop with Set in codebase-indexer.ts
+**Learning:** When performing `new Set()` generation of identical data, evaluate the operation outside of loops rather than repeating the overhead each iteration.
+**Action:** Audit inner loops for redundant array-to-Set conversions, specifically checking if the source array remains unmodified.

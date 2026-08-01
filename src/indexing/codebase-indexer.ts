@@ -324,8 +324,9 @@ export class CodebaseIndexer {
         allImportedSymbols.push(...syms);
       }
 
+      const uniqueImportedSymbols = [...new Set(allImportedSymbols)];
       for (const sym of fileIdx.symbols) {
-        graph.set(sym.name, [...new Set(allImportedSymbols)]);
+        graph.set(sym.name, uniqueImportedSymbols);
       }
     }
 
