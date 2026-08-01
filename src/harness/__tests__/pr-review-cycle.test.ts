@@ -1,5 +1,5 @@
 import { describe, it, expect, mock, beforeEach } from "bun:test";
-import type { PRReviewComment, PRReviewResult } from "../pr-review-cycle";
+import { PRReviewCycle, type PRReviewComment, type PRReviewResult } from "../pr-review-cycle";
 
 // ---------------------------------------------------------------------------
 // We test PRReviewCycle via isolated unit tests by extracting the core logic
@@ -159,6 +159,27 @@ describe("PRReviewCycle", () => {
       expect(result).toHaveLength(2);
       expect(result[0]!.path).toBe("src/index.ts");
       expect(result[1]!.line).toBe(10); // line takes priority over original_line
+    });
+  });
+
+  describe("fetchUnresolvedComments (error handling)", () => {
+    it("returns empty array when octokit pagination throws an error", async () => {
+      const cycle = new PRReviewCycle(
+        { owner: "test", name: "repo" },
+        "fake-token",
+        "thread-123",
+        "/tmp",
+        null as any
+      );
+
+      // Mock the octokit paginate to reject
+      (cycle as any).octokit = {
+        paginate: mock().mockRejectedValue(new Error("GitHub API Error")),
+        rest: { pulls: { listReviewComments: {} } }
+      };
+
+      const result = await cycle.fetchUnresolvedComments(42);
+      expect(result).toEqual([]);
     });
   });
 
