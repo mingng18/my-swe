@@ -205,4 +205,60 @@ describe("BlueprintCompiler", () => {
 
     expect(result.currentState).toBe("__end__");
   });
+
+  describe("compileWithFeedbackLoop", () => {
+    it("should throw error if AgentExecutor is missing", () => {
+      // compiler initialized in beforeEach doesn't have an agentExecutor
+      expect(() => compiler.compileWithFeedbackLoop()).toThrow(BlueprintCompilerError);
+      expect(() => compiler.compileWithFeedbackLoop()).toThrow(/AgentExecutor is required/);
+    });
+
+    it("should compile and follow success path (agent -> verify -> check_results -> create_pr)", async () => {
+      const mockAgentExecutor = {
+        execute: async (input: string) => ({ output: "agent out", messages: [] })
+      };
+
+      const newActionRegistry = new ActionRegistry();
+      newActionRegistry.register({ name: "run_tests", description: "Tests", execute: async () => ({ success: true, output: "tests pass" }) });
+      newActionRegistry.register({ name: "create_pr", description: "PR", execute: async () => ({ success: true, output: "pr created" }) });
+
+      const loopCompiler = new BlueprintCompiler(newActionRegistry, mockAgentExecutor as any);
+      const graph = loopCompiler.compileWithFeedbackLoop();
+
+      const result = await graph.invoke({
+        input: "test input",
+        goal: { verifyProfile: "tests" },
+        iteration: 0,
+      });
+
+      // successful path should lead to loopOutcome: "passed"
+      expect(result.loopOutcome).toBe("passed");
+      expect(result.lastResult?.success).toBe(true);
+      expect(result.lastResult?.output).toBe("pr created");
+    });
+
+    it("should compile and follow failure path to escalation after maxRetries", async () => {
+      const mockAgentExecutor = {
+        execute: async (input: string) => ({ output: "agent out", messages: [] })
+      };
+
+      const newActionRegistry = new ActionRegistry();
+      // Force verify to fail
+      newActionRegistry.register({ name: "run_tests", description: "Tests", execute: async () => ({ success: false, error: "tests failed" }) });
+
+      const loopCompiler = new BlueprintCompiler(newActionRegistry, mockAgentExecutor as any);
+      const graph = loopCompiler.compileWithFeedbackLoop(2); // maxRetries = 2
+
+      const result = await graph.invoke({
+        input: "test input",
+        goal: { verifyProfile: "tests" },
+        iteration: 0,
+      });
+
+      // It should fail maxRetries (2) times and then escalate
+      expect(result.loopOutcome).toBe("escalated");
+      expect(result.error).toContain("Escalated after");
+      expect(result.lastResult?.success).toBe(false);
+    });
+  });
 });
