@@ -227,6 +227,26 @@ describe("BoundedRetryLoop", () => {
     expect(summary).toContain("✓ Attempt 1: 50ms");
     expect(summary).toContain("Total duration: 150ms");
   });
+
+  test("handles non-Error objects thrown in executeFn", async () => {
+    let callCount = 0;
+    const executeFn = async (): Promise<NodeResult> => {
+      callCount++;
+      throw "String error thrown";
+    };
+
+    const result = await loop.execute(
+      "test-node",
+      NodeType.AGENTIC,
+      executeFn
+    );
+
+    expect(callCount).toBe(3);
+    expect(result.finalResult.success).toBe(false);
+    expect(result.finalResult.error).toBe("String error thrown");
+    expect(result.attempts.length).toBe(3);
+    expect(result.attempts[0].error).toBe("String error thrown");
+  });
 });
 
 describe("createBoundedRetryLoop", () => {
