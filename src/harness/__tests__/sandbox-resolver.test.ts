@@ -1,5 +1,30 @@
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { extractRepoFromInput } from "../sandbox-resolver";
+import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
+
+mock.module("../../nodes/deterministic/DependencyInstallerNode", () => {
+  return {
+    installDependencies: mock(async () => {
+      throw new Error("Mocked dependency error");
+    }),
+  };
+});
+
+mock.module("../../integrations/sandbox-service", () => {
+  return {
+    createSandboxServiceWithConfig: mock(async () => {
+      return {
+        id: "test-id",
+        cloneRepo: mock(async () => "/workspace"),
+      };
+    }),
+    SandboxService: class {},
+  };
+});
+
+mock.module("../../utils/thread-metadata-store", () => ({
+  persistThreadRepo: mock(async () => {}),
+}));
+
+import { extractRepoFromInput, resolveSandboxContext } from "../sandbox-resolver";
 
 describe("extractRepoFromInput", () => {
   let originalEnv: string | undefined;
@@ -72,5 +97,41 @@ describe("extractRepoFromInput", () => {
     const result = extractRepoFromInput("--repo org/name$");
     // match: org/name
     expect(result).toEqual({ owner: "org", name: "name" });
+  });
+});
+
+describe("resolveSandboxContext", () => {
+  let originalSandboxProvider: string | undefined;
+
+  beforeEach(() => {
+    originalSandboxProvider = process.env.SANDBOX_PROVIDER;
+  });
+
+  afterEach(() => {
+    process.env.SANDBOX_PROVIDER = originalSandboxProvider;
+  });
+
+  it("should gracefully handle and log dependency installation errors", async () => {
+    const threadManager = {
+      getRepo: mock(() => undefined),
+      setRepo: mock(() => {}),
+      setSandbox: mock(() => {}),
+      getSandbox: mock(() => undefined),
+    };
+
+    process.env.SANDBOX_PROVIDER = "opensandbox";
+
+    const result = await resolveSandboxContext(
+      "thread-1",
+      { owner: "test", name: "repo" },
+      // @ts-ignore
+      "standard",
+      threadManager,
+      mock(() => {})
+    );
+
+    expect(result.workspaceDir).toBe("/workspace");
+    expect(result.activeRepo.owner).toBe("test");
+    expect(result.activeRepo.name).toBe("repo");
   });
 });
