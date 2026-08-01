@@ -183,10 +183,9 @@ ${f.patch}`)
       }
 
       // Create and run reviewers in parallel
+      const subagentsMap = new Map(builtInSubagents.map(agent => [agent.name, agent]));
       const reviewerPromises = selectedReviewers.map(async (reviewerName) => {
-        const reviewerConfig = builtInSubagents.find(
-          (agent) => agent.name === reviewerName
-        );
+        const reviewerConfig = subagentsMap.get(reviewerName);
 
         if (!reviewerConfig) {
           return {

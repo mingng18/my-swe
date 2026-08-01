@@ -1,4 +1,0 @@
-🎯 **What:** Extract package installation logic into a helper method `tryInstallPackage` to simplify complex conditional statements in `ensureGitAvailable`.
-💡 **Why:** It removes duplication of raw shell scripting patterns and makes the `ensureGitAvailable` method highly readable and easier to extend for other package managers.
-✅ **Verification:** Verified via TypeScript compiler checks (`bun x tsc --noEmit`), running the sandbox service unit tests (`bun test src/integrations/__tests__/sandbox-service.test.ts`) to ensure the same logical fallback flow is executed without regressions.
-✨ **Result:** Improved maintainability and reduced cognitive load for managing missing tool installation in `sandbox-service.ts`.
