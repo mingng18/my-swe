@@ -77,24 +77,24 @@ describe("Blueprint Selection", () => {
 
 	it("should skip blueprints with undefined triggerKeywords", () => {
 		const undefinedKeywordBlueprints = [
-			{
-				id: "undefined-keywords",
-				name: "Undefined",
-				description: "Undefined keywords",
-				priority: 100,
-				initialState: "start",
-				states: { start: { type: "terminal" } },
-			} as Blueprint,
-			{
-				id: "default",
-				name: "Default",
-				description: "Default",
-				triggerKeywords: [],
-				priority: 0,
-				initialState: "start",
-				states: { start: { type: "terminal" } },
-			},
-		];
+				{
+					id: "undefined-keywords",
+					name: "Undefined",
+					description: "Undefined keywords",
+					priority: 100,
+					initialState: "start",
+					states: { start: { type: "terminal" as const } },
+				} as unknown as Blueprint,
+				{
+					id: "default",
+					name: "Default",
+					description: "Default",
+					triggerKeywords: [],
+					priority: 0,
+					initialState: "start",
+					states: { start: { type: "terminal" as const } },
+				} as unknown as Blueprint,
+			] as Blueprint[];
 		const selection = selectBlueprint("some task", undefinedKeywordBlueprints);
 		expect(selection.blueprint.id).toBe("default");
 	});
