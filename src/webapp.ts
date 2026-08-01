@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from "crypto";
 import { createLogger } from "./utils/logger";
+import { getMemoryDaemon } from "./memory/daemon";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger as httpLogger } from "hono/logger";
@@ -465,7 +466,7 @@ app.post("/rewind/:threadId/:checkpointId", async (c) => {
       );
     }
 
-    let restored;
+    let restored: any;
     try {
       restored = await restoreCheckpoint(agent, threadId, checkpointId);
     } catch (error) {
@@ -695,7 +696,6 @@ app.post("/api/memory/consolidate", async (c) => {
       );
     }
 
-    const { getMemoryDaemon } = await import("./memory/daemon");
     const daemon = getMemoryDaemon();
 
     const result = await daemon.triggerConsolidation(threadId);
@@ -724,7 +724,6 @@ app.post("/api/memory/consolidate", async (c) => {
  */
 app.get("/api/memory/consolidation/status", async (c) => {
   try {
-    const { getMemoryDaemon } = await import("./memory/daemon");
     const daemon = getMemoryDaemon();
 
     const status = daemon.getStatus();
@@ -745,7 +744,6 @@ app.get("/api/memory/consolidation/status", async (c) => {
  */
 app.get("/api/memory/consolidation/sessions", async (c) => {
   try {
-    const { getMemoryDaemon } = await import("./memory/daemon");
     const daemon = getMemoryDaemon();
 
     const sessions = daemon.getRegisteredSessions();
@@ -769,7 +767,6 @@ app.get("/api/memory/consolidation/sessions", async (c) => {
  */
 app.post("/api/memory/consolidation/start", async (c) => {
   try {
-    const { getMemoryDaemon } = await import("./memory/daemon");
     const daemon = getMemoryDaemon();
 
     daemon.start();
@@ -796,7 +793,6 @@ app.post("/api/memory/consolidation/start", async (c) => {
  */
 app.post("/api/memory/consolidation/stop", async (c) => {
   try {
-    const { getMemoryDaemon } = await import("./memory/daemon");
     const daemon = getMemoryDaemon();
 
     daemon.stop();
