@@ -1,5 +1,6 @@
 // src/blueprints/__tests__/loader.test.ts
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect, spyOn } from "bun:test";
+import * as fs from "fs/promises";
 import { BlueprintLoader, BlueprintValidationError } from "../loader";
 
 describe("BlueprintLoader", () => {
@@ -33,6 +34,16 @@ states:
       const loader = new BlueprintLoader({ blueprintsDir: "/nonexistent", validate: false });
       const blueprints = await loader.loadAll();
       expect(blueprints).toEqual([]);
+    });
+
+    it("should throw error if fs.readdir fails with non-ENOENT error", async () => {
+      const mockError = new Error("Generic file system error");
+      const spy = spyOn(fs, "readdir").mockRejectedValue(mockError);
+
+      const loader = new BlueprintLoader({ blueprintsDir: "/somedir", validate: false });
+      await expect(loader.loadAll()).rejects.toThrow("Generic file system error");
+
+      spy.mockRestore();
     });
   });
 });
