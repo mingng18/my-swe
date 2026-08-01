@@ -353,14 +353,14 @@ export const commitAndOpenPrTool = tool(
       await gitPush(sandbox, workspaceDir, targetBranch, installationToken);
 
       // Create PR (createGithubPr internally fetches the default branch)
-      const [prUrl, , prExisting] = await createGithubPr(
-        repoOwner,
-        repoName,
-        installationToken,
-        title,
-        targetBranch,
-        prBody,
-      );
+      const [prUrl, , prExisting] = await createGithubPr({
+        headRepoOwner: repoOwner,
+        headRepoName: repoName,
+        githubToken: installationToken,
+        title: title,
+        headBranch: targetBranch,
+        body: prBody,
+      });
 
       if (!prUrl) {
         return JSON.stringify({

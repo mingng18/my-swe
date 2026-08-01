@@ -363,14 +363,14 @@ export async function openPrIfNeeded(
       // Only create PR if push succeeded
       if (pushSucceeded && repoOwner) {
         try {
-          await createGithubPr(
-            repoOwner,
-            repoName,
-            githubToken,
-            prTitle,
-            targetBranch,
-            prBody,
-          );
+          await createGithubPr({
+            headRepoOwner: repoOwner,
+            headRepoName: repoName,
+            githubToken: githubToken,
+            title: prTitle,
+            headBranch: targetBranch,
+            body: prBody,
+          });
           result.prCreated = true;
           logger.info(
             {
