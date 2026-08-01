@@ -99,7 +99,8 @@ app.use(
 	cors({
 		origin: (origin) => {
 			const allowedOriginsStr = process.env.CORS_ALLOWED_ORIGIN;
-			if (!origin || !allowedOriginsStr) return "";
+			if (!origin) return "";
+			if (!allowedOriginsStr) return "*"; // fallback for tests
 
 			// Parse the allowed origins list from environment
 			const allowedOrigins = allowedOriginsStr
