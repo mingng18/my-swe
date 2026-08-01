@@ -27,6 +27,8 @@ export const mockGithubState = {
   getGithubAppInstallationTokenReturn: "mock-token" as any,
   getGithubTokenReturn: "mock-gh-token" as any,
   postGithubCommentThrow: false,
+  fetchPrCommentsThrow: false,
+  reactToGithubCommentThrow: false,
 };
 
 mock.module("../../server", () => ({
@@ -40,10 +42,16 @@ mock.module("../../utils/github", () => ({
     return mockGithubState.extractPrContextReturn;
   }),
   fetchPrCommentsSinceLastTag: mock(
-    async () => mockGithubState.fetchPrCommentsReturn,
+    async () => {
+      if (mockGithubState.fetchPrCommentsThrow) throw new Error("Mock fetch PR comments error");
+      return mockGithubState.fetchPrCommentsReturn;
+    },
   ),
   buildPrPrompt: mock(() => "mock pr prompt"),
-  reactToGithubComment: mock(async () => true),
+  reactToGithubComment: mock(async () => {
+    if (mockGithubState.reactToGithubCommentThrow) throw new Error("Mock react error");
+    return true;
+  }),
   getThreadIdFromBranch: mock(async () => "mock-thread-id"),
   getGithubAppInstallationToken: mock(
     async () => mockGithubState.getGithubAppInstallationTokenReturn,
@@ -81,6 +89,8 @@ describe("handleGithubWebhook", () => {
     mockGithubState.getGithubAppInstallationTokenReturn = "mock-token";
     mockGithubState.getGithubTokenReturn = "mock-gh-token";
     mockGithubState.postGithubCommentThrow = false;
+    mockGithubState.fetchPrCommentsThrow = false;
+    mockGithubState.reactToGithubCommentThrow = false;
   });
 
   it("handles ping event without errors", () => {
@@ -284,6 +294,63 @@ describe("handleGithubWebhook", () => {
         "[github] Background PR processing failed",
       );
       errorSpy.mockRestore();
+    });
+
+    it("handles background processing errors gracefully when fetching comments fails", async () => {
+      const { logger } = await import("../../utils/logger");
+      const errorSpy = spyOn(logger, "error");
+      mockGithubState.fetchPrCommentsThrow = true;
+
+      try {
+        expect(() => {
+          handleGithubWebhook(
+            {
+              action: "opened",
+              pull_request: { number: 123 },
+              repository: { full_name: "test/repo" },
+            },
+            "pull_request",
+          );
+        }).not.toThrow();
+
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(mockRunCodeagentTurn).not.toHaveBeenCalled();
+        expect(errorSpy).toHaveBeenCalledWith(
+          expect.objectContaining({ err: expect.any(Error) }),
+          "[github] Background PR processing failed",
+        );
+      } finally {
+        errorSpy.mockRestore();
+      }
+    });
+
+    it("handles background processing errors gracefully when reacting to comment fails", async () => {
+      const { logger } = await import("../../utils/logger");
+      const errorSpy = spyOn(logger, "error");
+      mockGithubState.reactToGithubCommentThrow = true;
+
+      try {
+        expect(() => {
+          handleGithubWebhook(
+            {
+              action: "created",
+              issue: { number: 123, pull_request: {} },
+              comment: { id: 456 },
+              repository: { full_name: "test/repo" },
+            },
+            "issue_comment",
+          );
+        }).not.toThrow();
+
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(mockRunCodeagentTurn).not.toHaveBeenCalled();
+        expect(errorSpy).toHaveBeenCalledWith(
+          expect.objectContaining({ err: expect.any(Error) }),
+          "[github] Background PR processing failed",
+        );
+      } finally {
+        errorSpy.mockRestore();
+      }
     });
   });
 
