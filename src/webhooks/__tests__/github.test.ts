@@ -70,7 +70,11 @@ mock.module("../../utils/identity", () => ({
 }));
 
 // Import AFTER setting up mocks
-const { handleGithubWebhook } = await import("../github");
+const { handleGithubWebhook, backgroundTasks } = await import("../github");
+
+async function waitForBackgroundTasks() {
+  await Promise.all(backgroundTasks);
+}
 
 describe("handleGithubWebhook", () => {
   beforeEach(() => {
@@ -119,7 +123,7 @@ describe("handleGithubWebhook", () => {
         "push",
       );
 
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await waitForBackgroundTasks();
       expect(mockRunCodeagentTurn).toHaveBeenCalled();
       expect(errorSpy).toHaveBeenCalledWith(
         expect.objectContaining({ error: expect.any(Error) }),
@@ -138,7 +142,7 @@ describe("handleGithubWebhook", () => {
         "push",
       );
 
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await waitForBackgroundTasks();
       expect(mockRunCodeagentTurn).toHaveBeenCalled();
     });
 
@@ -152,7 +156,7 @@ describe("handleGithubWebhook", () => {
         "push",
       );
 
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await waitForBackgroundTasks();
       expect(mockRunCodeagentTurn).not.toHaveBeenCalled();
     });
   });
@@ -168,7 +172,7 @@ describe("handleGithubWebhook", () => {
         "pull_request",
       );
 
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await waitForBackgroundTasks();
       expect(mockRunCodeagentTurn).toHaveBeenCalled();
     });
 
@@ -181,7 +185,7 @@ describe("handleGithubWebhook", () => {
         "issue_comment",
       );
 
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await waitForBackgroundTasks();
       expect(mockRunCodeagentTurn).not.toHaveBeenCalled();
     });
 
@@ -205,7 +209,7 @@ describe("handleGithubWebhook", () => {
         "pull_request",
       );
 
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await waitForBackgroundTasks();
       expect(mockRunCodeagentTurn).not.toHaveBeenCalled();
     });
 
@@ -222,7 +226,7 @@ describe("handleGithubWebhook", () => {
         "pull_request",
       );
 
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await waitForBackgroundTasks();
       expect(mockRunCodeagentTurn).not.toHaveBeenCalled();
     });
 
@@ -238,7 +242,7 @@ describe("handleGithubWebhook", () => {
         "pull_request",
       );
 
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await waitForBackgroundTasks();
       expect(mockRunCodeagentTurn).not.toHaveBeenCalled();
     });
 
@@ -259,7 +263,7 @@ describe("handleGithubWebhook", () => {
           );
         }).not.toThrow();
 
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        await waitForBackgroundTasks();
         expect(mockRunCodeagentTurn).not.toHaveBeenCalled();
         expect(errorSpy).toHaveBeenCalledWith(
           expect.objectContaining({ err: expect.any(Error) }),
@@ -287,7 +291,7 @@ describe("handleGithubWebhook", () => {
         "pull_request",
       );
 
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await waitForBackgroundTasks();
       expect(mockRunCodeagentTurn).toHaveBeenCalled();
       expect(errorSpy).toHaveBeenCalledWith(
         expect.objectContaining({ err: expect.any(Error) }),
@@ -313,7 +317,7 @@ describe("handleGithubWebhook", () => {
           );
         }).not.toThrow();
 
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        await waitForBackgroundTasks();
         expect(mockRunCodeagentTurn).not.toHaveBeenCalled();
         expect(errorSpy).toHaveBeenCalledWith(
           expect.objectContaining({ err: expect.any(Error) }),
@@ -342,7 +346,7 @@ describe("handleGithubWebhook", () => {
           );
         }).not.toThrow();
 
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        await waitForBackgroundTasks();
         expect(mockRunCodeagentTurn).not.toHaveBeenCalled();
         expect(errorSpy).toHaveBeenCalledWith(
           expect.objectContaining({ err: expect.any(Error) }),
@@ -373,7 +377,7 @@ describe("handleGithubWebhook", () => {
         "issues",
       );
 
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await waitForBackgroundTasks();
       expect(mockRunCodeagentTurn).toHaveBeenCalled();
     });
 
@@ -389,7 +393,7 @@ describe("handleGithubWebhook", () => {
         ),
       ).not.toThrow();
 
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await waitForBackgroundTasks();
       expect(mockRunCodeagentTurn).not.toHaveBeenCalled();
     });
 
@@ -411,7 +415,7 @@ describe("handleGithubWebhook", () => {
         "issues",
       );
 
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await waitForBackgroundTasks();
       expect(mockRunCodeagentTurn).not.toHaveBeenCalled();
     });
 
@@ -436,7 +440,7 @@ describe("handleGithubWebhook", () => {
         "issues",
       );
 
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await waitForBackgroundTasks();
       expect(mockRunCodeagentTurn).toHaveBeenCalled(); // Should still run agent turn
       // But will log a warning about missing token
     });
@@ -463,7 +467,7 @@ describe("handleGithubWebhook", () => {
         );
       }).not.toThrow();
 
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await waitForBackgroundTasks();
       expect(mockRunCodeagentTurn).toHaveBeenCalled();
     });
 
@@ -492,7 +496,7 @@ describe("handleGithubWebhook", () => {
         "issues",
       );
 
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await waitForBackgroundTasks();
       expect(mockRunCodeagentTurn).toHaveBeenCalled();
       expect(errorSpy).toHaveBeenCalledWith(
         expect.objectContaining({ err: expect.any(Error) }),

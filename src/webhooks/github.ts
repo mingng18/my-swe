@@ -50,6 +50,8 @@ export function handleGithubWebhook(
   }
 }
 
+export const backgroundTasks = new Set<Promise<void>>();
+
 function handlePrEvent(payload: any, githubEvent: string): void {
   log.info(
     {
@@ -60,7 +62,7 @@ function handlePrEvent(payload: any, githubEvent: string): void {
     "[github] PR event received",
   );
 
-  void (async () => {
+  const task = (async () => {
     try {
       if (githubEvent === "issue_comment" && !payload.issue?.pull_request) {
         return;
@@ -133,6 +135,8 @@ function handlePrEvent(payload: any, githubEvent: string): void {
       log.error({ err }, "[github] Background PR processing failed");
     }
   })();
+  backgroundTasks.add(task);
+  task.finally(() => backgroundTasks.delete(task));
 }
 
 function handleIssuesEvent(payload: any): void {
@@ -165,7 +169,7 @@ function handleIssuesEvent(payload: any): void {
     const issueNumber = issue.number;
 
     if (repoOwner && repoName && issueNumber) {
-      void (async () => {
+      const task = (async () => {
         try {
           // Both the title and body are attacker-controlled GitHub content and
           // must reach the model as labeled DATA. An issue title can carry an
@@ -199,6 +203,8 @@ function handleIssuesEvent(payload: any): void {
           log.error({ err }, "[github] Error processing issue event");
         }
       })();
+      backgroundTasks.add(task);
+      task.finally(() => backgroundTasks.delete(task));
     }
   }
 }
@@ -226,11 +232,13 @@ function handlePushEvent(payload: any): void {
 
   const input = `A push event was received on repository ${repoName} for ref ${ref} with ${commitsCount} commits.`;
 
-  void (async () => {
+  const task = (async () => {
     try {
       await runCodeagentTurn(input, undefined, undefined, "github");
     } catch (err) {
       log.error({ error: err }, "[github] Error running agent on push event");
     }
   })();
+  backgroundTasks.add(task);
+  task.finally(() => backgroundTasks.delete(task));
 }
