@@ -88,3 +88,7 @@
 ## 2025-02-12 - Optimizing search loop with O(1) Map lookup
 **Learning:** In code dealing with search filtering and mapping over objects, using `array.find(obj => obj.name === name)` inside a loop over tools (`Array.from(found).map(name => ...)`) creates redundant O(N) nested scans.
 **Action:** When a mapping of `name -> Object` is already constructed to resolve existence (like `toolsLowerMap`), reuse that exact same Map `.get(name)` later in the function to eliminate the $O(N)$ lookup and replace it with $O(1)$.
+
+## 2024-05-18 - Optimize semantic search batch reading
+**Learning:** Independent asynchronous processes mapping over a set and invoking an external container context sequentially create excessive overhead per item.
+**Action:** When executing container tasks on sets of files, construct a single bash script that processes all files iteratively and delimits standard output to parse results concurrently.
