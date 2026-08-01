@@ -1,30 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
-
-mock.module("../../nodes/deterministic/DependencyInstallerNode", () => {
-  return {
-    installDependencies: mock(async () => {
-      throw new Error("Mocked dependency error");
-    }),
-  };
-});
-
-mock.module("../../integrations/sandbox-service", () => {
-  return {
-    createSandboxServiceWithConfig: mock(async () => {
-      return {
-        id: "test-id",
-        cloneRepo: mock(async () => "/workspace"),
-      };
-    }),
-    SandboxService: class {},
-  };
-});
-
-mock.module("../../utils/thread-metadata-store", () => ({
-  persistThreadRepo: mock(async () => {}),
-}));
-
+import { describe, it, expect, beforeEach, afterEach, mock, spyOn } from "bun:test";
 import { extractRepoFromInput, resolveSandboxContext } from "../sandbox-resolver";
+import * as dependencyInstaller from "../../nodes/deterministic/DependencyInstallerNode";
+import * as sandboxService from "../../integrations/sandbox-service";
+import * as threadMetadataStore from "../../utils/thread-metadata-store";
+import type { SandboxProfile } from "../../integrations/daytona-pool";
 
 describe("extractRepoFromInput", () => {
   let originalEnv: string | undefined;
@@ -102,21 +81,40 @@ describe("extractRepoFromInput", () => {
 
 describe("resolveSandboxContext", () => {
   let originalSandboxProvider: string | undefined;
+  let installDependenciesSpy: ReturnType<typeof spyOn>;
+  let createSandboxServiceSpy: ReturnType<typeof spyOn>;
+  let persistThreadRepoSpy: ReturnType<typeof spyOn>;
 
   beforeEach(() => {
     originalSandboxProvider = process.env.SANDBOX_PROVIDER;
+
+    installDependenciesSpy = spyOn(dependencyInstaller, "installDependencies").mockImplementation(async () => {
+      throw new Error("Mocked dependency error");
+    });
+
+    createSandboxServiceSpy = spyOn(sandboxService, "createSandboxServiceWithConfig").mockImplementation(async () => {
+      return {
+        id: "test-id",
+        cloneRepo: mock(async () => "/workspace"),
+      } as any;
+    });
+
+    persistThreadRepoSpy = spyOn(threadMetadataStore, "persistThreadRepo").mockImplementation(async () => {});
   });
 
   afterEach(() => {
     process.env.SANDBOX_PROVIDER = originalSandboxProvider;
+    installDependenciesSpy.mockRestore();
+    createSandboxServiceSpy.mockRestore();
+    persistThreadRepoSpy.mockRestore();
   });
 
   it("should gracefully handle and log dependency installation errors", async () => {
     const threadManager = {
-      getRepo: mock(() => undefined),
-      setRepo: mock(() => {}),
+      getRepo: mock(() => undefined) as any,
+      setRepo: mock(() => {}) as any,
       setSandbox: mock(() => {}),
-      getSandbox: mock(() => undefined),
+      getSandbox: mock(() => undefined) as any,
     };
 
     process.env.SANDBOX_PROVIDER = "opensandbox";
@@ -124,8 +122,7 @@ describe("resolveSandboxContext", () => {
     const result = await resolveSandboxContext(
       "thread-1",
       { owner: "test", name: "repo" },
-      // @ts-ignore
-      "standard",
+      "standard" as SandboxProfile,
       threadManager,
       mock(() => {})
     );
@@ -133,5 +130,6 @@ describe("resolveSandboxContext", () => {
     expect(result.workspaceDir).toBe("/workspace");
     expect(result.activeRepo.owner).toBe("test");
     expect(result.activeRepo.name).toBe("repo");
+    expect(installDependenciesSpy).toHaveBeenCalled();
   });
 });
