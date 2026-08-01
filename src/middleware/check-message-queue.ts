@@ -70,24 +70,8 @@ export async function checkMessageQueueBeforeModel(
       return null;
     }
 
-    const namespace = ["queue", threadId];
-
     try {
-      // Get pending messages from store
-      const queuedItem = await client.store.getItem(
-        namespace,
-        "pending_messages",
-      );
-
-      if (!queuedItem) {
-        return null;
-      }
-
-      const queuedValue = queuedItem.value as PendingMessagesValue;
-      const queuedMessages = queuedValue.messages || [];
-
-      // Delete early to prevent duplicate processing if middleware runs again
-      await client.store.deleteItem(namespace, "pending_messages");
+      const queuedMessages = await fetchAndClearPendingMessages(client, threadId);
 
       if (!queuedMessages || queuedMessages.length === 0) {
         return null;
@@ -103,36 +87,7 @@ export async function checkMessageQueueBeforeModel(
 
       // Parallelize processing of queued messages
       // This is especially important for messages with image URLs which require network requests
-      const blockPromises = queuedMessages.map(async (msg) => {
-        const content = msg.content;
-
-        // Handle payload with text + image URLs
-        if (
-          typeof content === "object" &&
-          content !== null &&
-          !Array.isArray(content) &&
-          ("text" in content || "image_urls" in content)
-        ) {
-          logger.debug("Queued message contains text + image URLs");
-          return buildBlocksFromPayload(content);
-        }
-
-        // Handle array of content blocks
-        if (Array.isArray(content)) {
-          logger.debug(
-            `Queued message contains ${content.length} content block(s)`,
-          );
-          return content;
-        }
-
-        // Handle plain string content
-        if (typeof content === "string" && content) {
-          logger.debug("Queued message contains text content");
-          return [{ type: "text", text: content } as ContentBlock];
-        }
-
-        return [];
-      });
+      const blockPromises = queuedMessages.map(processQueuedMessage);
 
       const allBlocks = await Promise.all(blockPromises);
       const contentBlocks = allBlocks.flat();
@@ -163,6 +118,70 @@ export async function checkMessageQueueBeforeModel(
     logger.error(error, "Error in checkMessageQueueBeforeModel");
     return null;
   }
+}
+
+/**
+ * Retrieves pending messages from the store and immediately deletes the key
+ * to prevent duplicate processing if middleware runs again.
+ */
+async function fetchAndClearPendingMessages(
+  client: Client,
+  threadId: string,
+): Promise<QueuedMessage[]> {
+  const namespace = ["queue", threadId];
+
+  // Get pending messages from store
+  const queuedItem = await client.store.getItem(
+    namespace,
+    "pending_messages",
+  );
+
+  if (!queuedItem) {
+    return [];
+  }
+
+  const queuedValue = queuedItem.value as PendingMessagesValue;
+  const queuedMessages = queuedValue.messages || [];
+
+  // Delete early to prevent duplicate processing
+  await client.store.deleteItem(namespace, "pending_messages");
+
+  return queuedMessages;
+}
+
+/**
+ * Parses the different shapes a queued message's content can take
+ * and standardizes them into an array of ContentBlocks.
+ */
+async function processQueuedMessage(msg: QueuedMessage): Promise<ContentBlock[]> {
+  const content = msg.content;
+
+  // Handle payload with text + image URLs
+  if (
+    typeof content === "object" &&
+    content !== null &&
+    !Array.isArray(content) &&
+    ("text" in content || "image_urls" in content)
+  ) {
+    logger.debug("Queued message contains text + image URLs");
+    return buildBlocksFromPayload(content);
+  }
+
+  // Handle array of content blocks
+  if (Array.isArray(content)) {
+    logger.debug(
+      `Queued message contains ${content.length} content block(s)`,
+    );
+    return content;
+  }
+
+  // Handle plain string content
+  if (typeof content === "string" && content) {
+    logger.debug("Queued message contains text content");
+    return [{ type: "text", text: content } as ContentBlock];
+  }
+
+  return [];
 }
 
 /**
