@@ -1,4 +1,5 @@
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect, mock, afterEach } from "bun:test";
+import * as configMod from "../../utils/config";
 
 // ---------------------------------------------------------------------------
 // agent-factory.ts has heavy dependencies (model loading, tools, middleware).
@@ -28,6 +29,85 @@ describe("agent-factory", () => {
       const fn = mod.createAgentInstance;
       const paramStr = fn.toString();
       expect(paramStr).toContain("async");
+    });
+
+    describe("fallback model error handling", () => {
+      afterEach(() => {
+        mock.restore();
+      });
+
+      it("should catch error if fallback model creation fails and continue", async () => {
+        // Mock modules to avoid real dependencies
+        mock.module("../../utils/config", () => {
+          return {
+            loadLlmConfig: () => ({
+              provider: "openai",
+              model: "test-model",
+              openaiApiKey: "test-key",
+              openaiBaseUrl: "test-url",
+              fallback: {
+                model: "fallback-model",
+                openaiApiKey: "fallback-key",
+                openaiBaseUrl: "fallback-url"
+              }
+            }),
+            loadModelConfig: (fallback?: any) => {
+              if (fallback) {
+                return {
+                  provider: "openai",
+                  model: fallback.model,
+                  openaiApiKey: fallback.openaiApiKey,
+                  openaiBaseUrl: fallback.openaiBaseUrl
+                };
+              }
+              return {
+                provider: "openai",
+                model: "test-model",
+                openaiApiKey: "test-key",
+                openaiBaseUrl: "test-url"
+              };
+            },
+            loadTelegramConfig: configMod.loadTelegramConfig,
+            loadTelegramBackoffConfig: configMod.loadTelegramBackoffConfig,
+            loadPipelineConfig: configMod.loadPipelineConfig,
+            isArchitectEditorRoutingEnabled: configMod.isArchitectEditorRoutingEnabled,
+            loadArchitectEditorConfig: configMod.loadArchitectEditorConfig,
+            getRoleModelConfig: configMod.getRoleModelConfig,
+            validateStartupConfig: configMod.validateStartupConfig
+          };
+        });
+
+        // Use mock.module to completely isolate deepagents to prevent actually running it
+        mock.module("deepagents", () => {
+          return {
+            createDeepAgent: () => ({ fakeAgent: true })
+          };
+        });
+
+        mock.module("../../utils/model-factory", () => {
+          return {
+            createChatModel: async (config: any) => {
+              if (config.model === "fallback-model") {
+                throw new Error("Simulated fallback model creation error");
+              }
+              return { fakeModel: true };
+            }
+          };
+        });
+
+        const mod = await import("../agent-factory");
+
+        let threw = false;
+        try {
+          const agent = await mod.createAgentInstance({});
+          expect(agent).toBeDefined();
+        } catch (e) {
+          threw = true;
+        }
+
+        // Verify the fallback model creation threw and was caught
+        expect(threw).toBe(false);
+      });
     });
   });
 });
