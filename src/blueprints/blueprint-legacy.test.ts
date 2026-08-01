@@ -1,11 +1,11 @@
 import { describe, expect, test, beforeEach } from "bun:test";
 import {
-  OldBlueprintRegistry as BlueprintRegistry,
-  selectOldBlueprint as selectBlueprint,
+  BlueprintRegistry,
+  selectBlueprint,
   buildInputWithBlueprint,
   DEFAULT_BLUEPRINTS,
-  type OldBlueprint as Blueprint,
-} from "./blueprint";
+  type Blueprint,
+} from "./blueprint-legacy";
 
 describe("Blueprint Pattern", () => {
   let registry: BlueprintRegistry;
