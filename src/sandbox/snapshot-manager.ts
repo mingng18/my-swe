@@ -275,39 +275,44 @@ export class SnapshotManager {
       // 1. Call provider's restore API with snapshot ID
       // 2. Verify the restored sandbox is ready
 
-      if (metadata.provider === "daytona") {
-        const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY || "" });
-        const manager = new DaytonaSnapshotManager(daytona);
+      switch (metadata.provider) {
+        case "daytona": {
+          const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY || "" });
+          const manager = new DaytonaSnapshotManager(daytona);
 
-        const createResult = await manager.createSandboxFromSnapshot(metadata.snapshotId);
-        if (createResult.success && createResult.sandboxId) {
-          const sandbox = await createSandboxServiceWithConfig({
-            provider: "daytona",
-            daytona: {
-              sandboxId: createResult.sandboxId
-            }
-          });
+          const createResult = await manager.createSandboxFromSnapshot(metadata.snapshotId);
+          if (createResult.success && createResult.sandboxId) {
+            const sandbox = await createSandboxServiceWithConfig({
+              provider: "daytona",
+              daytona: {
+                sandboxId: createResult.sandboxId
+              }
+            });
+            return {
+              success: true,
+              sandbox,
+              fromCache: true
+            };
+          }
+          throw new Error(`Failed to create Daytona sandbox from snapshot: ${createResult.error}`);
+        }
+        case "opensandbox":
+        default: {
+          // Fallback strategy: As the snapshot API is not yet available for this provider,
+          // we bypass snapshot restoration. A fresh sandbox will be initialized instead,
+          // matching the expected functional fallback behavior.
+          logger.debug(
+            `[snapshot-manager] Provider ${metadata.provider} snapshot APIs not yet integrated, using fresh sandbox`,
+          );
+
           return {
             success: true,
-            sandbox,
-            fromCache: true
+            sandbox: null,
+            fromCache: false,
+            error: `Provider ${metadata.provider} snapshot APIs not yet integrated`,
           };
         }
-        throw new Error(`Failed to create Daytona sandbox from snapshot: ${createResult.error}`);
       }
-
-      // TODO: Integrate with OpenSandbox snapshot/checkpoint API when available
-
-      logger.debug(
-        `[snapshot-manager] Provider ${metadata.provider} snapshot APIs not yet integrated, using fresh sandbox`,
-      );
-
-      return {
-        success: true,
-        sandbox: null,
-        fromCache: false,
-        error: `Provider ${metadata.provider} snapshot APIs not yet integrated`,
-      };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       logger.error(
@@ -455,7 +460,6 @@ export class SnapshotManager {
 
   /**
    * Capture snapshot via provider API.
-   * TODO: Implement provider-specific snapshot APIs.
    */
   private async captureSnapshot(
     sandbox: SandboxService,
@@ -463,37 +467,41 @@ export class SnapshotManager {
     const provider = sandbox.getProvider();
     const info = await sandbox.getInfo();
 
-    if (provider === "daytona") {
-      try {
-        const daytonaClient = sandbox.getDaytonaClient?.();
-        if (daytonaClient && daytonaClient.snapshot) {
-          const snapshotName = `snapshot-${info?.id || Date.now()}`;
-
-          logger.info(`[snapshot-manager] Creating Daytona snapshot: ${snapshotName}`);
-
-          const image = await this.getImageName(sandbox);
-          const snapshot = await daytonaClient.snapshot.create({
-            name: snapshotName,
-            image,
-            resources: {},
-            entrypoint: [],
-          });
-
-          return {
-            sandboxId: sandbox.id,
-            provider,
-            snapshotId: snapshot.id,
-            snapshotName: snapshot.name,
-            info
-          };
-        }
-      } catch (err) {
-        logger.error({ error: err }, "[snapshot-manager] Failed to create Daytona snapshot");
-      }
-    } else if (provider === "opensandbox") {
-      logger.debug("[snapshot-manager] OpenSandbox backend; pausing sandbox to capture state");
-      if (sandbox.getProvider() === "opensandbox") {
+    switch (provider) {
+      case "daytona":
         try {
+          const daytonaClient = sandbox.getDaytonaClient?.();
+          if (daytonaClient && daytonaClient.snapshot) {
+            const snapshotName = `snapshot-${info?.id || Date.now()}`;
+
+            logger.info(`[snapshot-manager] Creating Daytona snapshot: ${snapshotName}`);
+
+            const image = await this.getImageName(sandbox);
+            const snapshot = await daytonaClient.snapshot.create({
+              name: snapshotName,
+              image,
+              resources: {},
+              entrypoint: [],
+            });
+
+            return {
+              sandboxId: sandbox.id,
+              provider,
+              snapshotId: snapshot.id,
+              snapshotName: snapshot.name,
+              info
+            };
+          }
+        } catch (err) {
+          logger.error({ error: err }, "[snapshot-manager] Failed to create Daytona snapshot");
+        }
+        break;
+
+      case "opensandbox":
+        logger.debug("[snapshot-manager] OpenSandbox backend; pausing sandbox to capture state");
+        try {
+          // Fallback strategy: As the full snapshot export API is not yet available,
+          // we rely on pausing the sandbox to preserve state in the interim.
           // Access backend correctly avoiding strict typing issues
           const backend = sandbox.getBackend();
           if (backend && typeof (backend as any).pause === "function") {
@@ -502,7 +510,7 @@ export class SnapshotManager {
         } catch (err) {
           logger.error({ error: err }, "[snapshot-manager] Failed to pause OpenSandbox");
         }
-      }
+        break;
     }
 
     return {
