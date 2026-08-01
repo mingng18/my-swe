@@ -1,5 +1,7 @@
-import { describe, it, expect, mock, afterEach } from "bun:test";
+import { describe, it, expect, mock, spyOn, afterEach } from "bun:test";
 import * as configMod from "../../utils/config";
+import * as modelFactoryMod from "../../utils/model-factory";
+import { ChatOpenAI } from "@langchain/openai";
 
 // ---------------------------------------------------------------------------
 // agent-factory.ts has heavy dependencies (model loading, tools, middleware).
@@ -37,76 +39,66 @@ describe("agent-factory", () => {
       });
 
       it("should catch error if fallback model creation fails and continue", async () => {
-        // Mock modules to avoid real dependencies
-        mock.module("../../utils/config", () => {
-          return {
-            loadLlmConfig: () => ({
+        const loadLlmConfigSpy = spyOn(configMod, "loadLlmConfig").mockReturnValue({
+          provider: "openai",
+          model: "test-model",
+          openaiApiKey: "test-key",
+          openaiBaseUrl: "test-url",
+          fallback: {
+            model: "fallback-model",
+            openaiApiKey: "fallback-key",
+            openaiBaseUrl: "fallback-url"
+          }
+        } as any);
+
+        const loadModelConfigSpy = spyOn(configMod, "loadModelConfig").mockImplementation((fallback?: any) => {
+          if (fallback) {
+            return {
               provider: "openai",
-              model: "test-model",
-              openaiApiKey: "test-key",
-              openaiBaseUrl: "test-url",
-              fallback: {
-                model: "fallback-model",
-                openaiApiKey: "fallback-key",
-                openaiBaseUrl: "fallback-url"
-              }
-            }),
-            loadModelConfig: (fallback?: any) => {
-              if (fallback) {
-                return {
-                  provider: "openai",
-                  model: fallback.model,
-                  openaiApiKey: fallback.openaiApiKey,
-                  openaiBaseUrl: fallback.openaiBaseUrl
-                };
-              }
-              return {
-                provider: "openai",
-                model: "test-model",
-                openaiApiKey: "test-key",
-                openaiBaseUrl: "test-url"
-              };
-            },
-            loadTelegramConfig: configMod.loadTelegramConfig,
-            loadTelegramBackoffConfig: configMod.loadTelegramBackoffConfig,
-            loadPipelineConfig: configMod.loadPipelineConfig,
-            isArchitectEditorRoutingEnabled: configMod.isArchitectEditorRoutingEnabled,
-            loadArchitectEditorConfig: configMod.loadArchitectEditorConfig,
-            getRoleModelConfig: configMod.getRoleModelConfig,
-            validateStartupConfig: configMod.validateStartupConfig
+              model: fallback.model,
+              openaiApiKey: fallback.openaiApiKey,
+              openaiBaseUrl: fallback.openaiBaseUrl
+            };
+          }
+          return {
+            provider: "openai",
+            model: "test-model",
+            openaiApiKey: "test-key",
+            openaiBaseUrl: "test-url"
           };
         });
 
-        // Use mock.module to completely isolate deepagents to prevent actually running it
-        mock.module("deepagents", () => {
-          return {
-            createDeepAgent: () => ({ fakeAgent: true })
-          };
-        });
-
-        mock.module("../../utils/model-factory", () => {
-          return {
-            createChatModel: async (config: any) => {
-              if (config.model === "fallback-model") {
-                throw new Error("Simulated fallback model creation error");
-              }
-              return { fakeModel: true };
-            }
-          };
+        const createChatModelSpy = spyOn(modelFactoryMod, "createChatModel").mockImplementation(async (config: any) => {
+          if (config.model === "fallback-model") {
+            throw new Error("Simulated fallback model creation error");
+          }
+          // Return a real model so that deepagents doesn't fail internally
+          return new ChatOpenAI({
+            modelName: "test-model",
+            openAIApiKey: "test-key"
+          });
         });
 
         const mod = await import("../agent-factory");
 
         let threw = false;
+        let agent;
         try {
-          const agent = await mod.createAgentInstance({});
-          expect(agent).toBeDefined();
+          agent = await mod.createAgentInstance({});
         } catch (e) {
           threw = true;
         }
 
-        // Verify the fallback model creation threw and was caught
         expect(threw).toBe(false);
+        expect(agent).toBeDefined();
+
+        // Assert that the fallback path was actually exercised
+        expect(loadLlmConfigSpy).toHaveBeenCalled();
+        expect(createChatModelSpy).toHaveBeenCalledTimes(2);
+
+        // The first call should be the main model, the second should be the fallback model
+        const fallbackCall = createChatModelSpy.mock.calls[1][0];
+        expect(fallbackCall.model).toBe("fallback-model");
       });
     });
   });
