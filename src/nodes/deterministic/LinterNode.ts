@@ -8,6 +8,7 @@
  */
 
 import { createLogger } from "../../utils/logger";
+import { shellEscapeSingleQuotes } from "../../utils/shell";
 
 // Memory integration
 import { MemoryRepository } from "../../memory/repository";
@@ -67,7 +68,7 @@ export async function runLinter(
   }
 
   try {
-    const result = await sandbox.execute(`cd ${repoDir} && ${lintCommand}`, {
+    const result = await sandbox.execute(`cd ${shellEscapeSingleQuotes(repoDir)} && ${lintCommand}`, {
       timeout: 120000, // 2 minutes
     });
 
