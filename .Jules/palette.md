@@ -10,3 +10,6 @@
 ## 2026-08-01 - Removed redundant Checkbox
 **Learning:** Using a disabled Checkbox alongside an icon for status creates a redundant and inaccessible (poor contrast) element that implies interactivity where none exists for an agent-driven list.
 **Action:** Repositioned the status icon as the primary non-interactive indicator and removed the Checkbox to streamline the Todo item layout.
+## 2026-08-02 - Tooltip Component Composition with Dialogs
+**Learning:** When adding custom Tooltips to Dialog close buttons in Radix UI, the `<Tooltip>` cannot wrap the `<DialogPrimitive.Close asChild>` directly without a `<TooltipTrigger asChild>`. Additionally, `<TooltipTrigger asChild>` MUST wrap `<DialogPrimitive.Close asChild>`, which in turn wraps the `<Button>`. This ensures the `onClick` event handlers from both the Dialog close behavior and the Tooltip trigger behavior are correctly passed down to the inner button.
+**Action:** When composing Tooltips over other interactive Radix primitives that use `asChild`, strictly ensure the trigger wrappers are nested correctly so event handlers aren't broken.
