@@ -160,7 +160,7 @@ export class PRReviewCycle {
         { prNumber, error },
         "Failed to fetch unresolved comments",
       );
-      return [];
+      throw error;
     }
   }
 
@@ -272,7 +272,14 @@ export class PRReviewCycle {
     for (let round = 1; round <= maxRounds; round++) {
       logger.info({ prNumber, round, maxRounds }, "Review cycle round");
 
-      const comments = await this.fetchUnresolvedComments(prNumber);
+      let comments: PRReviewComment[];
+      try {
+        comments = await this.fetchUnresolvedComments(prNumber);
+      } catch (error) {
+        logger.error({ prNumber, round, error }, "Failed to fetch unresolved comments. Aborting cycle.");
+        aggregate.remainingIssues.push(`API Error fetching comments: ${String(error)}`);
+        break;
+      }
       aggregate.totalComments += comments.length;
 
       if (comments.length === 0) {

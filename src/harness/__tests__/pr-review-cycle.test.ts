@@ -1,5 +1,5 @@
 import { describe, it, expect, mock, beforeEach } from "bun:test";
-import type { PRReviewComment, PRReviewResult } from "../pr-review-cycle";
+import { PRReviewCycle, type PRReviewComment, type PRReviewResult } from "../pr-review-cycle";
 
 // ---------------------------------------------------------------------------
 // We test PRReviewCycle via isolated unit tests by extracting the core logic
@@ -162,7 +162,48 @@ describe("PRReviewCycle", () => {
     });
   });
 
+  describe("fetchUnresolvedComments (error handling)", () => {
+    it("throws an error when octokit pagination throws an error", async () => {
+      const cycle = new PRReviewCycle(
+        { owner: "test", name: "repo" },
+        "fake-token",
+        "thread-123",
+        "/tmp",
+        null as any
+      );
+
+      // Mock the octokit paginate to reject
+      (cycle as any).octokit = {
+        paginate: mock().mockRejectedValue(new Error("GitHub API Error")),
+        rest: { pulls: { listReviewComments: {} } }
+      };
+
+      await expect(cycle.fetchUnresolvedComments(42)).rejects.toThrow("GitHub API Error");
+    });
+  });
+
   describe("runCycle (maxRounds logic)", () => {
+    it("aborts cycle on fetch error and records remaining issue", async () => {
+      const cycle = new PRReviewCycle(
+        { owner: "test", name: "repo" },
+        "fake-token",
+        "thread-123",
+        "/tmp",
+        null as any
+      );
+
+      // Mock the octokit paginate to reject
+      (cycle as any).octokit = {
+        paginate: mock().mockRejectedValue(new Error("GitHub API rate limit")),
+        rest: { pulls: { listReviewComments: {} } }
+      };
+
+      const result = await cycle.runCycle(42, 2);
+      expect(result.remainingIssues).toHaveLength(1);
+      expect(result.remainingIssues[0]).toContain("API Error fetching comments");
+      expect(result.totalComments).toBe(0);
+    });
+
     it("stops after maxRounds iterations", async () => {
       // Simulate the runCycle loop logic
       let round = 0;
