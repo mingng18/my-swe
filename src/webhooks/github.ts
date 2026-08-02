@@ -110,14 +110,14 @@ function handlePrEvent(payload: any, githubEvent: string): void {
       }
 
       if (commentId) {
-        await reactToGithubComment(
+        await reactToGithubComment({
           repoConfig,
           commentId,
-          githubEvent,
+          eventType: githubEvent,
           token,
-          prNumber,
-          nodeId ?? undefined,
-        );
+          pullNumber: prNumber,
+          nodeId: nodeId ?? undefined,
+        });
       }
 
       const prompt = buildPrPrompt(comments, prUrl);

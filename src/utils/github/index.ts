@@ -22,6 +22,7 @@ export {
   buildPrPrompt,
   type RepoConfig,
   type GitHubComment,
+  type ReactToGithubCommentOptions,
 } from "./github-comments";
 
 // GitHub token lookup utilities
