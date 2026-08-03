@@ -10,3 +10,6 @@
 ## 2026-08-01 - Removed redundant Checkbox
 **Learning:** Using a disabled Checkbox alongside an icon for status creates a redundant and inaccessible (poor contrast) element that implies interactivity where none exists for an agent-driven list.
 **Action:** Repositioned the status icon as the primary non-interactive indicator and removed the Checkbox to streamline the Todo item layout.
+## 2025-08-03 - Dialog Close Tooltip
+**Learning:** Native HTML `title` attributes on custom Dialog component close buttons create the same poor duplicate/delayed tooltip UX as on regular buttons when used in a UI framework heavily utilizing custom Radix Tooltips.
+**Action:** Always replace native `title` attributes on Dialog close buttons with custom `Tooltip` components, ensuring proper `asChild` prop composition (`TooltipTrigger` -> `DialogPrimitive.Close` -> `Button`) to preserve accessible interactions.
