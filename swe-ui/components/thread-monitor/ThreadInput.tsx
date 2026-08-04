@@ -62,25 +62,46 @@ export const ThreadInput = forwardRef<HTMLInputElement, ThreadInputProps>(
               </Tooltip>
             )}
           </div>
-          <Button
-            type="submit"
-            disabled={isLoading || !userInput.trim()}
-            className="gap-2 shadow-md hover:shadow-lg transition-all disabled:opacity-50"
-            size="default"
-            aria-label={isLoading ? "Starting..." : "Run"}
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="hidden sm:inline">Starting...</span>
-              </>
-            ) : (
-              <>
-                <Send className="h-4 w-4" />
-                <span className="hidden sm:inline">Run</span>
-              </>
-            )}
-          </Button>
+          {isLoading || !userInput.trim() ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-block" tabIndex={0}>
+                  <Button
+                    type="submit"
+                    disabled={true}
+                    className="gap-2 shadow-md hover:shadow-lg transition-all disabled:opacity-50"
+                    size="default"
+                    aria-label={isLoading ? "Starting..." : "Run"}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span className="hidden sm:inline">Starting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4" />
+                        <span className="hidden sm:inline">Run</span>
+                      </>
+                    )}
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                {isLoading ? "Agent is starting..." : "Please enter a task first"}
+              </TooltipContent>
+            </Tooltip>
+          ) : (
+            <Button
+              type="submit"
+              className="gap-2 shadow-md hover:shadow-lg transition-all"
+              size="default"
+              aria-label="Run"
+            >
+              <Send className="h-4 w-4" />
+              <span className="hidden sm:inline">Run</span>
+            </Button>
+          )}
         </form>
       </div>
     );

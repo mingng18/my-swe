@@ -1,17 +1,13 @@
-1. **Analyze `src/tools/tool-search.ts`**
-   - In `tool-search.ts` lines 43-46, `toolsLowerMap` is built correctly to facilitate `O(1)` access for selected tools. However, at line 66, when constructing the final output, `tools.find((tool) => tool.name === name)` is used, making it an `O(N)` operation for each tool requested.
-2. **Optimize `src/tools/tool-search.ts`**
-   - Update line 66 from:
-     ```typescript
-     const t = tools.find((tool) => tool.name === name);
-     ```
-     to:
-     ```typescript
-     const t = toolsLowerMap.get(name.toLowerCase());
-     ```
-     This change removes the redundant O(N) lookup, giving an immediate O(1) retrieval instead.
-
-3. **Execute Pre-commit instructions**
-   - Complete pre commit steps to make sure proper testing, verifications, reviews and reflections are done.
-4. **Submit PR**
-   - Submit the changes using the `submit` tool with `⚡ Bolt: Optimize tool lookup with toolsLowerMap`.
+1. *Modify `ThreadInput.tsx` to add a tooltip to the disabled submit button.*
+   - Extract the submit `Button` into a constant.
+   - Conditionally wrap the `Button` in a `Tooltip` with a `span` trigger when disabled.
+   - The tooltip should explain why the button is disabled (e.g., "Please enter a task first" or "Agent is starting...").
+2. *Verify the changes.*
+   - Use `read_file` to ensure the syntax is correct.
+   - Run `cd swe-ui && pnpm run lint` to verify code quality.
+   - Run `cd swe-ui && pnpm run build` to verify the build passes.
+3. *Complete pre-commit steps to ensure proper testing, verification, review, and reflection are done.*
+4. *Update the Palette journal.*
+   - Add a critical learning about disabled buttons and tooltips in Radix UI.
+5. *Submit the change.*
+   - Provide a PR description with 💡 What, 🎯 Why, 📸 Before/After, and ♿ Accessibility.

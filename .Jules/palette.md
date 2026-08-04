@@ -13,3 +13,7 @@
 ## 2026-08-02 - Tooltip Component Composition with Dialogs
 **Learning:** When adding custom Tooltips to Dialog close buttons in Radix UI, the `<Tooltip>` cannot wrap the `<DialogPrimitive.Close asChild>` directly without a `<TooltipTrigger asChild>`. Additionally, `<TooltipTrigger asChild>` MUST wrap `<DialogPrimitive.Close asChild>`, which in turn wraps the `<Button>`. This ensures the `onClick` event handlers from both the Dialog close behavior and the Tooltip trigger behavior are correctly passed down to the inner button.
 **Action:** When composing Tooltips over other interactive Radix primitives that use `asChild`, strictly ensure the trigger wrappers are nested correctly so event handlers aren't broken.
+
+## 2024-05-15 - Tooltips for Disabled Buttons
+**Learning:** Radix UI Tooltips do not trigger on elements with `disabled:pointer-events-none` because the events are blocked. Wrapping disabled elements in a `<span>` with `tabIndex={0}` allows tooltips to be accessible and trigger correctly on hover and focus.
+**Action:** Always wrap disabled buttons in an accessible `<span>` or `<div>` wrapper when adding tooltips to explain their disabled state.
