@@ -22,3 +22,7 @@
 **Vulnerability:** Git clone commands with embedded credentials (https://token@github.com/...) can leak the token in `stderr`/`stdout` when the command fails (e.g., repo not found, network error), resulting in exposed credentials in logs or UI.
 **Learning:** Sandboxed shell command outputs must always be sanitized when the command string itself contains secrets, as underlying tools (like git) may echo parts of the original command or the URL in their failure output.
 **Prevention:** Always use a sanitization utility (like `sanitizeTokenFromString`) to scrub raw output streams from subprocesses that were executed with embedded secrets before throwing errors or logging.
+## 2024-05-15 - Command Injection in Execution Nodes
+**Vulnerability:** Deterministic execution nodes (`LinterNode` and `TestRunnerNode`) were vulnerable to command injection because they interpolated unescaped `repoDir` arguments directly into shell commands passed to `sandbox.execute`.
+**Learning:** Even internal tool calls or deterministic fallback paths can be attack vectors if they accept externally-controlled paths without sanitization. `sandbox.execute` runs arbitrary commands, making string interpolation highly dangerous.
+**Prevention:** Always use a dedicated escaping utility like `shellEscapeSingleQuotes` when interpolating variables into shell commands.

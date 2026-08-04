@@ -22,7 +22,7 @@ describe("TestRunnerNode", () => {
       });
 
       expect(mockSandbox.execute).toHaveBeenCalledWith(
-        "cd /fake/repo && npm test",
+        "cd '/fake/repo' && npm test",
         { timeout: 300000 }
       );
 
