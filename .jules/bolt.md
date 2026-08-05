@@ -91,3 +91,7 @@
 ## 2026-08-01 - Optimize inner loop with Set in codebase-indexer.ts
 **Learning:** When performing `new Set()` generation of identical data, evaluate the operation outside of loops rather than repeating the overhead each iteration.
 **Action:** Audit inner loops for redundant array-to-Set conversions, specifically checking if the source array remains unmodified.
+
+## 2026-08-04 - Array map and filter chains in Eval Harness
+**Learning:** Found an anti-pattern in `src/eval/harness.ts` where multiple chained iterations (`.filter(...).length` and `.reduce(...)`) were used to calculate final eval report statistics. This adds unnecessary multiple O(N) traversals and intermediate array allocations in memory.
+**Action:** Replaced chained array aggregations with a single-pass `for` loop to optimize iteration speed and decrease garbage collection pressure in test harness logic.

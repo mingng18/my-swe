@@ -258,13 +258,19 @@ export class EvalHarness {
     const rawResults = await Promise.all(casePromises);
     results.push(...rawResults);
 
-    const passed = results.filter((r) => r.passed).length;
+    // ⚡ Bolt: Replaced multiple .filter().length and .reduce() passes with a single O(N) loop
+    let passed = 0;
+    let sumDurationMs = 0;
+    for (let i = 0; i < results.length; i++) {
+      if (results[i].passed) {
+        passed++;
+      }
+      sumDurationMs += results[i].durationMs;
+    }
     const failed = results.length - passed;
     const avgDurationMs =
       results.length > 0
-        ? Math.round(
-            results.reduce((sum, r) => sum + r.durationMs, 0) / results.length,
-          )
+        ? Math.round(sumDurationMs / results.length)
         : 0;
 
     const report: EvalReport = {
