@@ -8,6 +8,7 @@
  */
 
 import { createLogger } from "../../utils/logger";
+import { shellEscapeSingleQuotes } from "../../utils/shell";
 
 const logger = createLogger("test-runner-node");
 
@@ -99,7 +100,7 @@ export async function runTests(
   emitProgress("running", `Running tests: ${testCommand}`, testCommand);
 
   try {
-    const result = await sandbox.execute(`cd ${repoDir} && ${testCommand}`, {
+    const result = await sandbox.execute(`cd ${shellEscapeSingleQuotes(repoDir)} && ${testCommand}`, {
       timeout: 300000, // 5 minutes
     });
 

@@ -17,7 +17,10 @@ describe("LinterNode", () => {
     test("returns passed state when sandbox execution has exitCode 0", async () => {
       const result = await runLinter(mockSandbox, "/tmp/repo");
 
-      expect(mockSandbox.execute).toHaveBeenCalled();
+      expect(mockSandbox.execute).toHaveBeenCalledWith(
+        "cd '/tmp/repo' && bunx tsc --noEmit",
+        expect.any(Object)
+      );
       expect(result.lintPassed).toBe(true);
       expect(result.lintExitCode).toBe(0);
       expect(result.lintOutput).toBe("Mock lint output");
@@ -31,7 +34,10 @@ describe("LinterNode", () => {
 
       const result = await runLinter(mockSandbox, "/tmp/repo");
 
-      expect(mockSandbox.execute).toHaveBeenCalled();
+      expect(mockSandbox.execute).toHaveBeenCalledWith(
+        "cd '/tmp/repo' && bunx tsc --noEmit",
+        expect.any(Object)
+      );
       expect(result.lintPassed).toBe(false);
       expect(result.lintExitCode).toBe(1);
       expect(result.lintOutput).toBe("Lint errors found");
@@ -42,7 +48,10 @@ describe("LinterNode", () => {
 
       const result = await runLinter(mockSandbox, "/tmp/repo");
 
-      expect(mockSandbox.execute).toHaveBeenCalled();
+      expect(mockSandbox.execute).toHaveBeenCalledWith(
+        "cd '/tmp/repo' && bunx tsc --noEmit",
+        expect.any(Object)
+      );
       expect(result.lintPassed).toBe(false);
       expect(result.lintExitCode).toBe(-1);
       expect(result.lintOutput).toBe("Sandbox timeout");

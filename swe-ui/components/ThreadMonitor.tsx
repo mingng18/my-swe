@@ -243,7 +243,7 @@ export function ThreadMonitor({
       )}
 
       <Dialog open={isNewRunModalOpen} onOpenChange={setIsNewRunModalOpen}>
-        <DialogContent className="max-w-3xl border-0 p-0 overflow-hidden bg-transparent shadow-none" >
+        <DialogContent className="max-w-3xl border-0 p-0 overflow-hidden bg-transparent shadow-none" showCloseButton={false}>
           <div className="bg-background border rounded-xl overflow-hidden shadow-2xl">
             <DialogHeader className="p-4 border-b bg-muted/30">
               <DialogTitle>Start New Agent Run</DialogTitle>

@@ -10,6 +10,10 @@
 ## 2026-08-01 - Removed redundant Checkbox
 **Learning:** Using a disabled Checkbox alongside an icon for status creates a redundant and inaccessible (poor contrast) element that implies interactivity where none exists for an agent-driven list.
 **Action:** Repositioned the status icon as the primary non-interactive indicator and removed the Checkbox to streamline the Todo item layout.
-## 2025-08-03 - Dialog Close Tooltip
-**Learning:** Native HTML `title` attributes on custom Dialog component close buttons create the same poor duplicate/delayed tooltip UX as on regular buttons when used in a UI framework heavily utilizing custom Radix Tooltips.
-**Action:** Always replace native `title` attributes on Dialog close buttons with custom `Tooltip` components, ensuring proper `asChild` prop composition (`TooltipTrigger` -> `DialogPrimitive.Close` -> `Button`) to preserve accessible interactions.
+## 2026-08-02 - Tooltip Component Composition with Dialogs
+**Learning:** When adding custom Tooltips to Dialog close buttons in Radix UI, the `<Tooltip>` cannot wrap the `<DialogPrimitive.Close asChild>` directly without a `<TooltipTrigger asChild>`. Additionally, `<TooltipTrigger asChild>` MUST wrap `<DialogPrimitive.Close asChild>`, which in turn wraps the `<Button>`. This ensures the `onClick` event handlers from both the Dialog close behavior and the Tooltip trigger behavior are correctly passed down to the inner button.
+**Action:** When composing Tooltips over other interactive Radix primitives that use `asChild`, strictly ensure the trigger wrappers are nested correctly so event handlers aren't broken.
+
+## 2024-05-15 - Tooltips for Disabled Buttons
+**Learning:** Radix UI Tooltips do not trigger on elements with `disabled:pointer-events-none` because the events are blocked. Wrapping disabled elements in a `<span>` with `tabIndex={0}` allows tooltips to be accessible and trigger correctly on hover and focus.
+**Action:** Always wrap disabled buttons in an accessible `<span>` or `<div>` wrapper when adding tooltips to explain their disabled state.
