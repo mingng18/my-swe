@@ -95,3 +95,7 @@
 ## 2026-08-04 - Array map and filter chains in Eval Harness
 **Learning:** Found an anti-pattern in `src/eval/harness.ts` where multiple chained iterations (`.filter(...).length` and `.reduce(...)`) were used to calculate final eval report statistics. This adds unnecessary multiple O(N) traversals and intermediate array allocations in memory.
 **Action:** Replaced chained array aggregations with a single-pass `for` loop to optimize iteration speed and decrease garbage collection pressure in test harness logic.
+
+## 2025-10-25 - Avoid intermediate arrays for metric counts
+**Learning:** In telemetry processors and aggregators (like `detectAnomalies` in `trace-dashboard.ts`), using `.filter(...).length` to count items in large arrays allocates an entire intermediate array just to measure its length, unnecessarily increasing memory and garbage collection overhead. (Note: Doing this on small lists like context messages is a non-measurable micro-optimization, but on telemetry arrays with thousands of spans it matters).
+**Action:** Replace `.filter(...).length` with a standard `for` loop that increments a counter when processing large telemetry or log data to eliminate O(N) memory allocations.
