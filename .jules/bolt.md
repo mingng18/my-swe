@@ -99,3 +99,6 @@
 ## 2025-10-25 - Avoid intermediate arrays for metric counts
 **Learning:** In telemetry processors and aggregators (like `detectAnomalies` in `trace-dashboard.ts`), using `.filter(...).length` to count items in large arrays allocates an entire intermediate array just to measure its length, unnecessarily increasing memory and garbage collection overhead. (Note: Doing this on small lists like context messages is a non-measurable micro-optimization, but on telemetry arrays with thousands of spans it matters).
 **Action:** Replace `.filter(...).length` with a standard `for` loop that increments a counter when processing large telemetry or log data to eliminate O(N) memory allocations.
+## 2026-08-07 - Avoid multiple .filter().length passes for array counting
+**Learning:** The codebase has multiple occurrences of chaining `.filter(condition).length` to count items matching specific conditions. This allocates a new temporary array just to measure its length, causing O(N) memory allocation and O(N) traversal overhead each time.
+**Action:** Replaced chained `.filter().length` with standard `for` loops and incrementing counters when calculating invocation metrics. Reusing an optimized counting method instead of running multiple independent filters reduces unnecessary memory allocations and garbage collection pressure on the hot path.
