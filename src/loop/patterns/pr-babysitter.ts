@@ -67,11 +67,17 @@ export function createPrBabysitterPattern(
       const results: PRReviewResult[] = [];
       try {
         const prs = await listOpenPRs();
-        for (const prNumber of prs) {
-          const cycle = makeCycle(prNumber);
-          const unresolved = await cycle.fetchUnresolvedComments(prNumber);
-          if (unresolved.length === 0) continue; // nothing to babysit
-          results.push(await cycle.runCycle(prNumber, 2));
+        const limit = (await import("p-limit")).default(2);
+        const cycleResults = await Promise.all(
+          prs.map((prNumber) => limit(async () => {
+            const cycle = makeCycle(prNumber);
+            const unresolved = await cycle.fetchUnresolvedComments(prNumber);
+            if (unresolved.length === 0) return null; // nothing to babysit
+            return await cycle.runCycle(prNumber, 2);
+          }))
+        );
+        for (const result of cycleResults) {
+          if (result) results.push(result);
         }
         return {
           name,
