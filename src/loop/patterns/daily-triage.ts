@@ -92,13 +92,16 @@ export function createDailyTriagePattern(opts: DailyTriageOptions): ScheduledPat
       let issuesTriaged = 0;
       try {
         const issues = await fetchNewIssues();
-        for (const issue of issues) {
-          const input = `Triage issue #${issue.number}: ${issue.title}${
-            issue.body ? `\n\n${issue.body}` : ""
-          }`;
-          await runLoop({ input, threadId: `${prefix}-issue-${issue.number}` });
-          issuesTriaged += 1;
-        }
+        const limit = (await import("p-limit")).default(2);
+        await Promise.all(
+          issues.map((issue) => limit(async () => {
+            const input = `Triage issue #${issue.number}: ${issue.title}${
+              issue.body ? `\n\n${issue.body}` : ""
+            }`;
+            await runLoop({ input, threadId: `${prefix}-issue-${issue.number}` });
+            issuesTriaged += 1;
+          }))
+        );
         return { name, ok: true, detail: { issuesTriaged }, at };
       } catch (err) {
         return {
