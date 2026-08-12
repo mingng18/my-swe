@@ -242,49 +242,26 @@ export function compactMessages(
     "[context-compactor] Compacting context",
   );
 
-  // Calculate importance scores for all messages
-  const scoredMessages: MessageScore[] = messages.map((msg, index) =>
-    calculateImportance(msg, index, messages.length),
-  );
-
-  // Separate user messages (always keep)
-  const userMessages = scoredMessages.filter(
-    (s) => s.message.getType() === "human" || s.message.getType() === "user",
-  );
-  const userIndices = new Set(userMessages.map((s) => s.index));
-
   // Get last N messages (always keep for continuity)
   const lastN = Math.min(CONTEXT_KEEP_MINIMUM, messages.length);
   const lastIndex = messages.length - lastN;
-  const recentIndices = new Set(
-    Array.from({ length: lastN }, (_, i) => lastIndex + i),
-  );
 
-  // Combine always-keep indices
-  const alwaysKeepIndices = new Set<number>();
-  for (const idx of userIndices) {
-    alwaysKeepIndices.add(idx);
-  }
-  for (const idx of recentIndices) {
-    alwaysKeepIndices.add(idx);
-  }
-
-  // Mark messages that are always kept
   const alwaysKept: MessageScore[] = [];
   const remaining: MessageScore[] = [];
+  let alwaysKeptTokens = 0;
 
-  for (const scored of scoredMessages) {
-    if (alwaysKeepIndices.has(scored.index)) {
+  // ⚡ Bolt: Consolidated multiple array mapping, filtering, and set allocations into a single-pass loop
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+    const scored = calculateImportance(msg, i, messages.length);
+    const type = msg.getType();
+
+    if (type === "human" || type === "user" || i >= lastIndex) {
       alwaysKept.push(scored);
+      alwaysKeptTokens += estimateMessageTokens(msg);
     } else {
       remaining.push(scored);
     }
-  }
-
-  // Calculate remaining budget
-  let alwaysKeptTokens = 0;
-  for (const scored of alwaysKept) {
-    alwaysKeptTokens += estimateMessageTokens(scored.message);
   }
 
   const remainingBudget = targetTokens - alwaysKeptTokens;
