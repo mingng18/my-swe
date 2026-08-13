@@ -17,3 +17,6 @@
 ## 2024-05-15 - Tooltips for Disabled Buttons
 **Learning:** Radix UI Tooltips do not trigger on elements with `disabled:pointer-events-none` because the events are blocked. Wrapping disabled elements in a `<span>` with `tabIndex={0}` allows tooltips to be accessible and trigger correctly on hover and focus.
 **Action:** Always wrap disabled buttons in an accessible `<span>` or `<div>` wrapper when adding tooltips to explain their disabled state.
+## 2024-05-18 - Icon-Only Button Tooltips
+**Learning:** Icon-only buttons (like a clipboard or trash icon) often lack sufficient context for sighted users, even if they have an `aria-label` for screen readers. Using `title` attributes can cause delayed, unstyled browser tooltips.
+**Action:** Always wrap icon-only interactive elements in custom design system `<Tooltip>` components (e.g., from Shadcn or Radix) to provide immediate, styled context on hover and focus.
