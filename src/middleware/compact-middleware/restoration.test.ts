@@ -97,7 +97,7 @@ describe("restoration", () => {
 
   describe("calculateRestorationBudget", () => {
     it("should limit max files and estimated chars", () => {
-      const files = Array.from({ length: 10 }, (_, i) => ({ path: `f${i}.ts`, index: i, timestamp: Date.now() }));
+      const files = Array.from({ length: 10 }, (_, i) => ({ path: `f${i}.ts`, index: i, timestamp: Date.now(), insertionOrder: i }));
       const config = { ...DEFAULT_COMPACTION_CONFIG.restoration, maxFiles: 5, perFileChars: 10000, fileBudgetChars: 30000 };
       const budget = calculateRestorationBudget(files, config);
 
