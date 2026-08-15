@@ -19,6 +19,8 @@ export interface FileReference {
   index: number;
   /** Timestamp when read */
   timestamp: number;
+  /** Internal tracking for stable sorting when index and timestamp match */
+  insertionOrder: number;
 }
 
 /**
@@ -39,6 +41,7 @@ export function extractFileReferences(
 ): FileReference[] {
   const references: FileReference[] = [];
   const seenPaths = new Set<string>();
+  let insertionCounter = 0;
 
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];
@@ -56,6 +59,7 @@ export function extractFileReferences(
               index: i,
               timestamp:
                 (msg as any).additional_kwargs?.timestamp || Date.now(),
+              insertionOrder: insertionCounter++,
             });
           }
         }
@@ -71,6 +75,7 @@ export function extractFileReferences(
               index: i,
               timestamp:
                 (msg as any).additional_kwargs?.timestamp || Date.now(),
+              insertionOrder: insertionCounter++,
             });
           }
         }
@@ -94,6 +99,7 @@ export function extractFileReferences(
               index: i,
               timestamp:
                 (msg as any).additional_kwargs?.timestamp || Date.now(),
+              insertionOrder: insertionCounter++,
             });
           }
         }
@@ -106,7 +112,10 @@ export function extractFileReferences(
     if (b.timestamp !== a.timestamp) {
       return b.timestamp - a.timestamp;
     }
-    return b.index - a.index;
+    if (b.index !== a.index) {
+      return b.index - a.index;
+    }
+    return a.insertionOrder - b.insertionOrder;
   });
 }
 
