@@ -99,3 +99,7 @@
 ## 2025-10-25 - Avoid intermediate arrays for metric counts
 **Learning:** In telemetry processors and aggregators (like `detectAnomalies` in `trace-dashboard.ts`), using `.filter(...).length` to count items in large arrays allocates an entire intermediate array just to measure its length, unnecessarily increasing memory and garbage collection overhead. (Note: Doing this on small lists like context messages is a non-measurable micro-optimization, but on telemetry arrays with thousands of spans it matters).
 **Action:** Replace `.filter(...).length` with a standard `for` loop that increments a counter when processing large telemetry or log data to eliminate O(N) memory allocations.
+
+## 2026-08-15 - Array allocations on Tool Invocation checking
+**Learning:** Found an anti-pattern in `tool-invocation-limits.ts` where `.filter((inv) => inv.toolName === toolName).length` was used inside `shouldBlockToolCall` (and `getInvocationCount`). This iterates the array and allocates an entirely new array just to count the matches, causing unnecessary garbage collection pressure every time a tool is called.
+**Action:** Replaced `.filter().length` with a standard `for` loop that iterates the array once and increments a counter, avoiding intermediate allocations entirely. Furthermore, reused the counting function to avoid duplicated logic.
