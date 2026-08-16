@@ -61,7 +61,6 @@ export function Toast({
       </div>
       <button
         aria-label="Close toast"
-        title="Close toast"
         onClick={() => {
           setIsVisible(false)
           setTimeout(() => onClose?.(), 300)
