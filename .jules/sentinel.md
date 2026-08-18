@@ -26,3 +26,7 @@
 **Vulnerability:** Deterministic execution nodes (`LinterNode` and `TestRunnerNode`) were vulnerable to command injection because they interpolated unescaped `repoDir` arguments directly into shell commands passed to `sandbox.execute`.
 **Learning:** Even internal tool calls or deterministic fallback paths can be attack vectors if they accept externally-controlled paths without sanitization. `sandbox.execute` runs arbitrary commands, making string interpolation highly dangerous.
 **Prevention:** Always use a dedicated escaping utility like `shellEscapeSingleQuotes` when interpolating variables into shell commands.
+## 2023-11-20 - Command Injection in Tool Parameter
+**Vulnerability:** The `sandboxShellTool` accepted an optional `shell` parameter to specify the execution shell (e.g., bash, python). This parameter was concatenated directly into the shell string `${shell} -c "${fullCommand}"` without any validation. An attacker could provide a malicious `shell` value (e.g., `sh -c "echo hacked #"`) that injects arbitrary execution before the main validated command.
+**Learning:** Even when the primary `command` parameter is validated and shell-escaped, side-channel parameters (like `shell`) that control execution framing are vulnerable to command injection if unvalidated.
+**Prevention:** Strictly allowlist or regex-validate all parameters used to construct execution commands. The `shell` parameter is now validated against `/^[a-zA-Z0-9_\-\/]+$/` to ensure it only represents an executable binary path or name.
