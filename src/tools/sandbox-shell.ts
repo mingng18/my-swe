@@ -81,6 +81,11 @@ export const sandboxShellTool = tool(
     );
 
     try {
+      // Validate shell parameter to prevent command injection bypass
+      if (shell && !/^[a-zA-Z0-9_\-\/]+$/.test(shell)) {
+        throw new Error(`Command execution rejected: invalid shell parameter '${shell}'`);
+      }
+
       // If a specific shell is requested, wrap the full command
       const shellCommand = shell ? `${shell} -c "${fullCommand}"` : fullCommand;
       const result = await backend.execute(shellCommand);

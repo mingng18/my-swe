@@ -78,6 +78,15 @@ describe("sandbox tools", () => {
         command: "echo hello",
       });
     });
+
+    test("throws error if shell parameter is invalid", async () => {
+      await expect(
+        sandboxShellTool.invoke(
+          { command: "echo hello", shell: "sh -c \\\"echo 'bypassed'\\\"" },
+          config,
+        )
+      ).rejects.toThrow("invalid shell parameter");
+    });
   });
 
   describe("sandboxMetricsTool", () => {
