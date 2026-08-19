@@ -26,3 +26,7 @@
 **Vulnerability:** Deterministic execution nodes (`LinterNode` and `TestRunnerNode`) were vulnerable to command injection because they interpolated unescaped `repoDir` arguments directly into shell commands passed to `sandbox.execute`.
 **Learning:** Even internal tool calls or deterministic fallback paths can be attack vectors if they accept externally-controlled paths without sanitization. `sandbox.execute` runs arbitrary commands, making string interpolation highly dangerous.
 **Prevention:** Always use a dedicated escaping utility like `shellEscapeSingleQuotes` when interpolating variables into shell commands.
+## 2026-08-11 - Secure Shell Command Interpolation
+**Vulnerability:** The `sandboxShellTool` interpolated unescaped user commands directly into double quotes when a shell was specified (`shell -c "<command>"`), allowing for command injection and syntax escapes via nested execution like ``.
+**Learning:** External variables (even full commands intended for execution) must be safely quoted before being passed as arguments to another shell to prevent premature evaluation.
+**Prevention:** Use `shellEscapeSingleQuotes` when constructing shell execution strings to safely quote variables passed to `-c`.
