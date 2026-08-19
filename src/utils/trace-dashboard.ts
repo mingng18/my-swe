@@ -313,9 +313,16 @@ function detectAnomalies(
   }
 
   // Check for error spans
-  const errorSpans = telemetry.spans.filter((s: any) => s.status === "error");
-  if (errorSpans.length > 0) {
-    anomalies.push(`${errorSpans.length} error spans detected`);
+  // ⚡ Bolt: Replaced .filter().length with a single-pass loop.
+  // Expected Impact: Avoids allocating an intermediate array just to count errors, saving memory overhead when telemetry.spans is large.
+  let errorCount = 0;
+  for (let i = 0; i < telemetry.spans.length; i++) {
+    if (telemetry.spans[i].status === "error") {
+      errorCount++;
+    }
+  }
+  if (errorCount > 0) {
+    anomalies.push(`${errorCount} error spans detected`);
   }
 
   return anomalies;
