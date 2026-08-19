@@ -17,6 +17,6 @@
 ## 2024-05-15 - Tooltips for Disabled Buttons
 **Learning:** Radix UI Tooltips do not trigger on elements with `disabled:pointer-events-none` because the events are blocked. Wrapping disabled elements in a `<span>` with `tabIndex={0}` allows tooltips to be accessible and trigger correctly on hover and focus.
 **Action:** Always wrap disabled buttons in an accessible `<span>` or `<div>` wrapper when adding tooltips to explain their disabled state.
-## 2026-10-25 - Dynamic Tooltip Text for Interactive States
-**Learning:** When using custom Tooltips on interactive elements (like a "Copy" button), statically hardcoding the tooltip text (e.g., "Copy") misses a UX opportunity when the state changes (e.g., to "Copied!").
-**Action:** When adding or upgrading custom tooltips on buttons with transient states (like copy buttons), ensure the tooltip text updates dynamically based on the component's state (e.g., `isCopied ? "Copied" : "Copy"`).
+## 2026-08-09 - Replaced native title with Tooltip in Toast
+**Learning:** Using native HTML title attributes on interactive icon-only buttons creates a duplicate, unstyled tooltip with a delay. Wrapping it in a custom UI <Tooltip> component instead improves accessibility and UX.
+**Action:** Use <Tooltip> with an aria-label for screen readers instead of native title attributes on icon-only buttons.
