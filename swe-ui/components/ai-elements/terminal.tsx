@@ -1,7 +1,6 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import Ansi from "ansi-to-react";
 import { CheckIcon, CopyIcon, TerminalIcon, Trash2Icon } from "lucide-react";
@@ -141,27 +140,20 @@ export const TerminalCopyButton = ({
 
   const Icon = isCopied ? CheckIcon : CopyIcon;
 
-  const label = isCopied ? "Copied to clipboard" : "Copy terminal output";
-
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          aria-label={label}
-          className={cn(
-            "size-7 shrink-0 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100",
-            className,
-          )}
-          onClick={copyToClipboard}
-          size="icon"
-          variant="ghost"
-          {...props}
-        >
-          {children ?? <Icon size={14} />}
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
+    <Button
+      aria-label={isCopied ? "Copied to clipboard" : "Copy terminal output"}
+      className={cn(
+        "size-7 shrink-0 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100",
+        className,
+      )}
+      onClick={copyToClipboard}
+      size="icon"
+      variant="ghost"
+      {...props}
+    >
+      {children ?? <Icon size={14} />}
+    </Button>
   );
 };
 
@@ -179,24 +171,19 @@ export const TerminalClearButton = ({
   }
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          aria-label="Clear terminal output"
-          className={cn(
-            "size-7 shrink-0 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100",
-            className,
-          )}
-          onClick={onClear}
-          size="icon"
-          variant="ghost"
-          {...props}
-        >
-          {children ?? <Trash2Icon size={14} />}
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>Clear terminal output</TooltipContent>
-    </Tooltip>
+    <Button
+      aria-label="Clear terminal output"
+      className={cn(
+        "size-7 shrink-0 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100",
+        className,
+      )}
+      onClick={onClear}
+      size="icon"
+      variant="ghost"
+      {...props}
+    >
+      {children ?? <Trash2Icon size={14} />}
+    </Button>
   );
 };
 
