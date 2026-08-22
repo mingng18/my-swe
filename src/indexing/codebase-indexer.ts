@@ -658,13 +658,15 @@ export class CodebaseIndexer {
         return;
       }
 
+      const promises: Promise<void>[] = [];
       for (const entry of entries) {
         if (exclude.has(entry.name)) continue;
 
         const fullPath = join(currentDir, entry.name);
 
         if (entry.isDirectory()) {
-          await walk(fullPath);
+          // ⚡ Bolt: Use Promise.all to walk directories concurrently for faster file discovery
+          promises.push(walk(fullPath));
         } else if (
           entry.isFile() &&
           INDEXABLE_EXTENSIONS.has(extname(entry.name))
@@ -672,6 +674,7 @@ export class CodebaseIndexer {
           results.push(fullPath);
         }
       }
+      await Promise.all(promises);
     }
 
     await walk(dir);
