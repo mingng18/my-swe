@@ -102,3 +102,7 @@
 ## 2026-08-07 - Avoid multiple .filter().length passes for array counting
 **Learning:** The codebase has multiple occurrences of chaining `.filter(condition).length` to count items matching specific conditions. This allocates a new temporary array just to measure its length, causing O(N) memory allocation and O(N) traversal overhead each time.
 **Action:** Replaced chained `.filter().length` with standard `for` loops and incrementing counters when calculating invocation metrics. Reusing an optimized counting method instead of running multiple independent filters reduces unnecessary memory allocations and garbage collection pressure on the hot path.
+
+## 2025-02-27 - Sequential vs Concurrent Directory Walking
+**Learning:** The `codebase-indexer.ts` originally used a sequential `for...of` loop with `await` for recursive file directory walking, preventing any parallel file system reads which dramatically throttled startup or indexing indexing large repositories. I benchmarked the difference locally and saw `Promise.all` reduced I/O overhead heavily since node's `fs` does asynchronous operations.
+**Action:** When finding loops involving I/O tasks like API calls, reading files, or database calls, always evaluate if sequential dependencies exist. If not, use `Promise.all` (with concurrency limits if bounded APIs are involved) to allow Node.js to parallelize execution over the single event loop.
