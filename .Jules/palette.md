@@ -20,3 +20,6 @@
 ## 2026-08-09 - Replaced native title with Tooltip in Toast
 **Learning:** Using native HTML title attributes on interactive icon-only buttons creates a duplicate, unstyled tooltip with a delay. Wrapping it in a custom UI <Tooltip> component instead improves accessibility and UX.
 **Action:** Use <Tooltip> with an aria-label for screen readers instead of native title attributes on icon-only buttons.
+## 2024-08-27 - Remove redundant title attributes
+**Learning:** Native `title` attributes on buttons that already prominently feature the action text (e.g., inside the button) create redundant and annoying visual tooltips on hover. Since ARIA labels handle screen-reader accessibility, removing these native tooltips improves the visual polish and user experience by reducing unnecessary visual noise.
+**Action:** When auditing tooltips on interactive elements, check if the button text makes the action obvious. If so, remove `title` attributes. Only use custom UI `<Tooltip>` components for icon-only buttons or complex actions requiring more context.
