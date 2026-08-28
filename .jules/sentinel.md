@@ -30,3 +30,7 @@
 **Vulnerability:** The `sandboxShellTool` interpolated unescaped user commands directly into double quotes when a shell was specified (`shell -c "<command>"`), allowing for command injection and syntax escapes via nested execution like ``.
 **Learning:** External variables (even full commands intended for execution) must be safely quoted before being passed as arguments to another shell to prevent premature evaluation.
 **Prevention:** Use `shellEscapeSingleQuotes` when constructing shell execution strings to safely quote variables passed to `-c`.
+## 2026-08-28 - [HIGH] Fix command injection in verification typecheck
+**Vulnerability:** The `verify_typecheck` blueprint action interpolated `ctx.repoDir` directly into a shell command string (`cd ${ctx.repoDir} && ...`) without escaping, allowing a malicious repository directory name to execute arbitrary commands inside the sandbox.
+**Learning:** Even deterministic sandbox actions that appear safe must sanitize all variable inputs, especially paths like `repoDir` which might be constructed from untrusted sources.
+**Prevention:** Always use `shellEscapeSingleQuotes` when interpolating paths or variables into shell command strings for sandbox execution, regardless of the presumed source.
