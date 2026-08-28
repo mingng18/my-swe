@@ -20,3 +20,6 @@
 ## 2026-08-09 - Replaced native title with Tooltip in Toast
 **Learning:** Using native HTML title attributes on interactive icon-only buttons creates a duplicate, unstyled tooltip with a delay. Wrapping it in a custom UI <Tooltip> component instead improves accessibility and UX.
 **Action:** Use <Tooltip> with an aria-label for screen readers instead of native title attributes on icon-only buttons.
+## 2025-02-12 - Replacing native title attributes with Tooltip
+**Learning:** Native title attributes create unstyled, delayed tooltips that interfere with custom UI tooltip implementations and create visual noise on elements with visible text.
+**Action:** Remove native titles from buttons with visible text, and wrap icon-only buttons with Radix <Tooltip> components for accessible, styled feedback.
