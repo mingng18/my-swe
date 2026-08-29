@@ -102,3 +102,6 @@
 ## 2026-08-07 - Avoid multiple .filter().length passes for array counting
 **Learning:** The codebase has multiple occurrences of chaining `.filter(condition).length` to count items matching specific conditions. This allocates a new temporary array just to measure its length, causing O(N) memory allocation and O(N) traversal overhead each time.
 **Action:** Replaced chained `.filter().length` with standard `for` loops and incrementing counters when calculating invocation metrics. Reusing an optimized counting method instead of running multiple independent filters reduces unnecessary memory allocations and garbage collection pressure on the hot path.
+## 2026-08-29 - Refactored sequential for...of loops to bounded concurrent execution
+**Learning:** Sequential network and AI model requests in loops bottleneck background task processing, while unbounded concurrent operations risk rate limiting. Bounded concurrency (e.g., using p-limit) is necessary.
+**Action:** Replaced sequential loops with pLimit and Promise.all for safe concurrent execution.
