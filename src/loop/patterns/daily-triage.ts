@@ -1,6 +1,7 @@
 // src/loop/patterns/daily-triage.ts
 import { Octokit } from "octokit";
 import type { RepoConfig } from "../../utils/github";
+import pLimit from "p-limit";
 import type { ScheduledPattern, PatternRunSummary } from "../scheduler";
 import { createLogger } from "../../utils/logger";
 
@@ -92,13 +93,15 @@ export function createDailyTriagePattern(opts: DailyTriageOptions): ScheduledPat
       let issuesTriaged = 0;
       try {
         const issues = await fetchNewIssues();
-        for (const issue of issues) {
+        // ⚡ Bolt: Use bounded concurrency to process issues concurrently without rate limiting
+        const limit = pLimit(5);
+        await Promise.all(issues.map(issue => limit(async () => {
           const input = `Triage issue #${issue.number}: ${issue.title}${
             issue.body ? `\n\n${issue.body}` : ""
           }`;
           await runLoop({ input, threadId: `${prefix}-issue-${issue.number}` });
           issuesTriaged += 1;
-        }
+        })));
         return { name, ok: true, detail: { issuesTriaged }, at };
       } catch (err) {
         return {

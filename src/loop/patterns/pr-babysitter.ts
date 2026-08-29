@@ -1,6 +1,7 @@
 // src/loop/patterns/pr-babysitter.ts
 import { PRReviewCycle, type PRReviewResult } from "../../harness/pr-review-cycle";
 import type { RepoConfig } from "../../utils/github";
+import pLimit from "p-limit";
 import type { SandboxService } from "../../integrations/sandbox-service";
 import type { ScheduledPattern, PatternRunSummary } from "../scheduler";
 import { Octokit } from "octokit";
@@ -67,12 +68,15 @@ export function createPrBabysitterPattern(
       const results: PRReviewResult[] = [];
       try {
         const prs = await listOpenPRs();
-        for (const prNumber of prs) {
+        // ⚡ Bolt: Use bounded concurrency to process PRs concurrently without rate limiting
+        const limit = pLimit(5);
+        await Promise.all(prs.map(prNumber => limit(async () => {
           const cycle = makeCycle(prNumber);
           const unresolved = await cycle.fetchUnresolvedComments(prNumber);
-          if (unresolved.length === 0) continue; // nothing to babysit
-          results.push(await cycle.runCycle(prNumber, 2));
-        }
+          if (unresolved.length === 0) return; // nothing to babysit
+          const res = await cycle.runCycle(prNumber, 2);
+          results.push(res);
+        })));
         return {
           name,
           ok: true,
