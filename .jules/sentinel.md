@@ -26,3 +26,11 @@
 **Vulnerability:** Deterministic execution nodes (`LinterNode` and `TestRunnerNode`) were vulnerable to command injection because they interpolated unescaped `repoDir` arguments directly into shell commands passed to `sandbox.execute`.
 **Learning:** Even internal tool calls or deterministic fallback paths can be attack vectors if they accept externally-controlled paths without sanitization. `sandbox.execute` runs arbitrary commands, making string interpolation highly dangerous.
 **Prevention:** Always use a dedicated escaping utility like `shellEscapeSingleQuotes` when interpolating variables into shell commands.
+## 2026-08-11 - Secure Shell Command Interpolation
+**Vulnerability:** The `sandboxShellTool` interpolated unescaped user commands directly into double quotes when a shell was specified (`shell -c "<command>"`), allowing for command injection and syntax escapes via nested execution like ``.
+**Learning:** External variables (even full commands intended for execution) must be safely quoted before being passed as arguments to another shell to prevent premature evaluation.
+**Prevention:** Use `shellEscapeSingleQuotes` when constructing shell execution strings to safely quote variables passed to `-c`.
+## 2026-04-26 - Timing Attack via Early Return on Length Mismatch
+**Vulnerability:** A `timingSafeEqual` comparison returned early if the lengths of the two buffers didn't match. This defeats constant-time execution by leaking the expected length to an attacker.
+**Learning:** Security linters and best practices require ensuring both inputs to a constant-time comparison are of equal length without conditional short-circuits. Even when one length is constant (like a SHA-256 HMAC), early returns on length mismatch break the constant-time guarantee and get flagged by tooling.
+**Prevention:** Always normalize the lengths of the inputs before the comparison. A common and robust way to achieve this for string comparisons is to run both the expected and provided strings through a fixed-length hashing algorithm (like SHA-256) first. The resulting digests will always be identically sized (32 bytes), removing the need for any length checks before passing them to `timingSafeEqual`.

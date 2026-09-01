@@ -82,7 +82,7 @@ export const sandboxShellTool = tool(
 
     try {
       // If a specific shell is requested, wrap the full command
-      const shellCommand = shell ? `${shell} -c "${fullCommand}"` : fullCommand;
+      const shellCommand = shell ? `${shell} -c ${shellEscapeSingleQuotes(fullCommand)}` : fullCommand;
       const result = await backend.execute(shellCommand);
 
       return {
