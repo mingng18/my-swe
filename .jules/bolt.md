@@ -105,6 +105,10 @@
 **Action:** Replaced chained `.filter().length` with standard `for` loops and incrementing counters when calculating invocation metrics. Reusing an optimized counting method instead of running multiple independent filters reduces unnecessary memory allocations and garbage collection pressure on the hot path.
 
 
+
 ## 2026-08-12 - Optimize context compaction intermediate allocations
 **Learning:** Compaction paths that build subsets of arrays via chained `.map()`, `.filter()`, `new Set()`, and multiple traversals cause measurable memory allocation overhead (~4kb per run) and take ~3x longer (72us vs 24us) compared to single-pass `for` loops.
 **Action:** Always consolidate array separation operations into a single-pass loop when calculating sets and lengths concurrently in hot paths (like LLM context compaction).
+
+
+## 2025-08-25 - Avoid multiple .filter().length array passes in UI components\n**Learning:** In React UI components that are frequently rendered (e.g., TodoSidebar which updates on state changes), using multiple `.filter(...).length` passes over the same array to calculate distinct statistics creates unnecessary intermediate arrays and traverses the source array multiple times. This adds unnecessary memory allocations and compute overhead during rendering.\n**Action:** Replace multiple `.filter(...).length` calls with a single O(N) `for` loop to compute multiple metrics in a single pass over the array, reducing GC pressure and render time.
