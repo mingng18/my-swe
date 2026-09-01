@@ -20,6 +20,10 @@
 ## 2026-08-09 - Replaced native title with Tooltip in Toast
 **Learning:** Using native HTML title attributes on interactive icon-only buttons creates a duplicate, unstyled tooltip with a delay. Wrapping it in a custom UI <Tooltip> component instead improves accessibility and UX.
 **Action:** Use <Tooltip> with an aria-label for screen readers instead of native title attributes on icon-only buttons.
+## 2024-08-31 - Redundant title and aria-label attributes
+**Learning:** According to W3C ARIA practices, adding an `aria-label` or `title` attribute that exactly matches the visible text content of an element (e.g., 'Dismiss') is redundant and an anti-pattern. It can cause screen readers to announce the label twice and creates unnecessary visual noise with native tooltips.
+**Action:** When performing accessibility cleanups on text-bearing buttons, remove both redundant attributes rather than just one, and rely on the native text content.
+
 ## 2024-08-18 - Tooltips on Icon-Only Buttons
 **Learning:** When adding tooltips in UI frameworks like Radix/shadcn, avoid using native HTML `title` attributes on interactive elements, especially icon-only buttons, as they create duplicate, unstyled tooltips with a delay.
 **Action:** Instead, use an `aria-label` for screen readers and wrap the element in a custom UI `<Tooltip>` component.
