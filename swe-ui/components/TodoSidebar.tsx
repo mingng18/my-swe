@@ -64,7 +64,8 @@ export function TodoSidebar({ threadId, className }: TodoSidebarProps) {
 		}
 	};
 
-	// ⚡ Bolt: Replaced chained .filter().length with a single-pass loop to reduce memory allocations and GC pressure.
+	// ⚡ Bolt: Replaced multiple .filter().length passes with a single O(N) loop
+	// to avoid intermediate array allocations and reduce garbage collection pressure.
 	let completedTasks = 0;
 	let inProgressTasks = 0;
 	for (let i = 0; i < todos.length; i++) {
