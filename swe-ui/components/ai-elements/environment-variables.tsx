@@ -3,9 +3,9 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { CheckIcon, CopyIcon, EyeIcon, EyeOffIcon } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ComponentProps, HTMLAttributes } from "react";
 import {
   createContext,
@@ -298,13 +298,12 @@ export const EnvironmentVariableCopyButton = ({
 
   const Icon = isCopied ? CheckIcon : CopyIcon;
 
+  const label = isCopied ? "Copied environment variables" : "Copy environment variables";
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
-          aria-label={
-            isCopied ? "Copied environment variables" : "Copy environment variables"
-          }
+          aria-label={label}
           className={cn("size-6 shrink-0", className)}
           onClick={copyToClipboard}
           size="icon"
@@ -314,9 +313,7 @@ export const EnvironmentVariableCopyButton = ({
           {children ?? <Icon size={12} />}
         </Button>
       </TooltipTrigger>
-      <TooltipContent>
-        {isCopied ? "Copied environment variables" : "Copy environment variables"}
-      </TooltipContent>
+      <TooltipContent>{label}</TooltipContent>
     </Tooltip>
   );
 };
