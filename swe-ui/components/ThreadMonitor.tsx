@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useThreadStore } from "@/store/thread-store";
 import { useBullhorseStream } from "@/hooks/useBullhorseStream";
 import { useKeyboardShortcut } from "@/hooks/useKeyboardShortcut";
 import { ThreadTabs } from "@/components/ThreadTabs";
 import { TodoSidebar } from "@/components/TodoSidebar";
-import { adaptEventsToMessages, groupLLMChunks } from "@/lib/event-adapter";
 import { cn } from "@/lib/utils";
 
 import { ThreadHeader } from "./thread-monitor/ThreadHeader";
@@ -36,8 +35,14 @@ export function ThreadMonitor({
   const activeThreadId = useThreadStore((state) => state.activeThreadId);
   const threadId = propThreadId || activeThreadId;
   // OPTIMIZATION: Select only the active thread to prevent re-renders when other threads update, and memoize the expensive message derivation.
-  const thread = useThreadStore((state) =>
-    threadId ? state.threads[threadId] : null,
+  const threadExists = useThreadStore((state) =>
+    threadId ? !!state.threads[threadId] : false,
+  );
+  const threadStatus = useThreadStore((state) =>
+    threadId ? state.threads[threadId]?.status : undefined,
+  );
+  const threadErrorMsg = useThreadStore((state) =>
+    threadId ? state.threads[threadId]?.error : undefined,
   );
   const addThread = useThreadStore((state) => state.addThread);
   const updateThread = useThreadStore((state) => state.updateThread);
@@ -174,12 +179,6 @@ export function ThreadMonitor({
     }
   };
 
-  // Convert events to messages for display
-  const messages = useMemo(
-    () => (thread ? groupLLMChunks(adaptEventsToMessages(thread.events)) : []),
-    [thread],
-  );
-
   return (
     <div className={cn("flex flex-col h-screen bg-background", className)}>
       <ThreadHeader threadId={threadId} connectionState={connectionState} />
@@ -202,13 +201,14 @@ export function ThreadMonitor({
         sseError={sseError}
         showReconnectingBanner={showReconnectingBanner}
         reconnectAttempt={reconnectAttempt}
-        thread={thread}
+        threadStatus={threadStatus}
+        threadErrorMsg={threadErrorMsg}
         clearError={clearError}
         manualReconnect={manualReconnect}
         handleRetry={handleRetry}
       />
 
-      {threadId && thread ? (
+      {threadId && threadExists ? (
         <div className="flex-1 flex overflow-hidden">
           <div className="w-[280px] border-r bg-muted/20 flex-shrink-0">
             <TodoSidebar threadId={threadId} />
@@ -227,8 +227,7 @@ export function ThreadMonitor({
             </div>
 
             <ThreadTimeline
-              messages={messages}
-              thread={thread}
+              threadId={threadId}
               connectionState={connectionState}
             />
           </div>
