@@ -23,3 +23,6 @@
 ## 2024-08-31 - Redundant title and aria-label attributes
 **Learning:** According to W3C ARIA practices, adding an `aria-label` or `title` attribute that exactly matches the visible text content of an element (e.g., 'Dismiss') is redundant and an anti-pattern. It can cause screen readers to announce the label twice and creates unnecessary visual noise with native tooltips.
 **Action:** When performing accessibility cleanups on text-bearing buttons, remove both redundant attributes rather than just one, and rely on the native text content.
+## 2025-02-12 - Added Hover Arrow to Actionable Cards
+**Learning:** Even if buttons contain descriptive text, they sometimes resemble static cards in empty states (like in `ThreadEmptyState`). Removing redundant `aria-label`s on such buttons correctly addresses an accessibility anti-pattern, but it must be paired with clear visual affordances.
+**Action:** Always consider the visual affordance of actionable elements. Adding an icon like `ArrowRight` that transitions on `group-hover` and `group-focus-visible` turns static-looking cards into clear call-to-actions, while handling keyboard navigation correctly.
