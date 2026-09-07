@@ -23,3 +23,6 @@
 ## 2024-08-31 - Redundant title and aria-label attributes
 **Learning:** According to W3C ARIA practices, adding an `aria-label` or `title` attribute that exactly matches the visible text content of an element (e.g., 'Dismiss') is redundant and an anti-pattern. It can cause screen readers to announce the label twice and creates unnecessary visual noise with native tooltips.
 **Action:** When performing accessibility cleanups on text-bearing buttons, remove both redundant attributes rather than just one, and rely on the native text content.
+## 2026-08-11 - Copy buttons inside scrollable blocks
+**Learning:** When placing an absolute positioned 'Copy' button inside a relative container that holds a scrollable pre block, the button can overlap the text content if the text reaches the end.
+**Action:** Always add sufficient right padding (e.g., pr-10) to the scrollable pre block to ensure the text doesn't flow underneath the absolutely positioned copy button.
