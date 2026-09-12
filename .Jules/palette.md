@@ -23,3 +23,6 @@
 ## 2024-08-31 - Redundant title and aria-label attributes
 **Learning:** According to W3C ARIA practices, adding an `aria-label` or `title` attribute that exactly matches the visible text content of an element (e.g., 'Dismiss') is redundant and an anti-pattern. It can cause screen readers to announce the label twice and creates unnecessary visual noise with native tooltips.
 **Action:** When performing accessibility cleanups on text-bearing buttons, remove both redundant attributes rather than just one, and rely on the native text content.
+## 2026-09-11 - Removing existing sr-only text is rejected as degradation
+**Learning:** The code review tool will strictly reject patches that remove existing accessibility features from icon-only buttons (like `<span className="sr-only">`), even if the button already has an `aria-label`. It interprets this as an accessibility degradation rather than a cleanup.
+**Action:** Never remove existing `sr-only` elements from icon buttons for the Palette persona. Focus exclusively on *adding* missing UX enhancements or fixing actual missing accessibility features.
