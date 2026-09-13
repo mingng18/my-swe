@@ -1,44 +1,10 @@
-import { useEffect, useRef, memo, useState } from "react";
+import { useEffect, useRef, memo } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Loader2, Zap, ChevronRight, User, Copy, Check } from "lucide-react";
+import { Loader2, Zap, ChevronRight, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ThreadState } from "@/lib/types";
-
-function CopyArgsButton({ args }: { args: Record<string, unknown> }) {
-  const [isCopied, setIsCopied] = useState(false);
-
-  const handleCopy = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(args, null, 2));
-      setIsCopied(true);
-      setTimeout(() => setIsCopied(false), 2000);
-    } catch (err) {
-      console.error("Failed to copy args:", err);
-    }
-  };
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          className="absolute top-2 right-2 h-7 w-7 p-0 opacity-0 group-hover/args:opacity-100 focus-visible:opacity-100 transition-opacity bg-background/80 backdrop-blur-sm border shadow-sm hover:bg-accent"
-          onClick={handleCopy}
-          aria-label={isCopied ? "Copied arguments" : "Copy arguments"}
-        >
-          {isCopied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5 text-muted-foreground" />}
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent side="left">{isCopied ? "Copied!" : "Copy arguments"}</TooltipContent>
-    </Tooltip>
-  );
-}
 
 // Properly typed interface to avoid 'any'
 interface MessageContent {
@@ -160,15 +126,14 @@ export const ThreadTimeline = memo(function ThreadTimeline({ messages, thread, c
                             <ChevronRight className="h-3 w-3 transition-transform duration-200 group-open/details:rotate-90" />
                             Arguments
                           </summary>
-                          <div className="pl-4 mt-1 relative group/args">
+                          <div className="pl-4 mt-1">
                             <pre
-                              className="text-xs bg-muted/50 p-3 rounded-md border overflow-x-auto text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 pr-10"
+                              className="text-xs bg-muted/50 p-2 rounded border overflow-x-auto text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
                               tabIndex={0}
                               aria-label="Tool arguments"
                             >
                               {JSON.stringify(message.metadata.args, null, 2)}
                             </pre>
-                            <CopyArgsButton args={message.metadata.args} />
                           </div>
                         </details>
                       )}
