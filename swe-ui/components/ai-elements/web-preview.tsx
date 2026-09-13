@@ -124,6 +124,7 @@ export const WebPreviewNavigationButton = ({
           onClick={onClick}
           size="sm"
           variant="ghost"
+          aria-label={tooltip}
           {...props}
         >
           {children}
