@@ -5,7 +5,7 @@
  * reactions, and fetching comments from issues and PRs.
  */
 
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { Octokit } from "octokit";
 import { defang } from "../../security/defang";
 import { IDENTITY_MAP } from "../identity";
@@ -107,12 +107,8 @@ export function verifyGithubSignature(
 	const expected =
 		"sha256=" + createHmac("sha256", secret).update(bodyStr).digest("hex");
 
-	const expectedBuffer = Buffer.from(expected, "utf-8");
-	const signatureBuffer = Buffer.from(signature, "utf-8");
-
-	if (expectedBuffer.length !== signatureBuffer.length) {
-		return false;
-	}
+	const expectedBuffer = createHash("sha256").update(expected).digest();
+	const signatureBuffer = createHash("sha256").update(signature).digest();
 
 	return timingSafeEqual(expectedBuffer, signatureBuffer);
 }
