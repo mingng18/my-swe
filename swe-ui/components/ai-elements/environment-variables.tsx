@@ -298,13 +298,12 @@ export const EnvironmentVariableCopyButton = ({
 
   const Icon = isCopied ? CheckIcon : CopyIcon;
 
+  const label = isCopied ? "Copied environment variables" : "Copy environment variables";
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
-          aria-label={
-            isCopied ? "Copied environment variables" : "Copy environment variables"
-          }
+          aria-label={label}
           className={cn("size-6 shrink-0", className)}
           onClick={copyToClipboard}
           size="icon"
@@ -314,9 +313,7 @@ export const EnvironmentVariableCopyButton = ({
           {children ?? <Icon size={12} />}
         </Button>
       </TooltipTrigger>
-      <TooltipContent>
-        {isCopied ? "Copied environment variables" : "Copy environment variables"}
-      </TooltipContent>
+      <TooltipContent>{label}</TooltipContent>
     </Tooltip>
   );
 };
