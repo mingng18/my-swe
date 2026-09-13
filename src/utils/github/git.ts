@@ -373,7 +373,7 @@ export async function gitPush(
   try {
     // Use credential store file instead of embedding token in remote URL
     await backend.execute(
-      `echo "https://x-access-token:${githubToken}@github.com" > ${credPath} && chmod 600 ${credPath}`,
+      `echo ${shellEscapeSingleQuotes(`https://x-access-token:${githubToken}@github.com`)} > ${credPath} && chmod 600 ${credPath}`,
     );
 
     // Push using the credential helper
