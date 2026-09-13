@@ -109,6 +109,9 @@
 ## 2025-08-25 - Avoid array allocation in SSE buffering
 **Learning:** Using `array.filter()` to prune old items based on TTL in a chronologically ordered array (like an event buffer) allocates a new array on every insert, causing O(N) memory overhead and excessive garbage collection pressure on active streams.
 **Action:** Replace `array.filter()` on chronologically ordered buffers with a single-pass `while` loop that identifies the cutoff index and uses in-place array mutation (`array.splice()`) to prune old items without creating intermediate arrays.
+## 2026-10-27 - Avoid multiple array iterations in search loops
+**Learning:** Chaining `.map().filter().slice().map()` on candidate tools creates multiple intermediate arrays, causing unnecessary memory allocation overhead and increased garbage collection pauses during search operations.
+**Action:** Replaced chained array methods with a single-pass `for` loop to eliminate intermediate object allocations and improve search performance.
 
 ## 2026-08-28 - Replaced sequential PR processing with p-limit
 **Learning:** The `pr-babysitter` loop processed unresolved comments sequentially using an `await` inside a `for...of` loop, waiting for each network IO to complete before fetching the next. `p-limit` is available and widely used in the codebase.
