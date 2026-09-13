@@ -54,6 +54,9 @@
 ## 2025-08-25 - Avoid array allocation in SSE buffering
 **Learning:** Using `array.filter()` to prune old items based on TTL in a chronologically ordered array (like an event buffer) allocates a new array on every insert, causing O(N) memory overhead and excessive garbage collection pressure on active streams.
 **Action:** Replace `array.filter()` on chronologically ordered buffers with a single-pass `while` loop that identifies the cutoff index and uses in-place array mutation (`array.splice()`) to prune old items without creating intermediate arrays.
+## 2026-10-27 - Avoid multiple array iterations in search loops
+**Learning:** Chaining `.map().filter().slice().map()` on candidate tools creates multiple intermediate arrays, causing unnecessary memory allocation overhead and increased garbage collection pauses during search operations.
+**Action:** Replaced chained array methods with a single-pass `for` loop to eliminate intermediate object allocations and improve search performance.
 
 ## 2025-02-27 - Sequential vs Concurrent Directory Walking
 **Learning:** The `codebase-indexer.ts` originally used a sequential `for...of` loop with `await` for recursive file directory walking, preventing any parallel file system reads which dramatically throttled startup or indexing indexing large repositories. I benchmarked the difference locally and saw `Promise.all` reduced I/O overhead heavily since node's `fs` does asynchronous operations.
