@@ -59,6 +59,10 @@ g performance.
 **Learning:** Using `array.filter()` to prune old items based on TTL in a chronologically ordered array (like an event buffer) allocates a new array on every insert, causing O(N) memory overhead and excessive garbage collection pressure on active streams.
 **Action:** Replace `array.filter()` on chronologically ordered buffers with a single-pass `while` loop that identifies the cutoff index and uses in-place array mutation (`array.splice()`) to prune old items without creating intermediate arrays.
 
+## 2026-10-27 - Avoid multiple array iterations in search loops
+**Learning:** Chaining `.map().filter().slice().map()` on candidate tools creates multiple intermediate arrays, causing unnecessary memory allocation overhead and increased garbage collection pauses during search operations.
+**Action:** Replaced chained array methods with a single-pass `for` loop to eliminate intermediate object allocations and improve search performance.
+
 ## 2025-05-19 - Replacing `.map().filter()` Chains with Single-Pass Loops
 **Learning:** Chained `.map().filter()` or `.filter().length` calls iterate over arrays multiple times, allocating intermediate arrays which increases memory overhead and garbage collection (GC) pressure. This codebase had multiple instances of this pattern during performance-critical paths (e.g., consolidating memories and UI thread rendering).
 **Action:** Replace these chains with single-pass `for` loops. Doing so reduces memory allocations from O(N) to O(1) and eliminates intermediate array overhead, which was demonstrated in local benchmarks to speed up operations by up to 2x-5x on large arrays. Apply this specifically when processing large data sets where micro-optimizations yield measurable performance benefits.
