@@ -3,6 +3,12 @@
 import { useControllableState } from "@radix-ui/react-use-controllable-state";
 import { Button } from "@/components/ui/button";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Command,
   CommandDialog,
   CommandEmpty,
@@ -508,17 +514,26 @@ export const VoiceSelectorPreview = ({
   }
 
   return (
-    <Button
-      aria-label={playing ? "Pause preview" : "Play preview"}
-      className={cn("size-6", className)}
-      disabled={loading}
-      onClick={handleClick}
-      size="icon-sm"
-      type="button"
-      variant="outline"
-      {...props}
-    >
-      {icon}
-    </Button>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            aria-label={playing ? "Pause preview" : "Play preview"}
+            className={cn("size-6", className)}
+            disabled={loading}
+            onClick={handleClick}
+            size="icon-sm"
+            type="button"
+            variant="outline"
+            {...props}
+          >
+            {icon}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>{playing ? "Pause preview" : "Play preview"}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 };
