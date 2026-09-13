@@ -20,3 +20,18 @@
 ## 2026-08-09 - Replaced native title with Tooltip in Toast
 **Learning:** Using native HTML title attributes on interactive icon-only buttons creates a duplicate, unstyled tooltip with a delay. Wrapping it in a custom UI <Tooltip> component instead improves accessibility and UX.
 **Action:** Use <Tooltip> with an aria-label for screen readers instead of native title attributes on icon-only buttons.
+## 2024-08-31 - Redundant title and aria-label attributes
+**Learning:** According to W3C ARIA practices, adding an `aria-label` or `title` attribute that exactly matches the visible text content of an element (e.g., 'Dismiss') is redundant and an anti-pattern. It can cause screen readers to announce the label twice and creates unnecessary visual noise with native tooltips.
+**Action:** When performing accessibility cleanups on text-bearing buttons, remove both redundant attributes rather than just one, and rely on the native text content.
+
+## 2025-05-24 - Tool Arguments Copy Button
+**Learning:** Users often need to copy JSON arguments from tool executions in agent timelines. An absolute positioned copy button provides a simple and fast UX, but the underlying scrollable block needs right padding (e.g. pr-12) to ensure content does not flow underneath the button.
+**Action:** Add dedicated copy buttons to code and argument blocks with sufficient right padding to preserve readability.
+
+## 2026-09-13 - Agent Message Copy Button
+**Learning:** Users often need to copy the content of agent/assistant messages from the thread timeline. Adding a dedicated copy button directly on the message card provides a much smoother UX than manual text selection. Similar to tool arguments, absolute positioning requires the text container to have adequate right padding to prevent overlapping.
+**Action:** Add dedicated copy buttons to assistant message cards with sufficient right padding (e.g. pr-10) on the parent container.
+
+## 2026-09-14 - Tooltips for Scroll Buttons
+**Learning:** Using an icon-only button for "Scroll to bottom" actions without a visual label is an accessibility and UX issue. A native screen-reader aria-label is helpful, but sighted users also benefit from a visual tooltip to understand the action, especially if the icon is ambiguous.
+**Action:** Always wrap icon-only floating action buttons in custom Radix Tooltips to provide immediate visual affordances for all users.

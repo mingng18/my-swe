@@ -8,8 +8,8 @@ import {
   InputGroupText,
 } from "@/components/ui/input-group";
 import { cn } from "@/lib/utils";
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { CheckIcon, CopyIcon } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ComponentProps } from "react";
 import {
   createContext,
@@ -132,21 +132,19 @@ export const SnippetCopyButton = ({
   const Icon = isCopied ? CheckIcon : CopyIcon;
 
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <InputGroupButton
-            aria-label="Copy"
-            className={className}
-            onClick={copyToClipboard}
-            size="icon-sm"
-            {...props}
-          >
-            {children ?? <Icon className="size-3.5" size={14} />}
-          </InputGroupButton>
-        </TooltipTrigger>
-        <TooltipContent>Copy</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <InputGroupButton
+          aria-label="Copy"
+          className={className}
+          onClick={copyToClipboard}
+          size="icon-sm"
+          {...props}
+        >
+          {children ?? <Icon className="size-3.5" size={14} />}
+        </InputGroupButton>
+      </TooltipTrigger>
+      <TooltipContent>Copy</TooltipContent>
+    </Tooltip>
   );
 };
