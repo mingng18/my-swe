@@ -106,3 +106,10 @@
 ## 2025-08-25 - Avoid array allocation in SSE buffering
 **Learning:** Using `array.filter()` to prune old items based on TTL in a chronologically ordered array (like an event buffer) allocates a new array on every insert, causing O(N) memory overhead and excessive garbage collection pressure on active streams.
 **Action:** Replace `array.filter()` on chronologically ordered buffers with a single-pass `while` loop that identifies the cutoff index and uses in-place array mutation (`array.splice()`) to prune old items without creating intermediate arrays.
+## 2026-10-27 - Avoid multiple array iterations in search loops
+**Learning:** Chaining `.map().filter().slice().map()` on candidate tools creates multiple intermediate arrays, causing unnecessary memory allocation overhead and increased garbage collection pauses during search operations.
+**Action:** Replaced chained array methods with a single-pass `for` loop to eliminate intermediate object allocations and improve search performance.
+
+## 2026-08-15 - Array allocations in PR Summary Formatting
+**Learning:** Found an anti-pattern in `commit-and-open-pr.ts` where `.filter((i) => i.severity === "CRITICAL").length` was used inside a template literal to format a PR summary string. This allocates an entirely new array in memory just to evaluate its length, causing unnecessary garbage collection pressure on high-frequency tool invocations.
+**Action:** Replaced inline `.filter().length` expressions within template literals with a standard `for` loop that evaluates the count before formatting the string, eliminating intermediate array allocations entirely.
