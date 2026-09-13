@@ -353,8 +353,7 @@ class InMemoryToolInvocationTracker implements ToolInvocationTracker {
     }
 
     // Check invocation limit
-    const toolInvocations = invocations.filter((inv) => inv.toolName === toolName);
-    const count = toolInvocations.length;
+    const count = this.getInvocationCount(threadId, toolName);
     const maxInvocations = this.getMaxInvocations(toolName);
 
     if (count >= maxInvocations) {
@@ -387,7 +386,13 @@ class InMemoryToolInvocationTracker implements ToolInvocationTracker {
 
   getInvocationCount(threadId: string, toolName: string): number {
     const invocations = this.threadInvocations.get(threadId) || [];
-    return invocations.filter((inv) => inv.toolName === toolName).length;
+    let count = 0;
+    for (let i = 0; i < invocations.length; i++) {
+      if (invocations[i].toolName === toolName) {
+        count++;
+      }
+    }
+    return count;
   }
 
   clearThread(threadId: string): void {
