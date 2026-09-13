@@ -28,6 +28,10 @@
 **Learning:** Users often need to copy JSON arguments from tool executions in agent timelines. An absolute positioned copy button provides a simple and fast UX, but the underlying scrollable block needs right padding (e.g. pr-12) to ensure content does not flow underneath the button.
 **Action:** Add dedicated copy buttons to code and argument blocks with sufficient right padding to preserve readability.
 
+## 2026-09-13 - Agent Message Copy Button
+**Learning:** Users often need to copy the content of agent/assistant messages from the thread timeline. Adding a dedicated copy button directly on the message card provides a much smoother UX than manual text selection. Similar to tool arguments, absolute positioning requires the text container to have adequate right padding to prevent overlapping.
+**Action:** Add dedicated copy buttons to assistant message cards with sufficient right padding (e.g. pr-10) on the parent container.
+
 ## 2026-09-11 - Removing existing sr-only text is rejected as degradation
 **Learning:** The code review tool will strictly reject patches that remove existing accessibility features from icon-only buttons (like `<span className="sr-only">`), even if the button already has an `aria-label`. It interprets this as an accessibility degradation rather than a cleanup.
 **Action:** Never remove existing `sr-only` elements from icon buttons for the Palette persona. Focus exclusively on *adding* missing UX enhancements or fixing actual missing accessibility features.
