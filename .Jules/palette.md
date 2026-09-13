@@ -24,6 +24,6 @@
 **Learning:** According to W3C ARIA practices, adding an `aria-label` or `title` attribute that exactly matches the visible text content of an element (e.g., 'Dismiss') is redundant and an anti-pattern. It can cause screen readers to announce the label twice and creates unnecessary visual noise with native tooltips.
 **Action:** When performing accessibility cleanups on text-bearing buttons, remove both redundant attributes rather than just one, and rely on the native text content.
 
-## 2026-08-04 - Tooltip on Dialog Close Button
-**Learning:** Native HTML `title` attributes on custom Dialog component close buttons create the same poor duplicate/delayed tooltip UX as on regular buttons when used in a UI framework heavily utilizing custom Radix Tooltips.
-**Action:** Always replace native `title` attributes on Dialog close buttons with custom `Tooltip` components, ensuring proper `asChild` prop composition (`TooltipTrigger` -> `DialogPrimitive.Close` -> `Button`) to preserve accessible interactions.
+## 2025-05-24 - Tool Arguments Copy Button
+**Learning:** Users often need to copy JSON arguments from tool executions in agent timelines. An absolute positioned copy button provides a simple and fast UX, but the underlying scrollable block needs right padding (e.g. pr-12) to ensure content does not flow underneath the button.
+**Action:** Add dedicated copy buttons to code and argument blocks with sufficient right padding to preserve readability.
