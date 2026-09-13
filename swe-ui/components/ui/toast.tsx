@@ -3,6 +3,7 @@
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 const toastVariants = cva(
   "fixed bottom-4 right-4 z-50 flex items-center gap-3 rounded-lg border p-4 shadow-lg transition-all duration-300 animate-in slide-in-from-bottom-2",
@@ -59,30 +60,34 @@ export function Toast({
         {title && <p className="font-semibold">{title}</p>}
         {description && <p className="text-sm opacity-90">{description}</p>}
       </div>
-      <button
-        aria-label="Close toast"
-        title="Close toast"
-        onClick={() => {
-          setIsVisible(false)
-          setTimeout(() => onClose?.(), 300)
-        }}
-        className="opacity-70 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 rounded-sm transition-opacity"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <line x1="18" y1="6" x2="6" y2="18" />
-          <line x1="6" y1="6" x2="18" y2="18" />
-        </svg>
-      </button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            aria-label="Close toast"
+            onClick={() => {
+              setIsVisible(false)
+              setTimeout(() => onClose?.(), 300)
+            }}
+            className="opacity-70 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 rounded-sm transition-opacity"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>Close</TooltipContent>
+      </Tooltip>
     </div>
   )
 }

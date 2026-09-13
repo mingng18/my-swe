@@ -386,10 +386,11 @@ class InMemoryToolInvocationTracker implements ToolInvocationTracker {
 
   getInvocationCount(threadId: string, toolName: string): number {
     const invocations = this.threadInvocations.get(threadId) || [];
-    // ⚡ Bolt: Replaced .filter().length with a single-pass loop
     let count = 0;
     for (let i = 0; i < invocations.length; i++) {
-      if (invocations[i].toolName === toolName) count++;
+      if (invocations[i].toolName === toolName) {
+        count++;
+      }
     }
     return count;
   }
