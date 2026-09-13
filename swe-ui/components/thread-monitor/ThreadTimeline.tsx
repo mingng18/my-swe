@@ -45,7 +45,6 @@ function CopyArgsButton({ args }: { args: Record<string, unknown> }) {
     </Tooltip>
   );
 }
-
 export const ThreadTimeline = memo(function ThreadTimeline({ threadId, connectionState }: ThreadTimelineProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -124,7 +123,7 @@ export const ThreadTimeline = memo(function ThreadTimeline({ threadId, connectio
                         <span className="text-sm" role="img" aria-label="System">⚙️</span>
                       )}
                     </div>
-                    <Card className="flex-1 p-3 max-w-2xl shadow-sm">
+                    <Card className="flex-1 p-3 max-w-2xl shadow-sm relative group/message pr-10">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-xs font-medium text-muted-foreground">
                           {message.role === "assistant" ? "Agent" : "System"}

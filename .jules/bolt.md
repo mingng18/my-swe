@@ -60,11 +60,15 @@
 
 ## 2025-08-25 - Avoid multiple .filter().length array passes in UI components
 **Learning:** In React UI components that are frequently rendered (e.g., TodoSidebar which updates on state changes), using multiple `.filter(...).length` passes over the same array to calculate distinct statistics creates unnecessary intermediate arrays and traverses the source array multiple times. This adds unnecessary memory allocations and compute overhead during rendering.
-**Action:** Replace multiple `.filter(...).length` calls with a single O(N) `for` loop to compute multiple metrics in a single pass over the array, reducing GC pressure and render time.
+**Action:** Replace multiple `.filter(...).length` calls with a single O(N) `for` loop to compute multiple metrics in a single pass over the array, reducing GC GC pressure and render time.
 
 ## 2025-08-25 - Avoid array allocation in SSE buffering
 **Learning:** Using `array.filter()` to prune old items based on TTL in a chronologically ordered array (like an event buffer) allocates a new array on every insert, causing O(N) memory overhead and excessive garbage collection pressure on active streams.
 **Action:** Replace `array.filter()` on chronologically ordered buffers with a single-pass `while` loop that identifies the cutoff index and uses in-place array mutation (`array.splice()`) to prune old items without creating intermediate arrays.
+
+## 2026-10-27 - Avoid multiple array iterations in search loops
+**Learning:** Chaining `.map().filter().slice().map()` on candidate tools creates multiple intermediate arrays, causing unnecessary memory allocation overhead and increased garbage collection pauses during search operations.
+**Action:** Replaced chained array methods with a single-pass `for` loop to eliminate intermediate object allocations and improve search performance.
 
 ## 2026-09-03 - Prevent Cascading Re-renders via Granular Zustand Selectors
 **Learning:** Subscribing to an entire object (e.g., `state.threads[id]`) in a Zustand store causes the React component to re-render whenever any property in that object changes. In a real-time application streaming fast events, this causes massive, unnecessary cascading re-renders across the component tree.
