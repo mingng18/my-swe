@@ -106,6 +106,9 @@
 ## 2025-08-25 - Avoid array allocation in SSE buffering
 **Learning:** Using `array.filter()` to prune old items based on TTL in a chronologically ordered array (like an event buffer) allocates a new array on every insert, causing O(N) memory overhead and excessive garbage collection pressure on active streams.
 **Action:** Replace `array.filter()` on chronologically ordered buffers with a single-pass `while` loop that identifies the cutoff index and uses in-place array mutation (`array.splice()`) to prune old items without creating intermediate arrays.
+## 2026-10-27 - Avoid multiple array iterations in search loops
+**Learning:** Chaining `.map().filter().slice().map()` on candidate tools creates multiple intermediate arrays, causing unnecessary memory allocation overhead and increased garbage collection pauses during search operations.
+**Action:** Replaced chained array methods with a single-pass `for` loop to eliminate intermediate object allocations and improve search performance.
 ## 2025-02-12 - Replaced map().filter() with a single-pass loop in memory consolidation
 **Learning:** Chained array operations like `.map().filter()` unnecessarily iterate over data multiple times and create intermediate arrays, which impacts garbage collection performance, especially during high-frequency execution or processing large data sets like DB snapshots.
 **Action:** When filtering objects right after mapping out their properties, use a single-pass `for` loop (or `for...of`) and explicitly collect values by conditionally pushing them into an output array to eliminate unnecessary intermediate arrays.
