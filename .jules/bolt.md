@@ -1,9 +1,6 @@
 [Output truncated for brevity]
 
-erfaces guarantee method existence and no test regressions exist.
-**Action:** Trust manual verification of the repository interface and passing test suite, ignore the incorrect feedback regarding removed "fallback" blocks if the interface explicitly provides the method, and proceed with submission.
-## 2025-02-12 - UI Render Loop Arrays
-**Learning:** Chained array methods (e.g., `.filter().map()`) in frequently called frontend code or UI render loops create intermediate arrays that cause unnecessary garbage collection pressure and can impact UI rendering performance.
+g performance.
 **Action:** Consolidate chained array manipulations into a single-pass `for` loop in critical rendering paths to avoid intermediate allocations.
 ## 2024-07-17 - Avoid multiple filter().length array passes
 **Learning:** Using multiple `.filter(...).length` passes over the same array to calculate distinct statistics creates unnecessary intermediate arrays and traverses the source array multiple times. This adds unnecessary memory allocations and compute overhead (O(2N) instead of O(N)).
@@ -54,6 +51,13 @@ erfaces guarantee method existence and no test regressions exist.
 ## 2026-08-07 - Avoid multiple .filter().length passes for array counting
 **Learning:** The codebase has multiple occurrences of chaining `.filter(condition).length` to count items matching specific conditions. This allocates a new temporary array just to measure its length, causing O(N) memory allocation and O(N) traversal overhead each time.
 **Action:** Replaced chained `.filter().length` with standard `for` loops and incrementing counters when calculating invocation metrics. Reusing an optimized counting method instead of running multiple independent filters reduces unnecessary memory allocations and garbage collection pressure on the hot path.
+
+## 2025-08-25 - Avoid multiple .filter().length array passes in UI components
+**Learning:** In React UI components that are frequently rendered (e.g., TodoSidebar which updates on state changes), using multiple `.filter(...).length` passes over the same array to calculate distinct statistics creates unnecessary intermediate arrays and traverses the source array multiple times. This adds unnecessary memory allocations and compute overhead during rendering.
+**Action:** Replace multiple `.filter(...).length` calls with a single O(N) `for` loop to compute multiple metrics in a single pass over the array, reducing GC pressure and render time.
+## 2025-08-25 - Avoid array allocation in SSE buffering
+**Learning:** Using `array.filter()` to prune old items based on TTL in a chronologically ordered array (like an event buffer) allocates a new array on every insert, causing O(N) memory overhead and excessive garbage collection pressure on active streams.
+**Action:** Replace `array.filter()` on chronologically ordered buffers with a single-pass `while` loop that identifies the cutoff index and uses in-place array mutation (`array.splice()`) to prune old items without creating intermediate arrays.
 
 ## 2025-05-19 - Replacing `.map().filter()` Chains with Single-Pass Loops
 **Learning:** Chained `.map().filter()` or `.filter().length` calls iterate over arrays multiple times, allocating intermediate arrays which increases memory overhead and garbage collection (GC) pressure. This codebase had multiple instances of this pattern during performance-critical paths (e.g., consolidating memories and UI thread rendering).
