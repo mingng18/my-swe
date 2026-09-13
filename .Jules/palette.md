@@ -23,6 +23,11 @@
 ## 2024-08-31 - Redundant title and aria-label attributes
 **Learning:** According to W3C ARIA practices, adding an `aria-label` or `title` attribute that exactly matches the visible text content of an element (e.g., 'Dismiss') is redundant and an anti-pattern. It can cause screen readers to announce the label twice and creates unnecessary visual noise with native tooltips.
 **Action:** When performing accessibility cleanups on text-bearing buttons, remove both redundant attributes rather than just one, and rely on the native text content.
+
+## 2025-05-24 - Tool Arguments Copy Button
+**Learning:** Users often need to copy JSON arguments from tool executions in agent timelines. An absolute positioned copy button provides a simple and fast UX, but the underlying scrollable block needs right padding (e.g. pr-12) to ensure content does not flow underneath the button.
+**Action:** Add dedicated copy buttons to code and argument blocks with sufficient right padding to preserve readability.
+
 ## 2024-05-18 - Icon-Only Button Tooltips
 **Learning:** Icon-only buttons (like a clipboard or trash icon) often lack sufficient context for sighted users, even if they have an `aria-label` for screen readers. Using `title` attributes can cause delayed, unstyled browser tooltips.
 **Action:** Always wrap icon-only interactive elements in custom design system `<Tooltip>` components (e.g., from Shadcn or Radix) to provide immediate, styled context on hover and focus.
