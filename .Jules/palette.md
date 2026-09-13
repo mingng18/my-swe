@@ -23,3 +23,6 @@
 ## 2024-08-27 - Remove redundant title attributes
 **Learning:** Native `title` attributes on buttons that already prominently feature the action text (e.g., inside the button) create redundant and annoying visual tooltips on hover. Since ARIA labels handle screen-reader accessibility, removing these native tooltips improves the visual polish and user experience by reducing unnecessary visual noise.
 **Action:** When auditing tooltips on interactive elements, check if the button text makes the action obvious. If so, remove `title` attributes. Only use custom UI `<Tooltip>` components for icon-only buttons or complex actions requiring more context.
+## 2024-08-27 - Replace native title with Custom Tooltip for icon-only buttons
+**Learning:** Icon-only buttons often rely on native `title` attributes for tooltips, which look unstyled, appear with a delay, and provide a poor, inconsistent user experience compared to the rest of the app.
+**Action:** Always replace native `title` attributes on icon-only buttons with the design system’s custom `<Tooltip>` component. Keep the `aria-label` synchronized with the tooltip text to ensure screen readers receive the same context.

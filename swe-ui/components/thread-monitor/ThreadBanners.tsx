@@ -48,6 +48,7 @@ export function ThreadBanners({
               onClick={clearError}
               className="ml-4 gap-1 h-8"
               aria-label="Dismiss"
+              title="Dismiss"
             >
               <X className="h-3 w-3" />
               Dismiss
