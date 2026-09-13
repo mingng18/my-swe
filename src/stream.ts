@@ -279,20 +279,25 @@ class StreamRegistry {
       const buffer = this.eventBuffers.get(threadId);
       if (buffer && buffer.length > 0) {
         const now = Date.now();
-        const validEvents = buffer.filter(e => now - e.timestamp < this.BUFFER_TTL);
 
-        logger.debug({ threadId, count: validEvents.length }, "[SSE] Replaying buffered events");
+        // ⚡ Bolt: Use early-exit loop and splice to avoid intermediate array allocation
+        let firstValidIndex = 0;
+        while (firstValidIndex < buffer.length && now - buffer[firstValidIndex].timestamp >= this.BUFFER_TTL) {
+          firstValidIndex++;
+        }
 
-        for (const { event } of validEvents) {
+        if (firstValidIndex > 0) {
+          buffer.splice(0, firstValidIndex);
+        }
+
+        logger.debug({ threadId, count: buffer.length }, "[SSE] Replaying buffered events");
+
+        for (const { event } of buffer) {
           connection.sseStream.emit(event);
         }
 
         // Clear the buffer after replaying
-        if (validEvents.length === buffer.length) {
-          this.eventBuffers.delete(threadId);
-        } else {
-          this.eventBuffers.set(threadId, validEvents);
-        }
+        this.eventBuffers.delete(threadId);
       }
     }
   }
@@ -337,16 +342,25 @@ class StreamRegistry {
 
     // Prune old events and enforce size limit
     const now = Date.now();
-    const validEvents = buffer.filter(e => now - e.timestamp < this.BUFFER_TTL);
 
-    if (validEvents.length > this.MAX_BUFFER_SIZE) {
-      // Keep only the most recent events
-      validEvents.splice(0, validEvents.length - this.MAX_BUFFER_SIZE);
+    // ⚡ Bolt: Use early-exit loop and splice to avoid intermediate array allocation
+    let firstValidIndex = 0;
+    while (firstValidIndex < buffer.length && now - buffer[firstValidIndex].timestamp >= this.BUFFER_TTL) {
+      firstValidIndex++;
     }
 
-    this.eventBuffers.set(threadId, validEvents);
+    if (firstValidIndex > 0) {
+      buffer.splice(0, firstValidIndex);
+    }
 
-    logger.debug({ threadId, eventType: event.type, bufferSize: validEvents.length },
+    if (buffer.length > this.MAX_BUFFER_SIZE) {
+      // Keep only the most recent events
+      buffer.splice(0, buffer.length - this.MAX_BUFFER_SIZE);
+    }
+
+    this.eventBuffers.set(threadId, buffer);
+
+    logger.debug({ threadId, eventType: event.type, bufferSize: buffer.length },
                   "[SSE] Buffered event (no client connected)");
   }
 
