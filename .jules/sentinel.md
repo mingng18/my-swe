@@ -40,6 +40,12 @@
 **Vulnerability:** The GitHub token was placed directly into a shell command using double quotes, allowing command substitution attacks via malicious token values.
 **Learning:** Double quotes in shell commands do not prevent variable expansion or command substitution. Any untrusted string, even a token, must be properly escaped if passed to a shell.
 **Prevention:** Always use safe escaping mechanisms like `shellEscapeSingleQuotes` which uses single quotes, or pass arguments as an array instead of a single string when executing commands.
+<<<<<<< HEAD
+## 2026-09-13 - Error Stack Trace Leakage
+**Vulnerability:** The `serializeError` function in the compact middleware leaked internal stack traces by including the `error.stack` property in the serialized output.
+**Learning:** Exposing internal error stack traces can reveal sensitive implementation details, file paths, and application flow to potential attackers.
+**Prevention:** Avoid serializing and returning full stack traces to clients or in less-trusted environments. Extract only necessary, non-sensitive properties (like `name` and `message`) when formatting errors for external consumption.
+=======
 =======
 =======
 ## 2023-11-20 - Command Injection in Tool Parameter
@@ -48,3 +54,4 @@
 **Prevention:** Strictly allowlist or regex-validate all parameters used to construct execution commands. The `shell` parameter is now validated against `/^[a-zA-Z0-9_\-\/]+$/` to ensure it only represents an executable binary path or name.
 >>>>>>> a885042 (Save changes)
 >>>>>>> 96d27a0 (Save changes)
+>>>>>>> 6ef9dcf (Save changes)
