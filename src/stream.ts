@@ -279,7 +279,6 @@ class StreamRegistry {
       const buffer = this.eventBuffers.get(threadId);
       if (buffer && buffer.length > 0) {
         const now = Date.now();
-        const originalLength = buffer.length;
         let validStartIndex = buffer.length;
 
         for (let i = 0; i < buffer.length; i++) {
@@ -300,11 +299,7 @@ class StreamRegistry {
         }
 
         // Clear the buffer after replaying
-        if (buffer.length === originalLength) {
-          this.eventBuffers.delete(threadId);
-        } else {
-          // buffer is already modified in-place, map holds the reference
-        }
+        this.eventBuffers.delete(threadId);
       }
     }
   }
