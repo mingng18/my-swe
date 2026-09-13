@@ -1247,17 +1247,22 @@ export const PromptInputSubmit = ({
   );
 
   return (
-    <InputGroupButton
-      aria-label={isGenerating ? "Stop" : "Submit"}
-      className={cn(className)}
-      onClick={handleClick}
-      size={size}
-      type={isGenerating && onStop ? "button" : "submit"}
-      variant={variant}
-      {...props}
-    >
-      {children ?? Icon}
-    </InputGroupButton>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <InputGroupButton
+          aria-label={isGenerating ? "Stop" : "Submit"}
+          className={cn(className)}
+          onClick={handleClick}
+          size={size}
+          type={isGenerating && onStop ? "button" : "submit"}
+          variant={variant}
+          {...props}
+        >
+          {children ?? Icon}
+        </InputGroupButton>
+      </TooltipTrigger>
+      <TooltipContent>{isGenerating ? "Stop" : "Submit"}</TooltipContent>
+    </Tooltip>
   );
 };
 

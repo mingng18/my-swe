@@ -130,13 +130,12 @@ export const SnippetCopyButton = ({
   );
 
   const Icon = isCopied ? CheckIcon : CopyIcon;
-  const label = isCopied ? "Copied" : "Copy";
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <InputGroupButton
-          aria-label={label}
+          aria-label="Copy"
           className={className}
           onClick={copyToClipboard}
           size="icon-sm"
@@ -145,7 +144,7 @@ export const SnippetCopyButton = ({
           {children ?? <Icon className="size-3.5" size={14} />}
         </InputGroupButton>
       </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
+      <TooltipContent>Copy</TooltipContent>
     </Tooltip>
   );
 };
