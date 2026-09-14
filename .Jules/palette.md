@@ -31,6 +31,6 @@
 ## 2026-09-13 - Agent Message Copy Button
 **Learning:** Users often need to copy the content of agent/assistant messages from the thread timeline. Adding a dedicated copy button directly on the message card provides a much smoother UX than manual text selection. Similar to tool arguments, absolute positioning requires the text container to have adequate right padding to prevent overlapping.
 **Action:** Add dedicated copy buttons to assistant message cards with sufficient right padding (e.g. pr-10) on the parent container.
-## 2026-09-09 - Added aria-labels to icon-only buttons & cleaned redundant text
+## 2026-09-14 - Added aria-labels to icon-only buttons & cleaned redundant text
 **Learning:** When performing accessibility improvements, adding `aria-label` to icon-only buttons like those wrapped in Radix Tooltips ensures screen readers immediately announce their function without waiting for tooltip delays. Additionally, placing both an `aria-label` and a visually hidden `<span className="sr-only">` with duplicate text on the same button causes redundant announcements.
 **Action:** Always ensure icon-only buttons have an `aria-label`, and remove visually hidden text spans when the button already has a descriptive `aria-label`.
