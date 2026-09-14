@@ -31,7 +31,3 @@
 ## 2026-09-13 - Agent Message Copy Button
 **Learning:** Users often need to copy the content of agent/assistant messages from the thread timeline. Adding a dedicated copy button directly on the message card provides a much smoother UX than manual text selection. Similar to tool arguments, absolute positioning requires the text container to have adequate right padding to prevent overlapping.
 **Action:** Add dedicated copy buttons to assistant message cards with sufficient right padding (e.g. pr-10) on the parent container.
-
-## 2026-09-14 - Tooltips for Scroll Buttons
-**Learning:** Using an icon-only button for "Scroll to bottom" actions without a visual label is an accessibility and UX issue. A native screen-reader aria-label is helpful, but sighted users also benefit from a visual tooltip to understand the action, especially if the icon is ambiguous.
-**Action:** Always wrap icon-only floating action buttons in custom Radix Tooltips to provide immediate visual affordances for all users.
