@@ -4,7 +4,6 @@ import type { RepoConfig } from "../../utils/github";
 import type { SandboxService } from "../../integrations/sandbox-service";
 import type { ScheduledPattern, PatternRunSummary } from "../scheduler";
 import { Octokit } from "octokit";
-import pLimit from "p-limit";
 
 export interface PrBabysitterOptions {
   name?: string;
@@ -65,22 +64,15 @@ export function createPrBabysitterPattern(
     intervalMs,
     run: async (): Promise<PatternRunSummary> => {
       const at = new Date().toISOString();
-      let results: PRReviewResult[] = [];
+      const results: PRReviewResult[] = [];
       try {
         const prs = await listOpenPRs();
-        const limit = pLimit(5); // Process up to 5 PRs concurrently
-
-        // ⚡ Bolt: Replaced sequential await for...of loop with concurrent Promise.all execution bounded by p-limit
-        const prPromises = prs.map(prNumber => limit(async () => {
+        for (const prNumber of prs) {
           const cycle = makeCycle(prNumber);
           const unresolved = await cycle.fetchUnresolvedComments(prNumber);
-          if (unresolved.length === 0) return null; // nothing to babysit
-          return await cycle.runCycle(prNumber, 2);
-        }));
-
-        const prResults = await Promise.all(prPromises);
-        results = prResults.filter((r): r is PRReviewResult => r !== null);
-
+          if (unresolved.length === 0) continue; // nothing to babysit
+          results.push(await cycle.runCycle(prNumber, 2));
+        }
         return {
           name,
           ok: true,
