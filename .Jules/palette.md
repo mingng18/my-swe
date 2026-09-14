@@ -31,3 +31,7 @@
 ## 2026-09-13 - Agent Message Copy Button
 **Learning:** Users often need to copy the content of agent/assistant messages from the thread timeline. Adding a dedicated copy button directly on the message card provides a much smoother UX than manual text selection. Similar to tool arguments, absolute positioning requires the text container to have adequate right padding to prevent overlapping.
 **Action:** Add dedicated copy buttons to assistant message cards with sufficient right padding (e.g. pr-10) on the parent container.
+
+## 2026-08-04 - Tooltip on Dialog Close Button
+**Learning:** Native HTML `title` attributes on custom Dialog component close buttons create the same poor duplicate/delayed tooltip UX as on regular buttons when used in a UI framework heavily utilizing custom Radix Tooltips.
+**Action:** Always replace native `title` attributes on Dialog close buttons with custom `Tooltip` components, ensuring proper `asChild` prop composition (`TooltipTrigger` -> `DialogPrimitive.Close` -> `Button`) to preserve accessible interactions.
