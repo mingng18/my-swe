@@ -42,7 +42,7 @@
 **Vulnerability:** The `serializeError` function in the compact middleware leaked internal stack traces by including the `error.stack` property in the serialized output.
 **Learning:** Exposing internal error stack traces can reveal sensitive implementation details, file paths, and application flow to potential attackers.
 **Prevention:** Avoid serializing and returning full stack traces to clients or in less-trusted environments. Extract only necessary, non-sensitive properties (like `name` and `message`) when formatting errors for external consumption.
-## 2026-09-13 - [HIGH] Fix command injection in verification typecheck
+## 2026-09-14 - [HIGH] Fix command injection in verification typecheck
 **Vulnerability:** The `verify_typecheck` blueprint action interpolated `ctx.repoDir` directly into a shell command string (`cd ${ctx.repoDir} && ...`) without escaping, allowing a malicious repository directory name to execute arbitrary commands inside the sandbox.
 **Learning:** Even deterministic sandbox actions that appear safe must sanitize all variable inputs, especially paths like `repoDir` which might be constructed from untrusted sources.
 **Prevention:** Always use `shellEscapeSingleQuotes` when interpolating paths or variables into shell command strings for sandbox execution, regardless of the presumed source.
