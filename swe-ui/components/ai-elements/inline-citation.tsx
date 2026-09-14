@@ -209,6 +209,7 @@ export const InlineCitationCarouselPrev = ({
 
   return (
     <button
+      aria-label="Previous"
       className={cn("shrink-0", className)}
       onClick={handleClick}
       type="button"
@@ -235,6 +236,7 @@ export const InlineCitationCarouselNext = ({
 
   return (
     <button
+      aria-label="Next"
       className={cn("shrink-0", className)}
       onClick={handleClick}
       type="button"

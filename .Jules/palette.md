@@ -27,6 +27,11 @@
 ## 2025-05-24 - Tool Arguments Copy Button
 **Learning:** Users often need to copy JSON arguments from tool executions in agent timelines. An absolute positioned copy button provides a simple and fast UX, but the underlying scrollable block needs right padding (e.g. pr-12) to ensure content does not flow underneath the button.
 **Action:** Add dedicated copy buttons to code and argument blocks with sufficient right padding to preserve readability.
+
+## 2026-09-13 - Agent Message Copy Button
+**Learning:** Users often need to copy the content of agent/assistant messages from the thread timeline. Adding a dedicated copy button directly on the message card provides a much smoother UX than manual text selection. Similar to tool arguments, absolute positioning requires the text container to have adequate right padding to prevent overlapping.
+**Action:** Add dedicated copy buttons to assistant message cards with sufficient right padding (e.g. pr-10) on the parent container.
+
 ## 2024-08-26 - Redundant aria-label on text-bearing elements
-**Learning:** Adding an `aria-label` that duplicates or restates the visible text content of a button or interactive element (like "Next", "Previous") is an accessibility anti-pattern. It overrides the native text content and can cause screen readers to announce the label twice or behave inconsistently. If an element already has clear, descriptive visible text, it should not have an `aria-label`.
+**Learning:** Adding an `aria-label` that duplicates or restates the visible text content of a button or interactive element (like "New Run") is an accessibility anti-pattern. It overrides the native text content and can cause screen readers to announce the label twice or behave inconsistently. If an element already has clear, descriptive visible text, it should not have an `aria-label`.
 **Action:** Remove `aria-label` attributes from buttons and interactive elements that already contain descriptive visible text, allowing assistive technologies to use the native text content.
