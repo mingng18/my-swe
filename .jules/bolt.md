@@ -109,6 +109,9 @@
 ## 2026-10-27 - Avoid multiple array iterations in search loops
 **Learning:** Chaining `.map().filter().slice().map()` on candidate tools creates multiple intermediate arrays, causing unnecessary memory allocation overhead and increased garbage collection pauses during search operations.
 **Action:** Replaced chained array methods with a single-pass `for` loop to eliminate intermediate object allocations and improve search performance.
+## 2025-08-25 - Zustand useShallow Optimization
+**Learning:** When using Zustand's `useShallow` to prevent unnecessary re-renders when mapping over collections, do not return an array of newly created objects. Instead, return a single dictionary/record object mapping keys to primitive values, which `useShallow` can successfully compare. This prevents expensive UI re-renders during high-frequency updates like LLM streaming.
+**Action:** Use granular selectors or shallowly compared flat records instead of subscribing to full objects when streaming updates.
 ## 2025-09-02 - Avoid chained array operations on large datasets
 **Learning:** Using chained array methods like `.map().filter()` creates intermediate arrays that can increase garbage collection pressure and memory usage, especially on larger datasets. Similarly, using `.reduce` introduces unnecessary callback execution overhead.
 **Action:** Replace chained array methods and `.reduce` calls with standard imperative `for...of` or `for` loops to avoid intermediate array allocations and reduce overhead. However, balance this optimization with readability, as it is primarily a micro-optimization that yields significant benefits only when processing very large arrays.
