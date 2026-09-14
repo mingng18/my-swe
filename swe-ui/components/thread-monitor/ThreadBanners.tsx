@@ -1,14 +1,14 @@
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, Loader2, RefreshCw, X } from "lucide-react";
+import type { ThreadState } from "@/lib/types";
 
 interface ThreadBannersProps {
   error: string | null;
   sseError: string | null;
   showReconnectingBanner: boolean;
   reconnectAttempt: number;
-  threadStatus?: string;
-  threadErrorMsg?: string | null;
+  thread: ThreadState | null;
   clearError: () => void;
   manualReconnect: () => void;
   handleRetry: () => void;
@@ -19,8 +19,7 @@ export function ThreadBanners({
   sseError,
   showReconnectingBanner,
   reconnectAttempt,
-  threadStatus,
-  threadErrorMsg,
+  thread,
   clearError,
   manualReconnect,
   handleRetry,
@@ -79,12 +78,12 @@ export function ThreadBanners({
       )}
 
       {/* Thread Error Banner */}
-      {threadStatus === "error" && threadErrorMsg && (
+      {thread && thread.status === "error" && thread.error && (
         <Alert variant="destructive" className="m-4">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Thread Error</AlertTitle>
           <AlertDescription className="flex items-center justify-between">
-            <span>{threadErrorMsg}</span>
+            <span>{thread.error}</span>
             <Button
               variant="outline"
               size="sm"

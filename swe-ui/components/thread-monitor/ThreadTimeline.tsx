@@ -1,4 +1,6 @@
-import { useEffect, useRef, memo, useMemo, useState, useCallback } from "react";
+import { useEffect, useRef, memo, useState, useCallback, useMemo } from "react";
+import { adaptEventsToMessages, groupLLMChunks } from "@/lib/event-adapter";
+import { useThreadStore } from "@/store/thread-store";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
@@ -6,11 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Loader2, Zap, ChevronRight, User, Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { adaptEventsToMessages, groupLLMChunks } from "@/lib/event-adapter";
-import { useThreadStore } from "@/store/thread-store";
-
 interface ThreadTimelineProps {
   threadId: string;
+
   connectionState: "connecting" | "connected" | "disconnected" | "error";
 }
 
@@ -45,9 +45,40 @@ function CopyArgsButton({ args }: { args: Record<string, unknown> }) {
     </Tooltip>
   );
 }
-export const ThreadTimeline = memo(function ThreadTimeline({ threadId, connectionState }: ThreadTimelineProps) {
-  const messagesEndRef = useRef<HTMLDivElement>(null);
 
+function CopyMessageButton({ content }: { content: string }) {
+  const [isCopied, setIsCopied] = useState(false);
+
+  const copyToClipboard = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    } catch (error) {
+      console.error("Failed to copy message:", error);
+    }
+  }, [content]);
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          onClick={copyToClipboard}
+          aria-label={isCopied ? "Copied message" : "Copy message"}
+          className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover/message:opacity-50 hover:!opacity-100 focus-visible:opacity-100 transition-opacity"
+        >
+          {isCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{isCopied ? "Copied" : "Copy message"}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+export const ThreadTimeline = memo(function ThreadTimeline({ threadId, connectionState }: ThreadTimelineProps) {
   const events = useThreadStore((state) => state.threads[threadId]?.events);
   const threadStatus = useThreadStore((state) => state.threads[threadId]?.status);
 
@@ -55,6 +86,8 @@ export const ThreadTimeline = memo(function ThreadTimeline({ threadId, connectio
     () => (events ? groupLLMChunks(adaptEventsToMessages(events)) : []),
     [events],
   );
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -169,6 +202,9 @@ export const ThreadTimeline = memo(function ThreadTimeline({ threadId, connectio
                         <p className="text-xs text-muted-foreground mt-1">
                           Duration: {message.metadata.duration}ms
                         </p>
+                      )}
+                      {message.content && (
+                        <CopyMessageButton content={message.content} />
                       )}
                     </Card>
                   </>
