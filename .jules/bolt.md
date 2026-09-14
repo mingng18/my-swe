@@ -109,3 +109,6 @@
 ## 2026-10-27 - Avoid multiple array iterations in search loops
 **Learning:** Chaining `.map().filter().slice().map()` on candidate tools creates multiple intermediate arrays, causing unnecessary memory allocation overhead and increased garbage collection pauses during search operations.
 **Action:** Replaced chained array methods with a single-pass `for` loop to eliminate intermediate object allocations and improve search performance.
+## 2026-09-14 - Replaced sequential PR processing with p-limit
+**Learning:** The `pr-babysitter` loop processed unresolved comments sequentially using an `await` inside a `for...of` loop, waiting for each network IO to complete before fetching the next. `p-limit` is available and widely used in the codebase.
+**Action:** Use `p-limit` to bound the concurrent map of promises for operations involving external network IO (like GitHub APIs) instead of sequential loops. This reduces loop cycle time without exhausting API limits.
