@@ -1,6 +1,4 @@
-import { useEffect, useRef, memo, useState, useCallback, useMemo } from "react";
-import { adaptEventsToMessages, groupLLMChunks } from "@/lib/event-adapter";
-import { useThreadStore } from "@/store/thread-store";
+import { useEffect, useRef, memo, useState, useCallback } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
@@ -8,9 +6,25 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Loader2, Zap, ChevronRight, User, Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-interface ThreadTimelineProps {
-  threadId: string;
+import type { ThreadState } from "@/lib/types";
 
+// Properly typed interface to avoid 'any'
+interface MessageContent {
+  id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  metadata?: {
+    tool?: string;
+    isToolCall?: boolean;
+    isToolResult?: boolean;
+    args?: Record<string, unknown>;
+    duration?: number;
+  };
+}
+
+interface ThreadTimelineProps {
+  messages: MessageContent[];
+  thread: ThreadState;
   connectionState: "connecting" | "connected" | "disconnected" | "error";
 }
 
@@ -78,27 +92,19 @@ function CopyMessageButton({ content }: { content: string }) {
   );
 }
 
-export const ThreadTimeline = memo(function ThreadTimeline({ threadId, connectionState }: ThreadTimelineProps) {
-  const events = useThreadStore((state) => state.threads[threadId]?.events);
-  const threadStatus = useThreadStore((state) => state.threads[threadId]?.status);
-
-  const messages = useMemo(
-    () => (events ? groupLLMChunks(adaptEventsToMessages(events)) : []),
-    [events],
-  );
-
+export const ThreadTimeline = memo(function ThreadTimeline({ messages, thread, connectionState }: ThreadTimelineProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, threadStatus]);
+  }, [messages, thread.status]);
 
   return (
     <ScrollArea className="flex-1 p-4">
       {messages.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-full text-center p-8">
           <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center mb-6 shadow-sm">
-            {threadStatus === "running" ? (
+            {thread.status === "running" ? (
               <Loader2 className="h-10 w-10 animate-spin text-primary" />
             ) : connectionState === "connecting" ? (
               <div className="space-y-1">
@@ -109,14 +115,14 @@ export const ThreadTimeline = memo(function ThreadTimeline({ threadId, connectio
             )}
           </div>
           <h3 className="text-lg font-semibold mb-2">
-            {threadStatus === "running"
+            {thread.status === "running"
               ? "Agent is processing..."
               : connectionState === "connecting"
               ? "Connecting to stream..."
               : "Waiting for events"}
           </h3>
           <p className="text-sm text-muted-foreground max-w-md">
-            {threadStatus === "running"
+            {thread.status === "running"
               ? "The agent is working on your task. Events will appear here as they happen."
               : connectionState === "connecting"
               ? "Establishing connection to the agent stream..."
@@ -226,7 +232,7 @@ export const ThreadTimeline = memo(function ThreadTimeline({ threadId, connectio
               </div>
             );
           })}
-          {threadStatus === "running" && (
+          {thread.status === "running" && (
             <div className="flex gap-3">
               <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                 <span className="text-sm" role="img" aria-label="Agent">🤖</span>
