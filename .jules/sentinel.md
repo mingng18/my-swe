@@ -34,3 +34,11 @@
 **Vulnerability:** A `timingSafeEqual` comparison returned early if the lengths of the two buffers didn't match. This defeats constant-time execution by leaking the expected length to an attacker.
 **Learning:** Security linters and best practices require ensuring both inputs to a constant-time comparison are of equal length without conditional short-circuits. Even when one length is constant (like a SHA-256 HMAC), early returns on length mismatch break the constant-time guarantee and get flagged by tooling.
 **Prevention:** Always normalize the lengths of the inputs before the comparison. A common and robust way to achieve this for string comparisons is to run both the expected and provided strings through a fixed-length hashing algorithm (like SHA-256) first. The resulting digests will always be identically sized (32 bytes), removing the need for any length checks before passing them to `timingSafeEqual`.
+## 2026-09-09 - Command injection in git credential store
+**Vulnerability:** The GitHub token was placed directly into a shell command using double quotes, allowing command substitution attacks via malicious token values.
+**Learning:** Double quotes in shell commands do not prevent variable expansion or command substitution. Any untrusted string, even a token, must be properly escaped if passed to a shell.
+**Prevention:** Always use safe escaping mechanisms like `shellEscapeSingleQuotes` which uses single quotes, or pass arguments as an array instead of a single string when executing commands.
+## 2026-09-13 - Error Stack Trace Leakage
+**Vulnerability:** The `serializeError` function in the compact middleware leaked internal stack traces by including the `error.stack` property in the serialized output.
+**Learning:** Exposing internal error stack traces can reveal sensitive implementation details, file paths, and application flow to potential attackers.
+**Prevention:** Avoid serializing and returning full stack traces to clients or in less-trusted environments. Extract only necessary, non-sensitive properties (like `name` and `message`) when formatting errors for external consumption.

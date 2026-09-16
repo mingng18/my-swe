@@ -15,13 +15,13 @@ interface ThreadTabsProps {
 }
 
 export function ThreadTabs({ className, onNewThread }: ThreadTabsProps) {
-  // ⚡ Bolt Optimization: Subscribe only to thread statuses rather than the full thread objects.
-  // This prevents ThreadTabs from re-rendering on every LLM stream chunk event (which mutates the thread's event list).
+  // ⚡ Bolt: Granularly subscribe to thread statuses using useShallow
+  // to prevent ThreadTabs from re-rendering whenever events/todos update within the thread.
   const threadStatuses = useThreadStore(
     useShallow((state) => {
       const statuses: Record<string, ThreadState["status"]> = {};
-      for (const id in state.threads) {
-        statuses[id] = state.threads[id].status;
+      for (const [id, thread] of Object.entries(state.threads)) {
+        statuses[id] = thread.status;
       }
       return statuses;
     })
@@ -62,6 +62,7 @@ export function ThreadTabs({ className, onNewThread }: ThreadTabsProps) {
     onNewThread?.();
   };
 
+  // ⚡ Bolt: Only status is needed, so use `threadStatuses[threadId]` instead of `thread.status`
   if (threadEntries.length === 0) {
     return (
       <div className={cn("flex items-center justify-between px-4 py-2.5 border-b bg-muted/30 backdrop-blur-sm", className)}>
