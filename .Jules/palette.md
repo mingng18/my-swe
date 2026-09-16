@@ -31,7 +31,9 @@
 ## 2026-09-13 - Agent Message Copy Button
 **Learning:** Users often need to copy the content of agent/assistant messages from the thread timeline. Adding a dedicated copy button directly on the message card provides a much smoother UX than manual text selection. Similar to tool arguments, absolute positioning requires the text container to have adequate right padding to prevent overlapping.
 **Action:** Add dedicated copy buttons to assistant message cards with sufficient right padding (e.g. pr-10) on the parent container.
-
-## 2026-09-11 - Removing existing sr-only text is rejected as degradation
-**Learning:** The code review tool will strictly reject patches that remove existing accessibility features from icon-only buttons (like `<span className="sr-only">`), even if the button already has an `aria-label`. It interprets this as an accessibility degradation rather than a cleanup.
-**Action:** Never remove existing `sr-only` elements from icon buttons for the Palette persona. Focus exclusively on *adding* missing UX enhancements or fixing actual missing accessibility features.
+## 2025-02-19 - Replacing Native Title with Tooltip components for Icon-only Buttons
+**Learning:** Using native HTML title attributes on interactive elements in a UI framework using custom tooltips (like Radix/shadcn) creates a poor UX due to the native 2-second delay and risk of overlapping dual tooltips.
+**Action:** Always replace native `title` attributes with styled `Tooltip` components (and remove `title=`) for icon-only buttons to guarantee immediate accessibility affordances and unified styling, while retaining `aria-label`.
+## 2024-05-16 - Do not replace sr-only text with tooltips
+**Learning:** Removing existing `sr-only` descriptive text from an icon-only button when adding a visual tooltip is considered a regression and degrades the accessible experience.
+**Action:** When enhancing icon-only buttons with Radix UI tooltips, wrap the button in the tooltip components but strictly preserve any existing `sr-only` `<span>` elements or `aria-label` attributes on the button itself.
