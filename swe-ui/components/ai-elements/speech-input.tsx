@@ -2,6 +2,12 @@
 
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { MicIcon, SquareIcon } from "lucide-react";
 import type { ComponentProps } from "react";
@@ -302,23 +308,32 @@ export const SpeechInput = ({
         ))}
 
       {/* Main record button */}
-      <Button
-        aria-label={isListening ? "Stop recording" : "Start recording"}
-        className={cn(
-          "relative z-10 rounded-full transition-all duration-300",
-          isListening
-            ? "bg-destructive text-white hover:bg-destructive/80 hover:text-white"
-            : "bg-primary text-primary-foreground hover:bg-primary/80 hover:text-primary-foreground",
-          className
-        )}
-        disabled={isDisabled}
-        onClick={toggleListening}
-        {...props}
-      >
-        {isProcessing && <Spinner />}
-        {!isProcessing && isListening && <SquareIcon className="size-4" />}
-        {!(isProcessing || isListening) && <MicIcon className="size-4" />}
-      </Button>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              aria-label={isListening ? "Stop recording" : "Start recording"}
+              className={cn(
+                "relative z-10 rounded-full transition-all duration-300",
+                isListening
+                  ? "bg-destructive text-white hover:bg-destructive/80 hover:text-white"
+                  : "bg-primary text-primary-foreground hover:bg-primary/80 hover:text-primary-foreground",
+                className
+              )}
+              disabled={isDisabled}
+              onClick={toggleListening}
+              {...props}
+            >
+              {isProcessing && <Spinner />}
+              {!isProcessing && isListening && <SquareIcon className="size-4" />}
+              {!(isProcessing || isListening) && <MicIcon className="size-4" />}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>{isListening ? "Stop recording" : "Start recording"}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     </div>
   );
 };

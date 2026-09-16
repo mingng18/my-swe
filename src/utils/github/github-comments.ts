@@ -5,7 +5,7 @@
  * reactions, and fetching comments from issues and PRs.
  */
 
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { Octokit } from "octokit";
 import { defang } from "../../security/defang";
 import { IDENTITY_MAP } from "../identity";
@@ -107,12 +107,8 @@ export function verifyGithubSignature(
 	const expected =
 		"sha256=" + createHmac("sha256", secret).update(bodyStr).digest("hex");
 
-	const expectedBuffer = Buffer.from(expected, "utf-8");
-	const signatureBuffer = Buffer.from(signature, "utf-8");
-
-	if (expectedBuffer.length !== signatureBuffer.length) {
-		return false;
-	}
+	const expectedBuffer = createHash("sha256").update(expected).digest();
+	const signatureBuffer = createHash("sha256").update(signature).digest();
 
 	return timingSafeEqual(expectedBuffer, signatureBuffer);
 }
@@ -472,12 +468,13 @@ export async function fetchPrCommentsSinceLastTag(
 
 		// Find all @openswe / @open-swe mention positions
 		// ⚡ Bolt: Using pre-compiled regex instead of lowercase/includes loop for faster tag matching
-		const tagIndices = allComments.reduce((acc, comment, i) => {
-			if (OPEN_SWE_REGEX.test(comment.body ?? "")) {
-				acc.push(i);
+		// ⚡ Bolt: Replaced .reduce() with a single-pass for loop to avoid intermediate allocations and reduce garbage collection pressure.
+		const tagIndices: number[] = [];
+		for (let i = 0; i < allComments.length; i++) {
+			if (OPEN_SWE_REGEX.test(allComments[i].body ?? "")) {
+				tagIndices.push(i);
 			}
-			return acc;
-		}, [] as number[]);
+		}
 
 		if (tagIndices.length === 0) {
 			return [];
