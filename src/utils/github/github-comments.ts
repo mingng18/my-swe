@@ -468,12 +468,13 @@ export async function fetchPrCommentsSinceLastTag(
 
 		// Find all @openswe / @open-swe mention positions
 		// ⚡ Bolt: Using pre-compiled regex instead of lowercase/includes loop for faster tag matching
-		const tagIndices = allComments.reduce((acc, comment, i) => {
-			if (OPEN_SWE_REGEX.test(comment.body ?? "")) {
-				acc.push(i);
+		// ⚡ Bolt: Replaced .reduce() with a single-pass for loop to avoid intermediate allocations and reduce garbage collection pressure.
+		const tagIndices: number[] = [];
+		for (let i = 0; i < allComments.length; i++) {
+			if (OPEN_SWE_REGEX.test(allComments[i].body ?? "")) {
+				tagIndices.push(i);
 			}
-			return acc;
-		}, [] as number[]);
+		}
 
 		if (tagIndices.length === 0) {
 			return [];
