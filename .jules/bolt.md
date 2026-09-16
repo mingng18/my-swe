@@ -112,6 +112,9 @@
 ## 2025-08-25 - Zustand useShallow Optimization
 **Learning:** When using Zustand's `useShallow` to prevent unnecessary re-renders when mapping over collections, do not return an array of newly created objects. Instead, return a single dictionary/record object mapping keys to primitive values, which `useShallow` can successfully compare. This prevents expensive UI re-renders during high-frequency updates like LLM streaming.
 **Action:** Use granular selectors or shallowly compared flat records instead of subscribing to full objects when streaming updates.
+## 2026-09-15 - Avoid .reduce() overhead in GitHub PR comment processing
+**Learning:** Using `Array.prototype.reduce()` to find matching indices in an array of GitHub PR comments creates unnecessary callback allocations for every comment. For PRs with extensive discussion history, this adds garbage collection overhead and slows down processing.
+**Action:** Replaced `.reduce()` with a standard `for` loop to scan PR comments, improving raw iteration speed and reducing memory allocation pressure.
 ## 2025-02-12 - Replacing bounded loops for loop patterns
 **Learning:** Sequential await loops over independent tasks cause unnecessary bottlenecks. By using Promise.all combined with p-limit, we can boundedly execute tasks with O(1)-like time scaling but still cap max API rate limits safely.
 **Action:** Use Promise.all with p-limit to execute independent looped I/O operations such as API checks or PR fetching concurrency.
