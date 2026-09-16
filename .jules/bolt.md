@@ -114,6 +114,11 @@
 **Learning:** When using Zustand's `useShallow` to prevent unnecessary re-renders when mapping over collections, do not return an array of newly created objects. Instead, return a single dictionary/record object mapping keys to primitive values, which `useShallow` can successfully compare. This prevents expensive UI re-renders during high-frequency updates like LLM streaming.
 **Action:** Use granular selectors or shallowly compared flat records instead of subscribing to full objects when streaming updates.
 
+## 2026-09-15 - Avoid .reduce() overhead in GitHub PR comment processing
+**Learning:** Using `Array.prototype.reduce()` to find matching indices in an array of GitHub PR comments creates unnecessary callback allocations for every comment. For PRs with extensive discussion history, this adds garbage collection overhead and slows down processing.
+**Action:** Replaced `.reduce()` with a standard `for` loop to scan PR comments, improving raw iteration speed and reducing memory allocation pressure.
+
+
 
 ## 2026-08-12 - Optimize context compaction intermediate allocations
 **Learning:** Compaction paths that build subsets of arrays via chained `.map()`, `.filter()`, `new Set()`, and multiple traversals cause measurable memory allocation overhead (~4kb per run) and take ~3x longer (72us vs 24us) compared to single-pass `for` loops.
