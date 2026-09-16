@@ -20,8 +20,8 @@ export function ThreadTabs({ className, onNewThread }: ThreadTabsProps) {
   const threadStatuses = useThreadStore(
     useShallow((state) => {
       const statuses: Record<string, ThreadState["status"]> = {};
-      for (const id in state.threads) {
-        statuses[id] = state.threads[id].status;
+      for (const [id, thread] of Object.entries(state.threads)) {
+        statuses[id] = thread.status;
       }
       return statuses;
     })
