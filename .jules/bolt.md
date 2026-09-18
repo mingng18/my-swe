@@ -115,3 +115,6 @@
 ## 2026-09-15 - Avoid .reduce() overhead in GitHub PR comment processing
 **Learning:** Using `Array.prototype.reduce()` to find matching indices in an array of GitHub PR comments creates unnecessary callback allocations for every comment. For PRs with extensive discussion history, this adds garbage collection overhead and slows down processing.
 **Action:** Replaced `.reduce()` with a standard `for` loop to scan PR comments, improving raw iteration speed and reducing memory allocation pressure.
+## 2026-09-18 - Prevent unnecessary re-renders in useBullhorseStream
+**Learning:** Subscribing to an entire Zustand store or frequently updating objects in custom hooks (like `useBullhorseStream`) can cause the hook and its consuming components to re-render constantly. In real-time scenarios like LLM streaming, this causes severe performance degradation as the entire UI layout re-renders on every chunk.
+**Action:** Use granular selectors or `useShallow` when subscribing to Zustand stores. When needing to access the latest state inside callbacks without triggering re-renders, use `useStore.getState()` instead of adding the state to the dependency array.

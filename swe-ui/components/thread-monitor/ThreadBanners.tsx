@@ -1,14 +1,15 @@
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, Loader2, RefreshCw, X } from "lucide-react";
-import type { ThreadState } from "@/lib/types";
+import { useThreadStore } from "@/store/thread-store";
+import { useShallow } from "zustand/react/shallow";
 
 interface ThreadBannersProps {
   error: string | null;
   sseError: string | null;
   showReconnectingBanner: boolean;
   reconnectAttempt: number;
-  thread: ThreadState | null;
+  threadId: string | null | undefined;
   clearError: () => void;
   manualReconnect: () => void;
   handleRetry: () => void;
@@ -19,11 +20,18 @@ export function ThreadBanners({
   sseError,
   showReconnectingBanner,
   reconnectAttempt,
-  thread,
+  threadId,
   clearError,
   manualReconnect,
   handleRetry,
 }: ThreadBannersProps) {
+  const threadStatusError = useThreadStore(
+    useShallow((state) => {
+      const t = threadId ? state.threads[threadId] : null;
+      return t ? { status: t.status, error: t.error } : null;
+    })
+  );
+
   return (
     <>
       {/* Error Banner */}
@@ -78,12 +86,12 @@ export function ThreadBanners({
       )}
 
       {/* Thread Error Banner */}
-      {thread && thread.status === "error" && thread.error && (
+      {threadStatusError && threadStatusError.status === "error" && threadStatusError.error && (
         <Alert variant="destructive" className="m-4">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Thread Error</AlertTitle>
           <AlertDescription className="flex items-center justify-between">
-            <span>{thread.error}</span>
+            <span>{threadStatusError.error}</span>
             <Button
               variant="outline"
               size="sm"

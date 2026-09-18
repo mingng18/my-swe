@@ -1,4 +1,4 @@
-import { useEffect, useRef, memo, useState, useCallback } from "react";
+import { useEffect, useRef, memo, useState, useCallback, useMemo } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
@@ -6,25 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Loader2, Zap, ChevronRight, User, Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { ThreadState } from "@/lib/types";
-
-// Properly typed interface to avoid 'any'
-interface MessageContent {
-  id: string;
-  role: "user" | "assistant" | "system";
-  content: string;
-  metadata?: {
-    tool?: string;
-    isToolCall?: boolean;
-    isToolResult?: boolean;
-    args?: Record<string, unknown>;
-    duration?: number;
-  };
-}
+import { useThreadStore } from "@/store/thread-store";
+import { adaptEventsToMessages, groupLLMChunks } from "@/lib/event-adapter";
 
 interface ThreadTimelineProps {
-  messages: MessageContent[];
-  thread: ThreadState;
+  threadId: string;
   connectionState: "connecting" | "connected" | "disconnected" | "error";
 }
 
@@ -92,12 +78,20 @@ function CopyMessageButton({ content }: { content: string }) {
   );
 }
 
-export const ThreadTimeline = memo(function ThreadTimeline({ messages, thread, connectionState }: ThreadTimelineProps) {
+export const ThreadTimeline = memo(function ThreadTimeline({ threadId, connectionState }: ThreadTimelineProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const thread = useThreadStore((state) => state.threads[threadId]);
+  const messages = useMemo(
+    () => (thread ? groupLLMChunks(adaptEventsToMessages(thread.events)) : []),
+    [thread],
+  );
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, thread.status]);
+  }, [messages, thread?.status]);
+
+  if (!thread) return null;
 
   return (
     <ScrollArea className="flex-1 p-4">

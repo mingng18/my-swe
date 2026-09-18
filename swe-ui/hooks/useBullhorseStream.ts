@@ -157,7 +157,13 @@ export function useBullhorseStream({
   const [showReconnectingBanner, setShowReconnectingBanner] = useState(false);
   const [sseError, setSseError] = useState<string | null>(null);
 
-  const { addThread, addEvent, updateTodo, updateThread, threads } = useThreadStore();
+  // ⚡ Bolt Optimization: Subscribe only to the required actions instead of the entire store
+  // to prevent useBullhorseStream (and its consumers) from re-rendering on every store update.
+  const addThread = useThreadStore((state) => state.addThread);
+  const addEvent = useThreadStore((state) => state.addEvent);
+  const updateTodo = useThreadStore((state) => state.updateTodo);
+  const updateThread = useThreadStore((state) => state.updateThread);
+
   const { addToast } = useToast();
 
   // Update ref when state changes
@@ -172,7 +178,7 @@ export function useBullhorseStream({
     addEvent(threadId, event);
 
     // Persist events to sessionStorage for history restoration on reconnect
-    const thread = threads[threadId];
+    const thread = useThreadStore.getState().threads[threadId];
     if (thread) {
       saveEventsToStorage(threadId, thread.events);
     }
@@ -193,11 +199,11 @@ export function useBullhorseStream({
         error: event.message,
       });
     }
-  }, [threadId, addEvent, updateTodo, updateThread, threads]);
+  }, [threadId, addEvent, updateTodo, updateThread]);
 
   const handleReconnect = useCallback(async () => {
-    restoreThreadHistory(threadId, threads, addEvent);
-  }, [threadId, threads, addEvent]);
+    restoreThreadHistory(threadId, useThreadStore.getState().threads, addEvent);
+  }, [threadId, addEvent]);
 
   useEffect(() => {
     if (!enabled) {

@@ -35,9 +35,10 @@ export function ThreadMonitor({
 }: ThreadMonitorProps) {
   const activeThreadId = useThreadStore((state) => state.activeThreadId);
   const threadId = propThreadId || activeThreadId;
-  // OPTIMIZATION: Select only the active thread to prevent re-renders when other threads update, and memoize the expensive message derivation.
-  const thread = useThreadStore((state) =>
-    threadId ? state.threads[threadId] : null,
+  // ⚡ Bolt Optimization: Only subscribe to the boolean existence of the thread to prevent the entire
+  // ThreadMonitor (and siblings like TodoSidebar, ThreadTabs) from re-rendering on every LLM stream event.
+  const hasThread = useThreadStore((state) =>
+    threadId ? !!state.threads[threadId] : false,
   );
   const addThread = useThreadStore((state) => state.addThread);
   const updateThread = useThreadStore((state) => state.updateThread);
@@ -174,12 +175,6 @@ export function ThreadMonitor({
     }
   };
 
-  // Convert events to messages for display
-  const messages = useMemo(
-    () => (thread ? groupLLMChunks(adaptEventsToMessages(thread.events)) : []),
-    [thread],
-  );
-
   return (
     <div className={cn("flex flex-col h-screen bg-background", className)}>
       <ThreadHeader threadId={threadId} connectionState={connectionState} />
@@ -202,13 +197,13 @@ export function ThreadMonitor({
         sseError={sseError}
         showReconnectingBanner={showReconnectingBanner}
         reconnectAttempt={reconnectAttempt}
-        thread={thread}
+        threadId={threadId}
         clearError={clearError}
         manualReconnect={manualReconnect}
         handleRetry={handleRetry}
       />
 
-      {threadId && thread ? (
+      {threadId && hasThread ? (
         <div className="flex-1 flex overflow-hidden">
           <div className="w-[280px] border-r bg-muted/20 flex-shrink-0">
             <TodoSidebar threadId={threadId} />
@@ -227,8 +222,7 @@ export function ThreadMonitor({
             </div>
 
             <ThreadTimeline
-              messages={messages}
-              thread={thread}
+              threadId={threadId}
               connectionState={connectionState}
             />
           </div>
