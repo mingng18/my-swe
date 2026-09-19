@@ -34,3 +34,7 @@
 ## 2025-02-19 - Replacing Native Title with Tooltip components for Icon-only Buttons
 **Learning:** Using native HTML title attributes on interactive elements in a UI framework using custom tooltips (like Radix/shadcn) creates a poor UX due to the native 2-second delay and risk of overlapping dual tooltips.
 **Action:** Always replace native `title` attributes with styled `Tooltip` components (and remove `title=`) for icon-only buttons to guarantee immediate accessibility affordances and unified styling, while retaining `aria-label`.
+
+## 2026-09-18 - Replacing Native Title with Tooltip components for Dialog Close Buttons
+**Learning:** Replacing native HTML `title` attributes with Radix `<Tooltip>` components inside Dialogs requires precise wrapper composition: `<TooltipTrigger asChild>` must wrap `<DialogPrimitive.Close asChild>`, which in turn wraps the inner `<Button>`.
+**Action:** Ensure Radix Tooltips used with native Dialog close buttons are properly composed to prevent duplicate browser tooltips.
