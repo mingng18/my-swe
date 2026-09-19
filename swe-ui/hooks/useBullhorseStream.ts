@@ -157,7 +157,15 @@ export function useBullhorseStream({
   const [showReconnectingBanner, setShowReconnectingBanner] = useState(false);
   const [sseError, setSseError] = useState<string | null>(null);
 
-  const { addThread, addEvent, updateTodo, updateThread, threads } = useThreadStore();
+  // ⚡ Bolt Optimization: Replace full store subscription with granular action selectors.
+  // This prevents the hook from forcing its consuming components (like ThreadMonitor) to
+  // re-render on every single SSE event update.
+  // Impact: Reduces React re-renders significantly during high-frequency server-sent events.
+  const addThread = useThreadStore((state) => state.addThread);
+  const addEvent = useThreadStore((state) => state.addEvent);
+  const updateTodo = useThreadStore((state) => state.updateTodo);
+  const updateThread = useThreadStore((state) => state.updateThread);
+
   const { addToast } = useToast();
 
   // Update ref when state changes
@@ -172,6 +180,9 @@ export function useBullhorseStream({
     addEvent(threadId, event);
 
     // Persist events to sessionStorage for history restoration on reconnect
+    // ⚡ Bolt: Read latest state using getState() instead of depending on reactive `threads`
+    // to avoid triggering hook re-renders on state updates.
+    const threads = useThreadStore.getState().threads;
     const thread = threads[threadId];
     if (thread) {
       saveEventsToStorage(threadId, thread.events);
@@ -193,11 +204,13 @@ export function useBullhorseStream({
         error: event.message,
       });
     }
-  }, [threadId, addEvent, updateTodo, updateThread, threads]);
+  }, [threadId, addEvent, updateTodo, updateThread]);
 
   const handleReconnect = useCallback(async () => {
+    // ⚡ Bolt: Fetch latest state dynamically on reconnect to avoid reactive dependencies.
+    const threads = useThreadStore.getState().threads;
     restoreThreadHistory(threadId, threads, addEvent);
-  }, [threadId, threads, addEvent]);
+  }, [threadId, addEvent]);
 
   useEffect(() => {
     if (!enabled) {
