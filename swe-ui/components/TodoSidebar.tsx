@@ -7,7 +7,6 @@ import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Todo } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { useShallow } from "zustand/react/shallow";
 import { useThreadStore } from "@/store/thread-store";
 
 interface TodoSidebarProps {
@@ -17,8 +16,8 @@ interface TodoSidebarProps {
 
 export function TodoSidebar({ threadId, className }: TodoSidebarProps) {
 	// ⚡ Bolt Optimization: Only subscribe to the `todos` array instead of the full thread object.
-	// This prevents the Sidebar from re-rendering on every LLM stream event.
-	const todos = useThreadStore(useShallow((state) => state.threads[threadId]?.todos));
+	// This prevents the Sidebar from re-rendering on every LLM stream event (which updates the parent thread reference).
+	const todos = useThreadStore((state) => state.threads[threadId]?.todos);
 
 	if (!todos) {
 		return (
