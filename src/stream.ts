@@ -298,7 +298,6 @@ class StreamRegistry {
           connection.sseStream.emit(event);
         }
 
-        // Clear the buffer after replaying
         this.eventBuffers.delete(threadId);
       }
     }
@@ -340,10 +339,10 @@ class StreamRegistry {
     }
 
     // Add event to buffer (with timestamp)
-    buffer.push({ event, timestamp: Date.now() });
+    const now = Date.now();
+    buffer.push({ event, timestamp: now });
 
     // Prune old events and enforce size limit
-    const now = Date.now();
     let validStartIndex = buffer.length;
 
     for (let i = 0; i < buffer.length; i++) {
@@ -361,6 +360,7 @@ class StreamRegistry {
       // Keep only the most recent events
       buffer.splice(0, buffer.length - this.MAX_BUFFER_SIZE);
     }
+
 
     logger.debug({ threadId, eventType: event.type, bufferSize: buffer.length },
                   "[SSE] Buffered event (no client connected)");
