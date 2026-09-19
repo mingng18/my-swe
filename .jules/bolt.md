@@ -117,3 +117,6 @@
 **Action:** Replaced `.reduce()` with a standard `for` loop to scan PR comments, improving raw iteration speed and reducing memory allocation pressure.
 ## 2026-09-17 - Extracted array creation from React useCallback in PromptInput
 **Learning:** In PromptInput.tsx, the `matchesAccept` function inside `useCallback` was repeatedly chaining `.split(",").map((s) => s.trim()).filter(Boolean)` on the `accept` string property to validate each incoming file. Since the `accept` prop rarely changes, this caused redundant intermediate array allocations and overhead when multiple files were dropped.\n**Action:** Extract static string parsing and filtering logic from inside per-item iterative `useCallback` loops into a `useMemo` block that depends only on the prop string, reusing the array mapping once per change.
+## 2026-09-19 - Optimize Zustand Subscriptions in Hooks
+**Learning:** Subscribing directly to a frequently updating full state object (like `threads`) inside a custom stream hook (e.g., SSE event handler) causes cascading, unnecessary UI re-renders across the app. In callbacks, state should not be destructured reactively.
+**Action:** Use granular selector subscriptions for actions, and fetch the latest state dynamically inside callbacks using `useStore.getState()`.
