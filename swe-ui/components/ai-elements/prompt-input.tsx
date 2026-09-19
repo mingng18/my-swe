@@ -552,18 +552,26 @@ export const PromptInput = ({
     inputRef.current?.click();
   }, []);
 
+  // ⚡ Bolt: Extracted accept string parsing into a useMemo block.
+  // This prevents chaining multiple array methods (.split().map().filter()) and allocating
+  // intermediate arrays for every file when matching multiple incoming dropped files.
+  const parsedAcceptPatterns = useMemo(() => {
+    if (!accept || accept.trim() === "") {
+      return [];
+    }
+    return accept
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }, [accept]);
+
   const matchesAccept = useCallback(
     (f: File) => {
-      if (!accept || accept.trim() === "") {
+      if (parsedAcceptPatterns.length === 0) {
         return true;
       }
 
-      const patterns = accept
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
-
-      return patterns.some((pattern) => {
+      return parsedAcceptPatterns.some((pattern) => {
         if (pattern.endsWith("/*")) {
           // e.g: image/* -> image/
           const prefix = pattern.slice(0, -1);
@@ -572,7 +580,7 @@ export const PromptInput = ({
         return f.type === pattern;
       });
     },
-    [accept]
+    [parsedAcceptPatterns]
   );
 
   const addLocal = useCallback(
