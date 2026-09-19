@@ -115,3 +115,5 @@
 ## 2026-09-15 - Avoid .reduce() overhead in GitHub PR comment processing
 **Learning:** Using `Array.prototype.reduce()` to find matching indices in an array of GitHub PR comments creates unnecessary callback allocations for every comment. For PRs with extensive discussion history, this adds garbage collection overhead and slows down processing.
 **Action:** Replaced `.reduce()` with a standard `for` loop to scan PR comments, improving raw iteration speed and reducing memory allocation pressure.
+## 2026-09-17 - Extracted array creation from React useCallback in PromptInput
+**Learning:** In PromptInput.tsx, the `matchesAccept` function inside `useCallback` was repeatedly chaining `.split(",").map((s) => s.trim()).filter(Boolean)` on the `accept` string property to validate each incoming file. Since the `accept` prop rarely changes, this caused redundant intermediate array allocations and overhead when multiple files were dropped.\n**Action:** Extract static string parsing and filtering logic from inside per-item iterative `useCallback` loops into a `useMemo` block that depends only on the prop string, reusing the array mapping once per change.
