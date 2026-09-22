@@ -149,7 +149,7 @@ export class MultiDimensionalRateLimiter {
           retryAfter: 60,
           limit: config.perThread,
           remaining: 0,
-          resetTime: this.getNextResetTime(recentThreadMinute, 60000),
+          resetTime: this.getNextResetTime(recentThreadMinute, 0, 60000),
         };
       }
     }
@@ -179,7 +179,7 @@ export class MultiDimensionalRateLimiter {
           retryAfter: 60,
           limit: config.perUser,
           remaining: 0,
-          resetTime: this.getNextResetTime(recentUserMinute, 60000),
+          resetTime: this.getNextResetTime(recentUserMinute, 0, 60000),
         };
       }
     }
