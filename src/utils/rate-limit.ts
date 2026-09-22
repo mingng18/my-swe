@@ -74,14 +74,24 @@ export class MultiDimensionalRateLimiter {
 
     // Clean old timestamps (older than 1 hour)
     const oneHourAgo = now - 3600000;
-    timestamps = timestamps.filter((t) => t > oneHourAgo);
+    let hourCutoffIndex = 0;
+    while (hourCutoffIndex < timestamps.length && timestamps[hourCutoffIndex] <= oneHourAgo) {
+      hourCutoffIndex++;
+    }
+    if (hourCutoffIndex > 0) {
+      timestamps.splice(0, hourCutoffIndex);
+    }
     this.windows.set(keyStr, timestamps);
 
     // Check per-minute limit
     const oneMinuteAgo = now - 60000;
-    const recentMinute = timestamps.filter((t) => t > oneMinuteAgo);
+    let minuteCutoffIndex = 0;
+    while (minuteCutoffIndex < timestamps.length && timestamps[minuteCutoffIndex] <= oneMinuteAgo) {
+      minuteCutoffIndex++;
+    }
+    const recentMinuteCount = timestamps.length - minuteCutoffIndex;
 
-    if (recentMinute.length >= config.perMinute) {
+    if (recentMinuteCount >= config.perMinute) {
       logger.warn(
         { ip: key.ip, endpoint: key.endpoint, limit: config.perMinute },
         "[rate-limit] Per-minute limit exceeded",
@@ -92,7 +102,7 @@ export class MultiDimensionalRateLimiter {
         retryAfter: 60,
         limit: config.perMinute,
         remaining: 0,
-        resetTime: this.getNextResetTime(recentMinute, 60000),
+        resetTime: this.getNextResetTime(timestamps, minuteCutoffIndex, 60000),
       };
     }
 
@@ -108,7 +118,7 @@ export class MultiDimensionalRateLimiter {
         retryAfter: 3600,
         limit: config.perHour,
         remaining: 0,
-        resetTime: this.getNextResetTime(timestamps, 3600000),
+        resetTime: this.getNextResetTime(timestamps, 0, 3600000),
       };
     }
 
@@ -139,7 +149,7 @@ export class MultiDimensionalRateLimiter {
           retryAfter: 60,
           limit: config.perThread,
           remaining: 0,
-          resetTime: this.getNextResetTime(recentThreadMinute, 60000),
+          resetTime: this.getNextResetTime(recentThreadMinute, 0, 60000),
         };
       }
     }
@@ -169,7 +179,7 @@ export class MultiDimensionalRateLimiter {
           retryAfter: 60,
           limit: config.perUser,
           remaining: 0,
-          resetTime: this.getNextResetTime(recentUserMinute, 60000),
+          resetTime: this.getNextResetTime(recentUserMinute, 0, 60000),
         };
       }
     }
@@ -202,8 +212,8 @@ export class MultiDimensionalRateLimiter {
     return {
       allowed: true,
       limit: config.perMinute,
-      remaining: config.perMinute - recentMinute.length - 1,
-      resetTime: this.getNextResetTime(recentMinute, 60000),
+      remaining: config.perMinute - recentMinuteCount - 1,
+      resetTime: this.getNextResetTime(timestamps, minuteCutoffIndex, 60000),
     };
   }
 
@@ -255,12 +265,12 @@ export class MultiDimensionalRateLimiter {
   /**
    * Get the next reset time based on the oldest timestamp in the window.
    */
-  private getNextResetTime(timestamps: number[], windowMs: number): number {
-    if (timestamps.length === 0) {
+  private getNextResetTime(timestamps: number[], startIndex: number, windowMs: number): number {
+    if (timestamps.length === 0 || startIndex >= timestamps.length) {
       return Date.now() + windowMs;
     }
 
-    const oldestTimestamp = Math.min(...timestamps);
+    const oldestTimestamp = timestamps[startIndex];
     return oldestTimestamp + windowMs;
   }
 
