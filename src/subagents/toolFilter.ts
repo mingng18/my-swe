@@ -43,18 +43,28 @@ export function filterToolsByName(
   // Get the appropriate tool array based on environment
   const tools = process.env.USE_SANDBOX === "true" ? sandboxAllTools : allTools;
 
-  let filtered = tools;
+  const allowedSet = allowed && allowed.length > 0 ? new Set(allowed) : null;
+  const disallowedSet = disallowed && disallowed.length > 0 ? new Set(disallowed) : null;
 
-  // Apply allowlist if provided
-  if (allowed && allowed.length > 0) {
-    const allowedSet = new Set(allowed);
-    filtered = filtered.filter((tool) => allowedSet.has(tool.name));
+  if (!allowedSet && !disallowedSet) {
+    return tools;
   }
 
-  // Apply blocklist if provided (takes precedence)
-  if (disallowed && disallowed.length > 0) {
-    const disallowedSet = new Set(disallowed);
-    filtered = filtered.filter((tool) => !disallowedSet.has(tool.name));
+  const filtered: StructuredTool[] = [];
+  for (let i = 0; i < tools.length; i++) {
+    const tool = tools[i];
+
+    // Apply blocklist first (takes precedence)
+    if (disallowedSet && disallowedSet.has(tool.name)) {
+      continue;
+    }
+
+    // Apply allowlist
+    if (allowedSet && !allowedSet.has(tool.name)) {
+      continue;
+    }
+
+    filtered.push(tool);
   }
 
   return filtered;
