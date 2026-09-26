@@ -119,6 +119,9 @@
 ## 2026-09-17 - Extracted array creation from React useCallback in PromptInput
 **Learning:** In PromptInput.tsx, the `matchesAccept` function inside `useCallback` was repeatedly chaining `.split(",").map((s) => s.trim()).filter(Boolean)` on the `accept` string property to validate each incoming file. Since the `accept` prop rarely changes, this caused redundant intermediate array allocations and overhead when multiple files were dropped.\n**Action:** Extract static string parsing and filtering logic from inside per-item iterative `useCallback` loops into a `useMemo` block that depends only on the prop string, reusing the array mapping once per change.
 
+## 2026-09-26 - Optimize array chains in memory consolidation
+**Learning:** Chained array methods like `.map().filter(Boolean)` or `.reduce()` on memory consolidation operations allocate intermediate arrays and add garbage collection overhead during background cleanup processes.
+**Action:** Replace these array chains with single-pass `for` loops to minimize intermediate allocations in memory aggregation routines.
 ## 2026-09-18 - Prevent unnecessary re-renders in useBullhorseStream
 **Learning:** Subscribing to an entire Zustand store or frequently updating objects in custom hooks (like `useBullhorseStream`) can cause the hook and its consuming components to re-render constantly. In real-time scenarios like LLM streaming, this causes severe performance degradation as the entire UI layout re-renders on every chunk.
 **Action:** Use granular selectors or `useShallow` when subscribing to Zustand stores. When needing to access the latest state inside callbacks without triggering re-renders, use `useStore.getState()` instead of adding the state to the dependency array.
