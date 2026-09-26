@@ -121,6 +121,3 @@
 ## 2026-09-26 - Optimize array chains in memory consolidation
 **Learning:** Chained array methods like `.map().filter(Boolean)` or `.reduce()` on memory consolidation operations allocate intermediate arrays and add garbage collection overhead during background cleanup processes.
 **Action:** Replace these array chains with single-pass `for` loops to minimize intermediate allocations in memory aggregation routines.
-## 2026-08-15 - Array allocations in PR Summary Formatting
-**Learning:** Found an anti-pattern in `commit-and-open-pr.ts` where `.filter((i) => i.severity === "CRITICAL").length` was used inside a template literal to format a PR summary string. This allocates an entirely new array in memory just to evaluate its length, causing unnecessary garbage collection pressure on high-frequency tool invocations.
-**Action:** Replaced inline `.filter().length` expressions within template literals with a standard `for` loop that evaluates the count before formatting the string, eliminating intermediate array allocations entirely.
