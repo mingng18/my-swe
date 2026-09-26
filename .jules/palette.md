@@ -25,3 +25,6 @@
 ## 2024-07-16 - Handling Focus Restoration for Unmounting Elements
 **Learning:** In React, when a UI element like a 'Clear input' button is clicked and unmounts immediately (e.g., because the input text was cleared and the button is conditionally rendered), the browser's focus will often be lost to the `body` element before standard `onClick` focus logic can complete, especially if the `onClick` handler executes synchronously.
 **Action:** When restoring focus after a clearing action that causes the trigger element to unmount, wrap the `.focus()` call in a `setTimeout(..., 0)` to ensure it executes in the next event loop tick, after React has completed its render cycle and the DOM has settled.
+## 2026-09-18 - Checking main branch before starting
+**Learning:** Sometimes the changes we intended to make have already been merged into `main` (for instance, another PR added ARIA labels to the empty state buttons before our PR could be merged cleanly). Submitting duplicate work creates confusion.
+**Action:** Always fetch the latest `main` and inspect the target component's state before creating a new branch or modifying it. If the UX enhancement already exists, find a different micro-UX improvement to work on.
