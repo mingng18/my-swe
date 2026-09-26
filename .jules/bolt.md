@@ -117,6 +117,10 @@
 **Action:** Replaced `.reduce()` with a standard `for` loop to scan PR comments, improving raw iteration speed and reducing memory allocation pressure.
 ## 2026-09-17 - Extracted array creation from React useCallback in PromptInput
 **Learning:** In PromptInput.tsx, the `matchesAccept` function inside `useCallback` was repeatedly chaining `.split(",").map((s) => s.trim()).filter(Boolean)` on the `accept` string property to validate each incoming file. Since the `accept` prop rarely changes, this caused redundant intermediate array allocations and overhead when multiple files were dropped.\n**Action:** Extract static string parsing and filtering logic from inside per-item iterative `useCallback` loops into a `useMemo` block that depends only on the prop string, reusing the array mapping once per change.
+
+## 2026-09-26 - Optimize array chains in memory consolidation
+**Learning:** Chained array methods like `.map().filter(Boolean)` or `.reduce()` on memory consolidation operations allocate intermediate arrays and add garbage collection overhead during background cleanup processes.
+**Action:** Replace these array chains with single-pass `for` loops to minimize intermediate allocations in memory aggregation routines.
 ## 2025-02-12 - Replacing bounded loops for loop patterns
 **Learning:** Sequential await loops over independent tasks cause unnecessary bottlenecks. By using Promise.all combined with p-limit, we can boundedly execute tasks with O(1)-like time scaling but still cap max API rate limits safely.
 **Action:** Use Promise.all with p-limit to execute independent looped I/O operations such as API checks or PR fetching concurrency.
