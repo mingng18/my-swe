@@ -85,6 +85,7 @@ export class ConsolidationService {
         try {
           // If the repository supports batch soft delete, use it to avoid N+1 queries
           if (typeof (this.repository as any).softDeleteMany === "function") {
+
             // ⚡ Bolt: Replaced chained .map().filter() with a single-pass loop to reduce memory allocations and GC pressure.
             const ids = staleMemories.reduce<string[]>((acc, m) => {
               if (m.id) acc.push(m.id);
@@ -293,11 +294,12 @@ export class ConsolidationService {
       }
 
       // Merge content (keep the most detailed one)
-      const mergedContent = sorted.reduce((longest, current) => {
-        return current.content.length > longest.length
-          ? current.content
-          : longest;
-      }, keep.content);
+      let mergedContent = keep.content;
+      for (let i = 0; i < sorted.length; i++) {
+        if (sorted[i].content.length > mergedContent.length) {
+          mergedContent = sorted[i].content;
+        }
+      }
 
       // Update the kept memory
       await this.repository.update(keep.id!, {
@@ -307,6 +309,7 @@ export class ConsolidationService {
 
       // Soft delete the duplicates
       if (typeof (this.repository as any).softDeleteMany === "function") {
+
         // ⚡ Bolt: Replaced chained .map().filter() with a single-pass loop to reduce memory allocations and GC pressure.
         const ids = toDelete.reduce<string[]>((acc, m) => {
           if (m.id) acc.push(m.id);
