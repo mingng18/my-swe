@@ -279,25 +279,30 @@ class StreamRegistry {
       const buffer = this.eventBuffers.get(threadId);
       if (buffer && buffer.length > 0) {
         const now = Date.now();
+        const minTimestamp = now - this.BUFFER_TTL;
 
-        // ⚡ Bolt: Use early-exit loop and splice to avoid intermediate array allocation
-        let firstValidIndex = 0;
-        while (firstValidIndex < buffer.length && now - buffer[firstValidIndex].timestamp >= this.BUFFER_TTL) {
-          firstValidIndex++;
+        // ⚡ Bolt: Use a single-pass loop instead of .filter() to avoid intermediate allocation
+        let startIndex = 0;
+        while (startIndex < buffer.length && buffer[startIndex].timestamp <= minTimestamp) {
+          startIndex++;
         }
 
-        if (firstValidIndex > 0) {
-          buffer.splice(0, firstValidIndex);
-        }
+        const validCount = buffer.length - startIndex;
+        logger.debug({ threadId, count: validCount }, "[SSE] Replaying buffered events");
 
-        logger.debug({ threadId, count: buffer.length }, "[SSE] Replaying buffered events");
-
-        for (const { event } of buffer) {
-          connection.sseStream.emit(event);
+        for (let i = startIndex; i < buffer.length; i++) {
+          connection.sseStream.emit(buffer[i].event);
         }
 
         // Clear the buffer after replaying
-        this.eventBuffers.delete(threadId);
+        if (startIndex === 0) {
+          this.eventBuffers.delete(threadId);
+        } else if (validCount > 0) {
+          buffer.splice(0, startIndex);
+          this.eventBuffers.set(threadId, buffer);
+        } else {
+          this.eventBuffers.delete(threadId);
+        }
       }
     }
   }
@@ -338,19 +343,19 @@ class StreamRegistry {
     }
 
     // Add event to buffer (with timestamp)
-    buffer.push({ event, timestamp: Date.now() });
+    const now = Date.now();
+    buffer.push({ event, timestamp: now });
 
     // Prune old events and enforce size limit
-    const now = Date.now();
-
-    // ⚡ Bolt: Use early-exit loop and splice to avoid intermediate array allocation
-    let firstValidIndex = 0;
-    while (firstValidIndex < buffer.length && now - buffer[firstValidIndex].timestamp >= this.BUFFER_TTL) {
-      firstValidIndex++;
+    // ⚡ Bolt: Prune old events in-place to avoid intermediate array allocations
+    const minTimestamp = now - this.BUFFER_TTL;
+    let pruneCount = 0;
+    while (pruneCount < buffer.length && buffer[pruneCount].timestamp <= minTimestamp) {
+      pruneCount++;
     }
 
-    if (firstValidIndex > 0) {
-      buffer.splice(0, firstValidIndex);
+    if (pruneCount > 0) {
+      buffer.splice(0, pruneCount);
     }
 
     if (buffer.length > this.MAX_BUFFER_SIZE) {
