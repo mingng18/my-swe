@@ -118,6 +118,9 @@
 ## 2026-09-17 - Extracted array creation from React useCallback in PromptInput
 **Learning:** In PromptInput.tsx, the `matchesAccept` function inside `useCallback` was repeatedly chaining `.split(",").map((s) => s.trim()).filter(Boolean)` on the `accept` string property to validate each incoming file. Since the `accept` prop rarely changes, this caused redundant intermediate array allocations and overhead when multiple files were dropped.\n**Action:** Extract static string parsing and filtering logic from inside per-item iterative `useCallback` loops into a `useMemo` block that depends only on the prop string, reusing the array mapping once per change.
 
+## 2026-09-26 - Optimize array chains in memory consolidation
+**Learning:** Chained array methods like `.map().filter(Boolean)` or `.reduce()` on memory consolidation operations allocate intermediate arrays and add garbage collection overhead during background cleanup processes.
+**Action:** Replace these array chains with single-pass `for` loops to minimize intermediate allocations in memory aggregation routines.
 ## 2026-09-25 - Optimize tool filtering with a single-pass loop
 **Learning:** Using chained array `.filter()` allocations for tool filtering creates unnecessary overhead and intermediate arrays, especially when the tool set is evaluated frequently during subagent orchestration.
 **Action:** Replaced chained array filters with a single-pass `for` loop to reduce garbage collection pressure and intermediate allocations.
