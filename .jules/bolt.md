@@ -109,15 +109,18 @@
 ## 2026-10-27 - Avoid multiple array iterations in search loops
 **Learning:** Chaining `.map().filter().slice().map()` on candidate tools creates multiple intermediate arrays, causing unnecessary memory allocation overhead and increased garbage collection pauses during search operations.
 **Action:** Replaced chained array methods with a single-pass `for` loop to eliminate intermediate object allocations and improve search performance.
-
 ## 2025-08-25 - Zustand useShallow Optimization
 **Learning:** When using Zustand's `useShallow` to prevent unnecessary re-renders when mapping over collections, do not return an array of newly created objects. Instead, return a single dictionary/record object mapping keys to primitive values, which `useShallow` can successfully compare. This prevents expensive UI re-renders during high-frequency updates like LLM streaming.
 **Action:** Use granular selectors or shallowly compared flat records instead of subscribing to full objects when streaming updates.
-
 ## 2026-09-15 - Avoid .reduce() overhead in GitHub PR comment processing
 **Learning:** Using `Array.prototype.reduce()` to find matching indices in an array of GitHub PR comments creates unnecessary callback allocations for every comment. For PRs with extensive discussion history, this adds garbage collection overhead and slows down processing.
 **Action:** Replaced `.reduce()` with a standard `for` loop to scan PR comments, improving raw iteration speed and reducing memory allocation pressure.
+## 2026-09-17 - Extracted array creation from React useCallback in PromptInput
+**Learning:** In PromptInput.tsx, the `matchesAccept` function inside `useCallback` was repeatedly chaining `.split(",").map((s) => s.trim()).filter(Boolean)` on the `accept` string property to validate each incoming file. Since the `accept` prop rarely changes, this caused redundant intermediate array allocations and overhead when multiple files were dropped.\n**Action:** Extract static string parsing and filtering logic from inside per-item iterative `useCallback` loops into a `useMemo` block that depends only on the prop string, reusing the array mapping once per change.
 
-## 2026-09-14 - Refactored sequential for...of loops to bounded concurrent execution
+## 2026-09-26 - Optimize array chains in memory consolidation
+**Learning:** Chained array methods like `.map().filter(Boolean)` or `.reduce()` on memory consolidation operations allocate intermediate arrays and add garbage collection overhead during background cleanup processes.
+**Action:** Replace these array chains with single-pass `for` loops to minimize intermediate allocations in memory aggregation routines.
+## 2026-09-26 - Refactored sequential for...of loops to bounded concurrent execution
 **Learning:** Sequential network and AI model requests in loops bottleneck background task processing, while unbounded concurrent operations risk rate limiting. Bounded concurrency (e.g., using p-limit) is necessary.
 **Action:** Replaced sequential loops with pLimit and Promise.all for safe concurrent execution.
