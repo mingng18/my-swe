@@ -343,17 +343,15 @@ class StreamRegistry {
     buffer.push({ event, timestamp: now });
 
     // Prune old events and enforce size limit
-    let validStartIndex = buffer.length;
-
-    for (let i = 0; i < buffer.length; i++) {
-      if (now - buffer[i].timestamp < this.BUFFER_TTL) {
-        validStartIndex = i;
-        break;
-      }
+    // ⚡ Bolt: Prune old events in-place to avoid intermediate array allocations
+    const minTimestamp = now - this.BUFFER_TTL;
+    let pruneCount = 0;
+    while (pruneCount < buffer.length && buffer[pruneCount].timestamp <= minTimestamp) {
+      pruneCount++;
     }
 
-    if (validStartIndex > 0) {
-      buffer.splice(0, validStartIndex);
+    if (pruneCount > 0) {
+      buffer.splice(0, pruneCount);
     }
 
     if (buffer.length > this.MAX_BUFFER_SIZE) {
@@ -361,6 +359,7 @@ class StreamRegistry {
       buffer.splice(0, buffer.length - this.MAX_BUFFER_SIZE);
     }
 
+    this.eventBuffers.set(threadId, buffer);
 
     logger.debug({ threadId, eventType: event.type, bufferSize: buffer.length },
                   "[SSE] Buffered event (no client connected)");

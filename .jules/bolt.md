@@ -103,6 +103,25 @@
 **Learning:** The codebase has multiple occurrences of chaining `.filter(condition).length` to count items matching specific conditions. This allocates a new temporary array just to measure its length, causing O(N) memory allocation and O(N) traversal overhead each time.
 **Action:** Replaced chained `.filter().length` with standard `for` loops and incrementing counters when calculating invocation metrics. Reusing an optimized counting method instead of running multiple independent filters reduces unnecessary memory allocations and garbage collection pressure on the hot path.
 ## 2025-08-25 - Avoid multiple .filter().length array passes in UI components\n**Learning:** In React UI components that are frequently rendered (e.g., TodoSidebar which updates on state changes), using multiple `.filter(...).length` passes over the same array to calculate distinct statistics creates unnecessary intermediate arrays and traverses the source array multiple times. This adds unnecessary memory allocations and compute overhead during rendering.\n**Action:** Replace multiple `.filter(...).length` calls with a single O(N) `for` loop to compute multiple metrics in a single pass over the array, reducing GC pressure and render time.
+## 2025-08-25 - Avoid array allocation in SSE buffering
+**Learning:** Using `array.filter()` to prune old items based on TTL in a chronologically ordered array (like an event buffer) allocates a new array on every insert, causing O(N) memory overhead and excessive garbage collection pressure on active streams.
+**Action:** Replace `array.filter()` on chronologically ordered buffers with a single-pass `while` loop that identifies the cutoff index and uses in-place array mutation (`array.splice()`) to prune old items without creating intermediate arrays.
+## 2026-10-27 - Avoid multiple array iterations in search loops
+**Learning:** Chaining `.map().filter().slice().map()` on candidate tools creates multiple intermediate arrays, causing unnecessary memory allocation overhead and increased garbage collection pauses during search operations.
+**Action:** Replaced chained array methods with a single-pass `for` loop to eliminate intermediate object allocations and improve search performance.
+## 2025-08-25 - Zustand useShallow Optimization
+**Learning:** When using Zustand's `useShallow` to prevent unnecessary re-renders when mapping over collections, do not return an array of newly created objects. Instead, return a single dictionary/record object mapping keys to primitive values, which `useShallow` can successfully compare. This prevents expensive UI re-renders during high-frequency updates like LLM streaming.
+**Action:** Use granular selectors or shallowly compared flat records instead of subscribing to full objects when streaming updates.
+## 2026-09-15 - Avoid .reduce() overhead in GitHub PR comment processing
+**Learning:** Using `Array.prototype.reduce()` to find matching indices in an array of GitHub PR comments creates unnecessary callback allocations for every comment. For PRs with extensive discussion history, this adds garbage collection overhead and slows down processing.
+**Action:** Replaced `.reduce()` with a standard `for` loop to scan PR comments, improving raw iteration speed and reducing memory allocation pressure.
+## 2026-09-17 - Extracted array creation from React useCallback in PromptInput
+**Learning:** In PromptInput.tsx, the `matchesAccept` function inside `useCallback` was repeatedly chaining `.split(",").map((s) => s.trim()).filter(Boolean)` on the `accept` string property to validate each incoming file. Since the `accept` prop rarely changes, this caused redundant intermediate array allocations and overhead when multiple files were dropped.\n**Action:** Extract static string parsing and filtering logic from inside per-item iterative `useCallback` loops into a `useMemo` block that depends only on the prop string, reusing the array mapping once per change.
+
+## 2026-09-26 - Optimize array chains in memory consolidation
+**Learning:** Chained array methods like `.map().filter(Boolean)` or `.reduce()` on memory consolidation operations allocate intermediate arrays and add garbage collection overhead during background cleanup processes.
+**Action:** Replace these array chains with single-pass `for` loops to minimize intermediate allocations in memory aggregation routines.
+
 ## 2024-03-22 - Optimize SSE buffer array filtering
 **Learning:** Using `Array.prototype.filter()` on highly active event buffers to enforce a Time-To-Live (TTL) allocates a new array and performs an O(N) traversal on every iteration, leading to significant garbage collection pressure. If the buffer is strictly chronological, an in-place `Array.splice` combined with an early-exit loop is much faster.
 **Action:** Replace full array `.filter()` scans on chronologically sorted arrays with early-exit `for` loops and in-place `splice()` mutations to minimize GC pressure and O(N) allocation overhead.

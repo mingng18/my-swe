@@ -60,6 +60,38 @@ function CopyArgsButton({ args }: { args: Record<string, unknown> }) {
   );
 }
 
+function CopyMessageButton({ content }: { content: string }) {
+  const [isCopied, setIsCopied] = useState(false);
+
+  const copyToClipboard = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    } catch (error) {
+      console.error("Failed to copy message:", error);
+    }
+  }, [content]);
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          onClick={copyToClipboard}
+          aria-label={isCopied ? "Copied message" : "Copy message"}
+          className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover/message:opacity-50 hover:!opacity-100 focus-visible:opacity-100 transition-opacity"
+        >
+          {isCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{isCopied ? "Copied" : "Copy message"}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 export const ThreadTimeline = memo(function ThreadTimeline({ messages, thread, connectionState }: ThreadTimelineProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -130,7 +162,7 @@ export const ThreadTimeline = memo(function ThreadTimeline({ messages, thread, c
                         <span className="text-sm" role="img" aria-label="System">⚙️</span>
                       )}
                     </div>
-                    <Card className="flex-1 p-3 max-w-2xl shadow-sm">
+                    <Card className="flex-1 p-3 max-w-2xl shadow-sm relative group/message pr-10">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-xs font-medium text-muted-foreground">
                           {message.role === "assistant" ? "Agent" : "System"}
@@ -176,6 +208,9 @@ export const ThreadTimeline = memo(function ThreadTimeline({ messages, thread, c
                         <p className="text-xs text-muted-foreground mt-1">
                           Duration: {message.metadata.duration}ms
                         </p>
+                      )}
+                      {message.content && (
+                        <CopyMessageButton content={message.content} />
                       )}
                     </Card>
                   </>

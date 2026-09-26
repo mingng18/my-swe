@@ -27,3 +27,10 @@
 ## 2025-05-24 - Tool Arguments Copy Button
 **Learning:** Users often need to copy JSON arguments from tool executions in agent timelines. An absolute positioned copy button provides a simple and fast UX, but the underlying scrollable block needs right padding (e.g. pr-12) to ensure content does not flow underneath the button.
 **Action:** Add dedicated copy buttons to code and argument blocks with sufficient right padding to preserve readability.
+
+## 2026-09-13 - Agent Message Copy Button
+**Learning:** Users often need to copy the content of agent/assistant messages from the thread timeline. Adding a dedicated copy button directly on the message card provides a much smoother UX than manual text selection. Similar to tool arguments, absolute positioning requires the text container to have adequate right padding to prevent overlapping.
+**Action:** Add dedicated copy buttons to assistant message cards with sufficient right padding (e.g. pr-10) on the parent container.
+## 2025-02-19 - Replacing Native Title with Tooltip components for Icon-only Buttons
+**Learning:** Using native HTML title attributes on interactive elements in a UI framework using custom tooltips (like Radix/shadcn) creates a poor UX due to the native 2-second delay and risk of overlapping dual tooltips.
+**Action:** Always replace native `title` attributes with styled `Tooltip` components (and remove `title=`) for icon-only buttons to guarantee immediate accessibility affordances and unified styling, while retaining `aria-label`.
