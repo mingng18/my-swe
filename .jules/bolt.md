@@ -122,12 +122,13 @@
 **Learning:** In PromptInput.tsx, the `matchesAccept` function inside `useCallback` was repeatedly chaining `.split(",").map((s) => s.trim()).filter(Boolean)` on the `accept` string property to validate each incoming file. Since the `accept` prop rarely changes, this caused redundant intermediate array allocations and overhead when multiple files were dropped.\n**Action:** Extract static string parsing and filtering logic from inside per-item iterative `useCallback` loops into a `useMemo` block that depends only on the prop string, reusing the array mapping once per change.
 
 
+## 2026-09-26 - Optimize array chains in memory consolidation
+**Learning:** Chained array methods like `.map().filter(Boolean)` or `.reduce()` on memory consolidation operations allocate intermediate arrays and add garbage collection overhead during background cleanup processes.
+**Action:** Replace these array chains with single-pass `for` loops to minimize intermediate allocations in memory aggregation routines.
+
+
 
 
 ## 2026-08-12 - Optimize context compaction intermediate allocations
 **Learning:** Compaction paths that build subsets of arrays via chained `.map()`, `.filter()`, `new Set()`, and multiple traversals cause measurable memory allocation overhead (~4kb per run) and take ~3x longer (72us vs 24us) compared to single-pass `for` loops.
 **Action:** Always consolidate array separation operations into a single-pass loop when calculating sets and lengths concurrently in hot paths (like LLM context compaction).
-
-
-
->>>>>>> 788d9b7 (⚡ Bolt: Optimize context compaction intermediate array allocations)
