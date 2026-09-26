@@ -295,11 +295,12 @@ export class ConsolidationService {
       }
 
       // Merge content (keep the most detailed one)
-      const mergedContent = sorted.reduce((longest, current) => {
-        return current.content.length > longest.length
-          ? current.content
-          : longest;
-      }, keep.content);
+      let mergedContent = keep.content;
+      for (let i = 0; i < sorted.length; i++) {
+        if (sorted[i].content.length > mergedContent.length) {
+          mergedContent = sorted[i].content;
+        }
+      }
 
       // Update the kept memory
       await this.repository.update(keep.id!, {
