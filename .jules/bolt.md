@@ -121,3 +121,6 @@
 ## 2026-09-26 - Optimize array chains in memory consolidation
 **Learning:** Chained array methods like `.map().filter(Boolean)` or `.reduce()` on memory consolidation operations allocate intermediate arrays and add garbage collection overhead during background cleanup processes.
 **Action:** Replace these array chains with single-pass `for` loops to minimize intermediate allocations in memory aggregation routines.
+## 2026-09-27 - Prevent Zustand Re-renders
+**Learning:** Destructuring full state objects (like `const { threads } = useThreadStore()` or `useThreadStore((state) => state.threads)`) inside hooks or components causes unnecessary re-renders on every nested state update (e.g., SSE streaming). It can also cause stale closure bugs inside event handlers if the closure reads state before it has fully updated.
+**Action:** Use granular selectors for specific actions, and access full state objects lazily inside callbacks via `useStore.getState().[property]` to avoid reactive subscriptions and guarantee the freshest state.

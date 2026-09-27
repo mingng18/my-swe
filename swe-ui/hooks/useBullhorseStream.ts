@@ -157,7 +157,12 @@ export function useBullhorseStream({
   const [showReconnectingBanner, setShowReconnectingBanner] = useState(false);
   const [sseError, setSseError] = useState<string | null>(null);
 
-  const { addThread, addEvent, updateTodo, updateThread, threads } = useThreadStore();
+  // ⚡ Bolt Optimization: Subscribe only to the specific stable action functions.
+  // This prevents the hook from forcing re-renders on every store state update.
+  const addThread = useThreadStore((state) => state.addThread);
+  const addEvent = useThreadStore((state) => state.addEvent);
+  const updateTodo = useThreadStore((state) => state.updateTodo);
+  const updateThread = useThreadStore((state) => state.updateThread);
   const { addToast } = useToast();
 
   // Update ref when state changes
@@ -171,7 +176,10 @@ export function useBullhorseStream({
     // Add event to thread
     addEvent(threadId, event);
 
+    // ⚡ Bolt Optimization: Use getState() to access the latest state immediately
+    // after an update without subscribing to it in the React render cycle.
     // Persist events to sessionStorage for history restoration on reconnect
+    const threads = useThreadStore.getState().threads;
     const thread = threads[threadId];
     if (thread) {
       saveEventsToStorage(threadId, thread.events);
@@ -193,11 +201,12 @@ export function useBullhorseStream({
         error: event.message,
       });
     }
-  }, [threadId, addEvent, updateTodo, updateThread, threads]);
+  }, [threadId, addEvent, updateTodo, updateThread]);
 
   const handleReconnect = useCallback(async () => {
+    const threads = useThreadStore.getState().threads;
     restoreThreadHistory(threadId, threads, addEvent);
-  }, [threadId, threads, addEvent]);
+  }, [threadId, addEvent]);
 
   useEffect(() => {
     if (!enabled) {
