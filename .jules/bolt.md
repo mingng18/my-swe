@@ -121,3 +121,7 @@
 ## 2026-09-26 - Optimize array chains in memory consolidation
 **Learning:** Chained array methods like `.map().filter(Boolean)` or `.reduce()` on memory consolidation operations allocate intermediate arrays and add garbage collection overhead during background cleanup processes.
 **Action:** Replace these array chains with single-pass `for` loops to minimize intermediate allocations in memory aggregation routines.
+
+## 2026-09-28 - Zustand Full Store Subscription Optimization
+**Learning:** Destructuring action functions or properties directly from the full store hook (e.g., `const { action } = useStore()`) implicitly subscribes the component to all state changes, causing unnecessary re-renders on every store update.
+**Action:** Always use selector functions (e.g., `const action = useStore(state => state.action)`) to extract specific properties or actions safely, and use `useStore.getState()` within callbacks to read state without subscribing.
