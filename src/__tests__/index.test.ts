@@ -1,3 +1,7 @@
+// Set env vars before importing index.ts to prevent startup crash in test
+process.env.MODEL = "gpt-4o";
+process.env.TELEGRAM_BOT_TOKEN = "test-token";
+process.env.OPENAI_API_KEY = "test-key";
 import { describe, it, expect, mock, beforeEach, afterEach, afterAll, spyOn } from "bun:test";
 import { sendCommandReply } from "../index";
 
