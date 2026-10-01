@@ -25,6 +25,9 @@
 ## 2024-07-16 - Handling Focus Restoration for Unmounting Elements
 **Learning:** In React, when a UI element like a 'Clear input' button is clicked and unmounts immediately (e.g., because the input text was cleared and the button is conditionally rendered), the browser's focus will often be lost to the `body` element before standard `onClick` focus logic can complete, especially if the `onClick` handler executes synchronously.
 **Action:** When restoring focus after a clearing action that causes the trigger element to unmount, wrap the `.focus()` call in a `setTimeout(..., 0)` to ensure it executes in the next event loop tick, after React has completed its render cycle and the DOM has settled.
+## 2026-09-29 - Add Copy button to User messages
+**Learning:** Providing consistent interaction patterns across similar UI elements reduces cognitive load. When assistant messages provide a 'Copy message' button, missing the same affordance on user messages creates a disjointed experience and forces users to manually select and copy text.
+**Action:** When implementing interactive features like copy buttons or action menus on one side of a chat interface (e.g., assistant messages), evaluate if the identical affordance should be provided for the user's side as well.
 ## 2026-09-27 - Strict branch scoping
 **Learning:** PRs continue to be rejected for "stacked diffs" when branches are not created completely cleanly from `origin/main` at the exact moment of work, or if previous unmerged commits from failed PR attempts carry over.
 **Action:** When PRs are rejected for diff bloat, completely delete the old local branch, run `git fetch origin`, create a brand new branch named differently from `origin/main`, apply ONLY the exact files needed for the single UX feature, and submit.
