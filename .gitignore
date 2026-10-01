@@ -20,4 +20,3 @@ worker-configuration.d.ts
 .wrangler/
 .dev.vars
 dist/
-src/**/*.js
