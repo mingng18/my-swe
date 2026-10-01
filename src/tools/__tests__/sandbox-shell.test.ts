@@ -66,6 +66,13 @@ describe("sandbox tools", () => {
       });
     });
 
+    test("rejects invalid shell parameter to prevent command injection", async () => {
+      await expect(sandboxShellTool.invoke(
+        { command: "echo hello", shell: "bash; id;" },
+        config,
+      )).rejects.toThrow(/Invalid shell parameter/);
+    });
+
     test("executes command successfully with shell prefix", async () => {
       const result = await sandboxShellTool.invoke(
         { command: "echo hello", shell: "bash" },
@@ -85,7 +92,7 @@ describe("sandbox tools", () => {
           { command: "echo hello", shell: "sh -c \\\"echo 'bypassed'\\\"" },
           config,
         )
-      ).rejects.toThrow("invalid shell parameter");
+      ).rejects.toThrow(/Invalid shell parameter/i);
     });
   });
 

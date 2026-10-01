@@ -87,7 +87,7 @@ export const sandboxShellTool = tool(
       }
 
       // If a specific shell is requested, wrap the full command
-      const shellCommand = shell ? `${shell} -c ${shellEscapeSingleQuotes(fullCommand)}` : fullCommand;
+      const shellCommand = shell ? `${shellEscapeSingleQuotes(shell)} -c ${shellEscapeSingleQuotes(fullCommand)}` : fullCommand;
       const result = await backend.execute(shellCommand);
 
       return {
@@ -116,6 +116,7 @@ export const sandboxShellTool = tool(
         .describe("Timeout in milliseconds (default: 30000)"),
       shell: z
         .string()
+        .regex(/^[a-zA-Z0-9_\/\-]+$/, "Invalid shell parameter: only alphanumeric characters, dashes, underscores, and slashes are allowed.")
         .optional()
         .describe("Specific shell to use (e.g., 'bash', 'sh', 'python3')"),
     }),
