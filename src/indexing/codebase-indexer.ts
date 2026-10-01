@@ -7,6 +7,7 @@
  * be formatted into a compact string for agent system prompts.
  */
 
+import pLimit from "p-limit";
 import { createLogger } from "../utils/logger";
 import { readFile, stat, readdir } from "node:fs/promises";
 import { join, relative, extname } from "node:path";
@@ -649,6 +650,7 @@ export class CodebaseIndexer {
     exclude: Set<string>,
   ): Promise<string[]> {
     const results: string[] = [];
+    const limit = pLimit(50); // Bound concurrency to prevent EMFILE and memory issues
 
     async function walk(currentDir: string): Promise<void> {
       let entries;
@@ -665,7 +667,7 @@ export class CodebaseIndexer {
         const fullPath = join(currentDir, entry.name);
 
         if (entry.isDirectory()) {
-          promises.push(walk(fullPath));
+          promises.push(limit(() => walk(fullPath)));
         } else if (
           entry.isFile() &&
           INDEXABLE_EXTENSIONS.has(extname(entry.name))
@@ -676,7 +678,7 @@ export class CodebaseIndexer {
       await Promise.all(promises);
     }
 
-    await walk(dir);
+    await limit(() => walk(dir));
     return results;
   }
 
