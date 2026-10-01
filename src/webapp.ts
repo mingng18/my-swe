@@ -589,8 +589,6 @@ app.get("/stream", async (c) => {
 			"Cache-Control": "no-cache",
 			Connection: "keep-alive",
 			"X-Accel-Buffering": "no", // Disable nginx buffering
-			"Access-Control-Allow-Origin": c.req.header("Origin") || "*",
-			Vary: "Origin",
 		},
 	});
 });
