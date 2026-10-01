@@ -1,9 +1,58 @@
+import { logger } from "./logger";
 import {
   detectProvider,
   type LlmProvider,
   type ModelConfig,
   type ModelRole,
 } from "./model-factory";
+
+/**
+ * Safely parse a float from an environment variable with optional min/max clamping.
+ */
+export function parseEnvFloat(
+  envVarName: string,
+  defaultValue: number,
+  min: number = -Infinity,
+  max: number = Infinity
+): number {
+  const envValue = process.env[envVarName];
+  if (envValue === undefined || envValue === "") {
+    return defaultValue;
+  }
+  const parsed = Number.parseFloat(envValue);
+  if (Number.isNaN(parsed)) {
+    logger.warn(
+      { envValue },
+      `Invalid ${envVarName}, using default ${defaultValue}`,
+    );
+    return defaultValue;
+  }
+  return Math.max(min, Math.min(max, parsed));
+}
+
+/**
+ * Safely parse an integer from an environment variable with optional min/max clamping.
+ */
+export function parseEnvInt(
+  envVarName: string,
+  defaultValue: number,
+  min: number = -Infinity,
+  max: number = Infinity
+): number {
+  const envValue = process.env[envVarName];
+  if (envValue === undefined || envValue === "") {
+    return defaultValue;
+  }
+  const parsed = Number.parseInt(envValue, 10);
+  if (Number.isNaN(parsed)) {
+    logger.warn(
+      { envValue },
+      `Invalid ${envVarName}, using default ${defaultValue}`,
+    );
+    return defaultValue;
+  }
+  return Math.max(min, Math.min(max, parsed));
+}
 
 /** Load env for the Telegram bot. Extend as other subsystems are added. */
 export function loadTelegramConfig(): {
