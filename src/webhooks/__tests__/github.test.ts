@@ -1,4 +1,3 @@
-// @ts-nocheck
 import {
   describe,
   it,
@@ -85,23 +84,24 @@ describe("handleGithubWebhook", () => {
   });
 
   it("handles ping event without errors", () => {
-    expect(() => handleGithubWebhook({} as any as any as any, "ping")).not.toThrow();
+    expect(() => handleGithubWebhook({}, "ping")).not.toThrow();
   });
 
   it("handles unknown events gracefully", () => {
-    expect(() => handleGithubWebhook({} as any as any as any, "unknown_event")).not.toThrow();
+    expect(() => handleGithubWebhook({}, "unknown_event")).not.toThrow();
   });
 
   describe("push events", () => {
     it("handles background processing errors gracefully in push event", async () => {
       const { logger } = await import("../../utils/logger");
-      const errorSpy = spyOn(logger as any, "error");
+      const errorSpy = spyOn(logger, "error");
 
       mockRunCodeagentTurn.mockImplementationOnce(async () => {
         throw new Error("Mock runCodeagentTurn error for push");
       });
 
-      handleGithubWebhook({
+      handleGithubWebhook(
+        {
           ref: "refs/heads/main",
           repository: { full_name: "test/repo", default_branch: "main" },
           commits: [{}],
@@ -234,12 +234,13 @@ describe("handleGithubWebhook", () => {
 
     it("handles background processing errors gracefully when extracting PR context fails", async () => {
       const { logger } = await import("../../utils/logger");
-      const errorSpy = spyOn(logger as any as any as any, "error");
+      const errorSpy = spyOn(logger, "error");
       mockGithubState.extractPrContextThrow = true;
 
       try {
         expect(() => {
-          handleGithubWebhook({
+          handleGithubWebhook(
+            {
               action: "opened",
               pull_request: { number: 123 },
               repository: { full_name: "test/repo" },
@@ -261,13 +262,14 @@ describe("handleGithubWebhook", () => {
 
     it("handles background processing errors gracefully in PR agent turn", async () => {
       const { logger } = await import("../../utils/logger");
-      const errorSpy = spyOn(logger as any as any as any, "error");
+      const errorSpy = spyOn(logger, "error");
 
       mockRunCodeagentTurn.mockImplementationOnce(async () => {
         throw new Error("Mock runCodeagentTurn error for PR");
       });
 
-      handleGithubWebhook({
+      handleGithubWebhook(
+        {
           action: "opened",
           pull_request: { number: 123 },
           repository: { full_name: "test/repo" },
@@ -400,7 +402,7 @@ describe("handleGithubWebhook", () => {
 
     it("handles background processing errors gracefully in issue agent turn", async () => {
       const { logger } = await import("../../utils/logger");
-      const errorSpy = spyOn(logger as any as any as any, "error");
+      const errorSpy = spyOn(logger, "error");
 
       mockRunCodeagentTurn.mockImplementationOnce(async () => {
         throw new Error("Mock runCodeagentTurn error for issue");
