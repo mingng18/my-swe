@@ -122,6 +122,9 @@
 ## 2026-09-26 - Optimize array chains in memory consolidation
 **Learning:** Chained array methods like `.map().filter(Boolean)` or `.reduce()` on memory consolidation operations allocate intermediate arrays and add garbage collection overhead during background cleanup processes.
 **Action:** Replace these array chains with single-pass `for` loops to minimize intermediate allocations in memory aggregation routines.
+## $(date +%Y-%m-%d) - Prevent re-renders by using Zustand selectors for stable actions
+**Learning:** While avoiding full store subscriptions (like `useThreadStore()`) is critical, destructuring stable actions directly (e.g., `const { addThread } = useThreadStore()`) still implicitly subscribes the component to all state changes in Zustand, defeating the purpose of the optimization.
+**Action:** When extracting actions from a Zustand store, always use granular selectors (e.g., `const addThread = useThreadStore(state => state.addThread)`) or `useShallow` to ensure the component only re-renders when those specific properties change (which for actions, is never).
 ## 2026-09-18 - Prevent unnecessary re-renders in useBullhorseStream
 **Learning:** Subscribing to an entire Zustand store or frequently updating objects in custom hooks (like `useBullhorseStream`) can cause the hook and its consuming components to re-render constantly. In real-time scenarios like LLM streaming, this causes severe performance degradation as the entire UI layout re-renders on every chunk.
 **Action:** Use granular selectors or `useShallow` when subscribing to Zustand stores. When needing to access the latest state inside callbacks without triggering re-renders, use `useStore.getState()` instead of adding the state to the dependency array.

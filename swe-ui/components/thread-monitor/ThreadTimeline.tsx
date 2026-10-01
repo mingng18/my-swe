@@ -210,13 +210,16 @@ export const ThreadTimeline = memo(function ThreadTimeline({ threadId, connectio
                   </>
                 ) : message.role === "user" ? (
                   <>
-                    <Card className="flex-1 p-3 max-w-2xl bg-primary text-primary-foreground shadow-sm">
+                    <Card className="flex-1 p-3 max-w-2xl bg-primary text-primary-foreground shadow-sm relative group/message pr-10">
                       <div className="flex items-center gap-2 mb-1 opacity-90">
                         <span className="text-xs font-medium">You</span>
                       </div>
                       <p className="text-sm whitespace-pre-wrap break-words">
                         {message.content}
                       </p>
+                      {message.content && (
+                        <CopyMessageButton content={message.content} />
+                      )}
                     </Card>
                     <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground shadow-sm">
                       <User className="h-4 w-4" />
