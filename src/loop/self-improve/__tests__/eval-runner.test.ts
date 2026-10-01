@@ -69,7 +69,17 @@ test("loadEvalCasesFromEnv: file path -> cases read via injected readFile", () =
 });
 
 test("loadEvalCasesFromEnv: malformed/unreadable -> null (safe fallback, no throw)", () => {
-  expect(loadEvalCasesFromEnv("not-json-not-a-path", () => {
+  expect(loadEvalCasesFromEnv("not-json-not-a-path.json", () => {
     throw new Error("ENOENT");
   })).toBeNull();
+});
+
+test("loadEvalCasesFromEnv: rejects arbitrary file read (LFI)", () => {
+  let readFileCalled = false;
+  const readFile = () => {
+    readFileCalled = true;
+    return "[]";
+  };
+  expect(loadEvalCasesFromEnv("/etc/passwd", readFile)).toBeNull();
+  expect(readFileCalled).toBe(false);
 });
