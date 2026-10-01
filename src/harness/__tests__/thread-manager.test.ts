@@ -1,4 +1,6 @@
 import { describe, it, expect, mock, beforeEach, spyOn, afterEach } from "bun:test";
+import pino from "pino";
+import { logger } from "../../utils/logger";
 import { ThreadManager, THREAD_TTL_MS, threadManager as exportedThreadManager, threadRepoMap as exportedThreadRepoMap } from "../thread-manager";
 import * as daytonaPool from "../../integrations/daytona-pool";
 import * as sandboxState from "../../utils/sandboxState";
@@ -157,6 +159,33 @@ describe("ThreadManager", () => {
       // Should still clean up the other states even if sandbox release fails
       expect(sandboxState.clearSandboxBackend).toHaveBeenCalledWith("thread-error");
       expect(toolInvocationTracker.clearThread).toHaveBeenCalledWith("thread-error");
+    });
+
+    it("should log a warning if backend cleanup fails during sandbox eviction", async () => {
+      const stream = (logger as any)[pino.symbols.streamSym];
+      const writeSpy = spyOn(stream, "write").mockImplementation(() => true);
+
+      const mockBackendCleanup = mock(() => Promise.reject(new Error("Simulated cleanup error")));
+      const mockSandboxEntry = {
+        backend: { id: "sandbox-logger-test", cleanup: mockBackendCleanup } as unknown as SandboxService,
+        profile: {} as SandboxProfile,
+        repo: { owner: "test", name: "repo", workspaceDir: "/work" } as RepoContext
+      };
+
+      threadManager.setSandbox("thread-logger-test", mockSandboxEntry);
+
+      // Force eviction by waiting and purging
+      await new Promise(resolve => setTimeout(resolve, 150));
+      threadManager.purgeStale();
+
+      // Wait for async disposal to complete
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      const calls = writeSpy.mock.calls.map(c => (c[0] as any).toString());
+      const hasLog = calls.some(c => c.includes("Failed to cleanup old backend"));
+      writeSpy.mockRestore();
+
+      expect(hasLog).toBe(true);
     });
 
     it("should handle disposal failures gracefully during repo eviction", async () => {
