@@ -100,7 +100,7 @@ app.use(
 		origin: (origin) => {
 			const allowedOriginsStr = process.env.CORS_ALLOWED_ORIGIN;
 			if (!origin) return "";
-			if (!allowedOriginsStr) return "*"; // fallback for tests
+			if (!allowedOriginsStr) return process.env.NODE_ENV === "test" ? "*" : ""; // Secure by default, only allow * in explicit test environments
 
 			// Parse the allowed origins list from environment
 			const allowedOrigins = allowedOriginsStr
@@ -589,8 +589,6 @@ app.get("/stream", async (c) => {
 			"Cache-Control": "no-cache",
 			Connection: "keep-alive",
 			"X-Accel-Buffering": "no", // Disable nginx buffering
-			"Access-Control-Allow-Origin": c.req.header("Origin") || "*",
-			Vary: "Origin",
 		},
 	});
 });
