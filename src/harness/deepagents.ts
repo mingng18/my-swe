@@ -11,6 +11,8 @@ import {
   loadModelConfig,
   getRoleModelConfig,
   isArchitectEditorRoutingEnabled,
+  parseEnvFloat,
+  parseEnvInt,
 } from "../utils/config";
 import type { ModelConfig } from "../utils/model-factory";
 import {
@@ -195,63 +197,27 @@ async function buildMiddleware(
       modelName: modelConfig.model || "gpt-4o",
       config: {
         // Cascade trigger (when to start compaction at all)
-        cascadeTrigger: process.env.COMPACTION_CASCADE_TRIGGER_FRACTION
-          ? {
-              type: "fraction",
-              value: Math.max(
-                0,
-                Math.min(
-                  1,
-                  (() => {
-                    const parsed = Number.parseFloat(
-                      process.env.COMPACTION_CASCADE_TRIGGER_FRACTION || "",
-                    );
-                    if (Number.isNaN(parsed)) {
-                      logger.warn(
-                        {
-                          envValue:
-                            process.env.COMPACTION_CASCADE_TRIGGER_FRACTION,
-                        },
-                        "[deepagents] Invalid COMPACTION_CASCADE_TRIGGER_FRACTION, using default 0.7",
-                      );
-                      return 0.7;
-                    }
-                    return parsed;
-                  })(),
-                ),
-              ),
-            }
-          : { type: "fraction", value: 0.7 },
+        cascadeTrigger: {
+          type: "fraction",
+          value: parseEnvFloat("COMPACTION_CASCADE_TRIGGER_FRACTION", 0.7, 0, 1),
+        },
         // Summarize trigger (when to use expensive LLM summarization)
-        trigger: process.env.COMPACTION_TRIGGER_FRACTION
-          ? {
-              type: "fraction",
-              value: Number.parseFloat(process.env.COMPACTION_TRIGGER_FRACTION),
-            }
-          : { type: "fraction", value: 0.85 },
-        keep: process.env.COMPACTION_KEEP_MESSAGES
-          ? {
-              type: "messages",
-              value: Number.parseInt(process.env.COMPACTION_KEEP_MESSAGES, 10),
-            }
-          : { type: "messages", value: 10 },
-        maxConsecutiveFailures: Number.parseInt(
-          process.env.COMPACTION_MAX_FAILURES || "3",
-          10,
-        ),
+        trigger: {
+          type: "fraction",
+          value: parseEnvFloat("COMPACTION_TRIGGER_FRACTION", 0.85, 0, 1),
+        },
+        keep: {
+          type: "messages",
+          value: parseEnvInt("COMPACTION_KEEP_MESSAGES", 10, 1),
+        },
+        maxConsecutiveFailures: parseEnvInt("COMPACTION_MAX_FAILURES", 3, 1),
         microcompact: {
           enabled: process.env.COMPACTION_MICROCOMPACT !== "false",
-          gapThresholdMinutes: Number.parseInt(
-            process.env.COMPACTION_MICROCOMPACT_GAP_MINUTES || "60",
-            10,
-          ),
+          gapThresholdMinutes: parseEnvInt("COMPACTION_MICROCOMPACT_GAP_MINUTES", 60, 1),
         },
         restoration: {
           enabled: process.env.COMPACTION_RESTORATION !== "false",
-          maxFiles: Number.parseInt(
-            process.env.COMPACTION_RESTORATION_MAX_FILES || "5",
-            10,
-          ),
+          maxFiles: parseEnvInt("COMPACTION_RESTORATION_MAX_FILES", 5, 0),
         },
       },
     }),
