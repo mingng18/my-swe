@@ -123,4 +123,9 @@
 **Learning:** Chained array methods like `.map().filter(Boolean)` or `.reduce()` on memory consolidation operations allocate intermediate arrays and add garbage collection overhead during background cleanup processes.
 **Action:** Replace these array chains with single-pass `for` loops to minimize intermediate allocations in memory aggregation routines.
 
+## 2026-09-27 - Prevent re-renders by using Zustand selectors for stable actions
+**Learning:** While avoiding full store subscriptions (like `useThreadStore()`) is critical, destructuring stable actions directly (e.g., `const { addThread } = useThreadStore()`) still implicitly subscribes the component to all state changes in Zustand, defeating the purpose of the optimization.
+**Action:** When extracting actions from a Zustand store, always use granular selectors (e.g., `const addThread = useThreadStore(state => state.addThread)`) or `useShallow` to ensure the component only re-renders when those specific properties change (which for actions, is never).
+
+
 ## 2026-09-23 - Prevent React hook re-renders on Zustand state updates\n**Learning:** Subscribing to frequently updated Zustand state (like SSE events in a stream) inside a React hook causes the consuming component to re-render constantly. Accessing state via `getState()` inside callbacks is much more efficient.\n**Action:** Always use `getState()` instead of direct state subscription when you only need to read the state in an event handler or callback.
