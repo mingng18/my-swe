@@ -1,5 +1,8 @@
 import { describe, it, expect, mock, spyOn, beforeEach, afterEach } from "bun:test";
 
+// Mock fetch to prevent actual network calls during tests
+globalThis.fetch = mock(() => Promise.resolve(new Response(JSON.stringify({ ok: true })))) as any;
+
 // Capture the REAL telegram module BEFORE mocking. Bun's mock.module replaces
 // the module process-wide; a partial factory that only exposes
 // isDuplicateMessage + sendChatAction strips every other named export AND
