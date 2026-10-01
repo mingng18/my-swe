@@ -100,7 +100,7 @@ app.use(
 		origin: (origin) => {
 			const allowedOriginsStr = process.env.CORS_ALLOWED_ORIGIN;
 			if (!origin) return "";
-			if (!allowedOriginsStr) return "*"; // fallback for tests
+			if (!allowedOriginsStr) return process.env.NODE_ENV === "test" ? "*" : ""; // Secure by default, only allow * in explicit test environments
 
 			// Parse the allowed origins list from environment
 			const allowedOrigins = allowedOriginsStr
