@@ -98,6 +98,8 @@ async function runPreCommitReview(
   );
 
   const criticalFound = hasCriticalIssues(allIssues);
+
+  // ⚡ Bolt: Replaced .filter().length with a single-pass loop
   let criticalCount = 0;
   for (let i = 0; i < allIssues.length; i++) {
     if (allIssues[i].severity === "CRITICAL") criticalCount++;
