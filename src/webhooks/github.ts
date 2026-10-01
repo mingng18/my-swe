@@ -22,8 +22,24 @@ const log = createLogger("webhooks/github");
  * Processes pull_request, issues, and push events asynchronously.
  * Returns immediately — work runs in the background.
  */
+import type {
+  WebhookEvent,
+  PullRequestEvent,
+  PullRequestReviewEvent,
+  PullRequestReviewCommentEvent,
+  IssueCommentEvent,
+  IssuesEvent,
+  PushEvent,
+} from "@octokit/webhooks-types";
+
+type PrEventPayload =
+  | PullRequestEvent
+  | PullRequestReviewEvent
+  | PullRequestReviewCommentEvent
+  | IssueCommentEvent;
+
 export function handleGithubWebhook(
-  payload: any,
+  payload: WebhookEvent,
   githubEvent: string,
 ): void {
   switch (githubEvent) {
@@ -34,15 +50,15 @@ export function handleGithubWebhook(
     case "pull_request_review":
     case "pull_request_review_comment":
     case "issue_comment":
-      handlePrEvent(payload, githubEvent);
+      handlePrEvent(payload as PrEventPayload, githubEvent);
       break;
 
     case "issues":
-      handleIssuesEvent(payload);
+      handleIssuesEvent(payload as IssuesEvent);
       break;
 
     case "push":
-      handlePushEvent(payload);
+      handlePushEvent(payload as PushEvent);
       break;
 
     default:
@@ -50,7 +66,7 @@ export function handleGithubWebhook(
   }
 }
 
-function handlePrEvent(payload: any, githubEvent: string): void {
+function handlePrEvent(payload: PrEventPayload, githubEvent: string): void {
   log.info(
     {
       action: payload.action,
@@ -62,7 +78,10 @@ function handlePrEvent(payload: any, githubEvent: string): void {
 
   void (async () => {
     try {
-      if (githubEvent === "issue_comment" && !payload.issue?.pull_request) {
+      if (
+        githubEvent === "issue_comment" &&
+        !("issue" in payload && payload.issue?.pull_request)
+      ) {
         return;
       }
 
@@ -74,7 +93,10 @@ function handlePrEvent(payload: any, githubEvent: string): void {
         prUrl,
         commentId,
         nodeId,
-      ] = await extractPrContext(payload, githubEvent);
+      ] = await extractPrContext(
+        payload as unknown as Record<string, unknown>,
+        githubEvent,
+      );
 
       if (!prNumber) {
         return;
@@ -135,7 +157,7 @@ function handlePrEvent(payload: any, githubEvent: string): void {
   })();
 }
 
-function handleIssuesEvent(payload: any): void {
+function handleIssuesEvent(payload: IssuesEvent): void {
   const action = payload.action;
   const issue = payload.issue;
   const repository = payload.repository;
@@ -203,12 +225,11 @@ function handleIssuesEvent(payload: any): void {
   }
 }
 
-function handlePushEvent(payload: any): void {
+function handlePushEvent(payload: PushEvent): void {
   const repoName = payload.repository?.full_name || "unknown repository";
   const ref = payload.ref || "unknown ref";
   const defaultBranch = payload.repository?.default_branch || "main";
-  const commitsCount =
-    payload.commits?.length || payload.push?.commits?.length || 0;
+  const commitsCount = payload.commits?.length || 0;
 
   // Only process pushes to the default branch
   if (ref !== `refs/heads/${defaultBranch}`) {
