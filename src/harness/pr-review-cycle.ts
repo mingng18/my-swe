@@ -10,6 +10,7 @@
 import { createLogger } from "../utils/logger";
 import { getAgentHarness } from "./deepagents";
 import type { AgentHarness, AgentInvokeOptions } from "./agentHarness";
+import pLimit from "p-limit";
 import {
   type RepoConfig,
   postGithubComment,
@@ -191,56 +192,66 @@ export class PRReviewCycle {
       transport: "github",
     };
 
-    for (const comment of comments) {
-      const prompt = this.buildPrompt(comment);
-      logger.info(
-        { prNumber, file: comment.path, line: comment.line },
-        "Addressing review comment from %s",
-        comment.reviewer,
-      );
+    const invokeLimit = pLimit(5);
+    const gitLimit = pLimit(1);
 
-      try {
-        const response = await harness.invoke(prompt, opts);
-
-        if (response.error) {
-          logger.warn(
-            { prNumber, file: comment.path, error: response.error },
-            "Agent returned error for review comment",
-          );
-          result.remainingIssues.push(
-            `${comment.path}:${comment.line} - ${comment.body.substring(0, 100)}`,
-          );
-          continue;
-        }
-
-        // Attempt to commit and push
-        const pushed = await this.commitAndPush(
-          `fix: address review comment on ${comment.path}:${comment.line}\n\nReview by @${comment.reviewer}: ${comment.body.substring(0, 200)}`,
-        );
-
-        if (pushed) {
-          result.addressedComments++;
-          result.commitsPushed++;
+    await Promise.all(
+      comments.map((comment) =>
+        invokeLimit(async () => {
+          const prompt = this.buildPrompt(comment);
           logger.info(
-            { prNumber, file: comment.path },
-            "Committed fix for review comment",
+            { prNumber, file: comment.path, line: comment.line },
+            "Addressing review comment from %s",
+            comment.reviewer,
           );
-        } else {
-          // No changes to commit – may mean the agent couldn't fix it
-          result.remainingIssues.push(
-            `${comment.path}:${comment.line} - no changes produced`,
-          );
-        }
-      } catch (error) {
-        logger.error(
-          { prNumber, file: comment.path, error },
-          "Failed to address review comment",
-        );
-        result.remainingIssues.push(
-          `${comment.path}:${comment.line} - error: ${String(error)}`,
-        );
-      }
-    }
+
+          try {
+            const response = await harness.invoke(prompt, opts);
+
+            if (response.error) {
+              logger.warn(
+                { prNumber, file: comment.path, error: response.error },
+                "Agent returned error for review comment",
+              );
+              result.remainingIssues.push(
+                `${comment.path}:${comment.line} - ${comment.body.substring(0, 100)}`,
+              );
+              return;
+            }
+
+            // Attempt to commit and push
+            // Need to limit git operations since they modify index/working-tree and push
+            await gitLimit(async () => {
+              const pushed = await this.commitAndPush(
+                `fix: address review comment on ${comment.path}:${comment.line}\n\nReview by @${comment.reviewer}: ${comment.body.substring(0, 200)}`,
+              );
+
+              if (pushed) {
+                result.addressedComments++;
+                result.commitsPushed++;
+                logger.info(
+                  { prNumber, file: comment.path },
+                  "Committed fix for review comment",
+                );
+              } else {
+                // No changes to commit – may mean the agent couldn't fix it
+                result.remainingIssues.push(
+                  `${comment.path}:${comment.line} - no changes produced`,
+                );
+              }
+            });
+          } catch (error) {
+            logger.error(
+              { prNumber, file: comment.path, error },
+              "Failed to address review comment",
+            );
+            result.remainingIssues.push(
+              `${comment.path}:${comment.line} - error: ${String(error)}`,
+            );
+          }
+        }),
+      ),
+    );
 
     // Post summary comment on the PR
     await this.postSummaryComment(prNumber, result);
