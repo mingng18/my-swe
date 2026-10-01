@@ -64,7 +64,7 @@ test("loadEvalCasesFromEnv: inline JSON array -> parsed cases", () => {
 
 test("loadEvalCasesFromEnv: file path -> cases read via injected readFile", () => {
   const readFile = (_p: string) => JSON.stringify(sampleCases);
-  const got = loadEvalCasesFromEnv("/etc/some/cases.json", readFile);
+  const got = loadEvalCasesFromEnv("./cases.json", readFile);
   expect(got).toEqual(sampleCases);
 });
 
@@ -81,5 +81,15 @@ test("loadEvalCasesFromEnv: rejects arbitrary file read (LFI)", () => {
     return "[]";
   };
   expect(loadEvalCasesFromEnv("/etc/passwd", readFile)).toBeNull();
+  expect(readFileCalled).toBe(false);
+});
+
+test("loadEvalCasesFromEnv: rejects path traversal out of allowed directory", () => {
+  let readFileCalled = false;
+  const readFile = () => {
+    readFileCalled = true;
+    return "[]";
+  };
+  expect(loadEvalCasesFromEnv("../../../some-other-dir/cases.json", readFile)).toBeNull();
   expect(readFileCalled).toBe(false);
 });

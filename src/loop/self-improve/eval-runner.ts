@@ -16,6 +16,7 @@
 // pass-rate (passed/totalCases, 0 when there are no cases).
 
 import { readFileSync } from "fs";
+import { resolve } from "path";
 type EvalCase = any;
 interface EvalReport {
   totalCases: number;
@@ -117,6 +118,17 @@ export function loadEvalCasesFromEnv(
   // Treat as a filesystem path.
   // To prevent arbitrary file read (LFI), strictly require a .json extension.
   if (raw.endsWith(".json")) {
+    const allowedBase = resolve(process.cwd());
+    const resolvedPath = resolve(process.cwd(), raw);
+
+    if (!resolvedPath.startsWith(allowedBase)) {
+      logger.warn(
+        { envValue: raw },
+        "LOOP_SELF_IMPROVE_EVAL_CASES path traverses outside allowed directory; ignoring"
+      );
+      return null;
+    }
+
     try {
       const fileContents = readFile(raw);
       const parsed = JSON.parse(fileContents);
