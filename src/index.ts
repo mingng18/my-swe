@@ -258,28 +258,30 @@ async function startTelegramPolling() {
       const data = (await response.json()) as any;
 
       if (data.ok && data.result?.length > 0) {
-        for (const update of data.result) {
-          offset = update.update_id + 1;
+        offset = data.result[data.result.length - 1].update_id + 1;
 
-          logger.info(
-            {
-              updateId: update.update_id,
-              type:
-                Object.keys(update).find((k) => k !== "update_id") ?? "unknown",
-            },
-            "[codeagent][telegram] update received",
-          );
+        await Promise.all(
+          data.result.map(async (update: any) => {
+            logger.info(
+              {
+                updateId: update.update_id,
+                type:
+                  Object.keys(update).find((k) => k !== "update_id") ?? "unknown",
+              },
+              "[codeagent][telegram] update received",
+            );
 
-          // Handle message updates
-          if ("message" in update) {
-            await handleTelegramMessage(update.message, telegramBotToken, telegramParseMode);
-          }
+            // Handle message updates
+            if ("message" in update) {
+              await handleTelegramMessage(update.message, telegramBotToken, telegramParseMode);
+            }
 
-          // Handle HITL callback queries (inline keyboard button presses)
-          if ("callback_query" in update) {
-            await handleTelegramCallbackQuery(update, telegramBotToken);
-          }
-        }
+            // Handle HITL callback queries (inline keyboard button presses)
+            if ("callback_query" in update) {
+              await handleTelegramCallbackQuery(update, telegramBotToken);
+            }
+          })
+        );
       } else {
         // Prevent unbounded polling loop if no updates or unexpected format
         await new Promise((resolve) => setTimeout(resolve, 2000));
