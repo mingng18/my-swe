@@ -118,12 +118,12 @@
 ## 2026-09-17 - Extracted array creation from React useCallback in PromptInput
 **Learning:** In PromptInput.tsx, the `matchesAccept` function inside `useCallback` was repeatedly chaining `.split(",").map((s) => s.trim()).filter(Boolean)` on the `accept` string property to validate each incoming file. Since the `accept` prop rarely changes, this caused redundant intermediate array allocations and overhead when multiple files were dropped.\n**Action:** Extract static string parsing and filtering logic from inside per-item iterative `useCallback` loops into a `useMemo` block that depends only on the prop string, reusing the array mapping once per change.
 
-<<<<<<< Updated upstream
 ## 2026-09-26 - Optimize array chains in memory consolidation
 **Learning:** Chained array methods like `.map().filter(Boolean)` or `.reduce()` on memory consolidation operations allocate intermediate arrays and add garbage collection overhead during background cleanup processes.
 **Action:** Replace these array chains with single-pass `for` loops to minimize intermediate allocations in memory aggregation routines.
-=======
+## $(date +%Y-%m-%d) - Prevent re-renders by using Zustand selectors for stable actions
+**Learning:** While avoiding full store subscriptions (like `useThreadStore()`) is critical, destructuring stable actions directly (e.g., `const { addThread } = useThreadStore()`) still implicitly subscribes the component to all state changes in Zustand, defeating the purpose of the optimization.
+**Action:** When extracting actions from a Zustand store, always use granular selectors (e.g., `const addThread = useThreadStore(state => state.addThread)`) or `useShallow` to ensure the component only re-renders when those specific properties change (which for actions, is never).
 ## 2026-09-10 - Optimize chained array methods
 **Learning:** Chained `.map().filter()` calls on arrays create intermediate array allocations that increase garbage collection pressure, particularly on critical paths like memory consolidation.
 **Action:** Replace chained array methods with single-pass operations like `reduce` or `for` loops with in-place mutation to optimize memory usage and performance.
->>>>>>> Stashed changes
