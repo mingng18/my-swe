@@ -652,7 +652,7 @@ export class FilesystemSnapshotStore implements SnapshotStore {
         const readResults = await Promise.all(readPromises);
 
         // Phase 2: Sequential CPU (parsing) and unlinking
-        let batchDeleted = 0;
+        const unlinkPromises: Promise<void>[] = [];
         for (let j = 0; j < readResults.length; j++) {
           const { file, filePath, data, error } = readResults[j];
 
@@ -670,12 +670,13 @@ export class FilesystemSnapshotStore implements SnapshotStore {
             metadata.refreshedAt = new Date(metadata.refreshedAt);
 
             if (isSnapshotExpired(metadata, maxAgeHours)) {
-              await unlink(filePath);
-              logger.debug(
-                { snapshotId: metadata.snapshotId, file },
-                `[snapshot-store] Deleted expired snapshot`,
-              );
-              batchDeleted += 1;
+              const unlinkPromise = unlink(filePath).then(() => {
+                logger.debug(
+                  { snapshotId: metadata.snapshotId, file },
+                  `[snapshot-store] Deleted expired snapshot`,
+                );
+              });
+              unlinkPromises.push(unlinkPromise);
             }
           } catch (parseError) {
             logger.warn(
@@ -688,7 +689,8 @@ export class FilesystemSnapshotStore implements SnapshotStore {
             await new Promise((resolve) => setImmediate(resolve));
           }
         }
-        deleted += batchDeleted;
+        await Promise.all(unlinkPromises);
+        deleted += unlinkPromises.length;
       }
     } catch (error) {
       logger.error({ error }, `[snapshot-store] Failed during cleanup`);
