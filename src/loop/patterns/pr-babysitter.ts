@@ -4,6 +4,7 @@ import type { RepoConfig } from "../../utils/github";
 import type { SandboxService } from "../../integrations/sandbox-service";
 import type { ScheduledPattern, PatternRunSummary } from "../scheduler";
 import { Octokit } from "octokit";
+import pLimit from "p-limit";
 
 export interface PrBabysitterOptions {
   name?: string;
@@ -64,15 +65,23 @@ export function createPrBabysitterPattern(
     intervalMs,
     run: async (): Promise<PatternRunSummary> => {
       const at = new Date().toISOString();
-      const results: PRReviewResult[] = [];
+      let results: PRReviewResult[] = [];
       try {
         const prs = await listOpenPRs();
-        for (const prNumber of prs) {
-          const cycle = makeCycle(prNumber);
-          const unresolved = await cycle.fetchUnresolvedComments(prNumber);
-          if (unresolved.length === 0) continue; // nothing to babysit
-          results.push(await cycle.runCycle(prNumber, 2));
-        }
+        const limit = pLimit(5);
+
+        const prPromises = prs.map((prNumber) =>
+          limit(async () => {
+            const cycle = makeCycle(prNumber);
+            const unresolved = await cycle.fetchUnresolvedComments(prNumber);
+            if (unresolved.length === 0) return null; // nothing to babysit
+            return cycle.runCycle(prNumber, 2);
+          })
+        );
+
+        const maybeResults = await Promise.all(prPromises);
+        results = maybeResults.filter((r): r is PRReviewResult => r !== null);
+
         return {
           name,
           ok: true,
