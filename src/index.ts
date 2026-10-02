@@ -261,10 +261,10 @@ async function startTelegramPolling() {
         // Group updates by chat ID to preserve ordering per chat
         const updatesByChat = new Map<string, any[]>();
         for (const update of data.result) {
-          // Extract a grouping key; fallback to callback_query.id or update_id
+          // Extract a grouping key; fallback to callback_query.message.chat.id or update_id
           const chatId =
             update.message?.chat?.id?.toString() ||
-            update.callback_query?.id?.toString() ||
+            update.callback_query?.message?.chat?.id?.toString() ||
             update.update_id.toString();
 
           if (!updatesByChat.has(chatId)) {
