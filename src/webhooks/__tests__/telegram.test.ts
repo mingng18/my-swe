@@ -79,4 +79,28 @@ describe("handleTelegramWebhook", () => {
     expect(result.ok).toBe(true);
     expect(result.message).toBe("Update received");
   });
+
+  it("handles multiple callbacks from the same chat sequentially", async () => {
+    // We send two callbacks from the same chat
+    const result1 = await handleTelegramWebhook({
+      update_id: 1,
+      callback_query: {
+        id: "cb1",
+        message: { chat: { id: 98765 } },
+        data: '{"requestId":"req1","decision":"approved"}'
+      }
+    });
+
+    const result2 = await handleTelegramWebhook({
+      update_id: 2,
+      callback_query: {
+        id: "cb2",
+        message: { chat: { id: 98765 } },
+        data: '{"requestId":"req2","decision":"rejected"}'
+      }
+    });
+
+    expect(result1.ok).toBe(true);
+    expect(result2.ok).toBe(true);
+  });
 });
