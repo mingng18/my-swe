@@ -655,7 +655,8 @@ export class CodebaseIndexer {
     async function walk(currentDir: string): Promise<void> {
       let entries;
       try {
-        entries = await readdir(currentDir, { withFileTypes: true });
+        // Only wrap the actual async I/O operation in the limiter
+        entries = await limit(() => readdir(currentDir, { withFileTypes: true }));
       } catch {
         return;
       }
@@ -667,7 +668,9 @@ export class CodebaseIndexer {
         const fullPath = join(currentDir, entry.name);
 
         if (entry.isDirectory()) {
-          promises.push(limit(() => walk(fullPath)));
+          // Do not wrap recursive walk() calls in limit(), otherwise we risk deadlocking
+          // if parents consume all slots while waiting for children.
+          promises.push(walk(fullPath));
         } else if (
           entry.isFile() &&
           INDEXABLE_EXTENSIONS.has(extname(entry.name))
@@ -678,7 +681,7 @@ export class CodebaseIndexer {
       await Promise.all(promises);
     }
 
-    await limit(() => walk(dir));
+    await walk(dir);
     return results;
   }
 
