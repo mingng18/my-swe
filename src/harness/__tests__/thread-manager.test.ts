@@ -1,4 +1,6 @@
 import { describe, it, expect, mock, beforeEach, spyOn, afterEach } from "bun:test";
+import pino from "pino";
+import { logger } from "../../utils/logger";
 import { ThreadManager, THREAD_TTL_MS, threadManager as exportedThreadManager, threadRepoMap as exportedThreadRepoMap } from "../thread-manager";
 import * as daytonaPool from "../../integrations/daytona-pool";
 import * as sandboxState from "../../utils/sandboxState";
@@ -10,6 +12,66 @@ import type { SandboxProfile } from "../../integrations/daytona-pool";
 import type { RepoContext, ThreadSandboxEntry } from "../thread-manager";
 
 describe("ThreadManager", () => {
+  describe("Map Configuration and Limits", () => {
+    let limitManager: ThreadManager;
+
+    beforeEach(() => {
+      limitManager = new ThreadManager(100000); // long TTL
+    });
+
+    afterEach(() => {
+      // Clear maps to trigger dispose logic while mocks are still active
+      limitManager.clearAll();
+      mock.restore();
+    });
+
+    it("should enforce max size of 100 for threadAgentMap", () => {
+      for (let i = 0; i < 110; i++) {
+        limitManager.setAgent(`thread-${i}`, {} as DeepAgent);
+      }
+      expect(limitManager.threadAgentMap.size).toBe(100);
+      expect(limitManager.getAgent("thread-0")).toBeUndefined();
+      expect(limitManager.getAgent("thread-109")).toBeDefined();
+    });
+
+    it("should enforce max size of 50 for threadSandboxMap", () => {
+      const mockBackendCleanup = mock(() => Promise.resolve());
+      spyOn(daytonaPool, "releaseRepoSandbox").mockResolvedValue();
+      spyOn(sandboxState, "clearSandboxBackend");
+      spyOn(toolInvocationTracker, "clearThread");
+
+      for (let i = 0; i < 60; i++) {
+        limitManager.setSandbox(`thread-${i}`, {
+          backend: { id: `test-id-${i}`, cleanup: mockBackendCleanup } as unknown as SandboxService,
+          profile: {} as SandboxProfile,
+          repo: { owner: "test", name: "repo" } as RepoContext
+        });
+      }
+      expect(limitManager.threadSandboxMap.size).toBe(50);
+      expect(limitManager.getSandbox("thread-0")).toBeUndefined();
+      expect(limitManager.getSandbox("thread-59")).toBeDefined();
+    });
+
+    it("should enforce max size of 500 for threadRepoMap", () => {
+      spyOn(threadMetadataStore, "removePersistedThreadRepo").mockResolvedValue();
+      for (let i = 0; i < 510; i++) {
+        limitManager.setRepo(`thread-${i}`, {} as RepoContext);
+      }
+      expect(limitManager.threadRepoMap.size).toBe(500);
+      expect(limitManager.getRepo("thread-0")).toBeUndefined();
+      expect(limitManager.getRepo("thread-509")).toBeDefined();
+    });
+
+    it("should enforce max size of 100 for threadCheckpointerMap", () => {
+      for (let i = 0; i < 110; i++) {
+        limitManager.getCheckpointer(`thread-${i}`);
+      }
+      expect(limitManager.threadCheckpointerMap.size).toBe(100);
+      expect(limitManager.threadCheckpointerMap.get("thread-0")).toBeUndefined();
+      expect(limitManager.threadCheckpointerMap.get("thread-109")).toBeDefined();
+    });
+  });
+
   describe("Exports", () => {
     it("should export a configured singleton threadManager", () => {
       expect(exportedThreadManager).toBeInstanceOf(ThreadManager);
@@ -157,6 +219,33 @@ describe("ThreadManager", () => {
       // Should still clean up the other states even if sandbox release fails
       expect(sandboxState.clearSandboxBackend).toHaveBeenCalledWith("thread-error");
       expect(toolInvocationTracker.clearThread).toHaveBeenCalledWith("thread-error");
+    });
+
+    it("should log a warning if backend cleanup fails during sandbox eviction", async () => {
+      const stream = (logger as any)[pino.symbols.streamSym];
+      const writeSpy = spyOn(stream, "write").mockImplementation(() => true);
+
+      const mockBackendCleanup = mock(() => Promise.reject(new Error("Simulated cleanup error")));
+      const mockSandboxEntry = {
+        backend: { id: "sandbox-logger-test", cleanup: mockBackendCleanup } as unknown as SandboxService,
+        profile: {} as SandboxProfile,
+        repo: { owner: "test", name: "repo", workspaceDir: "/work" } as RepoContext
+      };
+
+      threadManager.setSandbox("thread-logger-test", mockSandboxEntry);
+
+      // Force eviction by waiting and purging
+      await new Promise(resolve => setTimeout(resolve, 150));
+      threadManager.purgeStale();
+
+      // Wait for async disposal to complete
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      const calls = writeSpy.mock.calls.map(c => (c[0] as any).toString());
+      const hasLog = calls.some(c => c.includes("Failed to cleanup old backend"));
+      writeSpy.mockRestore();
+
+      expect(hasLog).toBe(true);
     });
 
     it("should handle disposal failures gracefully during repo eviction", async () => {
