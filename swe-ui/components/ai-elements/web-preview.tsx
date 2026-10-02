@@ -114,28 +114,40 @@ export const WebPreviewNavigationButton = ({
   tooltip,
   children,
   ...props
-}: WebPreviewNavigationButtonProps) => (
-  <TooltipProvider>
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          className="h-8 w-8 p-0 hover:text-foreground"
-          disabled={disabled}
-          onClick={onClick}
-          size="sm"
-          variant="ghost"
-          aria-label={tooltip}
-          {...props}
-        >
-          {children}
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>
-        <p>{tooltip}</p>
-      </TooltipContent>
-    </Tooltip>
-  </TooltipProvider>
-);
+}: WebPreviewNavigationButtonProps) => {
+  const button = (
+    <Button
+      className="h-8 w-8 p-0 hover:text-foreground"
+      disabled={disabled}
+      onClick={onClick}
+      size="sm"
+      variant="ghost"
+      aria-label={tooltip}
+      {...props}
+    >
+      {children}
+    </Button>
+  );
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          {disabled ? (
+            <span className="inline-block" tabIndex={0}>
+              {button}
+            </span>
+          ) : (
+            button
+          )}
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>{tooltip}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+};
 
 export type WebPreviewUrlProps = ComponentProps<typeof Input>;
 
