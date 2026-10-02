@@ -64,12 +64,46 @@ test("loadEvalCasesFromEnv: inline JSON array -> parsed cases", () => {
 
 test("loadEvalCasesFromEnv: file path -> cases read via injected readFile", () => {
   const readFile = (_p: string) => JSON.stringify(sampleCases);
-  const got = loadEvalCasesFromEnv("/etc/some/cases.json", readFile);
+  const got = loadEvalCasesFromEnv("./cases.json", readFile);
   expect(got).toEqual(sampleCases);
 });
 
 test("loadEvalCasesFromEnv: malformed/unreadable -> null (safe fallback, no throw)", () => {
-  expect(loadEvalCasesFromEnv("not-json-not-a-path", () => {
+  expect(loadEvalCasesFromEnv("not-json-not-a-path.json", () => {
     throw new Error("ENOENT");
   })).toBeNull();
+});
+
+test("loadEvalCasesFromEnv: rejects arbitrary file read (LFI)", () => {
+  let readFileCalled = false;
+  const readFile = () => {
+    readFileCalled = true;
+    return "[]";
+  };
+  expect(loadEvalCasesFromEnv("/etc/passwd", readFile)).toBeNull();
+  expect(readFileCalled).toBe(false);
+});
+
+test("loadEvalCasesFromEnv: rejects path traversal out of allowed directory", () => {
+  let readFileCalled = false;
+  const readFile = () => {
+    readFileCalled = true;
+    return "[]";
+  };
+  expect(loadEvalCasesFromEnv("../../../some-other-dir/cases.json", readFile)).toBeNull();
+  expect(readFileCalled).toBe(false);
+});
+
+test("loadEvalCasesFromEnv: rejects sibling prefix path traversal", () => {
+  let readFileCalled = false;
+  const readFile = () => {
+    readFileCalled = true;
+    return "[]";
+  };
+  // Simulate an allowed base of /work/app and a file at /work/app-secret/cases.json
+  // In the real code, allowedBase is process.cwd().
+  // We can construct a path that looks like a prefix but is not inside it.
+  const cwd = process.cwd();
+  expect(loadEvalCasesFromEnv(cwd + "-secret/cases.json", readFile)).toBeNull();
+  expect(readFileCalled).toBe(false);
 });
