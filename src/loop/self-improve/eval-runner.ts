@@ -16,7 +16,7 @@
 // pass-rate (passed/totalCases, 0 when there are no cases).
 
 import { readFileSync } from "fs";
-import { resolve } from "path";
+import { resolve, relative, sep, isAbsolute } from "path";
 type EvalCase = any;
 interface EvalReport {
   totalCases: number;
@@ -120,8 +120,9 @@ export function loadEvalCasesFromEnv(
   if (raw.endsWith(".json")) {
     const allowedBase = resolve(process.cwd());
     const resolvedPath = resolve(process.cwd(), raw);
+    const rel = relative(allowedBase, resolvedPath);
 
-    if (!resolvedPath.startsWith(allowedBase)) {
+    if (rel.startsWith(`..${sep}`) || rel === ".." || isAbsolute(rel)) {
       logger.warn(
         { envValue: raw },
         "LOOP_SELF_IMPROVE_EVAL_CASES path traverses outside allowed directory; ignoring"

@@ -93,3 +93,17 @@ test("loadEvalCasesFromEnv: rejects path traversal out of allowed directory", ()
   expect(loadEvalCasesFromEnv("../../../some-other-dir/cases.json", readFile)).toBeNull();
   expect(readFileCalled).toBe(false);
 });
+
+test("loadEvalCasesFromEnv: rejects sibling prefix path traversal", () => {
+  let readFileCalled = false;
+  const readFile = () => {
+    readFileCalled = true;
+    return "[]";
+  };
+  // Simulate an allowed base of /work/app and a file at /work/app-secret/cases.json
+  // In the real code, allowedBase is process.cwd().
+  // We can construct a path that looks like a prefix but is not inside it.
+  const cwd = process.cwd();
+  expect(loadEvalCasesFromEnv(cwd + "-secret/cases.json", readFile)).toBeNull();
+  expect(readFileCalled).toBe(false);
+});
