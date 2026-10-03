@@ -18,8 +18,7 @@ describe("POST /rewind/:threadId/:checkpointId", () => {
 	let server: any;
 
 	beforeAll(async () => {
-		// Ensure no auth interferes with the route under test.
-		delete process.env.API_SECRET_KEY;
+		process.env.API_SECRET_KEY = "test-secret";
 		const { default: app } = await import("../webapp");
 		server = Bun.serve({ port: REWIND_PORT, fetch: app.fetch });
 	});
@@ -31,6 +30,7 @@ describe("POST /rewind/:threadId/:checkpointId", () => {
 	it("returns 404 when no active agent exists for the thread", async () => {
 		const res = await fetch(`${REWIND_URL}/rewind/no-such-thread/cp-1`, {
 			method: "POST",
+			headers: { "Authorization": "Bearer test-secret" },
 		});
 
 		expect(res.status).toBe(404);
