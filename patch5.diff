@@ -1,0 +1,11 @@
+--- src/__tests__/webapp.test.ts
++++ src/__tests__/webapp.test.ts
+@@ -195,7 +195,7 @@
+       const res2 = await app.request("/run", {
+         method: "POST",
+         body: JSON.stringify({ input: "   " }),
+-        headers: { "Content-Type": "application/json" },
++        headers: { "Content-Type": "application/json", "Authorization": "Bearer test-secret" },
+       });
+       expect(res2.status).toBe(400);
+     });

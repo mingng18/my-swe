@@ -1,0 +1,11 @@
+--- src/__tests__/webapp.test.ts
++++ src/__tests__/webapp.test.ts
+@@ -103,6 +103,7 @@
+ // env vars the real loadTelegramConfig reads, so webapp's endpoints get a
+ // valid telegram config while sibling config tests keep the real function.
+ process.env.TELEGRAM_BOT_TOKEN = "mock-bot-token";
+ process.env.TELEGRAM_PARSE_MODE = "HTML";
++process.env.API_SECRET_KEY = "test-secret";
+ mock.module("../utils/config", () => ({
+   ...realConfig,
+ }));
