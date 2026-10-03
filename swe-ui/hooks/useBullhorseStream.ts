@@ -162,6 +162,19 @@ export function useBullhorseStream({
   const updateTodo = useThreadStore((state) => state.updateTodo);
   const updateThread = useThreadStore((state) => state.updateThread);
   const { addToast } = useToast();
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+        const thread = useThreadStore.getState().threads[threadId];
+        if (thread) {
+          saveEventsToStorage(threadId, thread.events);
+        }
+      }
+    };
+  }, [threadId]);
 
   // Update ref when state changes
   useEffect(() => {
@@ -174,10 +187,25 @@ export function useBullhorseStream({
     // Add event to thread
     addEvent(threadId, event);
 
-    // Persist events to sessionStorage for history restoration on reconnect
-    const thread = useThreadStore.getState().threads[threadId];
-    if (thread) {
-      saveEventsToStorage(threadId, thread.events);
+    // ⚡ Bolt: Debounce sessionStorage writes to prevent O(N^2) JSON stringification lag on high-frequency streams.
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    // Save immediately on session end or error, otherwise debounce by 500ms
+    if (event.type === "session_end" || event.type === "error") {
+      const thread = useThreadStore.getState().threads[threadId];
+      if (thread) {
+        saveEventsToStorage(threadId, thread.events);
+      }
+    } else {
+      saveTimeoutRef.current = setTimeout(() => {
+        const thread = useThreadStore.getState().threads[threadId];
+        if (thread) {
+          saveEventsToStorage(threadId, thread.events);
+        }
+        saveTimeoutRef.current = null;
+      }, 500);
     }
 
     // Process specific events
