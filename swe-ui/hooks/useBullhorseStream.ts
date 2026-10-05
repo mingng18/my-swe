@@ -17,16 +17,30 @@ export interface UseBullhorseStreamOptions {
  */
 const EVENT_STORAGE_PREFIX = "bullhorse_events_";
 
+const saveTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
+const DEBOUNCE_MS = 500;
+
 /**
  * Save events to sessionStorage for history restoration on reconnect
+ * Debounced to prevent synchronous JSON.stringify blocking the main thread on every SSE event
  */
 function saveEventsToStorage(threadId: string, events: SSEEvent[]): void {
-  try {
-    const key = `${EVENT_STORAGE_PREFIX}${threadId}`;
-    sessionStorage.setItem(key, JSON.stringify(events));
-  } catch (error) {
-    console.error("[useBullhorseStream] Failed to save events to storage:", error);
+  const existingTimeout = saveTimeouts.get(threadId);
+  if (existingTimeout) {
+    clearTimeout(existingTimeout);
   }
+
+  const timeout = setTimeout(() => {
+    try {
+      const key = `${EVENT_STORAGE_PREFIX}${threadId}`;
+      sessionStorage.setItem(key, JSON.stringify(events));
+    } catch (error) {
+      console.error("[useBullhorseStream] Failed to save events to storage:", error);
+    }
+    saveTimeouts.delete(threadId);
+  }, DEBOUNCE_MS);
+
+  saveTimeouts.set(threadId, timeout);
 }
 
 /**

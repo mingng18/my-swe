@@ -124,3 +124,6 @@
 ## $(date +%Y-%m-%d) - Prevent re-renders by using Zustand selectors for stable actions
 **Learning:** While avoiding full store subscriptions (like `useThreadStore()`) is critical, destructuring stable actions directly (e.g., `const { addThread } = useThreadStore()`) still implicitly subscribes the component to all state changes in Zustand, defeating the purpose of the optimization.
 **Action:** When extracting actions from a Zustand store, always use granular selectors (e.g., `const addThread = useThreadStore(state => state.addThread)`) or `useShallow` to ensure the component only re-renders when those specific properties change (which for actions, is never).
+## 2026-10-05 - Debounce synchronous JSON.stringify on high-frequency streams
+**Learning:** During high-frequency streaming events (like SSE), synchronously serializing a growing state array via `JSON.stringify` on every event creates an O(N^2) bottleneck that blocks the main thread.
+**Action:** Use a debounced approach when persisting growing arrays to storage during stream ingestion to batch the serialization overhead and free the main thread.
