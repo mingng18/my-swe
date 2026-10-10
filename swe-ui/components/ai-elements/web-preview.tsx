@@ -118,17 +118,19 @@ export const WebPreviewNavigationButton = ({
   <TooltipProvider>
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button
-          className="h-8 w-8 p-0 hover:text-foreground"
-          disabled={disabled}
-          onClick={onClick}
-          size="sm"
-          variant="ghost"
-          aria-label={tooltip}
-          {...props}
-        >
-          {children}
-        </Button>
+        <span className="inline-block" tabIndex={disabled ? 0 : -1}>
+          <Button
+            className="h-8 w-8 p-0 hover:text-foreground"
+            disabled={disabled}
+            onClick={onClick}
+            size="sm"
+            variant="ghost"
+            aria-label={tooltip}
+            {...props}
+          >
+            {children}
+          </Button>
+        </span>
       </TooltipTrigger>
       <TooltipContent>
         <p>{tooltip}</p>
