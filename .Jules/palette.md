@@ -34,6 +34,9 @@
 ## 2025-02-19 - Replacing Native Title with Tooltip components for Icon-only Buttons
 **Learning:** Using native HTML title attributes on interactive elements in a UI framework using custom tooltips (like Radix/shadcn) creates a poor UX due to the native 2-second delay and risk of overlapping dual tooltips.
 **Action:** Always replace native `title` attributes with styled `Tooltip` components (and remove `title=`) for icon-only buttons to guarantee immediate accessibility affordances and unified styling, while retaining `aria-label`.
+## 2026-10-01 - Consistent Interaction Patterns on Chat Interfaces
+**Learning:** When adding interactive affordances (like a "Copy" button) to assistant messages in a chat UI, users naturally expect the identical affordance on their own messages. Failing to provide this consistency increases cognitive load and frustrates users who wish to reuse their own prompts.
+**Action:** Always evaluate both sides of a conversational interface when introducing message-level interactions to ensure a symmetric and predictable UX.
 ## 2024-08-27 - Replace native title with Custom Tooltip for icon-only buttons
 **Learning:** Icon-only buttons often lack visual tooltips or rely on native `title` attributes, providing a poor, inconsistent user experience.
 **Action:** Always wrap icon-only buttons with the design system’s custom `<Tooltip>` component. Keep the `aria-label` synchronized with the tooltip text to ensure screen readers receive the same context.
