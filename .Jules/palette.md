@@ -37,6 +37,9 @@
 ## 2026-10-01 - Consistent Interaction Patterns on Chat Interfaces
 **Learning:** When adding interactive affordances (like a "Copy" button) to assistant messages in a chat UI, users naturally expect the identical affordance on their own messages. Failing to provide this consistency increases cognitive load and frustrates users who wish to reuse their own prompts.
 **Action:** Always evaluate both sides of a conversational interface when introducing message-level interactions to ensure a symmetric and predictable UX.
+## 2026-10-12 - Adding Tooltips to Copy Components
+**Learning:** Added tooltips to the copy buttons in the Commit and StackTrace ai-elements to provide clearer visual feedback on interactive elements for screen readers and standard users.
+**Action:** Continue to wrap icon-only buttons with Tooltips and explicit aria-labels where the intent might be ambiguous or helpful textual confirmation is beneficial.
 ## 2025-02-12 - Added Hover Arrow to Actionable Cards
 **Learning:** Even if buttons contain descriptive text, they sometimes resemble static cards in empty states (like in `ThreadEmptyState`). Removing redundant `aria-label`s on such buttons correctly addresses an accessibility anti-pattern, but it must be paired with clear visual affordances.
 **Action:** Always consider the visual affordance of actionable elements. Adding an icon like `ArrowRight` that transitions on `group-hover` and `group-focus-visible` turns static-looking cards into clear call-to-actions, while handling keyboard navigation correctly.
