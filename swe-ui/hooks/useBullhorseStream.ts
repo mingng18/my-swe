@@ -20,12 +20,14 @@ const EVENT_STORAGE_PREFIX = "bullhorse_events_";
 // ⚡ Bolt: Added a throttle timer map to prevent synchronous JSON.stringify from
 // blocking the main thread O(N^2) on every single SSE event append.
 const storageThrottleTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const latestEventsSnapshot = new Map<string, SSEEvent[]>();
 
 /**
  * Save events to sessionStorage for history restoration on reconnect (Throttled)
  */
 function saveEventsToStorage(threadId: string, events: SSEEvent[]): void {
   try {
+    latestEventsSnapshot.set(threadId, events);
     if (storageThrottleTimers.has(threadId)) {
       return;
     }
@@ -34,11 +36,15 @@ function saveEventsToStorage(threadId: string, events: SSEEvent[]): void {
     const timerId = setTimeout(() => {
       try {
         const key = `${EVENT_STORAGE_PREFIX}${threadId}`;
-        sessionStorage.setItem(key, JSON.stringify(events));
+        const snapshot = latestEventsSnapshot.get(threadId);
+        if (snapshot) {
+          sessionStorage.setItem(key, JSON.stringify(snapshot));
+        }
       } catch (error) {
         console.error("[useBullhorseStream] Failed to save events to storage:", error);
       } finally {
         storageThrottleTimers.delete(threadId);
+        latestEventsSnapshot.delete(threadId);
       }
     }, 1000);
 
@@ -74,6 +80,7 @@ function clearEventsFromStorage(threadId: string): void {
       clearTimeout(timerId);
       storageThrottleTimers.delete(threadId);
     }
+    latestEventsSnapshot.delete(threadId);
     const key = `${EVENT_STORAGE_PREFIX}${threadId}`;
     sessionStorage.removeItem(key);
   } catch (error) {
