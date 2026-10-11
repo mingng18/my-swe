@@ -124,6 +124,9 @@
 ## $(date +%Y-%m-%d) - Prevent re-renders by using Zustand selectors for stable actions
 **Learning:** While avoiding full store subscriptions (like `useThreadStore()`) is critical, destructuring stable actions directly (e.g., `const { addThread } = useThreadStore()`) still implicitly subscribes the component to all state changes in Zustand, defeating the purpose of the optimization.
 **Action:** When extracting actions from a Zustand store, always use granular selectors (e.g., `const addThread = useThreadStore(state => state.addThread)`) or `useShallow` to ensure the component only re-renders when those specific properties change (which for actions, is never).
+## 2026-10-10 - Optimization of token estimation overhead
+**Learning:** Using `JSON.stringify()` on large arrays of complex objects just to estimate length or token count causes significant memory allocation and synchronous thread blocking in Node.js/Bun.
+**Action:** Replaced `JSON.stringify(messages).length` with a fast iteration loop invoking the existing `estimateMessageTokens` utility function for accurate and non-blocking O(N) evaluation.
 
 ## 2026-08-15 - Array allocations in PR Summary Formatting
 **Learning:** Found an anti-pattern in `commit-and-open-pr.ts` where `.filter((i) => i.severity === "CRITICAL").length` was used inside a template literal to format a PR summary string. This allocates an entirely new array in memory just to evaluate its length, causing unnecessary garbage collection pressure on high-frequency tool invocations.
