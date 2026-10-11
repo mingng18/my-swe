@@ -258,28 +258,47 @@ async function startTelegramPolling() {
       const data = (await response.json()) as any;
 
       if (data.ok && data.result?.length > 0) {
+        // Group updates by chat ID to preserve ordering per chat
+        const updatesByChat = new Map<string, any[]>();
         for (const update of data.result) {
-          offset = update.update_id + 1;
+          // Extract a grouping key; fallback to callback_query.message.chat.id or update_id
+          const chatId =
+            update.message?.chat?.id?.toString() ||
+            update.callback_query?.message?.chat?.id?.toString() ||
+            update.update_id.toString();
 
-          logger.info(
-            {
-              updateId: update.update_id,
-              type:
-                Object.keys(update).find((k) => k !== "update_id") ?? "unknown",
-            },
-            "[codeagent][telegram] update received",
-          );
-
-          // Handle message updates
-          if ("message" in update) {
-            await handleTelegramMessage(update.message, telegramBotToken, telegramParseMode);
+          if (!updatesByChat.has(chatId)) {
+            updatesByChat.set(chatId, []);
           }
-
-          // Handle HITL callback queries (inline keyboard button presses)
-          if ("callback_query" in update) {
-            await handleTelegramCallbackQuery(update, telegramBotToken);
-          }
+          updatesByChat.get(chatId)!.push(update);
         }
+
+        // Process each chat group sequentially, but process different chats concurrently
+        await Promise.all(
+          Array.from(updatesByChat.values()).map(async (chatUpdates) => {
+            for (const update of chatUpdates) {
+              logger.info(
+                {
+                  updateId: update.update_id,
+                  type:
+                    Object.keys(update).find((k) => k !== "update_id") ?? "unknown",
+                },
+                "[codeagent][telegram] update received",
+              );
+
+              if ("message" in update) {
+                await handleTelegramMessage(update.message, telegramBotToken, telegramParseMode);
+              }
+
+              if ("callback_query" in update) {
+                await handleTelegramCallbackQuery(update, telegramBotToken);
+              }
+            }
+          })
+        );
+
+        // Only advance the offset after ALL handlers finish successfully
+        offset = data.result[data.result.length - 1].update_id + 1;
       } else {
         // Prevent unbounded polling loop if no updates or unexpected format
         await new Promise((resolve) => setTimeout(resolve, 2000));
