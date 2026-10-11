@@ -298,7 +298,6 @@ export class MultiDimensionalRateLimiter {
       return Date.now() + windowMs;
     }
 
-
     const oldestTimestamp = timestamps[startIndex];
     return oldestTimestamp + windowMs;
   }
