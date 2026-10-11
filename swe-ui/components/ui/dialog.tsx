@@ -78,9 +78,7 @@ function DialogContent({
                   size="icon-sm"
                   aria-label="Close dialog"
                 >
-                  <XIcon
-                  />
-                  <span className="sr-only">Close</span>
+                  <XIcon />
                 </Button>
               </DialogPrimitive.Close>
             </TooltipTrigger>
