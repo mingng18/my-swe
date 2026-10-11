@@ -37,3 +37,6 @@
 ## 2026-10-01 - Consistent Interaction Patterns on Chat Interfaces
 **Learning:** When adding interactive affordances (like a "Copy" button) to assistant messages in a chat UI, users naturally expect the identical affordance on their own messages. Failing to provide this consistency increases cognitive load and frustrates users who wish to reuse their own prompts.
 **Action:** Always evaluate both sides of a conversational interface when introducing message-level interactions to ensure a symmetric and predictable UX.
+## 2025-05-24 - Tooltips on Disabled Radix Buttons
+**Learning:** Radix UI / shadcn `<Tooltip>` components rely on pointer and focus events to trigger the tooltip display. Native HTML elements with the `disabled` attribute do not fire these events, which makes the tooltips completely inaccessible for screen readers and invisible to mouse users attempting to understand why an action is blocked.
+**Action:** When a `<Tooltip>` is intended to explain a disabled state, wrap the `<Button>` (which should be `disabled` and have `pointer-events-none`) in an inline element like `<span className="inline-block" tabIndex={disabled ? 0 : -1}>` and ensure the `span` is the direct child of `<TooltipTrigger asChild>`.
