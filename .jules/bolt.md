@@ -102,7 +102,9 @@
 ## 2026-08-07 - Avoid multiple .filter().length passes for array counting
 **Learning:** The codebase has multiple occurrences of chaining `.filter(condition).length` to count items matching specific conditions. This allocates a new temporary array just to measure its length, causing O(N) memory allocation and O(N) traversal overhead each time.
 **Action:** Replaced chained `.filter().length` with standard `for` loops and incrementing counters when calculating invocation metrics. Reusing an optimized counting method instead of running multiple independent filters reduces unnecessary memory allocations and garbage collection pressure on the hot path.
-## 2025-08-25 - Avoid multiple .filter().length array passes in UI components\n**Learning:** In React UI components that are frequently rendered (e.g., TodoSidebar which updates on state changes), using multiple `.filter(...).length` passes over the same array to calculate distinct statistics creates unnecessary intermediate arrays and traverses the source array multiple times. This adds unnecessary memory allocations and compute overhead during rendering.\n**Action:** Replace multiple `.filter(...).length` calls with a single O(N) `for` loop to compute multiple metrics in a single pass over the array, reducing GC pressure and render time.
+## 2025-08-25 - Avoid multiple .filter().length array passes in UI components
+**Learning:** In React UI components that are frequently rendered (e.g., TodoSidebar which updates on state changes), using multiple `.filter(...).length` passes over the same array to calculate distinct statistics creates unnecessary intermediate arrays and traverses the source array multiple times. This adds unnecessary memory allocations and compute overhead during rendering.
+**Action:** Replace multiple `.filter(...).length` calls with a single O(N) `for` loop to compute multiple metrics in a single pass over the array, reducing GC pressure and render time.
 ## 2025-08-25 - Avoid array allocation in SSE buffering
 **Learning:** Using `array.filter()` to prune old items based on TTL in a chronologically ordered array (like an event buffer) allocates a new array on every insert, causing O(N) memory overhead and excessive garbage collection pressure on active streams.
 **Action:** Replace `array.filter()` on chronologically ordered buffers with a single-pass `while` loop that identifies the cutoff index and uses in-place array mutation (`array.splice()`) to prune old items without creating intermediate arrays.
@@ -116,7 +118,8 @@
 **Learning:** Using `Array.prototype.reduce()` to find matching indices in an array of GitHub PR comments creates unnecessary callback allocations for every comment. For PRs with extensive discussion history, this adds garbage collection overhead and slows down processing.
 **Action:** Replaced `.reduce()` with a standard `for` loop to scan PR comments, improving raw iteration speed and reducing memory allocation pressure.
 ## 2026-09-17 - Extracted array creation from React useCallback in PromptInput
-**Learning:** In PromptInput.tsx, the `matchesAccept` function inside `useCallback` was repeatedly chaining `.split(",").map((s) => s.trim()).filter(Boolean)` on the `accept` string property to validate each incoming file. Since the `accept` prop rarely changes, this caused redundant intermediate array allocations and overhead when multiple files were dropped.\n**Action:** Extract static string parsing and filtering logic from inside per-item iterative `useCallback` loops into a `useMemo` block that depends only on the prop string, reusing the array mapping once per change.
+**Learning:** In PromptInput.tsx, the `matchesAccept` function inside `useCallback` was repeatedly chaining `.split(",").map((s) => s.trim()).filter(Boolean)` on the `accept` string property to validate each incoming file. Since the `accept` prop rarely changes, this caused redundant intermediate array allocations and overhead when multiple files were dropped.
+**Action:** Extract static string parsing and filtering logic from inside per-item iterative `useCallback` loops into a `useMemo` block that depends only on the prop string, reusing the array mapping once per change.
 
 ## 2026-09-26 - Optimize array chains in memory consolidation
 **Learning:** Chained array methods like `.map().filter(Boolean)` or `.reduce()` on memory consolidation operations allocate intermediate arrays and add garbage collection overhead during background cleanup processes.
@@ -124,4 +127,11 @@
 ## $(date +%Y-%m-%d) - Prevent re-renders by using Zustand selectors for stable actions
 **Learning:** While avoiding full store subscriptions (like `useThreadStore()`) is critical, destructuring stable actions directly (e.g., `const { addThread } = useThreadStore()`) still implicitly subscribes the component to all state changes in Zustand, defeating the purpose of the optimization.
 **Action:** When extracting actions from a Zustand store, always use granular selectors (e.g., `const addThread = useThreadStore(state => state.addThread)`) or `useShallow` to ensure the component only re-renders when those specific properties change (which for actions, is never).
-## 2026-10-11 - Prevent O(N^2) JSON stringification overhead in SSE streams\n**Learning:** When handling high-frequency streaming events (like SSE) that append to a growing state array, avoid synchronously serializing the entire array (e.g., via `JSON.stringify` to `sessionStorage`) on every event. This creates an O(N^2) bottleneck that blocks the main thread.\n**Action:** Use a debounced or throttled approach when persisting continuously growing arrays in real-time environments to maintain smooth rendering and application responsiveness.
+
+## 2026-10-10 - Optimization of token estimation overhead
+**Learning:** Using `JSON.stringify()` on large arrays of complex objects just to estimate length or token count causes significant memory allocation and synchronous thread blocking in Node.js/Bun.
+**Action:** Replaced `JSON.stringify(messages).length` with a fast iteration loop invoking the existing `estimateMessageTokens` utility function for accurate and non-blocking O(N) evaluation.
+
+## 2026-10-11 - Prevent O(N^2) JSON stringification overhead in SSE streams
+**Learning:** When handling high-frequency streaming events (like SSE) that append to a growing state array, avoid synchronously serializing the entire array (e.g., via `JSON.stringify` to `sessionStorage`) on every event. This creates an O(N^2) bottleneck that blocks the main thread.
+**Action:** Use a debounced or throttled approach when persisting continuously growing arrays in real-time environments to maintain smooth rendering and application responsiveness.
