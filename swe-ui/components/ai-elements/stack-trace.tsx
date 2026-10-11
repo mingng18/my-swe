@@ -7,6 +7,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import {
   AlertTriangleIcon,
@@ -349,17 +350,24 @@ export const StackTraceCopyButton = memo(
 
     const Icon = isCopied ? CheckIcon : CopyIcon;
 
+    const label = isCopied ? "Copied stack trace" : "Copy stack trace";
+
     return (
-      <Button
-        aria-label={isCopied ? "Copied stack trace" : "Copy stack trace"}
-        className={cn("size-7", className)}
-        onClick={copyToClipboard}
-        size="icon"
-        variant="ghost"
-        {...props}
-      >
-        {children ?? <Icon size={14} />}
-      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            aria-label={label}
+            className={cn("size-7", className)}
+            onClick={copyToClipboard}
+            size="icon"
+            variant="ghost"
+            {...props}
+          >
+            {children ?? <Icon size={14} />}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{label}</TooltipContent>
+      </Tooltip>
     );
   }
 );
