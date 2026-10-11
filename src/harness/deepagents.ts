@@ -1451,8 +1451,6 @@ If you need to make additional changes, continue working and they'll be added to
 
         // Calculate tokens (rough estimate)
         const messagesAfter = result.messages || [];
-        // ⚡ Bolt: Replaced expensive JSON.stringify(messagesAfter).length/4 with manual token estimation
-        // Impact: Reduces token counting overhead significantly on large histories. Benchmark on 500 messages: ~146ms -> ~13ms.
         let totalTokens = 0;
         for (const msg of messagesAfter) {
           totalTokens += estimateMessageTokens(msg);
