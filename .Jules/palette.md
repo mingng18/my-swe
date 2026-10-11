@@ -37,6 +37,9 @@
 ## 2026-10-01 - Consistent Interaction Patterns on Chat Interfaces
 **Learning:** When adding interactive affordances (like a "Copy" button) to assistant messages in a chat UI, users naturally expect the identical affordance on their own messages. Failing to provide this consistency increases cognitive load and frustrates users who wish to reuse their own prompts.
 **Action:** Always evaluate both sides of a conversational interface when introducing message-level interactions to ensure a symmetric and predictable UX.
+## 2026-10-12 - Adding Tooltips to Copy Components
+**Learning:** Added tooltips to the copy buttons in the Commit and StackTrace ai-elements to provide clearer visual feedback on interactive elements for screen readers and standard users.
+**Action:** Continue to wrap icon-only buttons with Tooltips and explicit aria-labels where the intent might be ambiguous or helpful textual confirmation is beneficial.
 ## 2026-10-11 - Added aria-labels to icon-only buttons & cleaned redundant text
 **Learning:** When performing accessibility improvements, adding `aria-label` to icon-only buttons like those wrapped in Radix Tooltips ensures screen readers immediately announce their function without waiting for tooltip delays. Additionally, placing both an `aria-label` and a visually hidden `<span className="sr-only">` with duplicate text on the same button causes redundant announcements.
 **Action:** Always ensure icon-only buttons have an `aria-label`, and remove visually hidden text spans when the button already has a descriptive `aria-label`.
