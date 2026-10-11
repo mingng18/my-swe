@@ -81,9 +81,16 @@ export function createPrBabysitterPattern(
         const fetchResults = await Promise.all(fetchPromises);
 
         // Phase 2: Run cycles sequentially to isolate sandbox/worktree mutations
-        for (const { prNumber, cycle, unresolvedCount } of fetchResults) {
-          if (unresolvedCount === 0) continue; // nothing to babysit
-          results.push(await cycle.runCycle(prNumber, 2));
+        const runLimit = (await import("p-limit")).default(2);
+        const runPromises = fetchResults.map(({ prNumber, cycle, unresolvedCount }) =>
+          runLimit(async () => {
+            if (unresolvedCount === 0) return null; // nothing to babysit
+            return await cycle.runCycle(prNumber, 2);
+          })
+        );
+        const cycleResults = await Promise.all(runPromises);
+        for (const result of cycleResults) {
+          if (result) results.push(result);
         }
 
         return {
