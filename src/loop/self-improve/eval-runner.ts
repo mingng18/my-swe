@@ -15,8 +15,8 @@
 // provided runSuite (default: new EvalHarness().runSuite), and reports the
 // pass-rate (passed/totalCases, 0 when there are no cases).
 
-import { readFileSync } from "fs";
-import { resolve, relative, sep, isAbsolute } from "path";
+import { readFileSync, realpathSync } from "fs";
+import { resolve, relative, sep, isAbsolute, dirname } from "path";
 type EvalCase = any;
 interface EvalReport {
   totalCases: number;
@@ -120,7 +120,21 @@ export function loadEvalCasesFromEnv(
   if (raw.endsWith(".json")) {
     const allowedBase = resolve(process.cwd());
     const resolvedPath = resolve(process.cwd(), raw);
-    const rel = relative(allowedBase, resolvedPath);
+
+    let realPath: string;
+    try {
+      // Resolve symlinks to prevent them from pointing outside the allowed base.
+      realPath = realpathSync(resolvedPath);
+    } catch {
+      // Fallback for non-existent files or virtual paths (e.g. in tests)
+      try {
+        realPath = resolve(realpathSync(dirname(resolvedPath)), resolvedPath.slice(dirname(resolvedPath).length + 1));
+      } catch {
+        realPath = resolvedPath;
+      }
+    }
+
+    const rel = relative(allowedBase, realPath);
 
     if (rel.startsWith(`..${sep}`) || rel === ".." || isAbsolute(rel)) {
       logger.warn(
