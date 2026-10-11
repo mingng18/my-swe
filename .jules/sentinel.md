@@ -42,7 +42,14 @@
 **Vulnerability:** The `serializeError` function in the compact middleware leaked internal stack traces by including the `error.stack` property in the serialized output.
 **Learning:** Exposing internal error stack traces can reveal sensitive implementation details, file paths, and application flow to potential attackers.
 **Prevention:** Avoid serializing and returning full stack traces to clients or in less-trusted environments. Extract only necessary, non-sensitive properties (like `name` and `message`) when formatting errors for external consumption.
+<<<<<<< HEAD
+## $(date +%Y-%m-%d) - Fix fail-open authentication bypass
+**Vulnerability:** The webapp authentication middleware failed open when `API_SECRET_KEY` was missing/undefined, bypassing token verification entirely and proceeding via `await next()`.
+**Learning:** Checking `if (secret !== undefined)` is dangerous if the intent is to require the secret. An undefined secret should result in rejection, not an environment where all requests are allowed.
+**Prevention:** Ensure authentication checks fail closed. Always reject requests if mandatory security configuration (like secrets) is absent.
+=======
 ## 2023-11-20 - Command Injection in Tool Parameter
 **Vulnerability:** The `sandboxShellTool` accepted an optional `shell` parameter to specify the execution shell (e.g., bash, python). This parameter was concatenated directly into the shell string `${shell} -c "${fullCommand}"` without any validation. An attacker could provide a malicious `shell` value (e.g., `sh -c "echo hacked #"`) that injects arbitrary execution before the main validated command.
 **Learning:** Even when the primary `command` parameter is validated and shell-escaped, side-channel parameters (like `shell`) that control execution framing are vulnerable to command injection if unvalidated.
 **Prevention:** Strictly allowlist or regex-validate all parameters used to construct execution commands. The `shell` parameter is now validated against `/^[a-zA-Z0-9_\-\/]+$/` to ensure it only represents an executable binary path or name.
+>>>>>>> aa756fe (Save changes)
