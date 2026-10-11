@@ -4,6 +4,7 @@ import type { RepoConfig } from "../../utils/github";
 import type { SandboxService } from "../../integrations/sandbox-service";
 import type { ScheduledPattern, PatternRunSummary } from "../scheduler";
 import { Octokit } from "octokit";
+import pLimit from "p-limit";
 
 export interface PrBabysitterOptions {
   name?: string;
@@ -67,18 +68,24 @@ export function createPrBabysitterPattern(
       const results: PRReviewResult[] = [];
       try {
         const prs = await listOpenPRs();
-        const limit = (await import("p-limit")).default(2);
-        const cycleResults = await Promise.all(
-          prs.map((prNumber) => limit(async () => {
+        const limit = pLimit(5);
+
+        // Phase 1: Fetch unresolved comments concurrently
+        const fetchPromises = prs.map((prNumber) =>
+          limit(async () => {
             const cycle = makeCycle(prNumber);
             const unresolved = await cycle.fetchUnresolvedComments(prNumber);
-            if (unresolved.length === 0) return null; // nothing to babysit
-            return await cycle.runCycle(prNumber, 2);
-          }))
+            return { prNumber, cycle, unresolvedCount: unresolved.length };
+          })
         );
-        for (const result of cycleResults) {
-          if (result) results.push(result);
+        const fetchResults = await Promise.all(fetchPromises);
+
+        // Phase 2: Run cycles sequentially to isolate sandbox/worktree mutations
+        for (const { prNumber, cycle, unresolvedCount } of fetchResults) {
+          if (unresolvedCount === 0) continue; // nothing to babysit
+          results.push(await cycle.runCycle(prNumber, 2));
         }
+
         return {
           name,
           ok: true,
