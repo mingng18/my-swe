@@ -126,6 +126,44 @@ describe("fetchUrl", () => {
     dnsSpy.mockRestore();
   });
 
+  describe("validateURL", () => {
+    test("accepts a valid HTTP URL", async () => {
+      const { validateURL } = await import("../fetch-url");
+      expect(validateURL("http://example.com")).toEqual({ valid: true });
+    });
+
+    test("accepts a valid HTTPS URL", async () => {
+      const { validateURL } = await import("../fetch-url");
+      expect(validateURL("https://example.com")).toEqual({ valid: true });
+    });
+
+    test("rejects URL exceeding maximum length", async () => {
+      const { validateURL } = await import("../fetch-url");
+      const longUrl = "https://example.com/" + "a".repeat(2000);
+      expect(validateURL(longUrl)).toEqual({ valid: false, error: "URL exceeds maximum length of 2000" });
+    });
+
+    test("rejects invalid URL format", async () => {
+      const { validateURL } = await import("../fetch-url");
+      expect(validateURL("not-a-url")).toEqual({ valid: false, error: "Invalid URL format" });
+    });
+
+    test("rejects unsupported protocols", async () => {
+      const { validateURL } = await import("../fetch-url");
+      expect(validateURL("ftp://example.com")).toEqual({ valid: false, error: "Only http and https protocols are allowed" });
+    });
+
+    test("rejects URLs with credentials", async () => {
+      const { validateURL } = await import("../fetch-url");
+      expect(validateURL("https://user:pass@example.com")).toEqual({ valid: false, error: "URLs with credentials are not allowed" });
+    });
+
+    test("rejects invalid hostnames", async () => {
+      const { validateURL } = await import("../fetch-url");
+      expect(validateURL("https://localhost")).toEqual({ valid: false, error: "Invalid hostname" });
+    });
+  });
+
   test("fetchUrlTool returns stringified result", async () => {
     const { fetchUrlTool } = await import("../fetch-url");
 

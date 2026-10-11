@@ -180,6 +180,7 @@ export function useBullhorseStream({
     addEvent(threadId, event);
 
     // Persist events to sessionStorage for history restoration on reconnect
+    const thread = useThreadStore.getState().threads[threadId];
     // ⚡ Bolt: Read latest state using getState() instead of depending on reactive `threads`
     // to avoid triggering hook re-renders on state updates.
     const threads = useThreadStore.getState().threads;
@@ -207,6 +208,7 @@ export function useBullhorseStream({
   }, [threadId, addEvent, updateTodo, updateThread]);
 
   const handleReconnect = useCallback(async () => {
+    restoreThreadHistory(threadId, useThreadStore.getState().threads, addEvent);
     // ⚡ Bolt: Fetch latest state dynamically on reconnect to avoid reactive dependencies.
     const threads = useThreadStore.getState().threads;
     restoreThreadHistory(threadId, threads, addEvent);
