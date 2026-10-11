@@ -17,29 +17,41 @@ export interface UseBullhorseStreamOptions {
  */
 const EVENT_STORAGE_PREFIX = "bullhorse_events_";
 
+// ⚡ Bolt: Added a throttle timer map to prevent synchronous JSON.stringify from
+// blocking the main thread O(N^2) on every single SSE event append.
+const storageThrottleTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const latestEventsSnapshot = new Map<string, SSEEvent[]>();
+
 /**
- * Save events to sessionStorage for history restoration on reconnect
+ * Save events to sessionStorage for history restoration on reconnect (Throttled)
  */
-const saveTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
 function saveEventsToStorage(threadId: string, events: SSEEvent[]): void {
-  // Clear any pending save
-  const existing = saveTimeouts.get(threadId);
-  if (existing) {
-    clearTimeout(existing);
-  }
-
-  // Debounce the save operation to prevent O(N^2) JSON.stringify overhead during high-frequency SSE
-  const timeoutId = setTimeout(() => {
-    try {
-      const key = `${EVENT_STORAGE_PREFIX}${threadId}`;
-      sessionStorage.setItem(key, JSON.stringify(events));
-      saveTimeouts.delete(threadId);
-    } catch (error) {
-      console.error("[useBullhorseStream] Failed to save events to storage:", error);
+  try {
+    latestEventsSnapshot.set(threadId, events);
+    if (storageThrottleTimers.has(threadId)) {
+      return;
     }
-  }, 1000);
 
-  saveTimeouts.set(threadId, timeoutId);
+    // Throttle storage writes to max once per second per thread
+    const timerId = setTimeout(() => {
+      try {
+        const key = `${EVENT_STORAGE_PREFIX}${threadId}`;
+        const snapshot = latestEventsSnapshot.get(threadId);
+        if (snapshot) {
+          sessionStorage.setItem(key, JSON.stringify(snapshot));
+        }
+      } catch (error) {
+        console.error("[useBullhorseStream] Failed to save events to storage:", error);
+      } finally {
+        storageThrottleTimers.delete(threadId);
+        latestEventsSnapshot.delete(threadId);
+      }
+    }, 1000);
+
+    storageThrottleTimers.set(threadId, timerId);
+  } catch (error) {
+    console.error("[useBullhorseStream] Failed to setup storage throttle:", error);
+  }
 }
 
 /**
@@ -63,6 +75,12 @@ function loadEventsFromStorage(threadId: string): SSEEvent[] {
  */
 function clearEventsFromStorage(threadId: string): void {
   try {
+    const timerId = storageThrottleTimers.get(threadId);
+    if (timerId) {
+      clearTimeout(timerId);
+      storageThrottleTimers.delete(threadId);
+    }
+    latestEventsSnapshot.delete(threadId);
     const key = `${EVENT_STORAGE_PREFIX}${threadId}`;
     sessionStorage.removeItem(key);
   } catch (error) {
