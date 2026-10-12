@@ -84,6 +84,8 @@ export const toolSearchTool = tool(
     );
 
     if (matches.length === 0) {
+      // ⚡ Bolt: Use mapped sort directly if needed, but since it's an error path, it's fine.
+      // However, we can optimize the join.
       const allToolNames = tools
         .map((t) => t.name)
         .sort()
@@ -91,7 +93,12 @@ export const toolSearchTool = tool(
       return `No tools found matching "${query}".\n\nAvailable tools: ${allToolNames}`;
     }
 
-    const results = matches.map((t) => formatToolInfo(t)).join("\n\n---\n\n");
+    // ⚡ Bolt: Replaced chained .map().join() with a single-pass for loop to reduce intermediate array allocations
+    let results = "";
+    for (let i = 0; i < matches.length; i++) {
+      if (i > 0) results += "\n\n---\n\n";
+      results += formatToolInfo(matches[i]);
+    }
 
     return matches.length === max_results && tools.length > max_results
       ? `${results}\n\n[Showing top ${max_results} of ${tools.length} tools]`

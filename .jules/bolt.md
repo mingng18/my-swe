@@ -127,3 +127,7 @@
 ## 2026-10-10 - Optimization of token estimation overhead
 **Learning:** Using `JSON.stringify()` on large arrays of complex objects just to estimate length or token count causes significant memory allocation and synchronous thread blocking in Node.js/Bun.
 **Action:** Replaced `JSON.stringify(messages).length` with a fast iteration loop invoking the existing `estimateMessageTokens` utility function for accurate and non-blocking O(N) evaluation.
+
+## 2026-10-13 - Avoid array map allocations in string aggregations
+**Learning:** Using `.map().join()` for formatting large arrays into strings creates unnecessary intermediate arrays and can degrade performance due to garbage collection pressure.
+**Action:** Consolidate these string-building tasks into single-pass `for` loops without intermediary array allocations.
