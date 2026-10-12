@@ -40,6 +40,9 @@
 ## 2026-10-12 - Adding Tooltips to Copy Components
 **Learning:** Added tooltips to the copy buttons in the Commit and StackTrace ai-elements to provide clearer visual feedback on interactive elements for screen readers and standard users.
 **Action:** Continue to wrap icon-only buttons with Tooltips and explicit aria-labels where the intent might be ambiguous or helpful textual confirmation is beneficial.
+## 2026-10-12 - Wrap disabled Tooltip trigger buttons in focusable element
+**Learning:** When using Radix UI/shadcn Tooltips, a `<TooltipTrigger asChild>` element that is disabled (like `<Button disabled>`) won't trigger the tooltip because native disabled elements don't fire pointer or focus events.
+**Action:** Always wrap disabled buttons in a conditionally focusable `<span>` (e.g. `<span tabIndex={isDisabled ? 0 : -1}>`) and set the inner button to `pointer-events-none` when disabled to ensure screen readers and mouse users can access the tooltip on disabled actions.
 ## 2024-08-27 - Replace native title with Custom Tooltip for icon-only buttons
 **Learning:** Icon-only buttons often lack visual tooltips or rely on native `title` attributes, providing a poor, inconsistent user experience.
 **Action:** Always wrap icon-only buttons with the design system’s custom `<Tooltip>` component. Keep the `aria-label` synchronized with the tooltip text to ensure screen readers receive the same context.
