@@ -127,3 +127,7 @@
 ## 2026-10-10 - Optimization of token estimation overhead
 **Learning:** Using `JSON.stringify()` on large arrays of complex objects just to estimate length or token count causes significant memory allocation and synchronous thread blocking in Node.js/Bun.
 **Action:** Replaced `JSON.stringify(messages).length` with a fast iteration loop invoking the existing `estimateMessageTokens` utility function for accurate and non-blocking O(N) evaluation.
+
+## 2026-09-22 - Optimize chronological array pruning
+**Learning:** Pruning old elements from chronological arrays with `.filter()` creates unnecessary O(N) intermediate array allocations and causes GC pressure, while `Math.min(...timestamps)` can crash with large arrays.
+**Action:** Use single-pass `while` loops to find cutoffs and mutate in-place with `array.splice()`, leveraging the sorted nature of the array.
