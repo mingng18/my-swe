@@ -40,6 +40,9 @@
 ## 2026-10-12 - Adding Tooltips to Copy Components
 **Learning:** Added tooltips to the copy buttons in the Commit and StackTrace ai-elements to provide clearer visual feedback on interactive elements for screen readers and standard users.
 **Action:** Continue to wrap icon-only buttons with Tooltips and explicit aria-labels where the intent might be ambiguous or helpful textual confirmation is beneficial.
+## 2026-10-12 - Wrap disabled Tooltip trigger buttons in focusable element
+**Learning:** When using Radix UI/shadcn Tooltips, a `<TooltipTrigger asChild>` element that is disabled (like `<Button disabled>`) won't trigger the tooltip because native disabled elements don't fire pointer or focus events.
+**Action:** Always wrap disabled buttons in a conditionally focusable `<span>` (e.g. `<span tabIndex={isDisabled ? 0 : -1}>`) and set the inner button to `pointer-events-none` when disabled to ensure screen readers and mouse users can access the tooltip on disabled actions.
 ## 2024-08-26 - Redundant aria-label on text-bearing elements
 **Learning:** Adding an `aria-label` that duplicates or restates the visible text content of a button or interactive element (like "New Run") is an accessibility anti-pattern. It overrides the native text content and can cause screen readers to announce the label twice or behave inconsistently. If an element already has clear, descriptive visible text, it should not have an `aria-label`.
 **Action:** Remove `aria-label` attributes from buttons and interactive elements that already contain descriptive visible text, allowing assistive technologies to use the native text content.
