@@ -243,7 +243,7 @@ export function compactMessages(
   );
 
   // Calculate importance scores for all messages
-  // ⚡ Bolt: Replace map() followed by filter() and map() with a single-pass loop
+  // ⚡ Bolt: Replace chained map() and filter() with a single-pass loop to avoid intermediate array allocations
   const scoredMessages: MessageScore[] = [];
   const userIndices = new Set<number>();
 
