@@ -1,9 +1,10 @@
+// src/loop/patterns/pr-babysitter.ts
 import { PRReviewCycle, type PRReviewResult } from "../../harness/pr-review-cycle";
 import type { RepoConfig } from "../../utils/github";
+import pLimit from "p-limit";
 import type { SandboxService } from "../../integrations/sandbox-service";
 import type { ScheduledPattern, PatternRunSummary } from "../scheduler";
 import { Octokit } from "octokit";
-import pLimit from "p-limit";
 
 export interface PrBabysitterOptions {
   name?: string;
