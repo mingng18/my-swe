@@ -326,49 +326,29 @@ export class FilesystemSnapshotStore implements SnapshotStore {
       // resource exhaustion and reduce peak memory usage when evaluating
       // thousands of stored snapshot files. Keeps concurrency bounded.
       const BATCH_SIZE = 500;
-      const PARSE_YIELD_INTERVAL = 50;
       for (let i = 0; i < filteredFiles.length; i += BATCH_SIZE) {
         const chunk = filteredFiles.slice(i, i + BATCH_SIZE);
-
-        // Phase 1: Concurrent I/O
-        const readPromises = chunk.map(async (file) => {
-          const filePath = join(this.storageDir, file);
+        const metadataPromises = chunk.map(async (file) => {
           try {
+            const filePath = join(this.storageDir, file);
             const data = await readFile(filePath, "utf-8");
-            return { file, data, error: null };
+            const metadata = JSON.parse(data) as SnapshotMetadata;
+            metadata.createdAt = new Date(metadata.createdAt);
+            metadata.refreshedAt = new Date(metadata.refreshedAt);
+            return metadata;
           } catch (error) {
-            return { file, data: null, error };
-          }
-        });
-
-        const readResults = await Promise.all(readPromises);
-
-        // Phase 2: Sequential CPU (parsing) with periodic yielding
-        for (let j = 0; j < readResults.length; j++) {
-          const { file, data, error } = readResults[j];
-
-          if (error) {
             logger.warn(
               { error, file },
               `[snapshot-store] Failed to read snapshot file`,
             );
-            continue;
+            return null;
           }
+        });
 
-          try {
-            const metadata = JSON.parse(data!) as SnapshotMetadata;
-            metadata.createdAt = new Date(metadata.createdAt);
-            metadata.refreshedAt = new Date(metadata.refreshedAt);
+        const results = await Promise.all(metadataPromises);
+        for (const metadata of results) {
+          if (metadata) {
             snapshots.push(metadata);
-          } catch (parseError) {
-            logger.warn(
-              { error: parseError, file },
-              `[snapshot-store] Failed to parse snapshot file`,
-            );
-          }
-
-          if ((j + 1) % PARSE_YIELD_INTERVAL === 0) {
-            await new Promise((resolve) => setImmediate(resolve));
           }
         }
       }
@@ -401,49 +381,29 @@ export class FilesystemSnapshotStore implements SnapshotStore {
       // resource exhaustion and reduce peak memory usage when evaluating
       // thousands of stored snapshot files. Keeps concurrency bounded.
       const BATCH_SIZE = 500;
-      const PARSE_YIELD_INTERVAL = 50;
       for (let i = 0; i < filteredFiles.length; i += BATCH_SIZE) {
         const chunk = filteredFiles.slice(i, i + BATCH_SIZE);
-
-        // Phase 1: Concurrent I/O
-        const readPromises = chunk.map(async (file) => {
-          const filePath = join(this.storageDir, file);
+        const metadataPromises = chunk.map(async (file) => {
           try {
+            const filePath = join(this.storageDir, file);
             const data = await readFile(filePath, "utf-8");
-            return { file, data, error: null };
+            const metadata = JSON.parse(data) as SnapshotMetadata;
+            metadata.createdAt = new Date(metadata.createdAt);
+            metadata.refreshedAt = new Date(metadata.refreshedAt);
+            return metadata;
           } catch (error) {
-            return { file, data: null, error };
-          }
-        });
-
-        const readResults = await Promise.all(readPromises);
-
-        // Phase 2: Sequential CPU (parsing) with periodic yielding
-        for (let j = 0; j < readResults.length; j++) {
-          const { file, data, error } = readResults[j];
-
-          if (error) {
             logger.warn(
               { error, file },
               `[snapshot-store] Failed to read snapshot file`,
             );
-            continue;
+            return null;
           }
+        });
 
-          try {
-            const metadata = JSON.parse(data!) as SnapshotMetadata;
-            metadata.createdAt = new Date(metadata.createdAt);
-            metadata.refreshedAt = new Date(metadata.refreshedAt);
+        const results = await Promise.all(metadataPromises);
+        for (const metadata of results) {
+          if (metadata) {
             snapshots.push(metadata);
-          } catch (parseError) {
-            logger.warn(
-              { error: parseError, file },
-              `[snapshot-store] Failed to parse snapshot file`,
-            );
-          }
-
-          if ((j + 1) % PARSE_YIELD_INTERVAL === 0) {
-            await new Promise((resolve) => setImmediate(resolve));
           }
         }
       }
@@ -510,48 +470,28 @@ export class FilesystemSnapshotStore implements SnapshotStore {
 
       // Process files in batches to avoid high memory usage and EMFILE errors
       const BATCH_SIZE = 500;
-      const PARSE_YIELD_INTERVAL = 50;
       for (let i = 0; i < filteredFiles.length; i += BATCH_SIZE) {
         const chunk = filteredFiles.slice(i, i + BATCH_SIZE);
-
-        // Phase 1: Concurrent I/O
         const readPromises = chunk.map(async (filePath) => {
           try {
             const data = await readFile(filePath, "utf-8");
-            return { filePath, data, error: null };
+            const metadata = JSON.parse(data) as SnapshotMetadata;
+            metadata.createdAt = new Date(metadata.createdAt);
+            metadata.refreshedAt = new Date(metadata.refreshedAt);
+            return metadata;
           } catch (error) {
-            return { filePath, data: null, error };
-          }
-        });
-
-        const readResults = await Promise.all(readPromises);
-
-        // Phase 2: Sequential CPU (parsing) with periodic yielding
-        for (let j = 0; j < readResults.length; j++) {
-          const { filePath, data, error } = readResults[j];
-
-          if (error) {
             logger.warn(
               { error, file: filePath },
               `[snapshot-store] Failed to read snapshot file`,
             );
-            continue;
+            return null;
           }
+        });
 
-          try {
-            const metadata = JSON.parse(data!) as SnapshotMetadata;
-            metadata.createdAt = new Date(metadata.createdAt);
-            metadata.refreshedAt = new Date(metadata.refreshedAt);
+        const results = await Promise.all(readPromises);
+        for (const metadata of results) {
+          if (metadata) {
             snapshots.push(metadata);
-          } catch (parseError) {
-            logger.warn(
-              { error: parseError, file: filePath },
-              `[snapshot-store] Failed to parse snapshot file`,
-            );
-          }
-
-          if ((j + 1) % PARSE_YIELD_INTERVAL === 0) {
-            await new Promise((resolve) => setImmediate(resolve));
           }
         }
       }
@@ -634,63 +574,36 @@ export class FilesystemSnapshotStore implements SnapshotStore {
 
       // Process files in batches to avoid high memory usage and EMFILE errors
       const BATCH_SIZE = 500;
-      const PARSE_YIELD_INTERVAL = 50;
       for (let i = 0; i < filteredFiles.length; i += BATCH_SIZE) {
         const chunk = filteredFiles.slice(i, i + BATCH_SIZE);
-
-        // Phase 1: Concurrent I/O
-        const readPromises = chunk.map(async (file) => {
-          const filePath = join(this.storageDir, file);
+        const deletePromises = chunk.map(async (file) => {
           try {
+            const filePath = join(this.storageDir, file);
             const data = await readFile(filePath, "utf-8");
-            return { file, filePath, data, error: null };
-          } catch (error) {
-            return { file, filePath, data: null, error };
-          }
-        });
-
-        const readResults = await Promise.all(readPromises);
-
-        // Phase 2: Sequential CPU (parsing) and unlinking
-        const unlinkPromises: Promise<void>[] = [];
-        for (let j = 0; j < readResults.length; j++) {
-          const { file, filePath, data, error } = readResults[j];
-
-          if (error) {
-            logger.warn(
-              { error, file },
-              `[snapshot-store] Failed to process snapshot file`,
-            );
-            continue;
-          }
-
-          try {
-            const metadata = JSON.parse(data!) as SnapshotMetadata;
+            const metadata = JSON.parse(data) as SnapshotMetadata;
             metadata.createdAt = new Date(metadata.createdAt);
             metadata.refreshedAt = new Date(metadata.refreshedAt);
 
             if (isSnapshotExpired(metadata, maxAgeHours)) {
-              const unlinkPromise = unlink(filePath).then(() => {
-                logger.debug(
-                  { snapshotId: metadata.snapshotId, file },
-                  `[snapshot-store] Deleted expired snapshot`,
-                );
-              });
-              unlinkPromises.push(unlinkPromise);
+              await unlink(filePath);
+              logger.debug(
+                { snapshotId: metadata.snapshotId, file },
+                `[snapshot-store] Deleted expired snapshot`,
+              );
+              return 1;
             }
-          } catch (parseError) {
+            return 0;
+          } catch (error) {
             logger.warn(
-              { error: parseError, file },
+              { error, file },
               `[snapshot-store] Failed to process snapshot file`,
             );
+            return 0;
           }
+        });
 
-          if ((j + 1) % PARSE_YIELD_INTERVAL === 0) {
-            await new Promise((resolve) => setImmediate(resolve));
-          }
-        }
-        await Promise.all(unlinkPromises);
-        deleted += unlinkPromises.length;
+        const results = await Promise.all(deletePromises);
+        deleted += results.reduce((sum: number, count) => sum + count, 0);
       }
     } catch (error) {
       logger.error({ error }, `[snapshot-store] Failed during cleanup`);

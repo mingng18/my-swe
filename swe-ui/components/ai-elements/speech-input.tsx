@@ -2,11 +2,6 @@
 
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { MicIcon, SquareIcon } from "lucide-react";
 import type { ComponentProps } from "react";
@@ -307,31 +302,23 @@ export const SpeechInput = ({
         ))}
 
       {/* Main record button */}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span className="inline-block" tabIndex={isDisabled ? 0 : -1}>
-            <Button
-              aria-label={isListening ? "Stop recording" : "Start recording"}
-              className={cn(
-                "relative z-10 rounded-full transition-all duration-300",
-                isListening
-                  ? "bg-destructive text-white hover:bg-destructive/80 hover:text-white"
-                  : "bg-primary text-primary-foreground hover:bg-primary/80 hover:text-primary-foreground",
-                isDisabled && "pointer-events-none",
-                className
-              )}
-              disabled={isDisabled}
-              onClick={toggleListening}
-              {...props}
-            >
-              {isProcessing && <Spinner />}
-              {!isProcessing && isListening && <SquareIcon className="size-4" />}
-              {!(isProcessing || isListening) && <MicIcon className="size-4" />}
-            </Button>
-          </span>
-        </TooltipTrigger>
-        <TooltipContent>{isListening ? "Stop recording" : "Start recording"}</TooltipContent>
-      </Tooltip>
+      <Button
+        aria-label={isListening ? "Stop recording" : "Start recording"}
+        className={cn(
+          "relative z-10 rounded-full transition-all duration-300",
+          isListening
+            ? "bg-destructive text-white hover:bg-destructive/80 hover:text-white"
+            : "bg-primary text-primary-foreground hover:bg-primary/80 hover:text-primary-foreground",
+          className
+        )}
+        disabled={isDisabled}
+        onClick={toggleListening}
+        {...props}
+      >
+        {isProcessing && <Spinner />}
+        {!isProcessing && isListening && <SquareIcon className="size-4" />}
+        {!(isProcessing || isListening) && <MicIcon className="size-4" />}
+      </Button>
     </div>
   );
 };

@@ -50,7 +50,6 @@ import { createEnsureNoEmptyMsgMiddleware } from "../middleware/ensure-no-empty-
 import { toolInvocationTracker } from "../middleware/tool-invocation-limits";
 import { createSkillCompactionProtectionMiddleware } from "../middleware/skill-compaction-protection";
 import { createCompactionMiddleware } from "../middleware/compact-middleware";
-import { estimateMessageTokens } from "../utils/context-compactor";
 import { createAgentFirewallMiddleware } from "../middleware/agent-firewall";
 import {
   createHooksMiddleware,
@@ -1451,10 +1450,7 @@ If you need to make additional changes, continue working and they'll be added to
 
         // Calculate tokens (rough estimate)
         const messagesAfter = result.messages || [];
-        let totalTokens = 0;
-        for (const msg of messagesAfter) {
-          totalTokens += estimateMessageTokens(msg);
-        }
+        const totalTokens = JSON.stringify(messagesAfter).length / 4; // Rough estimate
 
         // Emit LLM end. Tag with the editor role when routing is enabled so the
         // paired llm_end can be attributed to the same role as its llm_start.

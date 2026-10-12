@@ -7,7 +7,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import {
   CheckIcon,
@@ -255,24 +254,17 @@ export const CommitCopyButton = ({
 
   const Icon = isCopied ? CheckIcon : CopyIcon;
 
-  const label = isCopied ? "Copied hash" : "Copy hash";
-
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          aria-label={label}
-          className={cn("size-7 shrink-0", className)}
-          onClick={copyToClipboard}
-          size="icon"
-          variant="ghost"
-          {...props}
-        >
-          {children ?? <Icon size={14} />}
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
+    <Button
+      aria-label={isCopied ? "Copied hash" : "Copy hash"}
+      className={cn("size-7 shrink-0", className)}
+      onClick={copyToClipboard}
+      size="icon"
+      variant="ghost"
+      {...props}
+    >
+      {children ?? <Icon size={14} />}
+    </Button>
   );
 };
 

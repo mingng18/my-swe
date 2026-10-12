@@ -5,11 +5,6 @@ import {
   ButtonGroup,
   ButtonGroupText,
 } from "@/components/ui/button-group";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { Experimental_SpeechResult as SpeechResult } from "ai";
 import {
@@ -111,18 +106,13 @@ export const AudioPlayerPlayButton = ({
   className,
   ...props
 }: AudioPlayerPlayButtonProps) => (
-  <Tooltip>
-    <TooltipTrigger asChild>
-      <Button aria-label="Play/Pause" asChild size="icon-sm" variant="outline">
-        <MediaPlayButton
-          className={cn("bg-transparent", className)}
-          data-slot="audio-player-play-button"
-          {...props}
-        />
-      </Button>
-    </TooltipTrigger>
-    <TooltipContent>Play/Pause</TooltipContent>
-  </Tooltip>
+  <Button aria-label="Play/Pause" asChild size="icon-sm" variant="outline">
+    <MediaPlayButton
+      className={cn("bg-transparent", className)}
+      data-slot="audio-player-play-button"
+      {...props}
+    />
+  </Button>
 );
 
 export type AudioPlayerSeekBackwardButtonProps = ComponentProps<
@@ -133,18 +123,13 @@ export const AudioPlayerSeekBackwardButton = ({
   seekOffset = 10,
   ...props
 }: AudioPlayerSeekBackwardButtonProps) => (
-  <Tooltip>
-    <TooltipTrigger asChild>
-      <Button aria-label="Seek backward" asChild size="icon-sm" variant="outline">
-        <MediaSeekBackwardButton
-          data-slot="audio-player-seek-backward-button"
-          seekOffset={seekOffset}
-          {...props}
-        />
-      </Button>
-    </TooltipTrigger>
-    <TooltipContent>Seek backward</TooltipContent>
-  </Tooltip>
+  <Button aria-label="Seek backward" asChild size="icon-sm" variant="outline">
+    <MediaSeekBackwardButton
+      data-slot="audio-player-seek-backward-button"
+      seekOffset={seekOffset}
+      {...props}
+    />
+  </Button>
 );
 
 export type AudioPlayerSeekForwardButtonProps = ComponentProps<
@@ -155,18 +140,13 @@ export const AudioPlayerSeekForwardButton = ({
   seekOffset = 10,
   ...props
 }: AudioPlayerSeekForwardButtonProps) => (
-  <Tooltip>
-    <TooltipTrigger asChild>
-      <Button aria-label="Seek forward" asChild size="icon-sm" variant="outline">
-        <MediaSeekForwardButton
-          data-slot="audio-player-seek-forward-button"
-          seekOffset={seekOffset}
-          {...props}
-        />
-      </Button>
-    </TooltipTrigger>
-    <TooltipContent>Seek forward</TooltipContent>
-  </Tooltip>
+  <Button aria-label="Seek forward" asChild size="icon-sm" variant="outline">
+    <MediaSeekForwardButton
+      data-slot="audio-player-seek-forward-button"
+      seekOffset={seekOffset}
+      {...props}
+    />
+  </Button>
 );
 
 export type AudioPlayerTimeDisplayProps = ComponentProps<

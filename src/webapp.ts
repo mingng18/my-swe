@@ -128,19 +128,21 @@ app.use(async (c, next) => {
 		return next();
 	}
 	const secret = process.env.API_SECRET_KEY;
-	if (!secret) {
-		return c.json({ error: "Unauthorized" }, 401);
-	}
-	const authHeader = c.req.header("Authorization");
-	const token = authHeader
-		? authHeader.replace(/^Bearer\s+/i, "")
-		: (c.req.query("token") ?? "");
+	if (secret !== undefined) {
+		if (secret === "") {
+			return c.json({ error: "Unauthorized" }, 401);
+		}
+		const authHeader = c.req.header("Authorization");
+		const token = authHeader
+			? authHeader.replace(/^Bearer\s+/i, "")
+			: (c.req.query("token") ?? "");
 
-	const expectedHash = createHash("sha256").update(secret).digest();
-	const providedHash = createHash("sha256").update(token).digest();
+		const expectedHash = createHash("sha256").update(secret).digest();
+		const providedHash = createHash("sha256").update(token).digest();
 
-	if (!timingSafeEqual(expectedHash, providedHash)) {
-		return c.json({ error: "Unauthorized" }, 401);
+		if (!timingSafeEqual(expectedHash, providedHash)) {
+			return c.json({ error: "Unauthorized" }, 401);
+		}
 	}
 	await next();
 });
