@@ -127,6 +127,6 @@
 ## 2026-10-10 - Optimization of token estimation overhead
 **Learning:** Using `JSON.stringify()` on large arrays of complex objects just to estimate length or token count causes significant memory allocation and synchronous thread blocking in Node.js/Bun.
 **Action:** Replaced `JSON.stringify(messages).length` with a fast iteration loop invoking the existing `estimateMessageTokens` utility function for accurate and non-blocking O(N) evaluation.
-## 2026-10-12 - Avoid .reduce() overhead in message counting
-**Learning:** Using `Array.prototype.reduce()` to aggregate counts over arrays creates unnecessary callback allocations for every element. For operations that run frequently on message arrays, this adds garbage collection overhead and slows down processing.
-**Action:** Replaced `.reduce()` with a standard `for` loop to compute the sum of collapsible messages, improving raw iteration speed and reducing memory allocation pressure.
+## 2026-10-12 - Consolidate array mapping and filtering
+**Learning:** Chaining `.map()`, `.filter()`, and `.map()` on arrays to score items and extract specific indices creates multiple intermediate arrays, causing unnecessary memory allocation and garbage collection overhead.
+**Action:** Replace chained array methods with a single-pass `for` loop that computes the score, evaluates the filter condition, and directly populates the final index set (e.g. `Set.add()`), bypassing intermediate array creation entirely.

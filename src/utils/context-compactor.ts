@@ -243,15 +243,20 @@ export function compactMessages(
   );
 
   // Calculate importance scores for all messages
-  const scoredMessages: MessageScore[] = messages.map((msg, index) =>
-    calculateImportance(msg, index, messages.length),
-  );
+  // ⚡ Bolt: Replace map() followed by filter() and map() with a single-pass loop
+  const scoredMessages: MessageScore[] = [];
+  const userIndices = new Set<number>();
 
-  // Separate user messages (always keep)
-  const userMessages = scoredMessages.filter(
-    (s) => s.message.getType() === "human" || s.message.getType() === "user",
-  );
-  const userIndices = new Set(userMessages.map((s) => s.index));
+  for (let index = 0; index < messages.length; index++) {
+    const msg = messages[index];
+    const score = calculateImportance(msg, index, messages.length);
+    scoredMessages.push(score);
+
+    const type = msg.getType();
+    if (type === "human" || type === "user") {
+      userIndices.add(index);
+    }
+  }
 
   // Get last N messages (always keep for continuity)
   const lastN = Math.min(CONTEXT_KEEP_MINIMUM, messages.length);
