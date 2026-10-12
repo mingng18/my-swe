@@ -44,6 +44,10 @@
 **Learning:** Added tooltips to the copy buttons in the Commit and StackTrace ai-elements to provide clearer visual feedback on interactive elements for screen readers and standard users.
 **Action:** Continue to wrap icon-only buttons with Tooltips and explicit aria-labels where the intent might be ambiguous or helpful textual confirmation is beneficial.
 
+## 2026-10-12 - Wrap disabled Tooltip trigger buttons in focusable element
+**Learning:** When using Radix UI/shadcn Tooltips, a `<TooltipTrigger asChild>` element that is disabled (like `<Button disabled>`) won't trigger the tooltip because native disabled elements don't fire pointer or focus events.
+**Action:** Always wrap disabled buttons in a conditionally focusable `<span>` (e.g. `<span tabIndex={isDisabled ? 0 : -1}>`) and set the inner button to `pointer-events-none` when disabled to ensure screen readers and mouse users can access the tooltip on disabled actions.
+
 ## 2026-09-14 - Tooltips for Scroll Buttons
 **Learning:** Using an icon-only button for "Scroll to bottom" actions without a visual label is an accessibility and UX issue. A native screen-reader aria-label is helpful, but sighted users also benefit from a visual tooltip to understand the action, especially if the icon is ambiguous.
 **Action:** Always wrap icon-only floating action buttons in custom Radix Tooltips to provide immediate visual affordances for all users.
