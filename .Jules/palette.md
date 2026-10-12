@@ -43,6 +43,6 @@
 ## 2026-10-12 - Wrap disabled Tooltip trigger buttons in focusable element
 **Learning:** When using Radix UI/shadcn Tooltips, a `<TooltipTrigger asChild>` element that is disabled (like `<Button disabled>`) won't trigger the tooltip because native disabled elements don't fire pointer or focus events.
 **Action:** Always wrap disabled buttons in a conditionally focusable `<span>` (e.g. `<span tabIndex={isDisabled ? 0 : -1}>`) and set the inner button to `pointer-events-none` when disabled to ensure screen readers and mouse users can access the tooltip on disabled actions.
-## 2024-08-27 - Replace native title with Custom Tooltip for icon-only buttons
-**Learning:** Icon-only buttons often lack visual tooltips or rely on native `title` attributes, providing a poor, inconsistent user experience.
-**Action:** Always wrap icon-only buttons with the design system’s custom `<Tooltip>` component. Keep the `aria-label` synchronized with the tooltip text to ensure screen readers receive the same context.
+## 2026-11-20 - Adding Tooltips to floating utility buttons
+**Learning:** Floating utility buttons like the "Scroll to bottom" button in conversation views are often icon-only. Without a tooltip, their function relies entirely on standard iconography and context which may not be universally understood by sighted users, even if an aria-label exists for screen readers.
+**Action:** Always wrap floating or absolute-positioned icon-only utility buttons in a Radix Tooltip to ensure explicit visual confirmation of their action.
