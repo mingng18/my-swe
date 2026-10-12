@@ -127,6 +127,6 @@
 ## 2026-10-10 - Optimization of token estimation overhead
 **Learning:** Using `JSON.stringify()` on large arrays of complex objects just to estimate length or token count causes significant memory allocation and synchronous thread blocking in Node.js/Bun.
 **Action:** Replaced `JSON.stringify(messages).length` with a fast iteration loop invoking the existing `estimateMessageTokens` utility function for accurate and non-blocking O(N) evaluation.
-## $(date +%Y-%m-%d) - JSON.stringify Performance Bottleneck on Large Object Arrays
+## 2026-10-12 - JSON.stringify Performance Bottleneck on Large Object Arrays
 **Learning:** Using `JSON.stringify` to serialize massive arrays of complex objects (like LangChain message histories) merely to estimate text length or token count causes severe event loop blocking and memory churn in Node.js/Bun.
 **Action:** Always favor manual iteration with purpose-built helper functions (e.g., `estimateMessageTokens`) when aggregating sizes or tokens across large arrays, avoiding unnecessary serialization overhead.
