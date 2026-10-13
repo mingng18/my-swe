@@ -54,10 +54,14 @@ async function runPreCommitReview(
   if (!diffResult)
     return { shouldBlock: false, issues: [], summary: "No staged files" };
 
-  const changedFiles = diffResult
-    .trim()
-    .split("\\n")
-    .filter((f) => f.length > 0);
+  const diffLines = diffResult.trim().split("\n");
+  const changedFiles: string[] = [];
+  // ⚡ Bolt: Replaced .filter() with a loop to avoid intermediate array allocation
+  for (const line of diffLines) {
+    if (line.length > 0) {
+      changedFiles.push(line);
+    }
+  }
   if (changedFiles.length === 0)
     return { shouldBlock: false, issues: [], summary: "No staged files" };
 
@@ -98,8 +102,6 @@ async function runPreCommitReview(
   );
 
   const criticalFound = hasCriticalIssues(allIssues);
-
-  // ⚡ Bolt: Replaced .filter().length with a single-pass loop
   let criticalCount = 0;
   for (let i = 0; i < allIssues.length; i++) {
     if (allIssues[i].severity === "CRITICAL") criticalCount++;
