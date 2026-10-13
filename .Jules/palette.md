@@ -37,3 +37,9 @@
 ## 2026-10-01 - Consistent Interaction Patterns on Chat Interfaces
 **Learning:** When adding interactive affordances (like a "Copy" button) to assistant messages in a chat UI, users naturally expect the identical affordance on their own messages. Failing to provide this consistency increases cognitive load and frustrates users who wish to reuse their own prompts.
 **Action:** Always evaluate both sides of a conversational interface when introducing message-level interactions to ensure a symmetric and predictable UX.
+## 2026-10-12 - Adding Tooltips to Copy Components
+**Learning:** Added tooltips to the copy buttons in the Commit and StackTrace ai-elements to provide clearer visual feedback on interactive elements for screen readers and standard users.
+**Action:** Continue to wrap icon-only buttons with Tooltips and explicit aria-labels where the intent might be ambiguous or helpful textual confirmation is beneficial.
+## 2026-10-12 - Wrap disabled Tooltip trigger buttons in focusable element
+**Learning:** When using Radix UI/shadcn Tooltips, a `<TooltipTrigger asChild>` element that is disabled (like `<Button disabled>`) won't trigger the tooltip because native disabled elements don't fire pointer or focus events.
+**Action:** Always wrap disabled buttons in a conditionally focusable `<span>` (e.g. `<span tabIndex={isDisabled ? 0 : -1}>`) and set the inner button to `pointer-events-none` when disabled to ensure screen readers and mouse users can access the tooltip on disabled actions.
