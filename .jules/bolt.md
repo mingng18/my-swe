@@ -116,8 +116,8 @@
 **Learning:** Using `Array.prototype.reduce()` to find matching indices in an array of GitHub PR comments creates unnecessary callback allocations for every comment. For PRs with extensive discussion history, this adds garbage collection overhead and slows down processing.
 **Action:** Replaced `.reduce()` with a standard `for` loop to scan PR comments, improving raw iteration speed and reducing memory allocation pressure.
 ## 2026-09-17 - Extracted array creation from React useCallback in PromptInput
-**Learning:** In PromptInput.tsx, the `matchesAccept` function inside `useCallback` was repeatedly chaining `.split(",").map((s) => s.trim()).filter(Boolean)` on the `accept` string property to validate each incoming file. Since the `accept` prop rarely changes, this caused redundant intermediate array allocations and overhead when multiple files were dropped.
-**Action:** Extract static string parsing and filtering logic from inside per-item iterative `useCallback` loops into a `useMemo` block that depends only on the prop string, reusing the array mapping once per change.
+<<<<<<< HEAD
+**Learning:** In PromptInput.tsx, the `matchesAccept` function inside `useCallback` was repeatedly chaining `.split(",").map((s) => s.trim()).filter(Boolean)` on the `accept` string property to validate each incoming file. Since the `accept` prop rarely changes, this caused redundant intermediate array allocations and overhead when multiple files were dropped.\n**Action:** Extract static string parsing and filtering logic from inside per-item iterative `useCallback` loops into a `useMemo` block that depends only on the prop string, reusing the array mapping once per change.
 
 ## 2026-09-26 - Optimize array chains in memory consolidation
 **Learning:** Chained array methods like `.map().filter(Boolean)` or `.reduce()` on memory consolidation operations allocate intermediate arrays and add garbage collection overhead during background cleanup processes.
@@ -128,7 +128,11 @@
 ## 2026-10-10 - Optimization of token estimation overhead
 **Learning:** Using `JSON.stringify()` on large arrays of complex objects just to estimate length or token count causes significant memory allocation and synchronous thread blocking in Node.js/Bun.
 **Action:** Replaced `JSON.stringify(messages).length` with a fast iteration loop invoking the existing `estimateMessageTokens` utility function for accurate and non-blocking O(N) evaluation.
+=======
+**Learning:** In PromptInput.tsx, the `matchesAccept` function inside `useCallback` was repeatedly chaining `.split(",").map((s) => s.trim()).filter(Boolean)` on the `accept` string property to validate each incoming file. Since the `accept` prop rarely changes, this caused redundant intermediate array allocations and overhead when multiple files were dropped.
+**Action:** Extract static string parsing and filtering logic from inside per-item iterative `useCallback` loops into a `useMemo` block that depends only on the prop string, reusing the array mapping once per change.
 
 ## 2026-09-15 - Replaced sequential PR processing with p-limit
 **Learning:** The `pr-babysitter` loop processed unresolved comments sequentially using an `await` inside a `for...of` loop, waiting for each network IO to complete before fetching the next. `p-limit` is available and widely used in the codebase.
 **Action:** Use `p-limit` to bound the concurrent map of promises for operations involving external network IO (like GitHub APIs) instead of sequential loops. This reduces loop cycle time without exhausting API limits.
+>>>>>>> 3d8347b (perf(pr-babysitter): replace sequential for..of loop with concurrent processing bounded by p-limit)
