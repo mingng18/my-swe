@@ -127,6 +127,3 @@
 ## 2026-10-10 - Optimization of token estimation overhead
 **Learning:** Using `JSON.stringify()` on large arrays of complex objects just to estimate length or token count causes significant memory allocation and synchronous thread blocking in Node.js/Bun.
 **Action:** Replaced `JSON.stringify(messages).length` with a fast iteration loop invoking the existing `estimateMessageTokens` utility function for accurate and non-blocking O(N) evaluation.
-## 2026-10-13 - Replace .reduce with standard loops for simple summations
-**Learning:** Using `.reduce()` for simple summations across the codebase creates unnecessary callback allocations and adds garbage collection overhead, especially in frequently executed utility functions.
-**Action:** Replaced `.reduce()` with standard `for` loops for calculating totals and counts, improving raw iteration speed and reducing memory allocation pressure.
