@@ -111,7 +111,11 @@ describe("BoundedRetryLoop", () => {
     expect(result.attempts.length).toBe(3);
 
     // Check backoff logic indirectly by ensuring duration > 0 (even though initialDelay is 1)
-    const totalDuration = result.attempts.reduce((sum, a) => sum + a.durationMs, 0);
+    // ⚡ Bolt: Replaced .reduce() with a single-pass for loop to avoid intermediate allocations and reduce garbage collection pressure.
+    let totalDuration = 0;
+    for (let i = 0; i < result.attempts.length; i++) {
+      totalDuration += result.attempts[i].durationMs;
+    }
     expect(totalDuration).toBeGreaterThanOrEqual(0);
   });
 
