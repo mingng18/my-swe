@@ -127,6 +127,6 @@
 ## 2026-10-10 - Optimization of token estimation overhead
 **Learning:** Using `JSON.stringify()` on large arrays of complex objects just to estimate length or token count causes significant memory allocation and synchronous thread blocking in Node.js/Bun.
 **Action:** Replaced `JSON.stringify(messages).length` with a fast iteration loop invoking the existing `estimateMessageTokens` utility function for accurate and non-blocking O(N) evaluation.
-## 2026-10-16 - Refactored sequential for...of loops to bounded concurrent execution
-**Learning:** Sequential network and AI model requests in loops bottleneck background task processing, while unbounded concurrent operations risk rate limiting. Bounded concurrency (e.g., using p-limit) is necessary.
-**Action:** Replaced sequential loops with pLimit and Promise.all for safe concurrent execution.
+## 2026-10-13 - Parallelized Independent Loop Executions in Scheduled Patterns
+**Learning:** Sequential `await` in `for...of` loops, as seen in `src/loop/patterns/daily-triage.ts` over multiple fetched PRs/issues, creates an artificial bottleneck. Since the loop executions are independent tasks without strict ordering, performing them consecutively rather than concurrently wastes idle I/O time during network requests or sandbox executions.
+**Action:** Use `p-limit` bounding over `Promise.all()` to orchestrate parallel execution of independent loop iterations. Bounding concurrency (e.g., `pLimit(5)`) ensures the execution stays safe and won't exceed API rate limits or overwhelm memory, while significantly improving total task execution time compared to a sequential loop.
