@@ -614,10 +614,7 @@ export async function cleanupArtifacts(threadId: string): Promise<number> {
         }
       }),
     );
-    // ⚡ Bolt: Replaced .reduce() with a single-pass for loop to avoid intermediate allocations and reduce garbage collection pressure.
-    for (let i = 0; i < chunkResults.length; i++) {
-      cleanedCount += chunkResults[i];
-    }
+    cleanedCount += chunkResults.reduce((sum: number, count) => sum + count, 0);
   }
 
   if (cleanedCount > 0) {
