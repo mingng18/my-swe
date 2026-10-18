@@ -127,7 +127,3 @@
 ## 2026-10-10 - Optimization of token estimation overhead
 **Learning:** Using `JSON.stringify()` on large arrays of complex objects just to estimate length or token count causes significant memory allocation and synchronous thread blocking in Node.js/Bun.
 **Action:** Replaced `JSON.stringify(messages).length` with a fast iteration loop invoking the existing `estimateMessageTokens` utility function for accurate and non-blocking O(N) evaluation.
-
-## 2026-10-11 - O(N^2) Lag in High-Frequency SSE Streaming
-**Learning:** In the `useBullhorseStream` React hook, appending events to a Zustand store array (`thread.events`) and immediately synchronously calling `JSON.stringify(thread.events)` to save to `sessionStorage` inside the event handler creates a massive O(N^2) CPU bottleneck. This occurs because `JSON.stringify` runs in O(N) time and is called N times. On long LLM traces with thousands of `llm_chunk` events, this blocks the main thread and freezes the UI.
-**Action:** Always debounce or throttle `sessionStorage` persistence (e.g., using `setTimeout` in a `useRef`) when saving unbounded event streams. Ensure you still capture critical explicit boundary events (like `session_end` or unmount cleanup) immediately to avoid data loss.
