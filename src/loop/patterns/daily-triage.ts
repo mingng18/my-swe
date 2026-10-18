@@ -92,7 +92,7 @@ export function createDailyTriagePattern(opts: DailyTriageOptions): ScheduledPat
       let issuesTriaged = 0;
       try {
         const issues = await fetchNewIssues();
-        // ⚡ Bolt: Use bounded concurrency for independent issue triaging.
+        // ⚡ Bolt: Using bounded concurrency to speed up loop execution over independent issues
         const pLimit = (await import("p-limit")).default;
         const limit = pLimit(5);
         await Promise.all(
