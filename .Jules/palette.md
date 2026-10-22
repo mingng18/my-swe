@@ -48,10 +48,6 @@
 **Learning:** When using Radix UI/shadcn Tooltips, a `<TooltipTrigger asChild>` element that is disabled (like `<Button disabled>`) won't trigger the tooltip because native disabled elements don't fire pointer or focus events.
 **Action:** Always wrap disabled buttons in a conditionally focusable `<span>` (e.g. `<span tabIndex={isDisabled ? 0 : -1}>`) and set the inner button to `pointer-events-none` when disabled to ensure screen readers and mouse users can access the tooltip on disabled actions.
 
-## 2026-10-14 - Tooltips for Audio Controls
-**Learning:** Audio player and speech controls require explicit accessibility labels to explain complex icons to all users, enhancing native media elements.
-**Action:** Replaced native aria-labels with Tooltip wrappers around AudioPlayer and MicSelector component buttons.
-
 ## 2026-09-14 - Tooltips for Scroll Buttons
 **Learning:** Using an icon-only button for "Scroll to bottom" actions without a visual label is an accessibility and UX issue. A native screen-reader aria-label is helpful, but sighted users also benefit from a visual tooltip to understand the action, especially if the icon is ambiguous.
 **Action:** Always wrap icon-only floating action buttons in custom Radix Tooltips to provide immediate visual affordances for all users.
