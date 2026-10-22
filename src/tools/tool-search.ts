@@ -84,8 +84,6 @@ export const toolSearchTool = tool(
     );
 
     if (matches.length === 0) {
-      // ⚡ Bolt: Use mapped sort directly if needed, but since it's an error path, it's fine.
-      // However, we can optimize the join.
       const allToolNames = tools
         .map((t) => t.name)
         .sort()
