@@ -3,8 +3,8 @@ import { PRReviewCycle, type PRReviewResult } from "../../harness/pr-review-cycl
 import type { RepoConfig } from "../../utils/github";
 import type { SandboxService } from "../../integrations/sandbox-service";
 import type { ScheduledPattern, PatternRunSummary } from "../scheduler";
-import { Octokit } from "octokit";
 import pLimit from "p-limit";
+import { Octokit } from "octokit";
 
 export interface PrBabysitterOptions {
   name?: string;
