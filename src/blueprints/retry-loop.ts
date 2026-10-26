@@ -318,11 +318,7 @@ export class BoundedRetryLoop {
       );
     }
 
-    // ⚡ Bolt: Replaced .reduce() with a single-pass for loop to avoid intermediate allocations and reduce garbage collection pressure.
-    let totalDuration = 0;
-    for (let i = 0; i < attempts.length; i++) {
-      totalDuration += attempts[i].durationMs;
-    }
+    const totalDuration = attempts.reduce((sum, a) => sum + a.durationMs, 0);
     lines.push(`Total duration: ${totalDuration}ms`);
 
     return lines.join("\n");

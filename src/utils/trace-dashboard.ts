@@ -268,15 +268,10 @@ export function generateTraceSummaryJSON(threadId: string): string {
         totalCost: tokenUsage?.totalCost || 0,
         llmCalls: metrics.llmCalls.count,
         totalDuration: metrics.totalDuration,
-        // ⚡ Bolt: Replaced .reduce() with a single-pass for loop to avoid intermediate allocations and reduce garbage collection pressure.
-        toolCalls: (() => {
-          let sum = 0;
-          const tools = Object.values(metrics.tools);
-          for (let i = 0; i < tools.length; i++) {
-            sum += (tools[i] as any).count;
-          }
-          return sum;
-        })(),
+        toolCalls: Object.values(metrics.tools).reduce(
+          (sum, t) => sum + t.count,
+          0,
+        ),
       },
       llmCalls: metrics.llmCalls,
       tools: metrics.tools,

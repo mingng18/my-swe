@@ -241,10 +241,5 @@ export function countCollapsibleMessages(
   config: CollapseConfig,
 ): number {
   const groups = findCollapsibleGroups(messages, config);
-  // ⚡ Bolt: Replaced .reduce() with a single-pass for loop to avoid intermediate allocations and reduce garbage collection pressure.
-  let sum = 0;
-  for (let i = 0; i < groups.length; i++) {
-    sum += groups[i].indices.length - 1;
-  }
-  return sum;
+  return groups.reduce((sum, group) => sum + group.indices.length - 1, 0);
 }
