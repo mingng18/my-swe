@@ -127,6 +127,3 @@
 ## 2026-10-10 - Optimization of token estimation overhead
 **Learning:** Using `JSON.stringify()` on large arrays of complex objects just to estimate length or token count causes significant memory allocation and synchronous thread blocking in Node.js/Bun.
 **Action:** Replaced `JSON.stringify(messages).length` with a fast iteration loop invoking the existing `estimateMessageTokens` utility function for accurate and non-blocking O(N) evaluation.
-## 2026-10-17 - Flush throttled storage on unmount
-**Learning:** When using throttled or debounced timers to batch `sessionStorage` writes (to prevent main thread blocking), the newest state can be silently dropped if the component unmounts or the thread changes during the window, leading to stale data on restoration.
-**Action:** Always provide and invoke a synchronous flush method during the React `useEffect` cleanup phase to ensure pending state is committed to storage before unmounting.

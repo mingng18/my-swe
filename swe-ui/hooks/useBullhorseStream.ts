@@ -23,30 +23,6 @@ const storageThrottleTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const latestEventsSnapshot = new Map<string, SSEEvent[]>();
 
 /**
- * Flushes any pending events to storage immediately, clearing the timer.
- * Used during cleanup to ensure no data is lost.
- */
-export function flushEventsToStorage(threadId: string): void {
-  const timerId = storageThrottleTimers.get(threadId);
-  if (timerId) {
-    clearTimeout(timerId);
-    storageThrottleTimers.delete(threadId);
-  }
-
-  const snapshot = latestEventsSnapshot.get(threadId);
-  if (snapshot) {
-    try {
-      const key = `${EVENT_STORAGE_PREFIX}${threadId}`;
-      sessionStorage.setItem(key, JSON.stringify(snapshot));
-    } catch (error) {
-      console.error("[useBullhorseStream] Failed to flush events to storage:", error);
-    } finally {
-      latestEventsSnapshot.delete(threadId);
-    }
-  }
-}
-
-/**
  * Save events to sessionStorage for history restoration on reconnect (Throttled)
  */
 function saveEventsToStorage(threadId: string, events: SSEEvent[]): void {
@@ -58,7 +34,18 @@ function saveEventsToStorage(threadId: string, events: SSEEvent[]): void {
 
     // Throttle storage writes to max once per second per thread
     const timerId = setTimeout(() => {
-      flushEventsToStorage(threadId);
+      try {
+        const key = `${EVENT_STORAGE_PREFIX}${threadId}`;
+        const snapshot = latestEventsSnapshot.get(threadId);
+        if (snapshot) {
+          sessionStorage.setItem(key, JSON.stringify(snapshot));
+        }
+      } catch (error) {
+        console.error("[useBullhorseStream] Failed to save events to storage:", error);
+      } finally {
+        storageThrottleTimers.delete(threadId);
+        latestEventsSnapshot.delete(threadId);
+      }
     }, 1000);
 
     storageThrottleTimers.set(threadId, timerId);
@@ -318,8 +305,6 @@ export function useBullhorseStream({
         setConnectionState("disconnected");
         setShowReconnectingBanner(false);
       }
-      // Flush any pending events to storage before unmounting
-      flushEventsToStorage(threadId);
     };
   // Only depend on threadId and enabled - use refs for callbacks to avoid re-runs
   // eslint-disable-next-line react-hooks/exhaustive-deps
