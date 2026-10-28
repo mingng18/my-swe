@@ -117,12 +117,12 @@ export const WebPreviewNavigationButton = ({
 }: WebPreviewNavigationButtonProps) => {
   const button = (
     <Button
+      aria-label={tooltip}
       className="h-8 w-8 p-0 hover:text-foreground"
       disabled={disabled}
       onClick={onClick}
       size="sm"
       variant="ghost"
-      aria-label={tooltip}
       {...props}
     >
       {children}
