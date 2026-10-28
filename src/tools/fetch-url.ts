@@ -120,7 +120,7 @@ function isPermittedRedirect(
 /**
  * Validate URL before fetching.
  */
-function validateURL(url: string): { valid: boolean; error?: string } {
+export function validateURL(url: string): { valid: boolean; error?: string } {
   if (url.length > MAX_URL_LENGTH) {
     return {
       valid: false,

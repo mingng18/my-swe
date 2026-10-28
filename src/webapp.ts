@@ -100,7 +100,7 @@ app.use(
 		origin: (origin) => {
 			const allowedOriginsStr = process.env.CORS_ALLOWED_ORIGIN;
 			if (!origin) return "";
-			if (!allowedOriginsStr) return "*"; // fallback for tests
+			if (!allowedOriginsStr) return process.env.NODE_ENV === "test" ? "*" : ""; // Secure by default, only allow * in explicit test environments
 
 			// Parse the allowed origins list from environment
 			const allowedOrigins = allowedOriginsStr
@@ -128,21 +128,19 @@ app.use(async (c, next) => {
 		return next();
 	}
 	const secret = process.env.API_SECRET_KEY;
-	if (secret !== undefined) {
-		if (secret === "") {
-			return c.json({ error: "Unauthorized" }, 401);
-		}
-		const authHeader = c.req.header("Authorization");
-		const token = authHeader
-			? authHeader.replace(/^Bearer\s+/i, "")
-			: (c.req.query("token") ?? "");
+	if (!secret) {
+		return c.json({ error: "Unauthorized" }, 401);
+	}
+	const authHeader = c.req.header("Authorization");
+	const token = authHeader
+		? authHeader.replace(/^Bearer\s+/i, "")
+		: (c.req.query("token") ?? "");
 
-		const expectedHash = createHash("sha256").update(secret).digest();
-		const providedHash = createHash("sha256").update(token).digest();
+	const expectedHash = createHash("sha256").update(secret).digest();
+	const providedHash = createHash("sha256").update(token).digest();
 
-		if (!timingSafeEqual(expectedHash, providedHash)) {
-			return c.json({ error: "Unauthorized" }, 401);
-		}
+	if (!timingSafeEqual(expectedHash, providedHash)) {
+		return c.json({ error: "Unauthorized" }, 401);
 	}
 	await next();
 });
@@ -589,8 +587,6 @@ app.get("/stream", async (c) => {
 			"Cache-Control": "no-cache",
 			Connection: "keep-alive",
 			"X-Accel-Buffering": "no", // Disable nginx buffering
-			"Access-Control-Allow-Origin": c.req.header("Origin") || "*",
-			Vary: "Origin",
 		},
 	});
 });
