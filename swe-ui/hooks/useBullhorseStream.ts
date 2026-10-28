@@ -206,6 +206,7 @@ export function useBullhorseStream({
     addEvent(threadId, event);
 
     // Persist events to sessionStorage for history restoration on reconnect
+
     const thread = useThreadStore.getState().threads[threadId];
     if (thread) {
       saveEventsToStorage(threadId, thread.events);
