@@ -71,6 +71,14 @@
 **Learning:** While avoiding full store subscriptions (like `useThreadStore()`) is critical, destructuring stable actions directly (e.g., `const { addThread } = useThreadStore()`) still implicitly subscribes the component to all state changes in Zustand, defeating the purpose of the optimization.
 **Action:** When extracting actions from a Zustand store, always use granular selectors (e.g., `const addThread = useThreadStore(state => state.addThread)`) or `useShallow` to ensure the component only re-renders when those specific properties change (which for actions, is never).
 
+## 2026-10-10 - Optimization of token estimation overhead
+**Learning:** Using `JSON.stringify()` on large arrays of complex objects just to estimate length or token count causes significant memory allocation and synchronous thread blocking in Node.js/Bun.
+**Action:** Replaced `JSON.stringify(messages).length` with a fast iteration loop invoking the existing `estimateMessageTokens` utility function for accurate and non-blocking O(N) evaluation.
+
+## 2026-10-12 - Parallelize independent PR review comments processing
+**Learning:** Iterating over PR review comments sequentially using `for...of` when each comment's processing is largely independent adds up significantly to the total review cycle time.
+**Action:** When processing independent items like PR comments, use `Promise.all` with a concurrency limiter (like `p-limit`) to parallelize the agent invocations. This significantly reduces total latency while allowing fine-grained control over resource/API consumption. Be sure to use a strict mutex (concurrency of 1) for underlying git operations to avoid conflicts.
+
 ## 2024-03-22 - Optimize SSE buffer array filtering
 **Learning:** Using `Array.prototype.filter()` on highly active event buffers to enforce a Time-To-Live (TTL) allocates a new array and performs an O(N) traversal on every iteration, leading to significant garbage collection pressure. If the buffer is strictly chronological, an in-place `Array.splice` combined with an early-exit loop is much faster.
 **Action:** Replace full array `.filter()` scans on chronologically sorted arrays with early-exit `for` loops and in-place `splice()` mutations to minimize GC pressure and O(N) allocation overhead.
