@@ -279,7 +279,6 @@ class StreamRegistry {
       const buffer = this.eventBuffers.get(threadId);
       if (buffer && buffer.length > 0) {
         const now = Date.now();
-        const originalLength = buffer.length;
         let validStartIndex = buffer.length;
 
         for (let i = 0; i < buffer.length; i++) {
