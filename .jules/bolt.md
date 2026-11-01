@@ -127,6 +127,6 @@
 **Learning:** Using `JSON.stringify()` on large arrays of complex objects just to estimate length or token count causes significant memory allocation and synchronous thread blocking in Node.js/Bun.
 **Action:** Replaced `JSON.stringify(messages).length` with a fast iteration loop invoking the existing `estimateMessageTokens` utility function for accurate and non-blocking O(N) evaluation.
 
-## 2026-09-15 - Replaced sequential PR processing with p-limit
+## 2026-10-28 - Replaced sequential PR processing with p-limit
 **Learning:** The `pr-babysitter` loop processed unresolved comments sequentially using an `await` inside a `for...of` loop, waiting for each network IO to complete before fetching the next. `p-limit` is available and widely used in the codebase.
 **Action:** Use `p-limit` to bound the concurrent map of promises for operations involving external network IO (like GitHub APIs) instead of sequential loops. This reduces loop cycle time without exhausting API limits.
