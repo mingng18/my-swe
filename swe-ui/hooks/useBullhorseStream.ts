@@ -17,15 +17,40 @@ export interface UseBullhorseStreamOptions {
  */
 const EVENT_STORAGE_PREFIX = "bullhorse_events_";
 
+// ⚡ Bolt: Added a throttle timer map to prevent synchronous JSON.stringify from
+// blocking the main thread O(N^2) on every single SSE event append.
+const storageThrottleTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const latestEventsSnapshot = new Map<string, SSEEvent[]>();
+
 /**
- * Save events to sessionStorage for history restoration on reconnect
+ * Save events to sessionStorage for history restoration on reconnect (Throttled)
  */
 function saveEventsToStorage(threadId: string, events: SSEEvent[]): void {
   try {
-    const key = `${EVENT_STORAGE_PREFIX}${threadId}`;
-    sessionStorage.setItem(key, JSON.stringify(events));
+    latestEventsSnapshot.set(threadId, events);
+    if (storageThrottleTimers.has(threadId)) {
+      return;
+    }
+
+    // Throttle storage writes to max once per second per thread
+    const timerId = setTimeout(() => {
+      try {
+        const key = `${EVENT_STORAGE_PREFIX}${threadId}`;
+        const snapshot = latestEventsSnapshot.get(threadId);
+        if (snapshot) {
+          sessionStorage.setItem(key, JSON.stringify(snapshot));
+        }
+      } catch (error) {
+        console.error("[useBullhorseStream] Failed to save events to storage:", error);
+      } finally {
+        storageThrottleTimers.delete(threadId);
+        latestEventsSnapshot.delete(threadId);
+      }
+    }, 1000);
+
+    storageThrottleTimers.set(threadId, timerId);
   } catch (error) {
-    console.error("[useBullhorseStream] Failed to save events to storage:", error);
+    console.error("[useBullhorseStream] Failed to setup storage throttle:", error);
   }
 }
 
@@ -50,6 +75,12 @@ function loadEventsFromStorage(threadId: string): SSEEvent[] {
  */
 function clearEventsFromStorage(threadId: string): void {
   try {
+    const timerId = storageThrottleTimers.get(threadId);
+    if (timerId) {
+      clearTimeout(timerId);
+      storageThrottleTimers.delete(threadId);
+    }
+    latestEventsSnapshot.delete(threadId);
     const key = `${EVENT_STORAGE_PREFIX}${threadId}`;
     sessionStorage.removeItem(key);
   } catch (error) {
@@ -157,7 +188,10 @@ export function useBullhorseStream({
   const [showReconnectingBanner, setShowReconnectingBanner] = useState(false);
   const [sseError, setSseError] = useState<string | null>(null);
 
-  const { addThread, addEvent, updateTodo, updateThread, threads } = useThreadStore();
+  const addThread = useThreadStore((state) => state.addThread);
+  const addEvent = useThreadStore((state) => state.addEvent);
+  const updateTodo = useThreadStore((state) => state.updateTodo);
+  const updateThread = useThreadStore((state) => state.updateThread);
   const { addToast } = useToast();
 
   // Update ref when state changes
@@ -172,7 +206,7 @@ export function useBullhorseStream({
     addEvent(threadId, event);
 
     // Persist events to sessionStorage for history restoration on reconnect
-    const thread = threads[threadId];
+    const thread = useThreadStore.getState().threads[threadId];
     if (thread) {
       saveEventsToStorage(threadId, thread.events);
     }
@@ -193,11 +227,11 @@ export function useBullhorseStream({
         error: event.message,
       });
     }
-  }, [threadId, addEvent, updateTodo, updateThread, threads]);
+  }, [threadId, addEvent, updateTodo, updateThread]);
 
   const handleReconnect = useCallback(async () => {
-    restoreThreadHistory(threadId, threads, addEvent);
-  }, [threadId, threads, addEvent]);
+    restoreThreadHistory(threadId, useThreadStore.getState().threads, addEvent);
+  }, [threadId, addEvent]);
 
   useEffect(() => {
     if (!enabled) {

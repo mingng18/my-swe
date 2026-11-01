@@ -1,3 +1,16 @@
+import type {
+  PullRequestEvent,
+  PullRequestReviewEvent,
+  PullRequestReviewCommentEvent,
+  IssueCommentEvent,
+} from "@octokit/webhooks-types";
+
+type PrEventPayload =
+  | PullRequestEvent
+  | PullRequestReviewEvent
+  | PullRequestReviewCommentEvent
+  | IssueCommentEvent;
+
 import { createLogger } from "../utils/logger";
 import { defang } from "../security/defang";
 import {
@@ -50,7 +63,7 @@ export function handleGithubWebhook(
   }
 }
 
-function handlePrEvent(payload: any, githubEvent: string): void {
+function handlePrEvent(payload: PrEventPayload, githubEvent: string): void {
   log.info(
     {
       action: payload.action,
@@ -62,7 +75,7 @@ function handlePrEvent(payload: any, githubEvent: string): void {
 
   void (async () => {
     try {
-      if (githubEvent === "issue_comment" && !payload.issue?.pull_request) {
+      if (githubEvent === "issue_comment" && !("issue" in payload && payload.issue?.pull_request)) {
         return;
       }
 
@@ -74,7 +87,7 @@ function handlePrEvent(payload: any, githubEvent: string): void {
         prUrl,
         commentId,
         nodeId,
-      ] = await extractPrContext(payload, githubEvent);
+      ] = await extractPrContext(payload as unknown as Record<string, unknown>, githubEvent);
 
       if (!prNumber) {
         return;

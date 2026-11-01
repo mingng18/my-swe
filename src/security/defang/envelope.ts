@@ -65,7 +65,7 @@ export const UNTRUSTED_DATA_PREAMBLE =
 export function sanitizeEnvelopeTags(text: string): string {
   // Match the opening tag loosely: `<untrusted_data ...>` (allow attributes,
   // trailing whitespace, and a self-closing slash).
-  const openRegex = /<untrusted_data[^>]*>/gi;
+  const openRegex = /<untrusted_data(?:(?:\s|\/)[^>]*)?>/gi;
   // Match the closing tag as loosely as the opening tag so a forged early
   // close cannot terminate the envelope. LLM tokenizers treat any of
   // `</untrusted_data>`, `</untrusted_data >`, `</untrusted_data\t>`,

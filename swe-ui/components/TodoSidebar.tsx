@@ -64,10 +64,17 @@ export function TodoSidebar({ threadId, className }: TodoSidebarProps) {
 		}
 	};
 
-	const completedTasks = todos.filter((t) => t.status === "completed").length;
-	const inProgressTasks = todos.filter(
-		(t) => t.status === "in_progress",
-	).length;
+	// ⚡ Bolt: Replaced multiple .filter().length passes with a single O(N) loop
+	// to avoid intermediate array allocations and reduce garbage collection pressure.
+	let completedTasks = 0;
+	let inProgressTasks = 0;
+	for (let i = 0; i < todos.length; i++) {
+		if (todos[i].status === "completed") {
+			completedTasks++;
+		} else if (todos[i].status === "in_progress") {
+			inProgressTasks++;
+		}
+	}
 	const progressPercentage =
 		todos.length > 0 ? (completedTasks / todos.length) * 100 : 0;
 

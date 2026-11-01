@@ -1,1 +1,0 @@
-(globalThis.TURBOPACK||(globalThis.TURBOPACK=[])).push(["object"==typeof document?document.currentScript:void 0,92967,i=>{"use strict";var r=i.i(98310),o=i.i(37255),e=i.i(24407);i.s(["Providers",0,function({children:i}){return(0,r.jsx)(e.TooltipProvider,{children:(0,r.jsx)(o.ToastProvider,{children:i})})}])}]);

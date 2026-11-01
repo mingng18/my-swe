@@ -246,8 +246,11 @@ function searchToolsByKeywords(
     });
   }
 
-  // Score remaining tools
-  const scored = candidateTools.map((tool) => {
+  // ⚡ Bolt: Replaced chained .map().filter().map() with a single-pass for loop to reduce allocations
+  const scored: { tool: any; score: number }[] = [];
+
+  for (let i = 0; i < candidateTools.length; i++) {
+    const tool = candidateTools[i];
     const parsed = parseToolName(tool.name);
     const descLower = (tool.description || "").toLowerCase();
     const partsSet = new Set(parsed.parts);
@@ -259,7 +262,7 @@ function searchToolsByKeywords(
       // Exact part match (highest weight)
       if (partsSet.has(term)) {
         score += 10;
-      } else if (parsed.parts.some((p) => p.includes(term))) {
+      } else if (parsed.parts.some((p: string) => p.includes(term))) {
         score += 5;
       }
 
@@ -274,12 +277,18 @@ function searchToolsByKeywords(
       }
     }
 
-    return { tool, score };
-  });
+    if (score > 0) {
+      scored.push({ tool, score });
+    }
+  }
 
-  return scored
-    .filter((item) => item.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, maxResults)
-    .map((item) => item.tool);
+  scored.sort((a, b) => b.score - a.score);
+
+  const results = [];
+  const limit = Math.min(scored.length, maxResults);
+  for (let i = 0; i < limit; i++) {
+    results.push(scored[i].tool);
+  }
+
+  return results;
 }

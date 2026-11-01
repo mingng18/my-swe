@@ -87,7 +87,7 @@ class SemanticSearchCache {
    */
   invalidateDirectory(dirPath: string): void {
     this.cache.invalidate(`doc:${dirPath}.*`);
-    this.cache.invalidate(`files.*path=${dirPath}`);
+    this.cache.invalidate(`files.*path="${dirPath}"`);
   }
 
   /**
