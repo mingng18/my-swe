@@ -552,26 +552,18 @@ export const PromptInput = ({
     inputRef.current?.click();
   }, []);
 
-  // ⚡ Bolt: Extracted accept string parsing into a useMemo block.
-  // This prevents chaining multiple array methods (.split().map().filter()) and allocating
-  // intermediate arrays for every file when matching multiple incoming dropped files.
-  const parsedAcceptPatterns = useMemo(() => {
-    if (!accept || accept.trim() === "") {
-      return [];
-    }
-    return accept
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-  }, [accept]);
-
   const matchesAccept = useCallback(
     (f: File) => {
-      if (parsedAcceptPatterns.length === 0) {
+      if (!accept || accept.trim() === "") {
         return true;
       }
 
-      return parsedAcceptPatterns.some((pattern) => {
+      const patterns = accept
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      return patterns.some((pattern) => {
         if (pattern.endsWith("/*")) {
           // e.g: image/* -> image/
           const prefix = pattern.slice(0, -1);
@@ -580,7 +572,7 @@ export const PromptInput = ({
         return f.type === pattern;
       });
     },
-    [parsedAcceptPatterns]
+    [accept]
   );
 
   const addLocal = useCallback(
@@ -920,6 +912,7 @@ export const PromptInput = ({
         multiple={multiple}
         onChange={handleChange}
         ref={inputRef}
+        title="Upload files"
         type="file"
       />
       <form
@@ -1255,22 +1248,17 @@ export const PromptInputSubmit = ({
   );
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <InputGroupButton
-          aria-label={isGenerating ? "Stop" : "Submit"}
-          className={cn(className)}
-          onClick={handleClick}
-          size={size}
-          type={isGenerating && onStop ? "button" : "submit"}
-          variant={variant}
-          {...props}
-        >
-          {children ?? Icon}
-        </InputGroupButton>
-      </TooltipTrigger>
-      <TooltipContent>{isGenerating ? "Stop" : "Submit"}</TooltipContent>
-    </Tooltip>
+    <InputGroupButton
+      aria-label={isGenerating ? "Stop" : "Submit"}
+      className={cn(className)}
+      onClick={handleClick}
+      size={size}
+      type={isGenerating && onStop ? "button" : "submit"}
+      variant={variant}
+      {...props}
+    >
+      {children ?? Icon}
+    </InputGroupButton>
   );
 };
 

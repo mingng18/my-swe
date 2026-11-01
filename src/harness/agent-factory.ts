@@ -8,7 +8,7 @@
  */
 
 import { createLogger } from "../utils/logger";
-import { loadLlmConfig, loadModelConfig, parseEnvFloat, parseEnvInt } from "../utils/config";
+import { loadLlmConfig, loadModelConfig } from "../utils/config";
 import { createChatModel } from "../utils/model-factory";
 import {
   createDeepAgent,
@@ -88,26 +88,59 @@ export async function createAgentInstance(args: {
       model: chatModel,
       modelName: modelConfig.model || "gpt-4o",
       config: {
-        cascadeTrigger: {
-          type: "fraction",
-          value: parseEnvFloat("COMPACTION_CASCADE_TRIGGER_FRACTION", 0.7, 0, 1),
-        },
-        trigger: {
-          type: "fraction",
-          value: parseEnvFloat("COMPACTION_TRIGGER_FRACTION", 0.85, 0, 1),
-        },
-        keep: {
-          type: "messages",
-          value: parseEnvInt("COMPACTION_KEEP_MESSAGES", 10, 1),
-        },
-        maxConsecutiveFailures: parseEnvInt("COMPACTION_MAX_FAILURES", 3, 1),
+        cascadeTrigger: process.env.COMPACTION_CASCADE_TRIGGER_FRACTION
+          ? {
+              type: "fraction",
+              value: Math.max(
+                0,
+                Math.min(
+                  1,
+                  (() => {
+                    const parsed = Number.parseFloat(
+                      process.env.COMPACTION_CASCADE_TRIGGER_FRACTION || "",
+                    );
+                    if (Number.isNaN(parsed)) {
+                      logger.warn(
+                        { envValue: process.env.COMPACTION_CASCADE_TRIGGER_FRACTION },
+                        "[agent-factory] Invalid COMPACTION_CASCADE_TRIGGER_FRACTION, using default 0.7",
+                      );
+                      return 0.7;
+                    }
+                    return parsed;
+                  })(),
+                ),
+              ),
+            }
+          : { type: "fraction", value: 0.7 },
+        trigger: process.env.COMPACTION_TRIGGER_FRACTION
+          ? {
+              type: "fraction",
+              value: Number.parseFloat(process.env.COMPACTION_TRIGGER_FRACTION),
+            }
+          : { type: "fraction", value: 0.85 },
+        keep: process.env.COMPACTION_KEEP_MESSAGES
+          ? {
+              type: "messages",
+              value: Number.parseInt(process.env.COMPACTION_KEEP_MESSAGES, 10),
+            }
+          : { type: "messages", value: 10 },
+        maxConsecutiveFailures: Number.parseInt(
+          process.env.COMPACTION_MAX_FAILURES || "3",
+          10,
+        ),
         microcompact: {
           enabled: process.env.COMPACTION_MICROCOMPACT !== "false",
-          gapThresholdMinutes: parseEnvInt("COMPACTION_MICROCOMPACT_GAP_MINUTES", 60, 1),
+          gapThresholdMinutes: Number.parseInt(
+            process.env.COMPACTION_MICROCOMPACT_GAP_MINUTES || "60",
+            10,
+          ),
         },
         restoration: {
           enabled: process.env.COMPACTION_RESTORATION !== "false",
-          maxFiles: parseEnvInt("COMPACTION_RESTORATION_MAX_FILES", 5, 0),
+          maxFiles: Number.parseInt(
+            process.env.COMPACTION_RESTORATION_MAX_FILES || "5",
+            10,
+          ),
         },
       },
     }),

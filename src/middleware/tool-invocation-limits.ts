@@ -253,20 +253,17 @@ class InMemoryToolInvocationTracker implements ToolInvocationTracker {
     const cutoff = now - INVOCATION_TTL_MS;
 
     for (const [threadId, invocations] of this.threadInvocations.entries()) {
-      let firstValidIdx = 0;
-      while (firstValidIdx < invocations.length && invocations[firstValidIdx].timestamp <= cutoff) {
-        firstValidIdx++;
-      }
+      const filtered = invocations.filter((inv) => inv.timestamp > cutoff);
 
-      if (firstValidIdx > 0) {
-        if (firstValidIdx === invocations.length) {
+      if (filtered.length < invocations.length) {
+        if (filtered.length === 0) {
           this.threadInvocations.delete(threadId);
         } else {
-          invocations.splice(0, firstValidIdx);
+          this.threadInvocations.set(threadId, filtered);
         }
 
         logger.debug(
-          { threadId, removed: firstValidIdx },
+          { threadId, removed: invocations.length - filtered.length },
           "[tool-invocation-limits] Cleaned up old invocations",
         );
       }
@@ -356,7 +353,8 @@ class InMemoryToolInvocationTracker implements ToolInvocationTracker {
     }
 
     // Check invocation limit
-    const count = this.getInvocationCount(threadId, toolName);
+    const toolInvocations = invocations.filter((inv) => inv.toolName === toolName);
+    const count = toolInvocations.length;
     const maxInvocations = this.getMaxInvocations(toolName);
 
     if (count >= maxInvocations) {
@@ -389,13 +387,7 @@ class InMemoryToolInvocationTracker implements ToolInvocationTracker {
 
   getInvocationCount(threadId: string, toolName: string): number {
     const invocations = this.threadInvocations.get(threadId) || [];
-    let count = 0;
-    for (let i = 0; i < invocations.length; i++) {
-      if (invocations[i].toolName === toolName) {
-        count++;
-      }
-    }
-    return count;
+    return invocations.filter((inv) => inv.toolName === toolName).length;
   }
 
   clearThread(threadId: string): void {

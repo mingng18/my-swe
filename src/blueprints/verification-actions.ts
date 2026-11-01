@@ -12,7 +12,6 @@
 import type { DeterministicAction, ActionResult, BlueprintState } from "./types";
 import type { VerificationResult } from "./state";
 import { createLogger } from "../utils/logger";
-import { shellEscapeSingleQuotes } from "../utils/shell";
 
 const logger = createLogger("verification-actions");
 
@@ -127,7 +126,7 @@ export function createVerifyTypecheckAction(
           }>;
         };
         const result = await sandbox.execute(
-          `cd ${shellEscapeSingleQuotes(ctx.repoDir)} && bunx tsc --noEmit`,
+          `cd ${ctx.repoDir} && bunx tsc --noEmit`,
           { timeout: 120_000 },
         );
 

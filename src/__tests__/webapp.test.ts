@@ -53,7 +53,6 @@ export const mockVerifyGithubSignatureMutable = {
 // valid telegram config while sibling config tests keep the real function.
 process.env.TELEGRAM_BOT_TOKEN = "mock-bot-token";
 process.env.TELEGRAM_PARSE_MODE = "HTML";
-process.env.API_SECRET_KEY = "test-secret";
 mock.module("../utils/config", () => ({
   ...realConfig,
 }));
@@ -188,14 +187,14 @@ describe("webapp", () => {
       const res1 = await app.request("/run", {
         method: "POST",
         body: JSON.stringify({}),
-        headers: { "Content-Type": "application/json", "Authorization": "Bearer test-secret" },
+        headers: { "Content-Type": "application/json" },
       });
       expect(res1.status).toBe(400);
 
       const res2 = await app.request("/run", {
         method: "POST",
         body: JSON.stringify({ input: "   " }),
-        headers: { "Content-Type": "application/json", "Authorization": "Bearer test-secret" },
+        headers: { "Content-Type": "application/json" },
       });
       expect(res2.status).toBe(400);
     });
@@ -204,7 +203,7 @@ describe("webapp", () => {
       const res = await app.request("/run", {
         method: "POST",
         body: JSON.stringify({ input: "hello world" }),
-        headers: { "Content-Type": "application/json", "Authorization": "Bearer test-secret" },
+        headers: { "Content-Type": "application/json" },
       });
 
       expect(res.status).toBe(200);
@@ -223,7 +222,7 @@ describe("webapp", () => {
         body: JSON.stringify({
           messages: [{ role: "assistant", content: "hi" }],
         }),
-        headers: { "Content-Type": "application/json", "Authorization": "Bearer test-secret" },
+        headers: { "Content-Type": "application/json" },
       });
       expect(res.status).toBe(400);
     });
@@ -235,7 +234,7 @@ describe("webapp", () => {
           model: "test-model",
           messages: [{ role: "user", content: "hello" }],
         }),
-        headers: { "Content-Type": "application/json", "Authorization": "Bearer test-secret" },
+        headers: { "Content-Type": "application/json" },
       });
 
       expect(res.status).toBe(200);

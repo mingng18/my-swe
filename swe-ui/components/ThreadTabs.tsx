@@ -1,7 +1,6 @@
 "use client";
 
 import { useThreadStore } from "@/store/thread-store";
-import { useShallow } from "zustand/react/shallow";
 import type { ThreadState } from "@/lib/types";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -15,22 +14,13 @@ interface ThreadTabsProps {
 }
 
 export function ThreadTabs({ className, onNewThread }: ThreadTabsProps) {
-  // ⚡ Bolt: Granularly subscribe to thread statuses using useShallow
-  // to prevent ThreadTabs from re-rendering whenever events/todos update within the thread.
-  const threadStatuses = useThreadStore(
-    useShallow((state) => {
-      const statuses: Record<string, ThreadState["status"]> = {};
-      for (const [id, thread] of Object.entries(state.threads)) {
-        statuses[id] = thread.status;
-      }
-      return statuses;
-    })
-  );
+  const threads = useThreadStore((state) => state.threads);
   const activeThreadId = useThreadStore((state) => state.activeThreadId);
   const setActiveThread = useThreadStore((state) => state.setActiveThread);
   const removeThread = useThreadStore((state) => state.removeThread);
 
-  const threadEntries = Object.entries(threadStatuses);
+  const threadEntries = Object.entries(threads);
+  const activeThread = activeThreadId ? threads[activeThreadId] : null;
 
   const getStatusIcon = (status: ThreadState["status"]) => {
     switch (status) {
@@ -62,7 +52,6 @@ export function ThreadTabs({ className, onNewThread }: ThreadTabsProps) {
     onNewThread?.();
   };
 
-  // ⚡ Bolt: Only status is needed, so use `threadStatuses[threadId]` instead of `thread.status`
   if (threadEntries.length === 0) {
     return (
       <div className={cn("flex items-center justify-between px-4 py-2.5 border-b bg-muted/30 backdrop-blur-sm", className)}>
@@ -97,15 +86,15 @@ export function ThreadTabs({ className, onNewThread }: ThreadTabsProps) {
         className="flex-1"
       >
         <TabsList variant="line" className="h-8 bg-transparent">
-          {threadEntries.map(([threadId, status]) => (
+          {threadEntries.map(([threadId, thread]) => (
             <TabsTrigger
               key={threadId}
               value={threadId}
-              aria-label={`Thread ${getShortThreadId(threadId)}, ${status}`}
+              aria-label={`Thread ${getShortThreadId(threadId)}, ${thread.status}`}
               className="gap-2 pr-8 data-[icon=inline-end] transition-all hover:bg-background/50 relative group"
             >
               <div className="flex items-center gap-2" aria-hidden="true">
-                {getStatusIcon(status)}
+                {getStatusIcon(thread.status)}
                 <span className="text-xs font-mono font-medium">{getShortThreadId(threadId)}</span>
               </div>
               <Tooltip>

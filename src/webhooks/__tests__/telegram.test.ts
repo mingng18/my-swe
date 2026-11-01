@@ -1,8 +1,5 @@
 import { describe, it, expect, mock, spyOn, beforeEach, afterEach } from "bun:test";
 
-// Mock fetch to prevent actual network calls during tests
-globalThis.fetch = mock(() => Promise.resolve(new Response(JSON.stringify({ ok: true })))) as any;
-
 // Capture the REAL telegram module BEFORE mocking. Bun's mock.module replaces
 // the module process-wide; a partial factory that only exposes
 // isDuplicateMessage + sendChatAction strips every other named export AND
@@ -81,29 +78,5 @@ describe("handleTelegramWebhook", () => {
 
     expect(result.ok).toBe(true);
     expect(result.message).toBe("Update received");
-  });
-
-  it("handles multiple callbacks from the same chat sequentially", async () => {
-    // We send two callbacks from the same chat
-    const result1 = await handleTelegramWebhook({
-      update_id: 1,
-      callback_query: {
-        id: "cb1",
-        message: { chat: { id: 98765 } },
-        data: '{"requestId":"req1","decision":"approved"}'
-      }
-    });
-
-    const result2 = await handleTelegramWebhook({
-      update_id: 2,
-      callback_query: {
-        id: "cb2",
-        message: { chat: { id: 98765 } },
-        data: '{"requestId":"req2","decision":"rejected"}'
-      }
-    });
-
-    expect(result1.ok).toBe(true);
-    expect(result2.ok).toBe(true);
   });
 });

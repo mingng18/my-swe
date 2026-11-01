@@ -32,12 +32,6 @@ mock.module("../utils/logger", () => ({
     warn: mockWarn,
     debug: mockDebug,
   }),
-  logger: {
-    info: mockInfo,
-    error: mockError,
-    warn: mockWarn,
-    debug: mockDebug,
-  },
 }));
 
 // Must be dynamic import so the mock.module calls above take effect

@@ -25,27 +25,24 @@ describe("actions fallback error paths", () => {
 
   test("run_linters handles empty error fallback", async () => {
     const linter = actionRegistry.get("run_linters");
-    process.env.LINTER_COMMAND = "bun ./empty_fail.sh"; // bypass forbidden check
+    process.env.LINTER_COMMAND = "bunx tsc"; // bypass forbidden check
     const result = await linter!.execute({} as any);
     expect(result.success).toBe(false);
-    expect(result.error).toContain("Command failed");
+    expect(result.error).toBe("Linters failed");
   });
 
   test("run_tests handles empty error fallback", async () => {
     const runTests = actionRegistry.get("run_tests");
-    process.env.TEST_COMMAND = "bun ./empty_fail.sh";
+    process.env.TEST_COMMAND = "bun test";
     const result = await runTests!.execute({} as any);
     expect(result.success).toBe(false);
-    expect(result.error).toContain("Command failed");
+    expect(result.error).toBe("Tests failed");
   });
 
   test("run_typecheck handles empty error fallback", async () => {
-    // Increase timeout since bunx tsc takes a while in CI
-
     const runTypecheck = actionRegistry.get("run_typecheck");
-    process.env.TYPECHECK_COMMAND = "bun ./empty_fail.sh";
     const result = await runTypecheck!.execute({} as any);
     expect(result.success).toBe(false);
-    expect(result.error).toContain("Command failed");
-  }, 15000);
+    expect(result.error).toBe("Type check failed");
+  });
 });

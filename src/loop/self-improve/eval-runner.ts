@@ -15,8 +15,7 @@
 // provided runSuite (default: new EvalHarness().runSuite), and reports the
 // pass-rate (passed/totalCases, 0 when there are no cases).
 
-import { readFileSync, realpathSync } from "fs";
-import { resolve, relative, sep, isAbsolute, dirname } from "path";
+import { readFileSync } from "fs";
 type EvalCase = any;
 interface EvalReport {
   totalCases: number;
@@ -102,66 +101,25 @@ export function loadEvalCasesFromEnv(
   if (!raw) return null;
 
   // Try inline JSON first.
-  if (raw.startsWith("[")) {
-    try {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed as EvalCase[];
-    } catch (err: any) {
-      logger.warn(
-        { envValue: raw, err: err?.message ?? String(err) },
-        "LOOP_SELF_IMPROVE_EVAL_CASES inline JSON was malformed; ignoring",
-      );
-    }
-    return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed as EvalCase[];
+  } catch {
+    // Not inline JSON -- fall through to file-path interpretation.
   }
 
   // Treat as a filesystem path.
-  // To prevent arbitrary file read (LFI), strictly require a .json extension.
-  if (raw.endsWith(".json")) {
-    const allowedBase = resolve(process.cwd());
-    const resolvedPath = resolve(process.cwd(), raw);
-
-    let realPath: string;
-    try {
-      // Resolve symlinks to prevent them from pointing outside the allowed base.
-      realPath = realpathSync(resolvedPath);
-    } catch {
-      // Fallback for non-existent files or virtual paths (e.g. in tests)
-      try {
-        realPath = resolve(realpathSync(dirname(resolvedPath)), resolvedPath.slice(dirname(resolvedPath).length + 1));
-      } catch {
-        realPath = resolvedPath;
-      }
-    }
-
-    const rel = relative(allowedBase, realPath);
-
-    if (rel.startsWith(`..${sep}`) || rel === ".." || isAbsolute(rel)) {
-      logger.warn(
-        { envValue: raw },
-        "LOOP_SELF_IMPROVE_EVAL_CASES path traverses outside allowed directory; ignoring"
-      );
-      return null;
-    }
-
-    try {
-      const fileContents = readFile(raw);
-      const parsed = JSON.parse(fileContents);
-      if (Array.isArray(parsed)) return parsed as EvalCase[];
-      logger.warn({ envValue: raw }, "LOOP_SELF_IMPROVE_EVAL_CASES file did not contain a JSON array; ignoring");
-      return null;
-    } catch (err: any) {
-      logger.warn(
-        { envValue: raw, err: err?.message ?? String(err) },
-        "LOOP_SELF_IMPROVE_EVAL_CASES could not be resolved as a readable file path; ignoring",
-      );
-      return null;
-    }
+  try {
+    const fileContents = readFile(raw);
+    const parsed = JSON.parse(fileContents);
+    if (Array.isArray(parsed)) return parsed as EvalCase[];
+    logger.warn({ envValue: raw }, "LOOP_SELF_IMPROVE_EVAL_CASES file did not contain a JSON array; ignoring");
+    return null;
+  } catch (err: any) {
+    logger.warn(
+      { envValue: raw, err: err?.message ?? String(err) },
+      "LOOP_SELF_IMPROVE_EVAL_CASES could not be resolved as inline JSON or a readable file path; ignoring",
+    );
+    return null;
   }
-
-  logger.warn(
-    { envValue: raw },
-    "LOOP_SELF_IMPROVE_EVAL_CASES must be an inline JSON array or a .json file path; ignoring",
-  );
-  return null;
 }

@@ -279,29 +279,19 @@ class StreamRegistry {
       const buffer = this.eventBuffers.get(threadId);
       if (buffer && buffer.length > 0) {
         const now = Date.now();
-        const minTimestamp = now - this.BUFFER_TTL;
+        const validEvents = buffer.filter(e => now - e.timestamp < this.BUFFER_TTL);
 
-        // ⚡ Bolt: Use a single-pass loop instead of .filter() to avoid intermediate allocation
-        let startIndex = 0;
-        while (startIndex < buffer.length && buffer[startIndex].timestamp <= minTimestamp) {
-          startIndex++;
-        }
+        logger.debug({ threadId, count: validEvents.length }, "[SSE] Replaying buffered events");
 
-        const validCount = buffer.length - startIndex;
-        logger.debug({ threadId, count: validCount }, "[SSE] Replaying buffered events");
-
-        for (let i = startIndex; i < buffer.length; i++) {
-          connection.sseStream.emit(buffer[i].event);
+        for (const { event } of validEvents) {
+          connection.sseStream.emit(event);
         }
 
         // Clear the buffer after replaying
-        if (startIndex === 0) {
+        if (validEvents.length === buffer.length) {
           this.eventBuffers.delete(threadId);
-        } else if (validCount > 0) {
-          buffer.splice(0, startIndex);
-          this.eventBuffers.set(threadId, buffer);
         } else {
-          this.eventBuffers.delete(threadId);
+          this.eventBuffers.set(threadId, validEvents);
         }
       }
     }
@@ -343,29 +333,20 @@ class StreamRegistry {
     }
 
     // Add event to buffer (with timestamp)
-    const now = Date.now();
-    buffer.push({ event, timestamp: now });
+    buffer.push({ event, timestamp: Date.now() });
 
     // Prune old events and enforce size limit
-    // ⚡ Bolt: Prune old events in-place to avoid intermediate array allocations
-    const minTimestamp = now - this.BUFFER_TTL;
-    let pruneCount = 0;
-    while (pruneCount < buffer.length && buffer[pruneCount].timestamp <= minTimestamp) {
-      pruneCount++;
-    }
+    const now = Date.now();
+    const validEvents = buffer.filter(e => now - e.timestamp < this.BUFFER_TTL);
 
-    if (pruneCount > 0) {
-      buffer.splice(0, pruneCount);
-    }
-
-    if (buffer.length > this.MAX_BUFFER_SIZE) {
+    if (validEvents.length > this.MAX_BUFFER_SIZE) {
       // Keep only the most recent events
-      buffer.splice(0, buffer.length - this.MAX_BUFFER_SIZE);
+      validEvents.splice(0, validEvents.length - this.MAX_BUFFER_SIZE);
     }
 
-    this.eventBuffers.set(threadId, buffer);
+    this.eventBuffers.set(threadId, validEvents);
 
-    logger.debug({ threadId, eventType: event.type, bufferSize: buffer.length },
+    logger.debug({ threadId, eventType: event.type, bufferSize: validEvents.length },
                   "[SSE] Buffered event (no client connected)");
   }
 
