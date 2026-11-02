@@ -101,7 +101,14 @@ export function makeCacheKey(
  * @returns Estimated size in bytes
  */
 export function calculateSize(value: unknown): number {
-  return JSON.stringify(value).length * 2; // Rough estimate (UTF-16)
+  if (value === null || value === undefined) return 0;
+  if (typeof value === "string") return value.length * 2;
+  if (typeof value === "number" || typeof value === "boolean") return 8;
+  try {
+    return JSON.stringify(value).length * 2; // Rough estimate (UTF-16)
+  } catch {
+    return 0;
+  }
 }
 
 /**
