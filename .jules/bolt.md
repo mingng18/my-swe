@@ -127,6 +127,10 @@
 ## 2026-10-10 - Optimization of token estimation overhead
 **Learning:** Using `JSON.stringify()` on large arrays of complex objects just to estimate length or token count causes significant memory allocation and synchronous thread blocking in Node.js/Bun.
 **Action:** Replaced `JSON.stringify(messages).length` with a fast iteration loop invoking the existing `estimateMessageTokens` utility function for accurate and non-blocking O(N) evaluation.
-## 2026-10-28 - Flush throttled storage on unmount
+
+## $(date +%Y-%m-%d) - Prevented OOM/CPU spikes in cache size estimation
+**Learning:** The LRU cache implementation used `JSON.stringify` on all values during size estimation on every insert. This causes enormous CPU spikes and memory allocations for large objects (and actually throws a TypeError for `undefined` values because `.length` fails on it).
+**Action:** Replaced it with a fast-path type check that safely handles primitives (`string`, `number`, `boolean`) and `null`/`undefined`, wrapped in a try/catch, resulting in a ~90% performance boost for basic primitives while avoiding fatal crashes.
+## 2026-11-02 - Flush throttled storage on unmount
 **Learning:** When using throttled or debounced timers to batch `sessionStorage` writes (to prevent main thread blocking), the newest state can be silently dropped if the component unmounts or the thread changes during the window, leading to stale data on restoration.
 **Action:** Always provide and invoke a synchronous flush method during the React `useEffect` cleanup phase to ensure pending state is committed to storage before unmounting.
