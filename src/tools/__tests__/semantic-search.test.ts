@@ -140,5 +140,43 @@ describe("Semantic Search", () => {
         expect(semanticSearchCache.getDocumentVectors(filePath2)).toEqual(vectors2);
       });
     });
+
+    describe("invalidateDirectory", () => {
+      it("should invalidate document vectors for files in the directory", () => {
+        const filePath1 = "src/foo/bar.ts";
+        const filePath2 = "src/foo/nested/baz.ts";
+        const filePathOutside = "src/other/file.ts";
+
+        const vectors1 = [{ filePath: filePath1, line: 1, chunk: "test", terms: ["test"] }];
+        const vectors2 = [{ filePath: filePath2, line: 1, chunk: "test", terms: ["test"] }];
+        const vectorsOutside = [{ filePath: filePathOutside, line: 1, chunk: "test", terms: ["test"] }];
+
+        semanticSearchCache.setDocumentVectors(filePath1, vectors1);
+        semanticSearchCache.setDocumentVectors(filePath2, vectors2);
+        semanticSearchCache.setDocumentVectors(filePathOutside, vectorsOutside);
+
+        semanticSearchCache.invalidateDirectory("src/foo");
+
+        expect(semanticSearchCache.getDocumentVectors(filePath1)).toBeNull();
+        expect(semanticSearchCache.getDocumentVectors(filePath2)).toBeNull();
+        expect(semanticSearchCache.getDocumentVectors(filePathOutside)).toEqual(vectorsOutside);
+      });
+
+      it("should invalidate file listings for the directory", () => {
+        const dir1 = "src/foo";
+        const dir2 = "src/other";
+
+        const files1 = ["src/foo/bar.ts", "src/foo/baz.ts"];
+        const files2 = ["src/other/file.ts"];
+
+        semanticSearchCache.setFileListing(dir1, "*.ts", files1);
+        semanticSearchCache.setFileListing(dir2, "*.ts", files2);
+
+        semanticSearchCache.invalidateDirectory(dir1);
+
+        expect(semanticSearchCache.getFileListing(dir1, "*.ts")).toBeNull();
+        expect(semanticSearchCache.getFileListing(dir2, "*.ts")).toEqual(files2);
+      });
+    });
   });
 });

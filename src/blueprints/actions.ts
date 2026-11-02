@@ -175,7 +175,7 @@ const runTypecheckAction: DeterministicAction = {
   execute: async (_state: BlueprintState): Promise<ActionResult> => {
     try {
       const { command, args, originalCommand } =
-        parseCommandArgs("bunx tsc --noEmit");
+        parseCommandArgs(process.env.TYPECHECK_COMMAND || "bunx tsc --noEmit");
       if (!command || !ALLOWED_COMMANDS.has(originalCommand)) {
         return {
           success: false,

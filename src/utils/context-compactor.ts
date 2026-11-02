@@ -54,7 +54,7 @@ export interface CompactionResult {
  * Estimate token count for a message
  * Uses a rough approximation based on content length
  */
-function estimateMessageTokens(message: BaseMessage): number {
+export function estimateMessageTokens(message: BaseMessage): number {
   const content = message.content as
     | string
     | Array<{ type: string; text?: string }>;

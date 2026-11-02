@@ -260,7 +260,8 @@ export class MultiDimensionalRateLimiter {
       return Date.now() + windowMs;
     }
 
-    const oldestTimestamp = Math.min(...timestamps);
+    // ⚡ Bolt: Replace O(N) spread/Math.min with O(1) array access since timestamps are appended in chronological order
+    const oldestTimestamp = timestamps[0];
     return oldestTimestamp + windowMs;
   }
 

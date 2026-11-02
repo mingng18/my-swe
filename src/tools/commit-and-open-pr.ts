@@ -98,7 +98,11 @@ async function runPreCommitReview(
   );
 
   const criticalFound = hasCriticalIssues(allIssues);
-  const summary = `Pre-commit: ${allIssues.length} issue(s) (${allIssues.filter((i) => i.severity === "CRITICAL").length} CRITICAL)`;
+  let criticalCount = 0;
+  for (let i = 0; i < allIssues.length; i++) {
+    if (allIssues[i].severity === "CRITICAL") criticalCount++;
+  }
+  const summary = `Pre-commit: ${allIssues.length} issue(s) (${criticalCount} CRITICAL)`;
 
   return { shouldBlock: criticalFound, issues: allIssues, summary };
 }
