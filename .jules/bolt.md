@@ -131,3 +131,7 @@
 ## $(date +%Y-%m-%d) - Prevented OOM/CPU spikes in cache size estimation
 **Learning:** The LRU cache implementation used `JSON.stringify` on all values during size estimation on every insert. This causes enormous CPU spikes and memory allocations for large objects (and actually throws a TypeError for `undefined` values because `.length` fails on it).
 **Action:** Replaced it with a fast-path type check that safely handles primitives (`string`, `number`, `boolean`) and `null`/`undefined`, wrapped in a try/catch, resulting in a ~90% performance boost for basic primitives while avoiding fatal crashes.
+
+## $(date +%Y-%m-%d) - Prevent O(N) array allocations in high-frequency event arrays
+**Learning:** Using `array.filter(condition)` to periodically prune chronological arrays in high-frequency paths (like rate limiters) creates completely new array instances on every single request, leading to measurable O(N) memory allocations and heavy garbage collection pressure.
+**Action:** For chronologically ordered buffers, use a `while` loop to find the threshold cutoff index, then use `array.splice()` to mutate the array in-place, eliminating intermediate object allocations while correctly handling bounds for empty arrays.

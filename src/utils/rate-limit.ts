@@ -74,14 +74,28 @@ export class MultiDimensionalRateLimiter {
 
     // Clean old timestamps (older than 1 hour)
     const oneHourAgo = now - 3600000;
-    timestamps = timestamps.filter((t) => t > oneHourAgo);
+
+    // ⚡ Bolt: Use a while loop to find the cutoff index and splice to prevent O(N) allocation
+    let hourCutoff = 0;
+    while (hourCutoff < timestamps.length && timestamps[hourCutoff] <= oneHourAgo) {
+      hourCutoff++;
+    }
+    if (hourCutoff > 0) {
+      timestamps.splice(0, hourCutoff);
+    }
+    // Set isn't strictly necessary since we mutate in-place, but kept for consistency
     this.windows.set(keyStr, timestamps);
 
     // Check per-minute limit
     const oneMinuteAgo = now - 60000;
-    const recentMinute = timestamps.filter((t) => t > oneMinuteAgo);
+    let minuteCutoff = timestamps.length - 1;
+    let recentMinuteCount = 0;
+    while (minuteCutoff >= 0 && timestamps[minuteCutoff] > oneMinuteAgo) {
+      recentMinuteCount++;
+      minuteCutoff--;
+    }
 
-    if (recentMinute.length >= config.perMinute) {
+    if (recentMinuteCount >= config.perMinute) {
       logger.warn(
         { ip: key.ip, endpoint: key.endpoint, limit: config.perMinute },
         "[rate-limit] Per-minute limit exceeded",
@@ -92,7 +106,7 @@ export class MultiDimensionalRateLimiter {
         retryAfter: 60,
         limit: config.perMinute,
         remaining: 0,
-        resetTime: this.getNextResetTime(recentMinute, 60000),
+        resetTime: this.getNextResetTime(recentMinuteCount > 0 ? [timestamps[minuteCutoff + 1]] : [], 60000),
       };
     }
 
@@ -119,11 +133,14 @@ export class MultiDimensionalRateLimiter {
         endpoint: `${key.endpoint}:thread`,
       });
       const threadTimestamps = this.windows.get(threadKey) || [];
-      const recentThreadMinute = threadTimestamps.filter(
-        (t) => t > oneMinuteAgo,
-      );
+      let recentThreadCount = 0;
+      let threadIdx = threadTimestamps.length - 1;
+      while (threadIdx >= 0 && threadTimestamps[threadIdx] > oneMinuteAgo) {
+        recentThreadCount++;
+        threadIdx--;
+      }
 
-      if (recentThreadMinute.length >= config.perThread) {
+      if (recentThreadCount >= config.perThread) {
         logger.warn(
           {
             ip: key.ip,
@@ -139,7 +156,7 @@ export class MultiDimensionalRateLimiter {
           retryAfter: 60,
           limit: config.perThread,
           remaining: 0,
-          resetTime: this.getNextResetTime(recentThreadMinute, 60000),
+          resetTime: this.getNextResetTime(recentThreadCount > 0 ? [threadTimestamps[threadIdx + 1]] : [], 60000),
         };
       }
     }
@@ -151,9 +168,14 @@ export class MultiDimensionalRateLimiter {
         endpoint: `${key.endpoint}:user`,
       });
       const userTimestamps = this.windows.get(userKey) || [];
-      const recentUserMinute = userTimestamps.filter((t) => t > oneMinuteAgo);
+      let recentUserCount = 0;
+      let userIdx = userTimestamps.length - 1;
+      while (userIdx >= 0 && userTimestamps[userIdx] > oneMinuteAgo) {
+        recentUserCount++;
+        userIdx--;
+      }
 
-      if (recentUserMinute.length >= config.perUser) {
+      if (recentUserCount >= config.perUser) {
         logger.warn(
           {
             ip: key.ip,
@@ -169,7 +191,7 @@ export class MultiDimensionalRateLimiter {
           retryAfter: 60,
           limit: config.perUser,
           remaining: 0,
-          resetTime: this.getNextResetTime(recentUserMinute, 60000),
+          resetTime: this.getNextResetTime(recentUserCount > 0 ? [userTimestamps[userIdx + 1]] : [], 60000),
         };
       }
     }
@@ -202,8 +224,8 @@ export class MultiDimensionalRateLimiter {
     return {
       allowed: true,
       limit: config.perMinute,
-      remaining: config.perMinute - recentMinute.length - 1,
-      resetTime: this.getNextResetTime(recentMinute, 60000),
+      remaining: config.perMinute - recentMinuteCount - 1,
+      resetTime: this.getNextResetTime(recentMinuteCount > 0 ? [timestamps[minuteCutoff + 1]] : [], 60000),
     };
   }
 
