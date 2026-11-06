@@ -294,6 +294,14 @@ describe("webapp", () => {
   });
 
   describe("POST /webhook/github", () => {
+    beforeEach(() => {
+      process.env.GITHUB_WEBHOOK_SECRET = "test-secret";
+    });
+
+    afterEach(() => {
+      delete process.env.GITHUB_WEBHOOK_SECRET;
+    });
+
     it("returns 401 if missing signature", async () => {
       const res = await app.request("/webhook/github", {
         method: "POST",
