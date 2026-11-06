@@ -1520,9 +1520,11 @@ If you need to make additional changes, continue working and they'll be added to
                 name: tc.name,
                 id: tc.id,
                 args: tc.args
-                  ? JSON.stringify(tc.args).length > 500
-                    ? JSON.stringify(tc.args).substring(0, 500) + "..."
-                    : JSON.stringify(tc.args)
+                  ? (() => {
+                      // ⚡ Bolt: Cache stringified result to prevent redundant O(N) memory allocations
+                      const str = JSON.stringify(tc.args);
+                      return str.length > 500 ? str.substring(0, 500) + "..." : str;
+                    })()
                   : undefined,
               })),
               content:
