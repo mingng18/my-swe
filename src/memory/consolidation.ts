@@ -85,6 +85,7 @@ export class ConsolidationService {
         try {
           // If the repository supports batch soft delete, use it to avoid N+1 queries
           if (typeof (this.repository as any).softDeleteMany === "function") {
+            // ⚡ Bolt: Replaced chained .map().filter() with a single-pass loop to reduce memory allocations and GC pressure.
             const ids: string[] = [];
             for (let i = 0; i < staleMemories.length; i++) {
               if (staleMemories[i].id) {
@@ -98,11 +99,11 @@ export class ConsolidationService {
           } else {
             // Fallback for older repository implementations
             // ⚡ Bolt: Use Promise.all to prevent N+1 sequential I/O waiting during fallback deletions
-            const deletePromises: Promise<void>[] = [];
-            for (let i = 0; i < staleMemories.length; i++) {
-              deletePromises.push(this.repository.softDelete(staleMemories[i].id!));
-            }
-            await Promise.all(deletePromises);
+            await Promise.all(
+              staleMemories.map((memory) =>
+                this.repository.softDelete(memory.id!),
+              ),
+            );
             result.archived += staleMemories.length;
           }
         } catch (error) {
@@ -294,12 +295,11 @@ export class ConsolidationService {
       }
 
       // Merge content (keep the most detailed one)
-      let mergedContent = keep.content;
-      for (let i = 0; i < sorted.length; i++) {
-        if (sorted[i].content.length > mergedContent.length) {
-          mergedContent = sorted[i].content;
-        }
-      }
+      const mergedContent = sorted.reduce((longest, current) => {
+        return current.content.length > longest.length
+          ? current.content
+          : longest;
+      }, keep.content);
 
       // Update the kept memory
       await this.repository.update(keep.id!, {
@@ -309,6 +309,7 @@ export class ConsolidationService {
 
       // Soft delete the duplicates
       if (typeof (this.repository as any).softDeleteMany === "function") {
+        // ⚡ Bolt: Replaced chained .map().filter() with a single-pass loop to reduce memory allocations and GC pressure.
         const ids: string[] = [];
         for (let i = 0; i < toDelete.length; i++) {
           if (toDelete[i].id) {
@@ -321,11 +322,9 @@ export class ConsolidationService {
       } else {
         // Fallback
         // ⚡ Bolt: Use Promise.all to prevent N+1 sequential I/O waiting during fallback deletions
-        const deletePromises: Promise<void>[] = [];
-        for (let i = 0; i < toDelete.length; i++) {
-          deletePromises.push(this.repository.softDelete(toDelete[i].id!));
-        }
-        await Promise.all(deletePromises);
+        await Promise.all(
+          toDelete.map((memory) => this.repository.softDelete(memory.id!)),
+        );
       }
 
       result.merged = toDelete.length;
