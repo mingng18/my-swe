@@ -131,6 +131,7 @@
 ## $(date +%Y-%m-%d) - Prevented OOM/CPU spikes in cache size estimation
 **Learning:** The LRU cache implementation used `JSON.stringify` on all values during size estimation on every insert. This causes enormous CPU spikes and memory allocations for large objects (and actually throws a TypeError for `undefined` values because `.length` fails on it).
 **Action:** Replaced it with a fast-path type check that safely handles primitives (`string`, `number`, `boolean`) and `null`/`undefined`, wrapped in a try/catch, resulting in a ~90% performance boost for basic primitives while avoiding fatal crashes.
-## 2026-11-03 - Extracted redundant JSON.stringify in ToolCall loop
-**Learning:** Found an anti-pattern in `src/harness/deepagents.ts` where `JSON.stringify(tc.args)` was called up to three times in a ternary expression (once for length, once for substring, once for full assignment) when serializing tool calls for agent execution logs. Doing this for every tool call per message in a long history blocks the main thread in Node.js/Bun and causes unnecessary memory allocation overhead.
-**Action:** Extract the initial `JSON.stringify()` result into a local variable before performing string manipulations to avoid redundant serialization computations on large objects.
+
+## $(date +%Y-%m-%d) - Extracted redundant JSON.stringify in ToolCall loop
+**Learning:** Found an anti-pattern in \`src/harness/deepagents.ts\` where \`JSON.stringify(tc.args)\` was called up to three times in a ternary expression (once for length, once for substring, once for full assignment) when serializing tool calls for agent execution logs. Doing this for every tool call per message in a long history blocks the main thread in Node.js/Bun and causes unnecessary memory allocation overhead.
+**Action:** Extract the initial \`JSON.stringify()\` result into a local variable before performing string manipulations to avoid redundant serialization computations on large objects.
