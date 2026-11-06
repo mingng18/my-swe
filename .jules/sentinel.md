@@ -46,6 +46,10 @@
 **Vulnerability:** The webapp authentication middleware failed open when `API_SECRET_KEY` was missing/undefined, bypassing token verification entirely and proceeding via `await next()`.
 **Learning:** Checking `if (secret !== undefined)` is dangerous if the intent is to require the secret. An undefined secret should result in rejection, not an environment where all requests are allowed.
 **Prevention:** Ensure authentication checks fail closed. Always reject requests if mandatory security configuration (like secrets) is absent.
+## 2026-11-02 - GitHub Webhook Signature Bypass
+**Vulnerability:** The GitHub webhook verification allowed an empty secret to bypass authentication if GITHUB_WEBHOOK_SECRET was not set.
+**Learning:** Defaulting an environment variable to an empty string (e.g., `process.env.SECRET || ""`) can unintentionally enable authentication bypasses if the crypto logic treats an empty string as a valid signing key for an empty or spoofed signature.
+**Prevention:** Always explicitly check if a required security secret is falsy (e.g., `if (!secret)`) and throw an error or reject the request early, rather than letting the crypto pipeline process it with an empty key.
 ## 2026-09-14 - [HIGH] Fix command injection in verification typecheck
 **Vulnerability:** The `verify_typecheck` blueprint action interpolated `ctx.repoDir` directly into a shell command string (`cd ${ctx.repoDir} && ...`) without escaping, allowing a malicious repository directory name to execute arbitrary commands inside the sandbox.
 **Learning:** Even deterministic sandbox actions that appear safe must sanitize all variable inputs, especially paths like `repoDir` which might be constructed from untrusted sources.
