@@ -127,10 +127,6 @@
 **Learning:** Using `JSON.stringify()` on large arrays of complex objects just to estimate length or token count causes significant memory allocation and synchronous thread blocking in Node.js/Bun.
 **Action:** Replaced `JSON.stringify(messages).length` with a fast iteration loop invoking the existing `estimateMessageTokens` utility function for accurate and non-blocking O(N) evaluation.
 
-## $(date +%Y-%m-%d) - Prevented OOM/CPU spikes in cache size estimation
-**Learning:** The LRU cache implementation used `JSON.stringify` on all values during size estimation on every insert. This causes enormous CPU spikes and memory allocations for large objects (and actually throws a TypeError for `undefined` values because `.length` fails on it).
-**Action:** Replaced it with a fast-path type check that safely handles primitives (`string`, `number`, `boolean`) and `null`/`undefined`, wrapped in a try/catch, resulting in a ~90% performance boost for basic primitives while avoiding fatal crashes.
-
 ## 2026-10-28 - Replaced sequential PR processing with p-limit
 **Learning:** The `pr-babysitter` loop processed unresolved comments sequentially using an `await` inside a `for...of` loop, waiting for each network IO to complete before fetching the next. `p-limit` is available and widely used in the codebase.
 **Action:** Use `p-limit` to bound the concurrent map of promises for operations involving external network IO (like GitHub APIs) instead of sequential loops. This reduces loop cycle time without exhausting API limits.
