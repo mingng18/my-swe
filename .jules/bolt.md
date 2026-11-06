@@ -137,5 +137,10 @@
 **Action:** Replaced it with a fast-path type check that safely handles primitives (`string`, `number`, `boolean`) and `null`/`undefined`, wrapped in a try/catch, resulting in a ~90% performance boost for basic primitives while avoiding fatal crashes.
 
 
+## 2025-08-25 - Avoid array allocation in rate limiting event buffers
+**Learning:** Using \`array.filter()\` to prune old items based on TTL in a chronologically ordered array (like an event buffer in \`rate-limit.ts\`) allocates a new array on every insert, causing O(N) memory overhead and excessive garbage collection pressure on active streams.
+**Action:** Replace \`array.filter()\` on chronologically ordered buffers with a single-pass loop that identifies the cutoff index and uses in-place array mutation (\`array.splice()\`) to prune old items without creating intermediate arrays.
+
+
 
 ## 2026-09-23 - Prevent React hook re-renders on Zustand state updates\n**Learning:** Subscribing to frequently updated Zustand state (like SSE events in a stream) inside a React hook causes the consuming component to re-render constantly. Accessing state via `getState()` inside callbacks is much more efficient.\n**Action:** Always use `getState()` instead of direct state subscription when you only need to read the state in an event handler or callback.
