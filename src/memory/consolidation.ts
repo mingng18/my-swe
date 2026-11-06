@@ -85,7 +85,6 @@ export class ConsolidationService {
         try {
           // If the repository supports batch soft delete, use it to avoid N+1 queries
           if (typeof (this.repository as any).softDeleteMany === "function") {
-            // ⚡ Bolt: Replaced chained .map().filter() with a single-pass loop to reduce memory allocations and GC pressure.
             const ids: string[] = [];
             for (let i = 0; i < staleMemories.length; i++) {
               if (staleMemories[i].id) {
@@ -99,11 +98,11 @@ export class ConsolidationService {
           } else {
             // Fallback for older repository implementations
             // ⚡ Bolt: Use Promise.all to prevent N+1 sequential I/O waiting during fallback deletions
-            await Promise.all(
-              staleMemories.map((memory) =>
-                this.repository.softDelete(memory.id!),
-              ),
-            );
+            const deletePromises: Promise<void>[] = [];
+            for (let i = 0; i < staleMemories.length; i++) {
+              deletePromises.push(this.repository.softDelete(staleMemories[i].id!));
+            }
+            await Promise.all(deletePromises);
             result.archived += staleMemories.length;
           }
         } catch (error) {
@@ -310,7 +309,6 @@ export class ConsolidationService {
 
       // Soft delete the duplicates
       if (typeof (this.repository as any).softDeleteMany === "function") {
-        // ⚡ Bolt: Replaced chained .map().filter() with a single-pass loop to reduce memory allocations and GC pressure.
         const ids: string[] = [];
         for (let i = 0; i < toDelete.length; i++) {
           if (toDelete[i].id) {
@@ -323,9 +321,11 @@ export class ConsolidationService {
       } else {
         // Fallback
         // ⚡ Bolt: Use Promise.all to prevent N+1 sequential I/O waiting during fallback deletions
-        await Promise.all(
-          toDelete.map((memory) => this.repository.softDelete(memory.id!)),
-        );
+        const deletePromises: Promise<void>[] = [];
+        for (let i = 0; i < toDelete.length; i++) {
+          deletePromises.push(this.repository.softDelete(toDelete[i].id!));
+        }
+        await Promise.all(deletePromises);
       }
 
       result.merged = toDelete.length;
