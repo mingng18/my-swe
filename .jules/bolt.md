@@ -135,6 +135,7 @@
 ## 2025-08-25 - Avoid array allocation in rate limiting event buffers
 **Learning:** Using \`array.filter()\` to prune old items based on TTL in a chronologically ordered array (like an event buffer in \`rate-limit.ts\`) allocates a new array on every insert, causing O(N) memory overhead and excessive garbage collection pressure on active streams.
 **Action:** Replace \`array.filter()\` on chronologically ordered buffers with a single-pass loop that identifies the cutoff index and uses in-place array mutation (\`array.splice()\`) to prune old items without creating intermediate arrays.
+
 ## $(date +%Y-%m-%d) - Extracted redundant JSON.stringify in ToolCall loop
 **Learning:** Found an anti-pattern in \`src/harness/deepagents.ts\` where \`JSON.stringify(tc.args)\` was called up to three times in a ternary expression (once for length, once for substring, once for full assignment) when serializing tool calls for agent execution logs. Doing this for every tool call per message in a long history blocks the main thread in Node.js/Bun and causes unnecessary memory allocation overhead.
 **Action:** Extract the initial \`JSON.stringify()\` result into a local variable before performing string manipulations to avoid redundant serialization computations on large objects.
