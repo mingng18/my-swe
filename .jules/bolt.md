@@ -136,5 +136,5 @@
 **Learning:** Using \`array.filter()\` to prune old items based on TTL in a chronologically ordered array (like an event buffer in \`rate-limit.ts\`) allocates a new array on every insert, causing O(N) memory overhead and excessive garbage collection pressure on active streams.
 **Action:** Replace \`array.filter()\` on chronologically ordered buffers with a single-pass loop that identifies the cutoff index and uses in-place array mutation (\`array.splice()\`) to prune old items without creating intermediate arrays.
 ## 2026-09-25 - Optimize tool filtering with a single-pass loop
-**Learning:** Using chained array `.filter()` allocations for tool filtering creates unnecessary overhead and intermediate arrays, especially when the tool set is evaluated frequently during subagent orchestration.
-**Action:** Replaced chained array filters with a single-pass `for` loop to reduce garbage collection pressure and intermediate allocations.
+**Learning:** Using chained array \`.filter()\` allocations for tool filtering creates unnecessary overhead and intermediate arrays, especially when the tool set is evaluated frequently during subagent orchestration.
+**Action:** Replaced chained array filters with a single-pass \`for\` loop to reduce garbage collection pressure and intermediate allocations.
