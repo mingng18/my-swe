@@ -65,21 +65,26 @@ export function createPrBabysitterPattern(
     intervalMs,
     run: async (): Promise<PatternRunSummary> => {
       const at = new Date().toISOString();
-      let results: PRReviewResult[] = [];
+      const results: PRReviewResult[] = [];
       try {
         const prs = await listOpenPRs();
-        const limit = pLimit(5); // Process up to 5 PRs concurrently
+        const limit = pLimit(5);
 
-        // ⚡ Bolt: Replaced sequential await for...of loop with concurrent Promise.all execution bounded by p-limit
-        const prPromises = prs.map(prNumber => limit(async () => {
-          const cycle = makeCycle(prNumber);
-          const unresolved = await cycle.fetchUnresolvedComments(prNumber);
-          if (unresolved.length === 0) return null; // nothing to babysit
-          return await cycle.runCycle(prNumber, 2);
-        }));
+        // Phase 1: Fetch unresolved comments concurrently
+        const fetchPromises = prs.map((prNumber) =>
+          limit(async () => {
+            const cycle = makeCycle(prNumber);
+            const unresolved = await cycle.fetchUnresolvedComments(prNumber);
+            return { prNumber, cycle, unresolvedCount: unresolved.length };
+          })
+        );
+        const fetchResults = await Promise.all(fetchPromises);
 
-        const prResults = await Promise.all(prPromises);
-        results = prResults.filter((r): r is PRReviewResult => r !== null);
+        // Phase 2: Run cycles sequentially to isolate sandbox/worktree mutations
+        for (const { prNumber, cycle, unresolvedCount } of fetchResults) {
+          if (unresolvedCount === 0) continue; // nothing to babysit
+          results.push(await cycle.runCycle(prNumber, 2));
+        }
 
         return {
           name,
