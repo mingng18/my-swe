@@ -131,10 +131,10 @@
 ## $(date +%Y-%m-%d) - Prevented OOM/CPU spikes in cache size estimation
 **Learning:** The LRU cache implementation used `JSON.stringify` on all values during size estimation on every insert. This causes enormous CPU spikes and memory allocations for large objects (and actually throws a TypeError for `undefined` values because `.length` fails on it).
 **Action:** Replaced it with a fast-path type check that safely handles primitives (`string`, `number`, `boolean`) and `null`/`undefined`, wrapped in a try/catch, resulting in a ~90% performance boost for basic primitives while avoiding fatal crashes.
-## 2026-09-26 - Optimize array chains in memory consolidation
-**Learning:** Chained array methods like `.map().filter(Boolean)` or `.reduce()` on memory consolidation operations allocate intermediate arrays and add garbage collection overhead during background cleanup processes.
-**Action:** Replace these array chains with single-pass `for` loops to minimize intermediate allocations in memory aggregation routines.
 
 ## 2025-08-25 - Avoid array allocation in rate limiting event buffers
 **Learning:** Using \`array.filter()\` to prune old items based on TTL in a chronologically ordered array (like an event buffer in \`rate-limit.ts\`) allocates a new array on every insert, causing O(N) memory overhead and excessive garbage collection pressure on active streams.
 **Action:** Replace \`array.filter()\` on chronologically ordered buffers with a single-pass loop that identifies the cutoff index and uses in-place array mutation (\`array.splice()\`) to prune old items without creating intermediate arrays.
+## 2026-09-26 - Optimize array chains in memory consolidation
+**Learning:** Chained array methods like `.map().filter(Boolean)` or `.reduce()` on memory consolidation operations allocate intermediate arrays and add garbage collection overhead during background cleanup processes.
+**Action:** Replace these array chains with single-pass `for` loops to minimize intermediate allocations in memory aggregation routines.
