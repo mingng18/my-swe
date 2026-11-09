@@ -121,16 +121,17 @@
 ## 2026-09-26 - Optimize array chains in memory consolidation
 **Learning:** Chained array methods like `.map().filter(Boolean)` or `.reduce()` on memory consolidation operations allocate intermediate arrays and add garbage collection overhead during background cleanup processes.
 **Action:** Replace these array chains with single-pass `for` loops to minimize intermediate allocations in memory aggregation routines.
-## 2026-10-28 - Prevent re-renders by using Zustand selectors for stable actions
+## $(date +%Y-%m-%d) - Prevent re-renders by using Zustand selectors for stable actions
 **Learning:** While avoiding full store subscriptions (like `useThreadStore()`) is critical, destructuring stable actions directly (e.g., `const { addThread } = useThreadStore()`) still implicitly subscribes the component to all state changes in Zustand, defeating the purpose of the optimization.
 **Action:** When extracting actions from a Zustand store, always use granular selectors (e.g., `const addThread = useThreadStore(state => state.addThread)`) or `useShallow` to ensure the component only re-renders when those specific properties change (which for actions, is never).
 ## 2026-10-10 - Optimization of token estimation overhead
 **Learning:** Using `JSON.stringify()` on large arrays of complex objects just to estimate length or token count causes significant memory allocation and synchronous thread blocking in Node.js/Bun.
 **Action:** Replaced `JSON.stringify(messages).length` with a fast iteration loop invoking the existing `estimateMessageTokens` utility function for accurate and non-blocking O(N) evaluation.
 
-## 2026-10-28 - Prevented OOM/CPU spikes in cache size estimation
+## $(date +%Y-%m-%d) - Prevented OOM/CPU spikes in cache size estimation
 **Learning:** The LRU cache implementation used `JSON.stringify` on all values during size estimation on every insert. This causes enormous CPU spikes and memory allocations for large objects (and actually throws a TypeError for `undefined` values because `.length` fails on it).
 **Action:** Replaced it with a fast-path type check that safely handles primitives (`string`, `number`, `boolean`) and `null`/`undefined`, wrapped in a try/catch, resulting in a ~90% performance boost for basic primitives while avoiding fatal crashes.
-## 2026-10-28 - Optimize Array Pruning and Spread Risk
-**Learning:** Using `.filter()` on arrays heavily allocates new intermediate arrays, leading to O(N) allocation per request in high-traffic endpoints. Furthermore, spreading large arrays inside `Math.min(...arr)` can hit call stack limits.
-**Action:** Replace filter with chronologically sorted `while` cutoffs and in-place `array.splice()`. Replace spread `Math.min` with O(1) index lookup `arr[startIndex]`. Always consider chronological ordering for rate-limiter windows.
+
+## 2025-08-25 - Avoid array allocation in rate limiting event buffers
+**Learning:** Using \`array.filter()\` to prune old items based on TTL in a chronologically ordered array (like an event buffer in \`rate-limit.ts\`) allocates a new array on every insert, causing O(N) memory overhead and excessive garbage collection pressure on active streams.
+**Action:** Replace \`array.filter()\` on chronologically ordered buffers with a single-pass loop that identifies the cutoff index and uses in-place array mutation (\`array.splice()\`) to prune old items without creating intermediate arrays.
