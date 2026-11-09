@@ -135,3 +135,6 @@
 ## 2025-08-25 - Avoid array allocation in rate limiting event buffers
 **Learning:** Using \`array.filter()\` to prune old items based on TTL in a chronologically ordered array (like an event buffer in \`rate-limit.ts\`) allocates a new array on every insert, causing O(N) memory overhead and excessive garbage collection pressure on active streams.
 **Action:** Replace \`array.filter()\` on chronologically ordered buffers with a single-pass loop that identifies the cutoff index and uses in-place array mutation (\`array.splice()\`) to prune old items without creating intermediate arrays.
+## 2026-11-09 - Replaced sequential PR processing with p-limit
+**Learning:** The `pr-babysitter` loop processed unresolved comments sequentially using an `await` inside a `for...of` loop, waiting for each network IO to complete before fetching the next. `p-limit` is available and widely used in the codebase.
+**Action:** Use `p-limit` to bound the concurrent map of promises for operations involving external network IO (like GitHub APIs) instead of sequential loops. This reduces loop cycle time without exhausting API limits.
