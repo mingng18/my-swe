@@ -56,45 +56,6 @@ export class MultiDimensionalRateLimiter {
   private windows = new Map<string, number[]>();
 
   /**
-   * Helper to prune old timestamps from a chronologically sorted array in-place.
-   */
-  private pruneOldTimestamps(timestamps: number[], cutoff: number): void {
-    let i = 0;
-    while (i < timestamps.length && timestamps[i] <= cutoff) {
-      i++;
-    }
-    if (i > 0) {
-      timestamps.splice(0, i);
-    }
-  }
-
-  /**
-   * Helper to get the count of timestamps within a recent window from a chronologically sorted array.
-   */
-  private getRecentCount(timestamps: number[], cutoff: number): number {
-    let count = 0;
-    for (let i = timestamps.length - 1; i >= 0; i--) {
-      if (timestamps[i] > cutoff) {
-        count++;
-      } else {
-        break;
-      }
-    }
-    return count;
-  }
-
-  /**
-   * Helper to get timestamps within a recent window from a chronologically sorted array.
-   */
-  private getRecentTimestamps(timestamps: number[], cutoff: number): number[] {
-    let i = timestamps.length - 1;
-    while (i >= 0 && timestamps[i] > cutoff) {
-      i--;
-    }
-    return timestamps.slice(i + 1);
-  }
-
-  /**
    * Check if a request is within rate limits.
    */
   async checkLimit(
@@ -113,15 +74,14 @@ export class MultiDimensionalRateLimiter {
 
     // Clean old timestamps (older than 1 hour)
     const oneHourAgo = now - 3600000;
-    this.pruneOldTimestamps(timestamps, oneHourAgo);
-    // ⚡ Bolt: Replaced O(N) .filter() array allocation with in-place pruning and O(1) recent count lookups
+    timestamps = timestamps.filter((t) => t > oneHourAgo);
+    this.windows.set(keyStr, timestamps);
 
     // Check per-minute limit
     const oneMinuteAgo = now - 60000;
-    const recentMinuteCount = this.getRecentCount(timestamps, oneMinuteAgo);
+    const recentMinute = timestamps.filter((t) => t > oneMinuteAgo);
 
-    if (recentMinuteCount >= config.perMinute) {
-      const recentMinute = this.getRecentTimestamps(timestamps, oneMinuteAgo);
+    if (recentMinute.length >= config.perMinute) {
       logger.warn(
         { ip: key.ip, endpoint: key.endpoint, limit: config.perMinute },
         "[rate-limit] Per-minute limit exceeded",
@@ -159,13 +119,11 @@ export class MultiDimensionalRateLimiter {
         endpoint: `${key.endpoint}:thread`,
       });
       const threadTimestamps = this.windows.get(threadKey) || [];
-      this.pruneOldTimestamps(threadTimestamps, oneHourAgo);
-      this.windows.set(threadKey, threadTimestamps);
+      const recentThreadMinute = threadTimestamps.filter(
+        (t) => t > oneMinuteAgo,
+      );
 
-      const recentThreadMinuteCount = this.getRecentCount(threadTimestamps, oneMinuteAgo);
-
-      if (recentThreadMinuteCount >= config.perThread) {
-        const recentThreadMinute = this.getRecentTimestamps(threadTimestamps, oneMinuteAgo);
+      if (recentThreadMinute.length >= config.perThread) {
         logger.warn(
           {
             ip: key.ip,
@@ -193,13 +151,9 @@ export class MultiDimensionalRateLimiter {
         endpoint: `${key.endpoint}:user`,
       });
       const userTimestamps = this.windows.get(userKey) || [];
-      this.pruneOldTimestamps(userTimestamps, oneHourAgo);
-      this.windows.set(userKey, userTimestamps);
+      const recentUserMinute = userTimestamps.filter((t) => t > oneMinuteAgo);
 
-      const recentUserMinuteCount = this.getRecentCount(userTimestamps, oneMinuteAgo);
-
-      if (recentUserMinuteCount >= config.perUser) {
-        const recentUserMinute = this.getRecentTimestamps(userTimestamps, oneMinuteAgo);
+      if (recentUserMinute.length >= config.perUser) {
         logger.warn(
           {
             ip: key.ip,
@@ -245,11 +199,10 @@ export class MultiDimensionalRateLimiter {
       this.windows.set(userKey, userTimestamps);
     }
 
-    const recentMinute = this.getRecentTimestamps(timestamps, oneMinuteAgo);
     return {
       allowed: true,
       limit: config.perMinute,
-      remaining: config.perMinute - recentMinuteCount - 1,
+      remaining: config.perMinute - recentMinute.length - 1,
       resetTime: this.getNextResetTime(recentMinute, 60000),
     };
   }

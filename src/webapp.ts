@@ -387,11 +387,7 @@ app.post("/webhook/github", async (c) => {
 		}
 
 		const rawBody = await c.req.raw.clone().arrayBuffer();
-		const secret = process.env.GITHUB_WEBHOOK_SECRET?.trim();
-		if (!secret) {
-			log.warn("[webapp][github] Webhook secret not configured");
-			return c.json({ error: "Webhook secret not configured" }, 401);
-		}
+		const secret = process.env.GITHUB_WEBHOOK_SECRET?.trim() || "";
 		if (!verifyGithubSignature(new Uint8Array(rawBody), signature, secret)) {
 			log.warn("[webapp][github] Invalid webhook signature");
 			return c.json({ error: "Invalid webhook signature" }, 401);

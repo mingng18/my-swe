@@ -28,6 +28,3 @@
 ## 2026-09-29 - Add Copy button to User messages
 **Learning:** Providing consistent interaction patterns across similar UI elements reduces cognitive load. When assistant messages provide a 'Copy message' button, missing the same affordance on user messages creates a disjointed experience and forces users to manually select and copy text.
 **Action:** When implementing interactive features like copy buttons or action menus on one side of a chat interface (e.g., assistant messages), evaluate if the identical affordance should be provided for the user's side as well.
-## $(date +%Y-%m-%d) - Fix disabled button tooltip accessibility
-**Learning:** When using Radix UI or shadcn Tooltip components with disabled trigger elements (e.g., `<TooltipTrigger asChild><Button disabled>`), the tooltip fails to appear because disabled HTML elements do not fire pointer or focus events.
-**Action:** To ensure accessibility without introducing a 'double focus' bug for enabled buttons, wrap the disabled trigger in a conditionally focusable inline element like `<span className="inline-block" tabIndex={disabled ? 0 : -1}>`. Ensure the button relies on `disabled:pointer-events-none` (which Shadcn's Button already applies) to route events to the wrapper. Never unconditionally apply `pointer-events-none` to the button, as it permanently breaks interaction when dynamically enabled.

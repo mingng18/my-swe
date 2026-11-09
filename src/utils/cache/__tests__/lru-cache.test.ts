@@ -38,7 +38,8 @@ describe("makeCacheKey", () => {
 describe("calculateSize", () => {
   test("should calculate size of simple string", () => {
     const size = calculateSize("hello");
-    const expected = "hello".length * 2;
+    // JSON.stringify adds quotes: "hello" -> "\"hello\"" (length 7)
+    const expected = JSON.stringify("hello").length * 2;
     expect(size).toBe(expected);
   });
 

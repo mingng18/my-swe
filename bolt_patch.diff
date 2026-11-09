@@ -1,0 +1,13 @@
+<<<<<<< SEARCH
+## 2026-09-26 - Optimize array chains in memory consolidation
+**Learning:** Chained array methods like `.map().filter(Boolean)` or `.reduce()` on memory consolidation operations allocate intermediate arrays and add garbage collection overhead during background cleanup processes.
+**Action:** Replace these array chains with single-pass `for` loops to minimize intermediate allocations in memory aggregation routines.
+=======
+## 2026-09-26 - Optimize array chains in memory consolidation
+**Learning:** Chained array methods like `.map().filter(Boolean)` or `.reduce()` on memory consolidation operations allocate intermediate arrays and add garbage collection overhead during background cleanup processes.
+**Action:** Replace these array chains with single-pass `for` loops to minimize intermediate allocations in memory aggregation routines.
+
+## 2024-03-22 - Optimize SSE buffer array filtering
+**Learning:** Using `Array.prototype.filter()` on highly active event buffers to enforce a Time-To-Live (TTL) allocates a new array and performs an O(N) traversal on every iteration, leading to significant garbage collection pressure. If the buffer is strictly chronological, an in-place `Array.splice` combined with an early-exit loop is much faster.
+**Action:** Replace full array `.filter()` scans on chronologically sorted arrays with early-exit `for` loops and in-place `splice()` mutations to minimize GC pressure and O(N) allocation overhead.
+>>>>>>> REPLACE

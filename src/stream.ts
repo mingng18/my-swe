@@ -279,30 +279,26 @@ class StreamRegistry {
       const buffer = this.eventBuffers.get(threadId);
       if (buffer && buffer.length > 0) {
         const now = Date.now();
-        const minTimestamp = now - this.BUFFER_TTL;
+        let validStartIndex = buffer.length;
 
-        // ⚡ Bolt: Use a single-pass loop instead of .filter() to avoid intermediate allocation
-        let startIndex = 0;
-        while (startIndex < buffer.length && buffer[startIndex].timestamp <= minTimestamp) {
-          startIndex++;
+        for (let i = 0; i < buffer.length; i++) {
+          if (now - buffer[i].timestamp < this.BUFFER_TTL) {
+            validStartIndex = i;
+            break;
+          }
         }
 
-        const validCount = buffer.length - startIndex;
-        logger.debug({ threadId, count: validCount }, "[SSE] Replaying buffered events");
-
-        for (let i = startIndex; i < buffer.length; i++) {
-          connection.sseStream.emit(buffer[i].event);
+        if (validStartIndex > 0) {
+          buffer.splice(0, validStartIndex);
         }
 
-        // Clear the buffer after replaying
-        if (startIndex === 0) {
-          this.eventBuffers.delete(threadId);
-        } else if (validCount > 0) {
-          buffer.splice(0, startIndex);
-          this.eventBuffers.set(threadId, buffer);
-        } else {
-          this.eventBuffers.delete(threadId);
+        logger.debug({ threadId, count: buffer.length }, "[SSE] Replaying buffered events");
+
+        for (const { event } of buffer) {
+          connection.sseStream.emit(event);
         }
+
+        this.eventBuffers.delete(threadId);
       }
     }
   }
@@ -347,23 +343,23 @@ class StreamRegistry {
     buffer.push({ event, timestamp: now });
 
     // Prune old events and enforce size limit
-    // ⚡ Bolt: Prune old events in-place to avoid intermediate array allocations
-    const minTimestamp = now - this.BUFFER_TTL;
-    let pruneCount = 0;
-    while (pruneCount < buffer.length && buffer[pruneCount].timestamp <= minTimestamp) {
-      pruneCount++;
+    let validStartIndex = buffer.length;
+
+    for (let i = 0; i < buffer.length; i++) {
+      if (now - buffer[i].timestamp < this.BUFFER_TTL) {
+        validStartIndex = i;
+        break;
+      }
     }
 
-    if (pruneCount > 0) {
-      buffer.splice(0, pruneCount);
+    if (validStartIndex > 0) {
+      buffer.splice(0, validStartIndex);
     }
 
     if (buffer.length > this.MAX_BUFFER_SIZE) {
       // Keep only the most recent events
       buffer.splice(0, buffer.length - this.MAX_BUFFER_SIZE);
     }
-
-    this.eventBuffers.set(threadId, buffer);
 
     logger.debug({ threadId, eventType: event.type, bufferSize: buffer.length },
                   "[SSE] Buffered event (no client connected)");
