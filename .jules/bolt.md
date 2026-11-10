@@ -135,3 +135,7 @@
 ## 2025-08-25 - Avoid array allocation in rate limiting event buffers
 **Learning:** Using \`array.filter()\` to prune old items based on TTL in a chronologically ordered array (like an event buffer in \`rate-limit.ts\`) allocates a new array on every insert, causing O(N) memory overhead and excessive garbage collection pressure on active streams.
 **Action:** Replace \`array.filter()\` on chronologically ordered buffers with a single-pass loop that identifies the cutoff index and uses in-place array mutation (\`array.splice()\`) to prune old items without creating intermediate arrays.
+
+## 2025-01-31 - Prevent duplicate JSON.stringify calls
+**Learning:** Found an anti-pattern in `src/harness/deepagents.ts` where `JSON.stringify()` was called up to three times on the same object inside a ternary operator condition. This causes redundant object serialization, which for large nested objects (like LLM tool calls) adds significant CPU and memory overhead on the main thread.
+**Action:** Always extract the result of expensive operations like `JSON.stringify()` into a local variable before performing conditional checks (like length validation) on the resulting string.
