@@ -1516,15 +1516,19 @@ If you need to make additional changes, continue working and they'll be added to
               index: index + 1,
               role: msg.role || msg._getType(),
               type: msg.type || "message",
-              tool_calls: (msg.tool_calls || []).map((tc: ToolCall) => ({
-                name: tc.name,
-                id: tc.id,
-                args: tc.args
-                  ? JSON.stringify(tc.args).length > 500
-                    ? JSON.stringify(tc.args).substring(0, 500) + "..."
-                    : JSON.stringify(tc.args)
-                  : undefined,
-              })),
+              tool_calls: (msg.tool_calls || []).map((tc: ToolCall) => {
+                // ⚡ Bolt: Cache stringified result to avoid redundant serialization
+                const argsStr = tc.args ? JSON.stringify(tc.args) : undefined;
+                return {
+                  name: tc.name,
+                  id: tc.id,
+                  args: argsStr
+                    ? argsStr.length > 500
+                      ? argsStr.substring(0, 500) + "..."
+                      : argsStr
+                    : undefined,
+                };
+              }),
               content:
                 typeof msg.content === "string" ? msg.content : undefined,
               content_items: Array.isArray(msg.content)
