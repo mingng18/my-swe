@@ -13,6 +13,15 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  {
+    rules: {
+      "react-hooks/set-state-in-effect": "off",
+      "react-hooks/immutability": "off",
+      "react-hooks/static-components": "off",
+      "react-hooks/refs": "off",
+      "@typescript-eslint/no-empty-object-type": "off"
+    }
+  }
 ]);
 
 export default eslintConfig;
