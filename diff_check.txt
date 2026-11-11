@@ -1,0 +1,48 @@
+diff --git a/.jules/bolt.md b/.jules/bolt.md
+index bbd272c..eeebe69 100644
+--- a/.jules/bolt.md
++++ b/.jules/bolt.md
+@@ -135,3 +135,7 @@
+ ## 2025-08-25 - Avoid array allocation in rate limiting event buffers
+ **Learning:** Using \`array.filter()\` to prune old items based on TTL in a chronologically ordered array (like an event buffer in \`rate-limit.ts\`) allocates a new array on every insert, causing O(N) memory overhead and excessive garbage collection pressure on active streams.
+ **Action:** Replace \`array.filter()\` on chronologically ordered buffers with a single-pass loop that identifies the cutoff index and uses in-place array mutation (\`array.splice()\`) to prune old items without creating intermediate arrays.
++
++## 2024-05-18 - Avoid O(N) array allocation when generating deletion promises
++**Learning:** Chaining `.map()` into `Promise.all()` for soft-deleting objects (e.g., `Promise.all(items.map(i => delete(i.id)))`) creates an unnecessary intermediate array of promises which triggers garbage collection pressure at scale. While this memory repository usually batches deletions via `softDeleteMany`, the fallback branch still processes batches locally where GC spikes cause latency.
++**Action:** Replace `.map()` inside `Promise.all()` with a pre-allocated single-pass `for` loop that pushes to an array, eliminating the intermediate array allocation while retaining the concurrent DB queries.
+diff --git a/src/memory/consolidation.ts b/src/memory/consolidation.ts
+index f4eb906..c042154 100644
+--- a/src/memory/consolidation.ts
++++ b/src/memory/consolidation.ts
+@@ -98,11 +98,11 @@ export class ConsolidationService {
+           } else {
+             // Fallback for older repository implementations
+             // ⚡ Bolt: Use Promise.all to prevent N+1 sequential I/O waiting during fallback deletions
+-            await Promise.all(
+-              staleMemories.map((memory) =>
+-                this.repository.softDelete(memory.id!),
+-              ),
+-            );
++            const deletePromises: Promise<void>[] = [];
++            for (let i = 0; i < staleMemories.length; i++) {
++              deletePromises.push(this.repository.softDelete(staleMemories[i].id!));
++            }
++            await Promise.all(deletePromises);
+             result.archived += staleMemories.length;
+           }
+         } catch (error) {
+@@ -321,9 +321,11 @@ export class ConsolidationService {
+       } else {
+         // Fallback
+         // ⚡ Bolt: Use Promise.all to prevent N+1 sequential I/O waiting during fallback deletions
+-        await Promise.all(
+-          toDelete.map((memory) => this.repository.softDelete(memory.id!)),
+-        );
++        const deletePromises: Promise<void>[] = [];
++        for (let i = 0; i < toDelete.length; i++) {
++          deletePromises.push(this.repository.softDelete(toDelete[i].id!));
++        }
++        await Promise.all(deletePromises);
+       }
+
+       result.merged = toDelete.length;
