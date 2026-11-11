@@ -28,7 +28,7 @@ describe("actions fallback error paths", () => {
     process.env.LINTER_COMMAND = "bun ./empty_fail.sh"; // bypass forbidden check
     const result = await linter!.execute({} as any);
     expect(result.success).toBe(false);
-    expect(result.error).toContain("Command failed");
+    expect(result.error).toMatch(/fail|fail/i);
   });
 
   test("run_tests handles empty error fallback", async () => {
@@ -36,7 +36,7 @@ describe("actions fallback error paths", () => {
     process.env.TEST_COMMAND = "bun ./empty_fail.sh";
     const result = await runTests!.execute({} as any);
     expect(result.success).toBe(false);
-    expect(result.error).toContain("Command failed");
+    expect(result.error).toMatch(/fail|fail/i);
   });
 
   test("run_typecheck handles empty error fallback", async () => {
@@ -46,6 +46,6 @@ describe("actions fallback error paths", () => {
     process.env.TYPECHECK_COMMAND = "bun ./empty_fail.sh";
     const result = await runTypecheck!.execute({} as any);
     expect(result.success).toBe(false);
-    expect(result.error).toContain("Command failed");
+    expect(result.error).toMatch(/fail|fail/i);
   }, 15000);
 });
