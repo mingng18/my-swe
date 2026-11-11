@@ -43,3 +43,7 @@
 ## 2026-10-12 - Wrap disabled Tooltip trigger buttons in focusable element
 **Learning:** When using Radix UI/shadcn Tooltips, a `<TooltipTrigger asChild>` element that is disabled (like `<Button disabled>`) won't trigger the tooltip because native disabled elements don't fire pointer or focus events.
 **Action:** Always wrap disabled buttons in a conditionally focusable `<span>` (e.g. `<span tabIndex={isDisabled ? 0 : -1}>`) and set the inner button to `pointer-events-none` when disabled to ensure screen readers and mouse users can access the tooltip on disabled actions.
+
+## 2026-11-06 - Enhance Empty State Actionability
+**Learning:** Adding animated affordances (like slide-in arrows) to empty state template buttons significantly improves the perceived actionability of static-looking UI components without cluttering the initial view.
+**Action:** Use this pattern on template lists or empty states.

@@ -1,5 +1,5 @@
 import { Card } from "@/components/ui/card";
-import { Bot, Search, FileCode, Zap } from "lucide-react";
+import { Bot, Search, FileCode, Zap, ArrowRight } from "lucide-react";
 
 interface ThreadEmptyStateProps {
   onSuggestionClick?: (suggestion: string) => void;
@@ -23,57 +23,69 @@ export function ThreadEmptyState({
           <button
             type="button"
             onClick={() => onSuggestionClick?.("Find auth implementations")}
-            className="flex w-full text-left items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-all active:scale-[0.98] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
+            className="group flex w-full text-left items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-all active:scale-[0.98] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
             aria-label="Code Search: Find auth implementations"
           >
             <Search className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-            <div>
+            <div className="flex-1">
               <p className="text-sm font-medium">Code Search</p>
               <p className="text-xs text-muted-foreground">
                 &quot;Find auth implementations&quot;
               </p>
             </div>
+            <div className="shrink-0 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 group-focus-visible:opacity-100 group-focus-visible:translate-x-0 transition-all duration-200 self-center">
+              <ArrowRight className="h-4 w-4 text-muted-foreground" />
+            </div>
           </button>
           <button
             type="button"
             onClick={() => onSuggestionClick?.("Fix login flow error")}
-            className="flex w-full text-left items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-all active:scale-[0.98] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
+            className="group flex w-full text-left items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-all active:scale-[0.98] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
             aria-label="Bug Fixes: Fix login flow error"
           >
             <FileCode className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-            <div>
+            <div className="flex-1">
               <p className="text-sm font-medium">Bug Fixes</p>
               <p className="text-xs text-muted-foreground">
                 &quot;Fix login flow error&quot;
               </p>
             </div>
+            <div className="shrink-0 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 group-focus-visible:opacity-100 group-focus-visible:translate-x-0 transition-all duration-200 self-center">
+              <ArrowRight className="h-4 w-4 text-muted-foreground" />
+            </div>
           </button>
           <button
             type="button"
             onClick={() => onSuggestionClick?.("Test user service")}
-            className="flex w-full text-left items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-all active:scale-[0.98] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
+            className="group flex w-full text-left items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-all active:scale-[0.98] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
             aria-label="Add Tests: Test user service"
           >
             <Zap className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-            <div>
+            <div className="flex-1">
               <p className="text-sm font-medium">Add Tests</p>
               <p className="text-xs text-muted-foreground">
                 &quot;Test user service&quot;
               </p>
             </div>
+            <div className="shrink-0 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 group-focus-visible:opacity-100 group-focus-visible:translate-x-0 transition-all duration-200 self-center">
+              <ArrowRight className="h-4 w-4 text-muted-foreground" />
+            </div>
           </button>
           <button
             type="button"
             onClick={() => onSuggestionClick?.("Review PR #123")}
-            className="flex w-full text-left items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-all active:scale-[0.98] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
+            className="group flex w-full text-left items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-all active:scale-[0.98] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
             aria-label="Code Review: Review PR #123"
           >
             <Bot className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-            <div>
+            <div className="flex-1">
               <p className="text-sm font-medium">Code Review</p>
               <p className="text-xs text-muted-foreground">
                 &quot;Review PR #123&quot;
               </p>
+            </div>
+            <div className="shrink-0 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 group-focus-visible:opacity-100 group-focus-visible:translate-x-0 transition-all duration-200 self-center">
+              <ArrowRight className="h-4 w-4 text-muted-foreground" />
             </div>
           </button>
         </div>
