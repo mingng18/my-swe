@@ -43,3 +43,6 @@
 ## 2026-10-12 - Wrap disabled Tooltip trigger buttons in focusable element
 **Learning:** When using Radix UI/shadcn Tooltips, a `<TooltipTrigger asChild>` element that is disabled (like `<Button disabled>`) won't trigger the tooltip because native disabled elements don't fire pointer or focus events.
 **Action:** Always wrap disabled buttons in a conditionally focusable `<span>` (e.g. `<span tabIndex={isDisabled ? 0 : -1}>`) and set the inner button to `pointer-events-none` when disabled to ensure screen readers and mouse users can access the tooltip on disabled actions.
+## 2024-05-24 - Radix UI Tooltip Accessibility with Disabled Triggers
+**Learning:** When using Radix UI or shadcn Tooltip components with disabled trigger elements, the tooltip fails to appear because disabled elements do not fire pointer/focus events. Wrapping the trigger unconditionally in a `<span tabIndex={0}>` is an anti-pattern because `TooltipTrigger asChild` will attach `aria-describedby` and event handlers to the span instead of the active button, breaking screen-reader announcements when enabled.
+**Action:** Conditionally wrap the trigger in a focusable element (e.g., `<span tabIndex={0}>`) *only* when the trigger is disabled. When enabled, the button itself must be the direct child of `TooltipTrigger asChild` to correctly receive ARIA attributes.
